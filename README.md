@@ -48,3 +48,7 @@ http-server -p 8000 -o
 打开 `http://localhost:8000` 或者 `http://127.0.0.1:8000/`
 
 导入**1.perfetto-trace**文件即可
+
+## 新增脚本抓取
+
+执行py3_winscope.py即可，视频和文件导入到result中
