@@ -141,7 +141,7 @@ def main():
     device_video = f"{TMP_DIR}/winscope.mp4"
 
     print("=== [1] push perfetto config ===")
-    adb(f"push {args.config} {device_config}")
+    adb(f"push {args.config} {PERFETTO_DIR}")
 
     print("=== [2] start perfetto (background) ===")
     start_perfetto(device_config, device_trace)
