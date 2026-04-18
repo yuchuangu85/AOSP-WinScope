@@ -1,0 +1,7 @@
+defines = -D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS -D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS -DNDEBUG -DPERFETTO_IMPLEMENTATION
+include_dirs = -I../buildtools/libcxx_config -I.. -I../src/profiling/memory/include -I../include -Igen/build_config -Igen
+root_out_dir = .
+target_output_name = regex
+
+
+build obj/src/trace_processor/util/regex.stamp: stamp || obj/gn/default_deps.stamp obj/src/base/base.stamp obj/buildtools/libc++.stamp obj/buildtools/libc++abi.stamp obj/include/perfetto/base/base.stamp obj/include/perfetto/public/base.stamp obj/include/perfetto/public/abi/base.stamp obj/include/perfetto/ext/base/base.stamp obj/src/base/perfetto_base_default_platform.stamp

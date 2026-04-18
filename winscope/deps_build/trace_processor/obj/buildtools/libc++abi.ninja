@@ -1,0 +1,26 @@
+defines = -DLIBCXXABI_SILENT_TERMINATE -D_LIBCPP_CONSTINIT=constinit -D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS -D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS -DNDEBUG -D_LIBCPP_BUILDING_LIBRARY
+include_dirs = -I../buildtools/libcxx/src -I../buildtools/libcxx_config
+cflags = -fstrict-aliasing -Wformat -g -fPIC -fstack-protector-strong -Werror -fcolor-diagnostics -fdiagnostics-show-template-tree -Wno-c99-designator -fno-omit-frame-pointer -mbmi -mbmi2 -mavx2 -mpopcnt -msse4.2 -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -fvisibility=hidden -O3 -fdata-sections -ffunction-sections -fstrict-aliasing -fPIC
+cflags_cc = -nostdinc++ -isystem../buildtools/libcxx/include -isystem../buildtools/libcxxabi/include -std=c++20
+root_out_dir = .
+target_output_name = libc++abi
+
+build obj/buildtools/libcxxabi/src/libc++abi.abort_message.o: cxx ../buildtools/libcxxabi/src/abort_message.cpp
+build obj/buildtools/libcxxabi/src/libc++abi.cxa_aux_runtime.o: cxx ../buildtools/libcxxabi/src/cxa_aux_runtime.cpp
+build obj/buildtools/libcxxabi/src/libc++abi.cxa_default_handlers.o: cxx ../buildtools/libcxxabi/src/cxa_default_handlers.cpp
+build obj/buildtools/libcxxabi/src/libc++abi.cxa_exception.o: cxx ../buildtools/libcxxabi/src/cxa_exception.cpp
+build obj/buildtools/libcxxabi/src/libc++abi.cxa_exception_storage.o: cxx ../buildtools/libcxxabi/src/cxa_exception_storage.cpp
+build obj/buildtools/libcxxabi/src/libc++abi.cxa_handlers.o: cxx ../buildtools/libcxxabi/src/cxa_handlers.cpp
+build obj/buildtools/libcxxabi/src/libc++abi.cxa_personality.o: cxx ../buildtools/libcxxabi/src/cxa_personality.cpp
+build obj/buildtools/libcxxabi/src/libc++abi.cxa_vector.o: cxx ../buildtools/libcxxabi/src/cxa_vector.cpp
+build obj/buildtools/libcxxabi/src/libc++abi.cxa_virtual.o: cxx ../buildtools/libcxxabi/src/cxa_virtual.cpp
+build obj/buildtools/libcxxabi/src/libc++abi.fallback_malloc.o: cxx ../buildtools/libcxxabi/src/fallback_malloc.cpp
+build obj/buildtools/libcxxabi/src/libc++abi.private_typeinfo.o: cxx ../buildtools/libcxxabi/src/private_typeinfo.cpp
+build obj/buildtools/libcxxabi/src/libc++abi.stdlib_exception.o: cxx ../buildtools/libcxxabi/src/stdlib_exception.cpp
+build obj/buildtools/libcxxabi/src/libc++abi.stdlib_stdexcept.o: cxx ../buildtools/libcxxabi/src/stdlib_stdexcept.cpp
+build obj/buildtools/libcxxabi/src/libc++abi.stdlib_typeinfo.o: cxx ../buildtools/libcxxabi/src/stdlib_typeinfo.cpp
+build obj/buildtools/libcxxabi/src/libc++abi.cxa_guard.o: cxx ../buildtools/libcxxabi/src/cxa_guard.cpp
+build obj/buildtools/libcxxabi/src/libc++abi.cxa_demangle.o: cxx ../buildtools/libcxxabi/src/cxa_demangle.cpp
+build obj/buildtools/libcxxabi/src/libc++abi.cxa_thread_atexit.o: cxx ../buildtools/libcxxabi/src/cxa_thread_atexit.cpp
+
+build obj/buildtools/libc++abi.stamp: stamp obj/buildtools/libcxxabi/src/libc++abi.abort_message.o obj/buildtools/libcxxabi/src/libc++abi.cxa_aux_runtime.o obj/buildtools/libcxxabi/src/libc++abi.cxa_default_handlers.o obj/buildtools/libcxxabi/src/libc++abi.cxa_exception.o obj/buildtools/libcxxabi/src/libc++abi.cxa_exception_storage.o obj/buildtools/libcxxabi/src/libc++abi.cxa_handlers.o obj/buildtools/libcxxabi/src/libc++abi.cxa_personality.o obj/buildtools/libcxxabi/src/libc++abi.cxa_vector.o obj/buildtools/libcxxabi/src/libc++abi.cxa_virtual.o obj/buildtools/libcxxabi/src/libc++abi.fallback_malloc.o obj/buildtools/libcxxabi/src/libc++abi.private_typeinfo.o obj/buildtools/libcxxabi/src/libc++abi.stdlib_exception.o obj/buildtools/libcxxabi/src/libc++abi.stdlib_stdexcept.o obj/buildtools/libcxxabi/src/libc++abi.stdlib_typeinfo.o obj/buildtools/libcxxabi/src/libc++abi.cxa_guard.o obj/buildtools/libcxxabi/src/libc++abi.cxa_demangle.o obj/buildtools/libcxxabi/src/libc++abi.cxa_thread_atexit.o

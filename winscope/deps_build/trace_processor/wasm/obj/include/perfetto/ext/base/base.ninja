@@ -1,0 +1,7 @@
+defines = -DNDEBUG
+include_dirs =
+root_out_dir = wasm
+target_output_name = base
+
+
+build wasm/obj/include/perfetto/ext/base/base.stamp: wasm_stamp || wasm/obj/include/perfetto/base/base.stamp wasm/obj/include/perfetto/public/base.stamp wasm/obj/include/perfetto/public/abi/base.stamp

@@ -1,0 +1,11 @@
+defines = -DNDEBUG -DPERFETTO_IMPLEMENTATION
+include_dirs = -Iwasm/gen -I.. -I../src/profiling/memory/include -I../include -Iwasm/gen/build_config
+cflags = -fstrict-aliasing -Wformat -Werror -fcolor-diagnostics -fdiagnostics-show-template-tree -fno-omit-frame-pointer -msimd128 -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -fvisibility=hidden -O3 -fdata-sections -ffunction-sections
+cflags_cc = -fno-exceptions -fno-rtti -std=c++17
+root_out_dir = wasm
+target_output_name = zero
+
+build wasm/obj/protos/perfetto/config/sys_stats/zero.inputdeps.stamp: wasm_stamp wasm/obj/gn/gen_buildflags.stamp wasm/obj/gn/standalone/check_build_deps.stamp wasm/obj/protos/perfetto/common/zero_gen.stamp wasm/obj/protos/perfetto/config/sys_stats/zero_gen.stamp
+build wasm/obj/trace_processor_build/wasm/gen/protos/perfetto/config/sys_stats/zero.sys_stats_config.pbzero.o: wasm_cxx wasm/gen/protos/perfetto/config/sys_stats/sys_stats_config.pbzero.cc || wasm/obj/protos/perfetto/config/sys_stats/zero.inputdeps.stamp
+
+build wasm/obj/protos/perfetto/config/sys_stats/zero.stamp: wasm_stamp wasm/obj/trace_processor_build/wasm/gen/protos/perfetto/config/sys_stats/zero.sys_stats_config.pbzero.o || wasm/obj/protos/perfetto/config/sys_stats/zero_gen.stamp wasm/obj/protos/perfetto/common/zero.stamp wasm/obj/src/protozero/protozero.stamp wasm/obj/include/perfetto/base/base.stamp wasm/obj/include/perfetto/public/base.stamp wasm/obj/include/perfetto/public/abi/base.stamp wasm/obj/include/perfetto/protozero/protozero.stamp wasm/obj/include/perfetto/public/protozero.stamp wasm/obj/src/base/base.stamp wasm/obj/include/perfetto/ext/base/base.stamp wasm/obj/src/base/perfetto_base_default_platform.stamp

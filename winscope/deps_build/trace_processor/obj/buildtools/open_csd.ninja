@@ -1,0 +1,55 @@
+defines = -D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS -D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS -DNDEBUG -DENABLE_LARGE_TRACE_SOURCES
+include_dirs = -I../buildtools/open_csd/decoder/include -I../buildtools/libcxx_config
+cflags = -Wno-switch -Wno-deprecated-declarations -fstrict-aliasing -Wformat -g -fPIC -fstack-protector-strong -Werror -fcolor-diagnostics -fdiagnostics-show-template-tree -Wno-c99-designator -fno-omit-frame-pointer -mbmi -mbmi2 -mavx2 -mpopcnt -msse4.2 -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -fvisibility=hidden -O3 -fdata-sections -ffunction-sections -isystem ../buildtools/open_csd/decoder/include
+cflags_cc = -nostdinc++ -isystem../buildtools/libcxx/include -isystem../buildtools/libcxxabi/include -std=c++17
+root_out_dir = .
+target_output_name = open_csd
+
+build obj/buildtools/open_csd/decoder/source/c_api/open_csd.ocsd_c_api.o: cxx ../buildtools/open_csd/decoder/source/c_api/ocsd_c_api.cpp
+build obj/buildtools/open_csd/decoder/source/c_api/open_csd.ocsd_c_api_custom_obj.o: cxx ../buildtools/open_csd/decoder/source/c_api/ocsd_c_api_custom_obj.cpp
+build obj/buildtools/open_csd/decoder/source/ete/open_csd.trc_cmp_cfg_ete.o: cxx ../buildtools/open_csd/decoder/source/ete/trc_cmp_cfg_ete.cpp
+build obj/buildtools/open_csd/decoder/source/etmv3/open_csd.trc_cmp_cfg_etmv3.o: cxx ../buildtools/open_csd/decoder/source/etmv3/trc_cmp_cfg_etmv3.cpp
+build obj/buildtools/open_csd/decoder/source/etmv3/open_csd.trc_pkt_decode_etmv3.o: cxx ../buildtools/open_csd/decoder/source/etmv3/trc_pkt_decode_etmv3.cpp
+build obj/buildtools/open_csd/decoder/source/etmv3/open_csd.trc_pkt_elem_etmv3.o: cxx ../buildtools/open_csd/decoder/source/etmv3/trc_pkt_elem_etmv3.cpp
+build obj/buildtools/open_csd/decoder/source/etmv3/open_csd.trc_pkt_proc_etmv3.o: cxx ../buildtools/open_csd/decoder/source/etmv3/trc_pkt_proc_etmv3.cpp
+build obj/buildtools/open_csd/decoder/source/etmv3/open_csd.trc_pkt_proc_etmv3_impl.o: cxx ../buildtools/open_csd/decoder/source/etmv3/trc_pkt_proc_etmv3_impl.cpp
+build obj/buildtools/open_csd/decoder/source/etmv4/open_csd.trc_cmp_cfg_etmv4.o: cxx ../buildtools/open_csd/decoder/source/etmv4/trc_cmp_cfg_etmv4.cpp
+build obj/buildtools/open_csd/decoder/source/etmv4/open_csd.trc_etmv4_stack_elem.o: cxx ../buildtools/open_csd/decoder/source/etmv4/trc_etmv4_stack_elem.cpp
+build obj/buildtools/open_csd/decoder/source/etmv4/open_csd.trc_pkt_decode_etmv4i.o: cxx ../buildtools/open_csd/decoder/source/etmv4/trc_pkt_decode_etmv4i.cpp
+build obj/buildtools/open_csd/decoder/source/etmv4/open_csd.trc_pkt_elem_etmv4i.o: cxx ../buildtools/open_csd/decoder/source/etmv4/trc_pkt_elem_etmv4i.cpp
+build obj/buildtools/open_csd/decoder/source/etmv4/open_csd.trc_pkt_proc_etmv4i.o: cxx ../buildtools/open_csd/decoder/source/etmv4/trc_pkt_proc_etmv4i.cpp
+build obj/buildtools/open_csd/decoder/source/i_dec/open_csd.trc_i_decode.o: cxx ../buildtools/open_csd/decoder/source/i_dec/trc_i_decode.cpp
+build obj/buildtools/open_csd/decoder/source/i_dec/open_csd.trc_idec_arminst.o: cxx ../buildtools/open_csd/decoder/source/i_dec/trc_idec_arminst.cpp
+build obj/buildtools/open_csd/decoder/source/mem_acc/open_csd.trc_mem_acc_base.o: cxx ../buildtools/open_csd/decoder/source/mem_acc/trc_mem_acc_base.cpp
+build obj/buildtools/open_csd/decoder/source/mem_acc/open_csd.trc_mem_acc_bufptr.o: cxx ../buildtools/open_csd/decoder/source/mem_acc/trc_mem_acc_bufptr.cpp
+build obj/buildtools/open_csd/decoder/source/mem_acc/open_csd.trc_mem_acc_cache.o: cxx ../buildtools/open_csd/decoder/source/mem_acc/trc_mem_acc_cache.cpp
+build obj/buildtools/open_csd/decoder/source/mem_acc/open_csd.trc_mem_acc_cb.o: cxx ../buildtools/open_csd/decoder/source/mem_acc/trc_mem_acc_cb.cpp
+build obj/buildtools/open_csd/decoder/source/mem_acc/open_csd.trc_mem_acc_file.o: cxx ../buildtools/open_csd/decoder/source/mem_acc/trc_mem_acc_file.cpp
+build obj/buildtools/open_csd/decoder/source/mem_acc/open_csd.trc_mem_acc_mapper.o: cxx ../buildtools/open_csd/decoder/source/mem_acc/trc_mem_acc_mapper.cpp
+build obj/buildtools/open_csd/decoder/source/open_csd.ocsd_code_follower.o: cxx ../buildtools/open_csd/decoder/source/ocsd_code_follower.cpp
+build obj/buildtools/open_csd/decoder/source/open_csd.ocsd_dcd_tree.o: cxx ../buildtools/open_csd/decoder/source/ocsd_dcd_tree.cpp
+build obj/buildtools/open_csd/decoder/source/open_csd.ocsd_error.o: cxx ../buildtools/open_csd/decoder/source/ocsd_error.cpp
+build obj/buildtools/open_csd/decoder/source/open_csd.ocsd_error_logger.o: cxx ../buildtools/open_csd/decoder/source/ocsd_error_logger.cpp
+build obj/buildtools/open_csd/decoder/source/open_csd.ocsd_gen_elem_list.o: cxx ../buildtools/open_csd/decoder/source/ocsd_gen_elem_list.cpp
+build obj/buildtools/open_csd/decoder/source/open_csd.ocsd_gen_elem_stack.o: cxx ../buildtools/open_csd/decoder/source/ocsd_gen_elem_stack.cpp
+build obj/buildtools/open_csd/decoder/source/open_csd.ocsd_lib_dcd_register.o: cxx ../buildtools/open_csd/decoder/source/ocsd_lib_dcd_register.cpp
+build obj/buildtools/open_csd/decoder/source/open_csd.ocsd_msg_logger.o: cxx ../buildtools/open_csd/decoder/source/ocsd_msg_logger.cpp
+build obj/buildtools/open_csd/decoder/source/open_csd.ocsd_version.o: cxx ../buildtools/open_csd/decoder/source/ocsd_version.cpp
+build obj/buildtools/open_csd/decoder/source/pkt_printers/open_csd.gen_elem_printer.o: cxx ../buildtools/open_csd/decoder/source/pkt_printers/gen_elem_printer.cpp
+build obj/buildtools/open_csd/decoder/source/pkt_printers/open_csd.raw_frame_printer.o: cxx ../buildtools/open_csd/decoder/source/pkt_printers/raw_frame_printer.cpp
+build obj/buildtools/open_csd/decoder/source/pkt_printers/open_csd.trc_print_fact.o: cxx ../buildtools/open_csd/decoder/source/pkt_printers/trc_print_fact.cpp
+build obj/buildtools/open_csd/decoder/source/ptm/open_csd.trc_cmp_cfg_ptm.o: cxx ../buildtools/open_csd/decoder/source/ptm/trc_cmp_cfg_ptm.cpp
+build obj/buildtools/open_csd/decoder/source/ptm/open_csd.trc_pkt_decode_ptm.o: cxx ../buildtools/open_csd/decoder/source/ptm/trc_pkt_decode_ptm.cpp
+build obj/buildtools/open_csd/decoder/source/ptm/open_csd.trc_pkt_elem_ptm.o: cxx ../buildtools/open_csd/decoder/source/ptm/trc_pkt_elem_ptm.cpp
+build obj/buildtools/open_csd/decoder/source/ptm/open_csd.trc_pkt_proc_ptm.o: cxx ../buildtools/open_csd/decoder/source/ptm/trc_pkt_proc_ptm.cpp
+build obj/buildtools/open_csd/decoder/source/stm/open_csd.trc_pkt_decode_stm.o: cxx ../buildtools/open_csd/decoder/source/stm/trc_pkt_decode_stm.cpp
+build obj/buildtools/open_csd/decoder/source/stm/open_csd.trc_pkt_elem_stm.o: cxx ../buildtools/open_csd/decoder/source/stm/trc_pkt_elem_stm.cpp
+build obj/buildtools/open_csd/decoder/source/stm/open_csd.trc_pkt_proc_stm.o: cxx ../buildtools/open_csd/decoder/source/stm/trc_pkt_proc_stm.cpp
+build obj/buildtools/open_csd/decoder/source/open_csd.trc_component.o: cxx ../buildtools/open_csd/decoder/source/trc_component.cpp
+build obj/buildtools/open_csd/decoder/source/open_csd.trc_core_arch_map.o: cxx ../buildtools/open_csd/decoder/source/trc_core_arch_map.cpp
+build obj/buildtools/open_csd/decoder/source/open_csd.trc_frame_deformatter.o: cxx ../buildtools/open_csd/decoder/source/trc_frame_deformatter.cpp
+build obj/buildtools/open_csd/decoder/source/open_csd.trc_gen_elem.o: cxx ../buildtools/open_csd/decoder/source/trc_gen_elem.cpp
+build obj/buildtools/open_csd/decoder/source/open_csd.trc_printable_elem.o: cxx ../buildtools/open_csd/decoder/source/trc_printable_elem.cpp
+build obj/buildtools/open_csd/decoder/source/open_csd.trc_ret_stack.o: cxx ../buildtools/open_csd/decoder/source/trc_ret_stack.cpp
+
+build obj/buildtools/open_csd.stamp: stamp obj/buildtools/open_csd/decoder/source/c_api/open_csd.ocsd_c_api.o obj/buildtools/open_csd/decoder/source/c_api/open_csd.ocsd_c_api_custom_obj.o obj/buildtools/open_csd/decoder/source/ete/open_csd.trc_cmp_cfg_ete.o obj/buildtools/open_csd/decoder/source/etmv3/open_csd.trc_cmp_cfg_etmv3.o obj/buildtools/open_csd/decoder/source/etmv3/open_csd.trc_pkt_decode_etmv3.o obj/buildtools/open_csd/decoder/source/etmv3/open_csd.trc_pkt_elem_etmv3.o obj/buildtools/open_csd/decoder/source/etmv3/open_csd.trc_pkt_proc_etmv3.o obj/buildtools/open_csd/decoder/source/etmv3/open_csd.trc_pkt_proc_etmv3_impl.o obj/buildtools/open_csd/decoder/source/etmv4/open_csd.trc_cmp_cfg_etmv4.o obj/buildtools/open_csd/decoder/source/etmv4/open_csd.trc_etmv4_stack_elem.o obj/buildtools/open_csd/decoder/source/etmv4/open_csd.trc_pkt_decode_etmv4i.o obj/buildtools/open_csd/decoder/source/etmv4/open_csd.trc_pkt_elem_etmv4i.o obj/buildtools/open_csd/decoder/source/etmv4/open_csd.trc_pkt_proc_etmv4i.o obj/buildtools/open_csd/decoder/source/i_dec/open_csd.trc_i_decode.o obj/buildtools/open_csd/decoder/source/i_dec/open_csd.trc_idec_arminst.o obj/buildtools/open_csd/decoder/source/mem_acc/open_csd.trc_mem_acc_base.o obj/buildtools/open_csd/decoder/source/mem_acc/open_csd.trc_mem_acc_bufptr.o obj/buildtools/open_csd/decoder/source/mem_acc/open_csd.trc_mem_acc_cache.o obj/buildtools/open_csd/decoder/source/mem_acc/open_csd.trc_mem_acc_cb.o obj/buildtools/open_csd/decoder/source/mem_acc/open_csd.trc_mem_acc_file.o obj/buildtools/open_csd/decoder/source/mem_acc/open_csd.trc_mem_acc_mapper.o obj/buildtools/open_csd/decoder/source/open_csd.ocsd_code_follower.o obj/buildtools/open_csd/decoder/source/open_csd.ocsd_dcd_tree.o obj/buildtools/open_csd/decoder/source/open_csd.ocsd_error.o obj/buildtools/open_csd/decoder/source/open_csd.ocsd_error_logger.o obj/buildtools/open_csd/decoder/source/open_csd.ocsd_gen_elem_list.o obj/buildtools/open_csd/decoder/source/open_csd.ocsd_gen_elem_stack.o obj/buildtools/open_csd/decoder/source/open_csd.ocsd_lib_dcd_register.o obj/buildtools/open_csd/decoder/source/open_csd.ocsd_msg_logger.o obj/buildtools/open_csd/decoder/source/open_csd.ocsd_version.o obj/buildtools/open_csd/decoder/source/pkt_printers/open_csd.gen_elem_printer.o obj/buildtools/open_csd/decoder/source/pkt_printers/open_csd.raw_frame_printer.o obj/buildtools/open_csd/decoder/source/pkt_printers/open_csd.trc_print_fact.o obj/buildtools/open_csd/decoder/source/ptm/open_csd.trc_cmp_cfg_ptm.o obj/buildtools/open_csd/decoder/source/ptm/open_csd.trc_pkt_decode_ptm.o obj/buildtools/open_csd/decoder/source/ptm/open_csd.trc_pkt_elem_ptm.o obj/buildtools/open_csd/decoder/source/ptm/open_csd.trc_pkt_proc_ptm.o obj/buildtools/open_csd/decoder/source/stm/open_csd.trc_pkt_decode_stm.o obj/buildtools/open_csd/decoder/source/stm/open_csd.trc_pkt_elem_stm.o obj/buildtools/open_csd/decoder/source/stm/open_csd.trc_pkt_proc_stm.o obj/buildtools/open_csd/decoder/source/open_csd.trc_component.o obj/buildtools/open_csd/decoder/source/open_csd.trc_core_arch_map.o obj/buildtools/open_csd/decoder/source/open_csd.trc_frame_deformatter.o obj/buildtools/open_csd/decoder/source/open_csd.trc_gen_elem.o obj/buildtools/open_csd/decoder/source/open_csd.trc_printable_elem.o obj/buildtools/open_csd/decoder/source/open_csd.trc_ret_stack.o

@@ -1,0 +1,12 @@
+defines = -D_LIB -DHAVE_EXPAT_CONFIG_H -DNDEBUG -DXML_STATIC
+include_dirs =
+cflags = -fstrict-aliasing -Wformat -Werror -fcolor-diagnostics -fdiagnostics-show-template-tree -fno-omit-frame-pointer -msimd128 -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -fvisibility=hidden -O3 -fdata-sections -ffunction-sections -Wno-format -isystem ../buildtools/expat/src/expat/lib -isystem ../buildtools/expat/include
+cflags_c =
+root_out_dir = wasm
+target_output_name = expat
+
+build wasm/obj/buildtools/expat/src/expat/lib/expat.xmlparse.o: wasm_cc ../buildtools/expat/src/expat/lib/xmlparse.c
+build wasm/obj/buildtools/expat/src/expat/lib/expat.xmlrole.o: wasm_cc ../buildtools/expat/src/expat/lib/xmlrole.c
+build wasm/obj/buildtools/expat/src/expat/lib/expat.xmltok.o: wasm_cc ../buildtools/expat/src/expat/lib/xmltok.c
+
+build wasm/obj/buildtools/expat.stamp: wasm_stamp wasm/obj/buildtools/expat/src/expat/lib/expat.xmlparse.o wasm/obj/buildtools/expat/src/expat/lib/expat.xmlrole.o wasm/obj/buildtools/expat/src/expat/lib/expat.xmltok.o

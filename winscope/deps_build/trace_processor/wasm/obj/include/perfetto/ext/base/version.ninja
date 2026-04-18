@@ -1,0 +1,7 @@
+defines = -DNDEBUG
+include_dirs =
+root_out_dir = wasm
+target_output_name = version
+
+
+build wasm/obj/include/perfetto/ext/base/version.stamp: wasm_stamp

@@ -1,0 +1,11 @@
+defines = -DNDEBUG -DPERFETTO_IMPLEMENTATION
+include_dirs = -I.. -I../src/profiling/memory/include -I../include -Iwasm/gen/build_config -Iwasm/gen
+cflags = -fstrict-aliasing -Wformat -Werror -fcolor-diagnostics -fdiagnostics-show-template-tree -fno-omit-frame-pointer -msimd128 -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -Wall -Wextra -Wpedantic -Wno-c++98-compat-pedantic -Wno-c++98-compat -Wno-disabled-macro-expansion -Wno-documentation-unknown-command -Wno-gnu-include-next -Wno-gnu-statement-expression -Wno-gnu-zero-variadic-macro-arguments -Wno-padded -Wno-poison-system-directories -Wno-pre-c11-compat -Wno-reserved-id-macro -Wno-reserved-identifier -Wno-shadow-uncaptured-local -Wno-unknown-sanitizers -Wno-unknown-warning-option -Wno-unsafe-buffer-usage -Wno-switch-default -fvisibility=hidden -O3 -fdata-sections -ffunction-sections
+cflags_cc = -fno-exceptions -fno-rtti -std=c++17
+root_out_dir = wasm
+target_output_name = ftrace_descriptors
+
+build wasm/obj/src/trace_processor/importers/ftrace/ftrace_descriptors.inputdeps.stamp: wasm_stamp wasm/obj/gn/gen_buildflags.stamp wasm/obj/gn/standalone/check_build_deps.stamp
+build wasm/obj/src/trace_processor/importers/ftrace/ftrace_descriptors.ftrace_descriptors.o: wasm_cxx ../src/trace_processor/importers/ftrace/ftrace_descriptors.cc || wasm/obj/src/trace_processor/importers/ftrace/ftrace_descriptors.inputdeps.stamp
+
+build wasm/obj/src/trace_processor/importers/ftrace/ftrace_descriptors.stamp: wasm_stamp wasm/obj/src/trace_processor/importers/ftrace/ftrace_descriptors.ftrace_descriptors.o || wasm/obj/gn/default_deps.stamp wasm/obj/include/perfetto/ext/base/base.stamp wasm/obj/src/protozero/protozero.stamp wasm/obj/include/perfetto/base/base.stamp wasm/obj/include/perfetto/public/base.stamp wasm/obj/include/perfetto/public/abi/base.stamp wasm/obj/include/perfetto/protozero/protozero.stamp wasm/obj/include/perfetto/public/protozero.stamp wasm/obj/src/base/base.stamp wasm/obj/src/base/perfetto_base_default_platform.stamp

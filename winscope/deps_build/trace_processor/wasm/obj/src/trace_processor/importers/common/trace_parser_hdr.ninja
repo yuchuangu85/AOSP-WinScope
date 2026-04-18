@@ -1,0 +1,7 @@
+defines = -DNDEBUG -DPERFETTO_IMPLEMENTATION
+include_dirs = -I.. -I../src/profiling/memory/include -I../include -Iwasm/gen/build_config -Iwasm/gen
+root_out_dir = wasm
+target_output_name = trace_parser_hdr
+
+
+build wasm/obj/src/trace_processor/importers/common/trace_parser_hdr.stamp: wasm_stamp || wasm/obj/gn/default_deps.stamp

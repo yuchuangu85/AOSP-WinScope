@@ -1,0 +1,8 @@
+defines = -D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS -D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS -DNDEBUG -DPERFETTO_IMPLEMENTATION
+include_dirs = -I../buildtools/libcxx_config -I.. -I../src/profiling/memory/include -I../include -Igen/build_config -Igen -I../buildtools/sqlite
+root_out_dir = .
+target_output_name = bindings
+
+build obj/src/trace_processor/sqlite/bindings/bindings.inputdeps.stamp: stamp obj/gn/gen_buildflags.stamp obj/gn/standalone/check_build_deps.stamp
+
+build obj/src/trace_processor/sqlite/bindings/bindings.stamp: stamp || obj/gn/default_deps.stamp obj/gn/sqlite.stamp obj/src/base/base.stamp obj/buildtools/libc++.stamp obj/buildtools/libc++abi.stamp obj/buildtools/sqlite.stamp obj/include/perfetto/base/base.stamp obj/include/perfetto/public/base.stamp obj/include/perfetto/public/abi/base.stamp obj/include/perfetto/ext/base/base.stamp obj/src/base/perfetto_base_default_platform.stamp

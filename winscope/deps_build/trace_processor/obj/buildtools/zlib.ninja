@@ -1,0 +1,26 @@
+defines = -D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS -D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS -DNDEBUG -DZLIB_IMPLEMENTATION -DCHROMIUM_ZLIB_NO_CHROMECONF -DPERFETTO_IMPLEMENTATION
+include_dirs = -I../buildtools/libcxx_config -I.. -I../src/profiling/memory/include -I../include -Igen/build_config -Igen
+cflags = -fstrict-aliasing -Wformat -g -fPIC -fstack-protector-strong -Werror -fcolor-diagnostics -fdiagnostics-show-template-tree -Wno-c99-designator -fno-omit-frame-pointer -mbmi -mbmi2 -mavx2 -mpopcnt -msse4.2 -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -fvisibility=hidden -O3 -fdata-sections -ffunction-sections -isystem ../buildtools/zlib -Wno-unknown-warning-option -Wno-deprecated-non-prototype
+cflags_c =
+root_out_dir = .
+target_output_name = zlib
+
+build obj/buildtools/zlib.inputdeps.stamp: stamp obj/gn/gen_buildflags.stamp obj/gn/standalone/check_build_deps.stamp
+build obj/buildtools/zlib/zlib.adler32.o: cc ../buildtools/zlib/adler32.c || obj/buildtools/zlib.inputdeps.stamp
+build obj/buildtools/zlib/zlib.compress.o: cc ../buildtools/zlib/compress.c || obj/buildtools/zlib.inputdeps.stamp
+build obj/buildtools/zlib/zlib.cpu_features.o: cc ../buildtools/zlib/cpu_features.c || obj/buildtools/zlib.inputdeps.stamp
+build obj/buildtools/zlib/zlib.crc32.o: cc ../buildtools/zlib/crc32.c || obj/buildtools/zlib.inputdeps.stamp
+build obj/buildtools/zlib/zlib.deflate.o: cc ../buildtools/zlib/deflate.c || obj/buildtools/zlib.inputdeps.stamp
+build obj/buildtools/zlib/zlib.gzclose.o: cc ../buildtools/zlib/gzclose.c || obj/buildtools/zlib.inputdeps.stamp
+build obj/buildtools/zlib/zlib.gzlib.o: cc ../buildtools/zlib/gzlib.c || obj/buildtools/zlib.inputdeps.stamp
+build obj/buildtools/zlib/zlib.gzread.o: cc ../buildtools/zlib/gzread.c || obj/buildtools/zlib.inputdeps.stamp
+build obj/buildtools/zlib/zlib.gzwrite.o: cc ../buildtools/zlib/gzwrite.c || obj/buildtools/zlib.inputdeps.stamp
+build obj/buildtools/zlib/zlib.infback.o: cc ../buildtools/zlib/infback.c || obj/buildtools/zlib.inputdeps.stamp
+build obj/buildtools/zlib/zlib.inffast.o: cc ../buildtools/zlib/inffast.c || obj/buildtools/zlib.inputdeps.stamp
+build obj/buildtools/zlib/zlib.inflate.o: cc ../buildtools/zlib/inflate.c || obj/buildtools/zlib.inputdeps.stamp
+build obj/buildtools/zlib/zlib.inftrees.o: cc ../buildtools/zlib/inftrees.c || obj/buildtools/zlib.inputdeps.stamp
+build obj/buildtools/zlib/zlib.trees.o: cc ../buildtools/zlib/trees.c || obj/buildtools/zlib.inputdeps.stamp
+build obj/buildtools/zlib/zlib.uncompr.o: cc ../buildtools/zlib/uncompr.c || obj/buildtools/zlib.inputdeps.stamp
+build obj/buildtools/zlib/zlib.zutil.o: cc ../buildtools/zlib/zutil.c || obj/buildtools/zlib.inputdeps.stamp
+
+build obj/buildtools/zlib.stamp: stamp obj/buildtools/zlib/zlib.adler32.o obj/buildtools/zlib/zlib.compress.o obj/buildtools/zlib/zlib.cpu_features.o obj/buildtools/zlib/zlib.crc32.o obj/buildtools/zlib/zlib.deflate.o obj/buildtools/zlib/zlib.gzclose.o obj/buildtools/zlib/zlib.gzlib.o obj/buildtools/zlib/zlib.gzread.o obj/buildtools/zlib/zlib.gzwrite.o obj/buildtools/zlib/zlib.infback.o obj/buildtools/zlib/zlib.inffast.o obj/buildtools/zlib/zlib.inflate.o obj/buildtools/zlib/zlib.inftrees.o obj/buildtools/zlib/zlib.trees.o obj/buildtools/zlib/zlib.uncompr.o obj/buildtools/zlib/zlib.zutil.o || obj/gn/default_deps.stamp obj/buildtools/libc++.stamp obj/buildtools/libc++abi.stamp

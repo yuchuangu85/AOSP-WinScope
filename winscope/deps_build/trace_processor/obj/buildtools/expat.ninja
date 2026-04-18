@@ -1,0 +1,12 @@
+defines = -D_LIB -DHAVE_EXPAT_CONFIG_H -D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS -D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS -DNDEBUG -DXML_STATIC
+include_dirs = -I../buildtools/libcxx_config
+cflags = -fstrict-aliasing -Wformat -g -fPIC -fstack-protector-strong -Werror -fcolor-diagnostics -fdiagnostics-show-template-tree -Wno-c99-designator -fno-omit-frame-pointer -mbmi -mbmi2 -mavx2 -mpopcnt -msse4.2 -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -fvisibility=hidden -O3 -fdata-sections -ffunction-sections -Wno-format -isystem ../buildtools/expat/src/expat/lib -isystem ../buildtools/expat/include
+cflags_c =
+root_out_dir = .
+target_output_name = expat
+
+build obj/buildtools/expat/src/expat/lib/expat.xmlparse.o: cc ../buildtools/expat/src/expat/lib/xmlparse.c
+build obj/buildtools/expat/src/expat/lib/expat.xmlrole.o: cc ../buildtools/expat/src/expat/lib/xmlrole.c
+build obj/buildtools/expat/src/expat/lib/expat.xmltok.o: cc ../buildtools/expat/src/expat/lib/xmltok.c
+
+build obj/buildtools/expat.stamp: stamp obj/buildtools/expat/src/expat/lib/expat.xmlparse.o obj/buildtools/expat/src/expat/lib/expat.xmlrole.o obj/buildtools/expat/src/expat/lib/expat.xmltok.o

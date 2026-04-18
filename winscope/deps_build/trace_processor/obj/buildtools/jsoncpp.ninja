@@ -1,0 +1,13 @@
+defines = -D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS -D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS -DNDEBUG -DPERFETTO_IMPLEMENTATION
+include_dirs = -I../buildtools/libcxx_config -I.. -I../src/profiling/memory/include -I../include -Igen/build_config -Igen
+cflags = -fstrict-aliasing -Wformat -g -fPIC -fstack-protector-strong -Werror -fcolor-diagnostics -fdiagnostics-show-template-tree -Wno-c99-designator -fno-omit-frame-pointer -mbmi -mbmi2 -mavx2 -mpopcnt -msse4.2 -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -fvisibility=hidden -O3 -fdata-sections -ffunction-sections -DJSON_USE_EXCEPTION=0 -isystem ../buildtools/jsoncpp/include -Wno-deprecated-declarations
+cflags_cc = -fno-exceptions -fno-rtti -nostdinc++ -isystem../buildtools/libcxx/include -isystem../buildtools/libcxxabi/include -std=c++17
+root_out_dir = .
+target_output_name = jsoncpp
+
+build obj/buildtools/jsoncpp.inputdeps.stamp: stamp obj/gn/gen_buildflags.stamp obj/gn/standalone/check_build_deps.stamp
+build obj/buildtools/jsoncpp/src/lib_json/jsoncpp.json_reader.o: cxx ../buildtools/jsoncpp/src/lib_json/json_reader.cpp || obj/buildtools/jsoncpp.inputdeps.stamp
+build obj/buildtools/jsoncpp/src/lib_json/jsoncpp.json_value.o: cxx ../buildtools/jsoncpp/src/lib_json/json_value.cpp || obj/buildtools/jsoncpp.inputdeps.stamp
+build obj/buildtools/jsoncpp/src/lib_json/jsoncpp.json_writer.o: cxx ../buildtools/jsoncpp/src/lib_json/json_writer.cpp || obj/buildtools/jsoncpp.inputdeps.stamp
+
+build obj/buildtools/jsoncpp.stamp: stamp obj/buildtools/jsoncpp/src/lib_json/jsoncpp.json_reader.o obj/buildtools/jsoncpp/src/lib_json/jsoncpp.json_value.o obj/buildtools/jsoncpp/src/lib_json/jsoncpp.json_writer.o || obj/gn/default_deps.stamp obj/buildtools/libc++.stamp obj/buildtools/libc++abi.stamp

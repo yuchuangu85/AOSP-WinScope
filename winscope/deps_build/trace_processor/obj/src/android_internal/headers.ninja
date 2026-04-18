@@ -1,0 +1,8 @@
+defines = -D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS -D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS -DNDEBUG -DPERFETTO_IMPLEMENTATION
+include_dirs = -I../buildtools/libcxx_config -I.. -I../src/profiling/memory/include -I../include -Igen/build_config -Igen
+root_out_dir = .
+target_output_name = headers
+
+build obj/src/android_internal/headers.inputdeps.stamp: stamp obj/gn/gen_buildflags.stamp obj/gn/standalone/check_build_deps.stamp
+
+build obj/src/android_internal/headers.stamp: stamp || obj/gn/default_deps.stamp obj/src/android_stats/perfetto_atoms.stamp obj/buildtools/libc++.stamp obj/buildtools/libc++abi.stamp

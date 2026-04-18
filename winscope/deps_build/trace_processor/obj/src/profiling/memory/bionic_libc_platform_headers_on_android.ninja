@@ -1,0 +1,7 @@
+defines = -D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS -D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS -DNDEBUG
+include_dirs = -I../buildtools/libcxx_config
+root_out_dir = .
+target_output_name = bionic_libc_platform_headers_on_android
+
+
+build obj/src/profiling/memory/bionic_libc_platform_headers_on_android.stamp: stamp

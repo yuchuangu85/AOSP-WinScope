@@ -1,0 +1,7 @@
+defines = -D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS -D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS -DNDEBUG
+include_dirs = -I../buildtools/libcxx_config
+root_out_dir = .
+target_output_name = query_result_serializer
+
+
+build obj/include/perfetto/ext/trace_processor/rpc/query_result_serializer.stamp: stamp

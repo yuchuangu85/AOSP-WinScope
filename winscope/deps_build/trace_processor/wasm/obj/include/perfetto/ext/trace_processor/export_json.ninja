@@ -1,0 +1,7 @@
+defines = -DNDEBUG
+include_dirs =
+root_out_dir = wasm
+target_output_name = export_json
+
+
+build wasm/obj/include/perfetto/ext/trace_processor/export_json.stamp: wasm_stamp

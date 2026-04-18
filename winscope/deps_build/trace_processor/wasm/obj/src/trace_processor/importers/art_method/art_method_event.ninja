@@ -1,0 +1,7 @@
+defines = -DNDEBUG -DPERFETTO_IMPLEMENTATION
+include_dirs = -I.. -I../src/profiling/memory/include -I../include -Iwasm/gen/build_config -Iwasm/gen
+root_out_dir = wasm
+target_output_name = art_method_event
+
+
+build wasm/obj/src/trace_processor/importers/art_method/art_method_event.stamp: wasm_stamp || wasm/obj/gn/default_deps.stamp wasm/obj/src/trace_processor/containers/containers.stamp wasm/obj/include/perfetto/protozero/protozero.stamp wasm/obj/include/perfetto/base/base.stamp wasm/obj/include/perfetto/public/base.stamp wasm/obj/include/perfetto/public/abi/base.stamp wasm/obj/include/perfetto/public/protozero.stamp wasm/obj/protos/perfetto/trace_processor/zero.stamp wasm/obj/protos/perfetto/common/zero.stamp wasm/obj/src/protozero/protozero.stamp wasm/obj/src/base/base.stamp wasm/obj/include/perfetto/ext/base/base.stamp wasm/obj/src/base/perfetto_base_default_platform.stamp wasm/obj/protos/perfetto/perfetto_sql/zero.stamp

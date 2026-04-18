@@ -1,0 +1,2473 @@
+ninja_required_version = 1.7.2
+
+rule gn
+  command = ../third_party/gn/gn --root=./.. -q --regeneration gen .
+  pool = console
+  description = Regenerating ninja files
+
+build build.ninja: gn
+  generator = 1
+  depfile = build.ninja.d
+
+subninja toolchain.ninja
+subninja wasm/toolchain.ninja
+
+build default: phony obj/default.stamp
+build libperfetto: phony ./libperfetto.so
+build libperfetto_client_experimental: phony ./libperfetto_client_experimental.a
+build ui: phony obj/ui.stamp
+build after_eof: phony obj/src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/after_eof.stamp
+build android_bugreport: phony obj/src/trace_processor/importers/android_bugreport/android_bugreport.stamp
+build android_dumpstate_event: phony obj/src/trace_processor/importers/android_bugreport/android_dumpstate_event.stamp
+build android_game_intervention_list: phony obj/src/traced/probes/android_game_intervention_list/android_game_intervention_list.stamp
+build android_kernel_wakelocks: phony obj/src/traced/probes/android_kernel_wakelocks/android_kernel_wakelocks.stamp
+build android_log: phony obj/src/traced/probes/android_log/android_log.stamp
+build android_log_event: phony obj/src/trace_processor/importers/android_bugreport/android_log_event.stamp
+build android_stats: phony obj/src/android_stats/android_stats.stamp
+build android_system_property: phony obj/src/traced/probes/android_system_property/android_system_property.stamp
+build android_test_common: phony obj/gn/android_test_common.stamp
+build android_track_event_cpp: phony obj/protos/perfetto/trace/android/android_track_event_cpp.stamp
+build android_track_event_cpp_gen: phony obj/protos/perfetto/trace/android/android_track_event_cpp_gen.stamp
+build android_track_event_descriptor: phony obj/protos/perfetto/trace/android/android_track_event_descriptor.stamp
+build android_track_event_lite: phony obj/protos/perfetto/trace/android/android_track_event_lite.stamp
+build android_track_event_lite_gen: phony obj/protos/perfetto/trace/android/android_track_event_lite_gen.stamp
+build android_track_event_source_set: phony obj/protos/perfetto/trace/android/android_track_event_source_set.stamp
+build android_track_event_zero: phony obj/protos/perfetto/trace/android/android_track_event_zero.stamp
+build android_track_event_zero_gen: phony obj/protos/perfetto/trace/android/android_track_event_zero_gen.stamp
+build api_test_support: phony obj/src/tracing/test/api_test_support.stamp
+build appleos: phony obj/src/trace_processor/perfetto_sql/stdlib/appleos/appleos.stamp
+build archive: phony obj/src/trace_processor/importers/archive/archive.stamp
+build art_method: phony obj/src/trace_processor/importers/art_method/art_method.stamp
+build art_method_event: phony obj/src/trace_processor/importers/art_method/art_method_event.stamp
+build auto: phony obj/src/trace_processor/perfetto_sql/stdlib/android/auto/auto.stamp
+build base_platform: phony obj/gn/base_platform.stamp
+build basic_types: phony obj/include/perfetto/trace_processor/basic_types.stamp
+build batch_trace_processor: phony obj/python/batch_trace_processor.stamp
+build battery: phony obj/src/trace_processor/perfetto_sql/stdlib/android/battery/battery.stamp
+build before_eof: phony obj/src/trace_processor/perfetto_sql/stdlib/prelude/before_eof/before_eof.stamp
+build benchmark_main: phony obj/test/benchmark_main.stamp
+build binary_info: phony obj/src/trace_processor/importers/elf/binary_info.stamp
+build bindings: phony obj/src/trace_processor/sqlite/bindings/bindings.stamp
+build bionic_kernel_uapi_headers: phony obj/gn/bionic_kernel_uapi_headers.stamp
+build bionic_libc_platform_headers_on_android: phony obj/src/profiling/memory/bionic_libc_platform_headers_on_android.stamp
+build buffered_frame_deserializer_fuzzer: phony obj/src/ipc/buffered_frame_deserializer_fuzzer.stamp
+build bugreport_path: phony obj/src/perfetto_cmd/bugreport_path.stamp
+build build_id: phony obj/src/trace_processor/util/build_id.stamp
+build builtin_producer: phony obj/src/traced/service/builtin_producer.stamp
+build bump_allocator: phony obj/src/trace_processor/util/bump_allocator.stamp
+build bytecode_common: phony obj/src/protozero/filtering/bytecode_common.stamp
+build bytecode_generator: phony obj/src/protozero/filtering/bytecode_generator.stamp
+build bytecode_parser: phony obj/src/protozero/filtering/bytecode_parser.stamp
+build callstack_trie: phony obj/src/profiling/common/callstack_trie.stamp
+build callstacks: phony obj/src/trace_processor/perfetto_sql/stdlib/callstacks/callstacks.stamp
+build check_build_deps: phony obj/gn/standalone/check_build_deps.stamp
+build check_build_deps_android: phony obj/gn/standalone/check_build_deps_android.stamp
+build client_api_integrationtests: phony obj/src/tracing/test/client_api_integrationtests.stamp
+build client_api_no_backends_compile_test: phony ./libclient_api_no_backends_compile_test.so
+build client_api_standalone: phony obj/src/profiling/memory/client_api_standalone.stamp
+build client_api_without_backends: phony obj/src/tracing/client_api_without_backends.stamp
+build clock_snapshots: phony obj/src/base/clock_snapshots.stamp
+build column: phony obj/src/trace_processor/db/column/column.stamp
+build common_types: phony obj/src/profiling/perf/common_types.stamp
+build compare: phony obj/src/trace_processor/db/compare.stamp
+build config_source_set: phony obj/protos/third_party/statsd/config_source_set.stamp
+build config_zero: phony obj/protos/third_party/statsd/config_zero.stamp
+build config_zero_gen: phony obj/protos/third_party/statsd/config_zero_gen.stamp
+build consumer: phony obj/src/tracing/ipc/consumer/consumer.stamp
+build containers: phony obj/src/trace_processor/containers/containers.stamp
+build copy_protoc: phony obj/src/tools/copy_protoc.stamp
+build counters: phony obj/src/trace_processor/perfetto_sql/stdlib/counters/counters.stamp
+build cpu_info_features_allowlist: phony obj/src/traced/probes/system_info/cpu_info_features_allowlist.stamp
+build cpu_reader_fuzzer: phony obj/src/traced/probes/ftrace/cpu_reader_fuzzer.stamp
+build custom_options_lite: phony obj/protos/perfetto/metrics/custom_options_lite.stamp
+build custom_options_lite_gen: phony obj/protos/perfetto/metrics/custom_options_lite_gen.stamp
+build custom_options_source_set: phony obj/protos/perfetto/metrics/custom_options_source_set.stamp
+build daemon: phony obj/src/profiling/memory/daemon.stamp
+build data_source: phony obj/src/traced/probes/data_source.stamp
+build db: phony obj/src/trace_processor/db/db.stamp
+build default_deps: phony obj/gn/default_deps.stamp
+build default_socket: phony obj/src/tracing/ipc/default_socket.stamp
+build deobfuscator: phony obj/src/profiling/deobfuscator.stamp
+build deprecation_warning: phony obj/ui/deprecation_warning.stamp
+build descriptors: phony obj/src/trace_processor/util/descriptors.stamp
+build dumpsys: phony obj/src/trace_processor/perfetto_sql/stdlib/android/dumpsys/dumpsys.stamp
+build end_to_end_benchmarks: phony obj/test/end_to_end_benchmarks.stamp
+build end_to_end_shared_memory_fuzzer: phony obj/test/end_to_end_shared_memory_fuzzer.stamp
+build end_to_end_tests: phony obj/src/profiling/memory/end_to_end_tests.stamp
+build engine: phony obj/src/trace_processor/perfetto_sql/engine/engine.stamp
+build etm_hdr: phony obj/src/trace_processor/perfetto_sql/intrinsics/operators/etm_hdr.stamp
+build experimental: phony obj/src/trace_processor/metrics/sql/experimental/experimental.stamp
+build experimental_slice_breakdown_bin: phony obj/python/experimental_slice_breakdown_bin.stamp
+build experimental_slice_breakdown_lib: phony obj/python/experimental_slice_breakdown_lib.stamp
+build export: phony obj/src/trace_processor/perfetto_sql/stdlib/export/export.stamp
+build fake_storage: phony obj/src/trace_processor/db/column/fake_storage.stamp
+build file_tracker: phony obj/src/trace_processor/importers/etm/file_tracker.stamp
+build filesystem: phony obj/src/traced/probes/filesystem/filesystem.stamp
+build filter_util: phony obj/src/protozero/filtering/filter_util.stamp
+build format_parser: phony obj/src/traced/probes/ftrace/format_parser/format_parser.stamp
+build forward_decls: phony obj/include/perfetto/tracing/core/forward_decls.stamp
+build frames: phony obj/src/trace_processor/perfetto_sql/stdlib/android/frames/frames.stamp
+build ftrace: phony obj/src/traced/probes/ftrace/ftrace.stamp
+build ftrace_descriptors: phony obj/src/trace_processor/importers/ftrace/ftrace_descriptors.stamp
+build ftrace_procfs: phony obj/src/traced/probes/ftrace/ftrace_procfs.stamp
+build fuchsia_record: phony obj/src/trace_processor/importers/fuchsia/fuchsia_record.stamp
+build functions: phony obj/src/trace_processor/perfetto_sql/intrinsics/functions/functions.stamp
+build gecko: phony obj/src/trace_processor/importers/gecko/gecko.stamp
+build gecko_event: phony obj/src/trace_processor/importers/gecko/gecko_event.stamp
+build gen_amalgamated_sql_metrics: phony obj/src/trace_processor/metrics/sql/gen_amalgamated_sql_metrics.stamp
+build gen_amalgamated_sql_metrics_generated_file: phony obj/src/trace_processor/metrics/sql/gen_amalgamated_sql_metrics_generated_file.stamp
+build gen_buildflags: phony obj/gn/gen_buildflags.stamp
+build gen_cc_all_chrome_metrics_descriptor: phony obj/src/trace_processor/metrics/gen_cc_all_chrome_metrics_descriptor.stamp
+build gen_cc_all_webview_metrics_descriptor: phony obj/src/trace_processor/metrics/gen_cc_all_webview_metrics_descriptor.stamp
+build gen_cc_android_track_event_descriptor: phony obj/src/trace_processor/importers/proto/gen_cc_android_track_event_descriptor.stamp
+build gen_cc_chrome_track_event_descriptor: phony obj/src/trace_processor/importers/proto/gen_cc_chrome_track_event_descriptor.stamp
+build gen_cc_config_descriptor: phony obj/src/trace_config_utils/gen_cc_config_descriptor.stamp
+build gen_cc_metrics_descriptor: phony obj/src/trace_processor/metrics/gen_cc_metrics_descriptor.stamp
+build gen_cc_perfetto_sql_descriptor: phony obj/src/trace_processor/perfetto_sql/generator/gen_cc_perfetto_sql_descriptor.stamp
+build gen_cc_statsd_atoms_descriptor: phony obj/src/trace_processor/importers/proto/gen_cc_statsd_atoms_descriptor.stamp
+build gen_cc_test_messages_descriptor: phony obj/src/trace_processor/gen_cc_test_messages_descriptor.stamp
+build gen_cc_trace_summary_descriptor: phony obj/src/trace_processor/trace_summary/gen_cc_trace_summary_descriptor.stamp
+build gen_cc_track_event_descriptor: phony obj/src/trace_processor/importers/proto/gen_cc_track_event_descriptor.stamp
+build generator: phony obj/src/trace_processor/perfetto_sql/generator/generator.stamp
+build glob: phony obj/src/trace_processor/util/glob.stamp
+build gmock: phony obj/buildtools/gmock.stamp
+build gpu: phony obj/src/trace_processor/perfetto_sql/stdlib/android/gpu/gpu.stamp
+build graph_processor: phony obj/src/trace_processor/importers/memory_tracker/graph_processor.stamp
+build graphs: phony obj/src/trace_processor/perfetto_sql/stdlib/graphs/graphs.stamp
+build gtest: phony obj/buildtools/gtest.stamp
+build gtest_and_gmock: phony obj/gn/gtest_and_gmock.stamp
+build gzip: phony obj/src/trace_processor/util/gzip.stamp
+build headers: phony obj/src/android_internal/headers.stamp
+build heap_graph: phony obj/src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/heap_graph.stamp
+build heap_profile: phony obj/src/trace_processor/perfetto_sql/stdlib/android/memory/heap_profile/heap_profile.stamp
+build heapprofd_api_noop: phony ./libheapprofd_api_noop.so
+build heapprofd_client_api: phony ./libheapprofd_client_api.so
+build heapprofd_glibc_preload: phony ./libheapprofd_glibc_preload.so
+build heapprofd_main: phony obj/src/profiling/memory/heapprofd_main.stamp
+build heapprofd_standalone_client: phony ./libheapprofd_standalone_client.so
+build host: phony obj/src/ipc/host.stamp
+build httpd: phony obj/src/trace_processor/rpc/httpd.stamp
+build ignorelist_copy: phony obj/gn/standalone/sanitizers/ignorelist_copy.stamp
+build in_process_backend: phony obj/src/tracing/in_process_backend.stamp
+build initial_display_state: phony obj/src/traced/probes/initial_display_state/initial_display_state.stamp
+build integrationtest_initializer: phony obj/test/integrationtest_initializer.stamp
+build integrationtest_main: phony obj/test/integrationtest_main.stamp
+build intern_map: phony obj/src/shared_lib/intern_map.stamp
+build interned_message_view: phony obj/src/trace_processor/util/interned_message_view.stamp
+build interner: phony obj/src/profiling/common/interner.stamp
+build interning_output: phony obj/src/profiling/common/interning_output.stamp
+build intervals: phony obj/src/trace_processor/perfetto_sql/stdlib/intervals/intervals.stamp
+build ipc_gen: phony obj/protos/perfetto/ipc/ipc_gen.stamp
+build json: phony obj/src/trace_processor/importers/json/json.stamp
+build kallsyms: phony obj/src/kallsyms/kallsyms.stamp
+build lazy_library_loader: phony obj/src/android_internal/lazy_library_loader.stamp
+build libc++: phony obj/buildtools/libc++.stamp
+build libc++abi: phony obj/buildtools/libc++abi.stamp
+build libperfetto_c: phony ./libperfetto_c.so
+build libpprofbuilder: phony ./libpprofbuilder.a
+build libunwind: phony obj/buildtools/libunwind.stamp
+build linux: phony obj/src/trace_processor/perfetto_sql/stdlib/linux/linux.stamp
+build lzma: phony obj/buildtools/lzma.stamp
+build macros_internal: phony obj/src/trace_processor/tables/macros_internal.stamp
+build memory_tracker: phony obj/include/perfetto/ext/trace_processor/importers/memory_tracker/memory_tracker.stamp
+build message_filter: phony obj/src/protozero/filtering/message_filter.stamp
+build metrics: phony obj/src/trace_processor/metrics/metrics.stamp
+build metrics_impl_source_set: phony obj/protos/perfetto/trace_processor/metrics_impl_source_set.stamp
+build metrics_impl_zero: phony obj/protos/perfetto/trace_processor/metrics_impl_zero.stamp
+build metrics_impl_zero_gen: phony obj/protos/perfetto/trace_processor/metrics_impl_zero_gen.stamp
+build minimal_complete_lite: phony obj/protos/perfetto/trace/chrome/minimal_complete_lite.stamp
+build minimal_complete_lite_gen: phony obj/protos/perfetto/trace/chrome/minimal_complete_lite_gen.stamp
+build minimal_complete_source_set: phony obj/protos/perfetto/trace/chrome/minimal_complete_source_set.stamp
+build minimal_cpp: phony obj/protos/perfetto/trace/minimal_cpp.stamp
+build minimal_cpp_gen: phony obj/protos/perfetto/trace/minimal_cpp_gen.stamp
+build minimal_lite: phony obj/protos/perfetto/trace/minimal_lite.stamp
+build minimal_lite_gen: phony obj/protos/perfetto/trace/minimal_lite_gen.stamp
+build minimal_source_set: phony obj/protos/perfetto/trace/minimal_source_set.stamp
+build minimal_zero: phony obj/protos/perfetto/trace/minimal_zero.stamp
+build minimal_zero_gen: phony obj/protos/perfetto/trace/minimal_zero_gen.stamp
+build misc_sql: phony obj/src/trace_processor/metrics/sql/misc_sql.stamp
+build ninja: phony obj/src/trace_processor/importers/ninja/ninja.stamp
+build non_minimal_cpp: phony obj/protos/perfetto/trace/non_minimal_cpp.stamp
+build non_minimal_cpp_gen: phony obj/protos/perfetto/trace/non_minimal_cpp_gen.stamp
+build non_minimal_lite: phony obj/protos/perfetto/trace/non_minimal_lite.stamp
+build non_minimal_lite_gen: phony obj/protos/perfetto/trace/non_minimal_lite_gen.stamp
+build non_minimal_source_set: phony obj/protos/perfetto/trace/non_minimal_source_set.stamp
+build non_minimal_zero: phony obj/protos/perfetto/trace/non_minimal_zero.stamp
+build non_minimal_zero_gen: phony obj/protos/perfetto/trace/non_minimal_zero_gen.stamp
+build operators: phony obj/src/trace_processor/perfetto_sql/intrinsics/operators/operators.stamp
+build packages_list: phony obj/src/traced/probes/packages_list/packages_list.stamp
+build packages_list_parser: phony obj/src/traced/probes/packages_list/packages_list_parser.stamp
+build packet_sequence_state_generation_hdr: phony obj/src/trace_processor/importers/proto/packet_sequence_state_generation_hdr.stamp
+build packet_stream_validator_fuzzer: phony obj/src/tracing/service/packet_stream_validator_fuzzer.stamp
+build pandas_py: phony obj/gn/pandas_py.stamp
+build parser: phony obj/src/trace_processor/perfetto_sql/parser/parser.stamp
+build parser_types: phony obj/src/trace_processor/importers/common/parser_types.stamp
+build pb_to_txt: phony obj/src/trace_config_utils/pb_to_txt.stamp
+build perf_text: phony obj/src/trace_processor/importers/perf_text/perf_text.stamp
+build perf_text_event: phony obj/src/trace_processor/importers/perf_text/perf_text_event.stamp
+build perf_text_sample_line_parser: phony obj/src/trace_processor/importers/perf_text/perf_text_sample_line_parser.stamp
+build perfetto_atoms: phony obj/src/android_stats/perfetto_atoms.stamp
+build perfetto_base_default_platform: phony obj/src/base/perfetto_base_default_platform.stamp
+build perfetto_cmd: phony obj/src/perfetto_cmd/perfetto_cmd.stamp
+build perfetto_end_to_end_integrationtests: phony obj/test/perfetto_end_to_end_integrationtests.stamp
+build perfetto_ipc: phony obj/src/ipc/perfetto_ipc.stamp
+build perfetto_trace_protos: phony ./libperfetto_trace_protos.a
+build perfetto_winscope_extensions_zero: phony ./libperfetto_winscope_extensions_zero.a
+build pixel: phony obj/src/trace_processor/perfetto_sql/stdlib/pixel/pixel.stamp
+build pkvm: phony obj/src/trace_processor/perfetto_sql/stdlib/pkvm/pkvm.stamp
+build platform_impl: phony obj/src/tracing/platform_impl.stamp
+build power: phony obj/src/traced/probes/power/power.stamp
+build pprof_builder: phony obj/include/perfetto/profiling/pprof_builder.stamp
+build pprofbuilder: phony obj/src/traceconv/pprofbuilder.stamp
+build prelude: phony obj/src/trace_processor/perfetto_sql/stdlib/prelude/prelude.stamp
+build preprocessor: phony obj/src/trace_processor/perfetto_sql/preprocessor/preprocessor.stamp
+build probes: phony obj/src/traced/probes/probes.stamp
+build probes_src: phony obj/src/traced/probes/probes_src.stamp
+build proc_cmdline: phony obj/src/profiling/common/proc_cmdline.stamp
+build proc_descriptors: phony obj/src/profiling/perf/proc_descriptors.stamp
+build proc_utils: phony obj/src/profiling/common/proc_utils.stamp
+build producer_socket_fuzzer: phony obj/test/producer_socket_fuzzer.stamp
+build producer_support: phony obj/src/profiling/common/producer_support.stamp
+build producer_unittests: phony obj/src/profiling/perf/producer_unittests.stamp
+build profile_builder: phony obj/src/trace_processor/util/profile_builder.stamp
+build profiler_guardrails: phony obj/src/profiling/common/profiler_guardrails.stamp
+build profiler_util: phony obj/src/trace_processor/util/profiler_util.stamp
+build proto_importer_module: phony obj/src/trace_processor/importers/proto/proto_importer_module.stamp
+build proto_profiler: phony obj/src/trace_processor/util/proto_profiler.stamp
+build proto_ring_buffer: phony obj/src/protozero/proto_ring_buffer.stamp
+build proto_to_args_parser: phony obj/src/trace_processor/util/proto_to_args_parser.stamp
+build protobuf_py: phony obj/gn/protobuf_py.stamp
+build protos_cpp: phony obj/src/perfetto_cmd/protos_cpp.stamp
+build protos_cpp_gen: phony obj/src/perfetto_cmd/protos_cpp_gen.stamp
+build protos_source_set: phony obj/src/perfetto_cmd/protos_source_set.stamp
+build protozero_bytecode_parser_fuzzer: phony obj/src/protozero/filtering/protozero_bytecode_parser_fuzzer.stamp
+build protozero_decoder_fuzzer: phony obj/src/protozero/protozero_decoder_fuzzer.stamp
+build protozero_message_filter_fuzzer: phony obj/src/protozero/filtering/protozero_message_filter_fuzzer.stamp
+build protozero_to_json: phony obj/src/trace_processor/util/protozero_to_json.stamp
+build protozero_to_text: phony obj/src/trace_processor/util/protozero_to_text.stamp
+build ps: phony obj/src/traced/probes/ps/ps.stamp
+build public_hdr: phony obj/src/trace_processor/importers/etm/public_hdr.stamp
+build py_tables_benchmark: phony obj/src/trace_processor/tables/py_tables_benchmark.stamp
+build py_tables_unittest: phony obj/src/trace_processor/tables/py_tables_unittest.stamp
+build query_result_serializer: phony obj/include/perfetto/ext/trace_processor/rpc/query_result_serializer.stamp
+build record: phony obj/src/trace_processor/importers/perf/record.stamp
+build regex: phony obj/src/trace_processor/util/regex.stamp
+build regs_parsing: phony obj/src/profiling/perf/regs_parsing.stamp
+build relay: phony obj/src/tracing/ipc/producer/relay.stamp
+build ring_buffer: phony obj/src/profiling/memory/ring_buffer.stamp
+build ring_buffer_unittests: phony obj/src/profiling/memory/ring_buffer_unittests.stamp
+build row: phony obj/src/trace_processor/importers/instruments/row.stamp
+build rpc: phony obj/src/trace_processor/rpc/rpc.stamp
+build sched: phony obj/src/trace_processor/perfetto_sql/stdlib/sched/sched.stamp
+build scoped_spinlock: phony obj/src/profiling/memory/scoped_spinlock.stamp
+build shared_lib: phony obj/src/shared_lib/shared_lib.stamp
+build shared_ring_buffer_fuzzer: phony obj/src/profiling/memory/shared_ring_buffer_fuzzer.stamp
+build shared_ring_buffer_write_fuzzer: phony obj/src/profiling/memory/shared_ring_buffer_write_fuzzer.stamp
+build slices: phony obj/src/trace_processor/perfetto_sql/stdlib/slices/slices.stamp
+build sorter: phony obj/src/trace_processor/sorter/sorter.stamp
+build sql_argument: phony obj/src/trace_processor/util/sql_argument.stamp
+build sql_processing: phony obj/python/sql_processing.stamp
+build stack_descriptor: phony obj/protos/perfetto/trace_processor/stack_descriptor.stamp
+build stack_source_set: phony obj/protos/perfetto/trace_processor/stack_source_set.stamp
+build stack_trace: phony obj/src/trace_processor/perfetto_sql/stdlib/stack_trace/stack_trace.stamp
+build stacks: phony obj/src/trace_processor/perfetto_sql/stdlib/stacks/stacks.stamp
+build startup: phony obj/src/trace_processor/perfetto_sql/stdlib/android/startup/startup.stamp
+build statsd_client: phony obj/src/traced/probes/statsd_client/statsd_client.stamp
+build stdiod: phony obj/src/trace_processor/rpc/stdiod.stamp
+build stdlib_generated_file: phony obj/src/trace_processor/perfetto_sql/stdlib/stdlib_generated_file.stamp
+build stdlib_json_docs: phony obj/src/trace_processor/perfetto_sql/stdlib/stdlib_json_docs.stamp
+build storage_minimal: phony obj/src/trace_processor/storage_minimal.stamp
+build storage_minimal_smoke_tests: phony obj/src/trace_processor/storage_minimal_smoke_tests.stamp
+build string_filter: phony obj/src/protozero/filtering/string_filter.stamp
+build summary: phony obj/src/trace_processor/perfetto_sql/stdlib/viz/summary/summary.stamp
+build symbolize_database: phony obj/src/profiling/symbolizer/symbolize_database.stamp
+build symbolizer: phony obj/src/profiling/symbolizer/symbolizer.stamp
+build sys_stats: phony obj/src/traced/probes/sys_stats/sys_stats.stamp
+build sys_stats_counters: phony obj/include/perfetto/ext/traced/sys_stats_counters.stamp
+build syscall_table: phony obj/src/kernel_utils/syscall_table.stamp
+build system_backend: phony obj/src/tracing/system_backend.stamp
+build system_info: phony obj/src/traced/probes/system_info/system_info.stamp
+build systrace_line: phony obj/src/trace_processor/importers/systrace/systrace_line.stamp
+build systrace_parser: phony obj/src/trace_processor/importers/systrace/systrace_parser.stamp
+build table_functions: phony obj/src/trace_processor/perfetto_sql/intrinsics/table_functions/table_functions.stamp
+build tables_python: phony obj/src/trace_processor/tables/tables_python.stamp
+build tables_python_docs: phony obj/src/trace_processor/tables/tables_python_docs.stamp
+build test_extensions_descriptor: phony obj/protos/perfetto/trace/test_extensions_descriptor.stamp
+build test_extensions_source_set: phony obj/protos/perfetto/trace/test_extensions_source_set.stamp
+build test_helper: phony obj/test/test_helper.stamp
+build test_messages_ipc: phony obj/src/ipc/test_messages_ipc.stamp
+build test_messages_ipc_gen: phony obj/src/ipc/test_messages_ipc_gen.stamp
+build test_messages_lite: phony obj/src/traced/probes/ftrace/test_messages_lite.stamp
+build test_messages_lite_gen: phony obj/src/traced/probes/ftrace/test_messages_lite_gen.stamp
+build test_utils: phony obj/src/trace_processor/perfetto_sql/parser/test_utils.stamp
+build testing_messages_cpp: phony obj/src/protozero/testing_messages_cpp.stamp
+build testing_messages_cpp_gen: phony obj/src/protozero/testing_messages_cpp_gen.stamp
+build testing_messages_descriptor: phony obj/src/protozero/testing_messages_descriptor.stamp
+build testing_messages_lite: phony obj/src/protozero/testing_messages_lite.stamp
+build testing_messages_lite_gen: phony obj/src/protozero/testing_messages_lite_gen.stamp
+build testing_messages_other_package_cpp: phony obj/src/protozero/testing_messages_other_package_cpp.stamp
+build testing_messages_other_package_cpp_gen: phony obj/src/protozero/testing_messages_other_package_cpp_gen.stamp
+build testing_messages_other_package_lite: phony obj/src/protozero/testing_messages_other_package_lite.stamp
+build testing_messages_other_package_lite_gen: phony obj/src/protozero/testing_messages_other_package_lite_gen.stamp
+build testing_messages_other_package_source_set: phony obj/src/protozero/testing_messages_other_package_source_set.stamp
+build testing_messages_other_package_zero: phony obj/src/protozero/testing_messages_other_package_zero.stamp
+build testing_messages_other_package_zero_gen: phony obj/src/protozero/testing_messages_other_package_zero_gen.stamp
+build testing_messages_source_set: phony obj/src/protozero/testing_messages_source_set.stamp
+build testing_messages_subpackage_cpp: phony obj/src/protozero/testing_messages_subpackage_cpp.stamp
+build testing_messages_subpackage_cpp_gen: phony obj/src/protozero/testing_messages_subpackage_cpp_gen.stamp
+build testing_messages_subpackage_lite: phony obj/src/protozero/testing_messages_subpackage_lite.stamp
+build testing_messages_subpackage_lite_gen: phony obj/src/protozero/testing_messages_subpackage_lite_gen.stamp
+build testing_messages_subpackage_source_set: phony obj/src/protozero/testing_messages_subpackage_source_set.stamp
+build testing_messages_subpackage_zero: phony obj/src/protozero/testing_messages_subpackage_zero.stamp
+build testing_messages_subpackage_zero_gen: phony obj/src/protozero/testing_messages_subpackage_zero_gen.stamp
+build testing_messages_zero: phony obj/src/protozero/testing_messages_zero.stamp
+build testing_messages_zero_gen: phony obj/src/protozero/testing_messages_zero_gen.stamp
+build text_to_proto: phony obj/src/protozero/text_to_proto/text_to_proto.stamp
+build time: phony obj/src/trace_processor/perfetto_sql/stdlib/time/time.stamp
+build tokenize_internal: phony obj/src/trace_processor/perfetto_sql/tokenizer/tokenize_internal.stamp
+build tokenizer: phony obj/src/trace_processor/perfetto_sql/tokenizer/tokenizer.stamp
+build tools: phony obj/src/tools/tools.stamp
+build top_level_unittests: phony obj/src/trace_processor/top_level_unittests.stamp
+build tp_resolvers_py: phony obj/gn/tp_resolvers_py.stamp
+build tp_vendor_py: phony obj/gn/tp_vendor_py.stamp
+build trace_blob_view_reader: phony obj/src/trace_processor/util/trace_blob_view_reader.stamp
+build trace_config_utils_wasm: phony obj/src/trace_config_utils/trace_config_utils_wasm.stamp
+build trace_parser_hdr: phony obj/src/trace_processor/importers/common/trace_parser_hdr.stamp
+build trace_processor_diff_tests: phony obj/python/trace_processor_diff_tests.stamp
+build trace_processor_fuzzer: phony obj/src/trace_processor/trace_processor_fuzzer.stamp
+build trace_processor_py: phony obj/python/trace_processor_py.stamp
+build trace_processor_py_example: phony obj/python/trace_processor_py_example.stamp
+build trace_processor_py_no_resolvers: phony obj/python/trace_processor_py_no_resolvers.stamp
+build trace_processor_rpc: phony ./libtrace_processor_rpc.a
+build trace_processor_stdlib_docs: phony obj/python/trace_processor_stdlib_docs.stamp
+build trace_processor_table_generator: phony obj/python/trace_processor_table_generator.stamp
+build trace_processor_wasm: phony obj/src/trace_processor/trace_processor_wasm.stamp
+build trace_redaction: phony obj/src/trace_redaction/trace_redaction.stamp
+build trace_summary: phony obj/src/trace_processor/trace_summary/trace_summary.stamp
+build trace_type: phony obj/src/trace_processor/util/trace_type.stamp
+build trace_uri_resolver: phony obj/python/trace_uri_resolver.stamp
+build traceconv_wasm: phony obj/src/traceconv/traceconv_wasm.stamp
+build traced_perf_main: phony obj/src/profiling/perf/traced_perf_main.stamp
+build tracing: phony obj/include/perfetto/tracing/tracing.stamp
+build tracing_integration_test: phony obj/src/tracing/test/tracing_integration_test.stamp
+build trigger_perfetto_cmd: phony obj/src/perfetto_cmd/trigger_perfetto_cmd.stamp
+build trigger_producer: phony obj/src/perfetto_cmd/trigger_producer.stamp
+build txt_to_pb: phony obj/src/trace_config_utils/txt_to_pb.stamp
+build ui_build: phony obj/ui/ui_build.stamp
+build unix_socket: phony obj/src/base/unix_socket.stamp
+build unwind_support: phony obj/src/profiling/common/unwind_support.stamp
+build unwinding: phony obj/src/profiling/perf/unwinding.stamp
+build unwinding_fuzzer: phony obj/src/profiling/memory/unwinding_fuzzer.stamp
+build util: phony obj/src/trace_processor/util/util.stamp
+build utilization: phony obj/src/trace_processor/perfetto_sql/stdlib/linux/cpu/utilization/utilization.stamp
+build v8: phony obj/src/trace_processor/perfetto_sql/stdlib/v8/v8.stamp
+build version_gen_h: phony obj/src/base/version_gen_h.stamp
+build viz: phony obj/src/trace_processor/perfetto_sql/stdlib/viz/viz.stamp
+build wattson: phony obj/src/trace_processor/perfetto_sql/stdlib/wattson/wattson.stamp
+build webview: phony obj/src/trace_processor/metrics/sql/webview/webview.stamp
+build winscope: phony obj/src/trace_processor/perfetto_sql/stdlib/android/winscope/winscope.stamp
+build winscope_common_cpp: phony obj/protos/perfetto/trace/android/winscope_common_cpp.stamp
+build winscope_common_cpp_gen: phony obj/protos/perfetto/trace/android/winscope_common_cpp_gen.stamp
+build winscope_common_lite: phony obj/protos/perfetto/trace/android/winscope_common_lite.stamp
+build winscope_common_lite_gen: phony obj/protos/perfetto/trace/android/winscope_common_lite_gen.stamp
+build winscope_common_source_set: phony obj/protos/perfetto/trace/android/winscope_common_source_set.stamp
+build winscope_common_zero: phony obj/protos/perfetto/trace/android/winscope_common_zero.stamp
+build winscope_common_zero_gen: phony obj/protos/perfetto/trace/android/winscope_common_zero_gen.stamp
+build winscope_descriptor: phony obj/protos/perfetto/trace/android/winscope_descriptor.stamp
+build winscope_extensions_source_set: phony obj/protos/perfetto/trace/android/winscope_extensions_source_set.stamp
+build winscope_extensions_zero: phony obj/protos/perfetto/trace/android/winscope_extensions_zero.stamp
+build winscope_extensions_zero_gen: phony obj/protos/perfetto/trace/android/winscope_extensions_zero_gen.stamp
+build winscope_proto_mapping: phony obj/src/trace_processor/util/winscope_proto_mapping.stamp
+build winscope_regular_cpp: phony obj/protos/perfetto/trace/android/winscope_regular_cpp.stamp
+build winscope_regular_cpp_gen: phony obj/protos/perfetto/trace/android/winscope_regular_cpp_gen.stamp
+build winscope_regular_lite: phony obj/protos/perfetto/trace/android/winscope_regular_lite.stamp
+build winscope_regular_lite_gen: phony obj/protos/perfetto/trace/android/winscope_regular_lite_gen.stamp
+build winscope_regular_source_set: phony obj/protos/perfetto/trace/android/winscope_regular_source_set.stamp
+build winscope_regular_zero: phony obj/protos/perfetto/trace/android/winscope_regular_zero.stamp
+build winscope_regular_zero_gen: phony obj/protos/perfetto/trace/android/winscope_regular_zero_gen.stamp
+build winscope_source_set: phony obj/protos/perfetto/trace/android/winscope_source_set.stamp
+build wire_protocol: phony obj/src/profiling/memory/wire_protocol.stamp
+build wire_protocol_cpp: phony obj/protos/perfetto/ipc/wire_protocol_cpp.stamp
+build wire_protocol_cpp_gen: phony obj/protos/perfetto/ipc/wire_protocol_cpp_gen.stamp
+build wire_protocol_source_set: phony obj/protos/perfetto/ipc/wire_protocol_source_set.stamp
+build wire_protocol_zero: phony obj/protos/perfetto/ipc/wire_protocol_zero.stamp
+build wire_protocol_zero_gen: phony obj/protos/perfetto/ipc/wire_protocol_zero_gen.stamp
+build wrap_allocators: phony obj/src/profiling/memory/wrap_allocators.stamp
+build zip_reader: phony obj/src/trace_processor/util/zip_reader.stamp
+build zlib_compressor: phony obj/src/tracing/service/zlib_compressor.stamp
+build zstd: phony obj/buildtools/zstd.stamp
+build $:all: phony obj/all.stamp
+build $:default: phony obj/default.stamp
+build $:libperfetto: phony ./libperfetto.so
+build $:libperfetto_client_experimental: phony ./libperfetto_client_experimental.a
+build $:perfetto_benchmarks: phony ./perfetto_benchmarks
+build $:perfetto_integrationtests: phony ./perfetto_integrationtests
+build $:perfetto_unittests: phony ./perfetto_unittests
+build $:trace_processor_minimal_smoke_tests: phony ./trace_processor_minimal_smoke_tests
+build $:ui: phony obj/ui.stamp
+build buildtools$:benchmark: phony obj/buildtools/benchmark.stamp
+build buildtools$:expat: phony obj/buildtools/expat.stamp
+build buildtools$:gmock: phony obj/buildtools/gmock.stamp
+build buildtools$:gtest: phony obj/buildtools/gtest.stamp
+build buildtools$:gtest_main: phony obj/buildtools/gtest_main.stamp
+build buildtools$:jsoncpp: phony obj/buildtools/jsoncpp.stamp
+build buildtools$:libbacktrace: phony obj/buildtools/libbacktrace.stamp
+build buildtools$:libc++: phony obj/buildtools/libc++.stamp
+build buildtools$:libc++abi: phony obj/buildtools/libc++abi.stamp
+build buildtools$:libunwind: phony obj/buildtools/libunwind.stamp
+build buildtools$:libunwindstack: phony obj/buildtools/libunwindstack.stamp
+build buildtools$:linenoise: phony obj/buildtools/linenoise.stamp
+build buildtools$:llvm_demangle: phony obj/buildtools/llvm_demangle.stamp
+build buildtools$:lzma: phony obj/buildtools/lzma.stamp
+build buildtools$:open_csd: phony obj/buildtools/open_csd.stamp
+build buildtools$:protobuf_full: phony obj/buildtools/protobuf_full.stamp
+build buildtools$:protobuf_lite: phony obj/buildtools/protobuf_lite.stamp
+build buildtools$:protoc: phony ./protoc
+build buildtools$:protoc_lib: phony obj/buildtools/protoc_lib.stamp
+build buildtools$:sqlite: phony obj/buildtools/sqlite.stamp
+build buildtools$:zlib: phony obj/buildtools/zlib.stamp
+build buildtools$:zstd: phony obj/buildtools/zstd.stamp
+build examples/sdk$:example_custom_data_source: phony ./example_custom_data_source
+build examples/sdk$:example_startup_trace: phony ./example_startup_trace
+build examples/sdk$:example_system_wide: phony ./example_system_wide
+build examples/sdk$:sdk_example: phony ./sdk_example
+build examples/shared_lib$:example_shlib_data_source: phony ./example_shlib_data_source
+build examples/shared_lib$:example_shlib_track_event: phony ./example_shlib_track_event
+build gn$:android_test_common: phony obj/gn/android_test_common.stamp
+build gn$:base_platform: phony obj/gn/base_platform.stamp
+build gn$:benchmark: phony obj/gn/benchmark.stamp
+build gn$:bionic_kernel_uapi_headers: phony obj/gn/bionic_kernel_uapi_headers.stamp
+build gn$:default_deps: phony obj/gn/default_deps.stamp
+build gn$:expat: phony obj/gn/expat.stamp
+build gn$:gen_buildflags: phony obj/gn/gen_buildflags.stamp
+build gn$:gtest_and_gmock: phony obj/gn/gtest_and_gmock.stamp
+build gn$:gtest_main: phony obj/gn/gtest_main.stamp
+build gn$:jsoncpp: phony obj/gn/jsoncpp.stamp
+build gn$:libbacktrace: phony obj/gn/libbacktrace.stamp
+build gn$:libunwindstack: phony obj/gn/libunwindstack.stamp
+build gn$:linenoise: phony obj/gn/linenoise.stamp
+build gn$:llvm_demangle: phony obj/gn/llvm_demangle.stamp
+build gn$:open_csd: phony obj/gn/open_csd.stamp
+build gn$:pandas_py: phony obj/gn/pandas_py.stamp
+build gn$:protobuf_full: phony obj/gn/protobuf_full.stamp
+build gn$:protobuf_lite: phony obj/gn/protobuf_lite.stamp
+build gn$:protobuf_py: phony obj/gn/protobuf_py.stamp
+build gn$:protoc: phony obj/gn/protoc.stamp
+build gn$:protoc_lib: phony obj/gn/protoc_lib.stamp
+build gn$:sqlite: phony obj/gn/sqlite.stamp
+build gn$:tp_resolvers_py: phony obj/gn/tp_resolvers_py.stamp
+build gn$:tp_vendor_py: phony obj/gn/tp_vendor_py.stamp
+build gn$:zlib: phony obj/gn/zlib.stamp
+build gn/standalone$:check_build_deps: phony obj/gn/standalone/check_build_deps.stamp
+build gn/standalone$:check_build_deps_android: phony obj/gn/standalone/check_build_deps_android.stamp
+build gn/standalone/libc++$:deps: phony obj/gn/standalone/libc++/deps.stamp
+build gn/standalone/sanitizers$:deps: phony obj/gn/standalone/sanitizers/deps.stamp
+build gn/standalone/sanitizers$:ignorelist_copy: phony obj/gn/standalone/sanitizers/ignorelist_copy.stamp
+build include/perfetto/base$:base: phony obj/include/perfetto/base/base.stamp
+build include/perfetto/base: phony obj/include/perfetto/base/base.stamp
+build include/perfetto/ext/base$:base: phony obj/include/perfetto/ext/base/base.stamp
+build include/perfetto/ext/base: phony obj/include/perfetto/ext/base/base.stamp
+build include/perfetto/ext/base$:version: phony obj/include/perfetto/ext/base/version.stamp
+build include/perfetto/ext/base/http$:http: phony obj/include/perfetto/ext/base/http/http.stamp
+build include/perfetto/ext/base/http: phony obj/include/perfetto/ext/base/http/http.stamp
+build include/perfetto/ext/base/threading$:threading: phony obj/include/perfetto/ext/base/threading/threading.stamp
+build include/perfetto/ext/base/threading: phony obj/include/perfetto/ext/base/threading/threading.stamp
+build include/perfetto/ext/ipc$:ipc: phony obj/include/perfetto/ext/ipc/ipc.stamp
+build include/perfetto/ext/ipc: phony obj/include/perfetto/ext/ipc/ipc.stamp
+build include/perfetto/ext/protozero$:protozero: phony obj/include/perfetto/ext/protozero/protozero.stamp
+build include/perfetto/ext/protozero: phony obj/include/perfetto/ext/protozero/protozero.stamp
+build include/perfetto/ext/trace_processor$:demangle: phony obj/include/perfetto/ext/trace_processor/demangle.stamp
+build include/perfetto/ext/trace_processor$:export_json: phony obj/include/perfetto/ext/trace_processor/export_json.stamp
+build include/perfetto/ext/trace_processor/importers/memory_tracker$:memory_tracker: phony obj/include/perfetto/ext/trace_processor/importers/memory_tracker/memory_tracker.stamp
+build include/perfetto/ext/trace_processor/importers/memory_tracker: phony obj/include/perfetto/ext/trace_processor/importers/memory_tracker/memory_tracker.stamp
+build include/perfetto/ext/trace_processor/rpc$:query_result_serializer: phony obj/include/perfetto/ext/trace_processor/rpc/query_result_serializer.stamp
+build include/perfetto/ext/traced$:sys_stats_counters: phony obj/include/perfetto/ext/traced/sys_stats_counters.stamp
+build include/perfetto/ext/traced$:traced: phony obj/include/perfetto/ext/traced/traced.stamp
+build include/perfetto/ext/traced: phony obj/include/perfetto/ext/traced/traced.stamp
+build include/perfetto/ext/tracing/core$:core: phony obj/include/perfetto/ext/tracing/core/core.stamp
+build include/perfetto/ext/tracing/core: phony obj/include/perfetto/ext/tracing/core/core.stamp
+build include/perfetto/ext/tracing/core$:test_support: phony obj/include/perfetto/ext/tracing/core/test_support.stamp
+build include/perfetto/ext/tracing/ipc$:ipc: phony obj/include/perfetto/ext/tracing/ipc/ipc.stamp
+build include/perfetto/ext/tracing/ipc: phony obj/include/perfetto/ext/tracing/ipc/ipc.stamp
+build include/perfetto/profiling$:pprof_builder: phony obj/include/perfetto/profiling/pprof_builder.stamp
+build include/perfetto/protozero$:protozero: phony obj/include/perfetto/protozero/protozero.stamp
+build include/perfetto/protozero: phony obj/include/perfetto/protozero/protozero.stamp
+build include/perfetto/public$:base: phony obj/include/perfetto/public/base.stamp
+build include/perfetto/public$:protozero: phony obj/include/perfetto/public/protozero.stamp
+build include/perfetto/public$:public: phony obj/include/perfetto/public/public.stamp
+build include/perfetto/public: phony obj/include/perfetto/public/public.stamp
+build include/perfetto/public/abi$:base: phony obj/include/perfetto/public/abi/base.stamp
+build include/perfetto/public/abi$:public: phony obj/include/perfetto/public/abi/public.stamp
+build include/perfetto/public/protos$:protos: phony obj/include/perfetto/public/protos/protos.stamp
+build include/perfetto/public/protos: phony obj/include/perfetto/public/protos/protos.stamp
+build include/perfetto/test$:test_support: phony obj/include/perfetto/test/test_support.stamp
+build include/perfetto/trace_processor$:basic_types: phony obj/include/perfetto/trace_processor/basic_types.stamp
+build include/perfetto/trace_processor$:storage: phony obj/include/perfetto/trace_processor/storage.stamp
+build include/perfetto/trace_processor$:trace_processor: phony obj/include/perfetto/trace_processor/trace_processor.stamp
+build include/perfetto/trace_processor: phony obj/include/perfetto/trace_processor/trace_processor.stamp
+build include/perfetto/tracing$:tracing: phony obj/include/perfetto/tracing/tracing.stamp
+build include/perfetto/tracing: phony obj/include/perfetto/tracing/tracing.stamp
+build include/perfetto/tracing/core$:core: phony obj/include/perfetto/tracing/core/core.stamp
+build include/perfetto/tracing/core: phony obj/include/perfetto/tracing/core/core.stamp
+build include/perfetto/tracing/core$:forward_decls: phony obj/include/perfetto/tracing/core/forward_decls.stamp
+build protos/perfetto/common$:cpp: phony obj/protos/perfetto/common/cpp.stamp
+build protos/perfetto/common$:cpp_gen: phony obj/protos/perfetto/common/cpp_gen.stamp
+build protos/perfetto/common$:lite: phony obj/protos/perfetto/common/lite.stamp
+build protos/perfetto/common$:lite_gen: phony obj/protos/perfetto/common/lite_gen.stamp
+build protos/perfetto/common$:source_set: phony obj/protos/perfetto/common/source_set.stamp
+build protos/perfetto/common$:zero: phony obj/protos/perfetto/common/zero.stamp
+build protos/perfetto/common$:zero_gen: phony obj/protos/perfetto/common/zero_gen.stamp
+build protos/perfetto/config$:cpp: phony obj/protos/perfetto/config/cpp.stamp
+build protos/perfetto/config$:cpp_gen: phony obj/protos/perfetto/config/cpp_gen.stamp
+build protos/perfetto/config$:descriptor: phony obj/protos/perfetto/config/descriptor.stamp
+build protos/perfetto/config$:lite: phony obj/protos/perfetto/config/lite.stamp
+build protos/perfetto/config$:lite_gen: phony obj/protos/perfetto/config/lite_gen.stamp
+build protos/perfetto/config$:source_set: phony obj/protos/perfetto/config/source_set.stamp
+build protos/perfetto/config$:zero: phony obj/protos/perfetto/config/zero.stamp
+build protos/perfetto/config$:zero_gen: phony obj/protos/perfetto/config/zero_gen.stamp
+build protos/perfetto/config/android$:cpp: phony obj/protos/perfetto/config/android/cpp.stamp
+build protos/perfetto/config/android$:cpp_gen: phony obj/protos/perfetto/config/android/cpp_gen.stamp
+build protos/perfetto/config/android$:lite: phony obj/protos/perfetto/config/android/lite.stamp
+build protos/perfetto/config/android$:lite_gen: phony obj/protos/perfetto/config/android/lite_gen.stamp
+build protos/perfetto/config/android$:source_set: phony obj/protos/perfetto/config/android/source_set.stamp
+build protos/perfetto/config/android$:zero: phony obj/protos/perfetto/config/android/zero.stamp
+build protos/perfetto/config/android$:zero_gen: phony obj/protos/perfetto/config/android/zero_gen.stamp
+build protos/perfetto/config/ftrace$:cpp: phony obj/protos/perfetto/config/ftrace/cpp.stamp
+build protos/perfetto/config/ftrace$:cpp_gen: phony obj/protos/perfetto/config/ftrace/cpp_gen.stamp
+build protos/perfetto/config/ftrace$:lite: phony obj/protos/perfetto/config/ftrace/lite.stamp
+build protos/perfetto/config/ftrace$:lite_gen: phony obj/protos/perfetto/config/ftrace/lite_gen.stamp
+build protos/perfetto/config/ftrace$:source_set: phony obj/protos/perfetto/config/ftrace/source_set.stamp
+build protos/perfetto/config/ftrace$:zero: phony obj/protos/perfetto/config/ftrace/zero.stamp
+build protos/perfetto/config/ftrace$:zero_gen: phony obj/protos/perfetto/config/ftrace/zero_gen.stamp
+build protos/perfetto/config/gpu$:cpp: phony obj/protos/perfetto/config/gpu/cpp.stamp
+build protos/perfetto/config/gpu$:cpp_gen: phony obj/protos/perfetto/config/gpu/cpp_gen.stamp
+build protos/perfetto/config/gpu$:lite: phony obj/protos/perfetto/config/gpu/lite.stamp
+build protos/perfetto/config/gpu$:lite_gen: phony obj/protos/perfetto/config/gpu/lite_gen.stamp
+build protos/perfetto/config/gpu$:source_set: phony obj/protos/perfetto/config/gpu/source_set.stamp
+build protos/perfetto/config/gpu$:zero: phony obj/protos/perfetto/config/gpu/zero.stamp
+build protos/perfetto/config/gpu$:zero_gen: phony obj/protos/perfetto/config/gpu/zero_gen.stamp
+build protos/perfetto/config/inode_file$:cpp: phony obj/protos/perfetto/config/inode_file/cpp.stamp
+build protos/perfetto/config/inode_file$:cpp_gen: phony obj/protos/perfetto/config/inode_file/cpp_gen.stamp
+build protos/perfetto/config/inode_file$:lite: phony obj/protos/perfetto/config/inode_file/lite.stamp
+build protos/perfetto/config/inode_file$:lite_gen: phony obj/protos/perfetto/config/inode_file/lite_gen.stamp
+build protos/perfetto/config/inode_file$:source_set: phony obj/protos/perfetto/config/inode_file/source_set.stamp
+build protos/perfetto/config/inode_file$:zero: phony obj/protos/perfetto/config/inode_file/zero.stamp
+build protos/perfetto/config/inode_file$:zero_gen: phony obj/protos/perfetto/config/inode_file/zero_gen.stamp
+build protos/perfetto/config/interceptors$:cpp: phony obj/protos/perfetto/config/interceptors/cpp.stamp
+build protos/perfetto/config/interceptors$:cpp_gen: phony obj/protos/perfetto/config/interceptors/cpp_gen.stamp
+build protos/perfetto/config/interceptors$:lite: phony obj/protos/perfetto/config/interceptors/lite.stamp
+build protos/perfetto/config/interceptors$:lite_gen: phony obj/protos/perfetto/config/interceptors/lite_gen.stamp
+build protos/perfetto/config/interceptors$:source_set: phony obj/protos/perfetto/config/interceptors/source_set.stamp
+build protos/perfetto/config/interceptors$:zero: phony obj/protos/perfetto/config/interceptors/zero.stamp
+build protos/perfetto/config/interceptors$:zero_gen: phony obj/protos/perfetto/config/interceptors/zero_gen.stamp
+build protos/perfetto/config/power$:cpp: phony obj/protos/perfetto/config/power/cpp.stamp
+build protos/perfetto/config/power$:cpp_gen: phony obj/protos/perfetto/config/power/cpp_gen.stamp
+build protos/perfetto/config/power$:lite: phony obj/protos/perfetto/config/power/lite.stamp
+build protos/perfetto/config/power$:lite_gen: phony obj/protos/perfetto/config/power/lite_gen.stamp
+build protos/perfetto/config/power$:source_set: phony obj/protos/perfetto/config/power/source_set.stamp
+build protos/perfetto/config/power$:zero: phony obj/protos/perfetto/config/power/zero.stamp
+build protos/perfetto/config/power$:zero_gen: phony obj/protos/perfetto/config/power/zero_gen.stamp
+build protos/perfetto/config/process_stats$:cpp: phony obj/protos/perfetto/config/process_stats/cpp.stamp
+build protos/perfetto/config/process_stats$:cpp_gen: phony obj/protos/perfetto/config/process_stats/cpp_gen.stamp
+build protos/perfetto/config/process_stats$:lite: phony obj/protos/perfetto/config/process_stats/lite.stamp
+build protos/perfetto/config/process_stats$:lite_gen: phony obj/protos/perfetto/config/process_stats/lite_gen.stamp
+build protos/perfetto/config/process_stats$:source_set: phony obj/protos/perfetto/config/process_stats/source_set.stamp
+build protos/perfetto/config/process_stats$:zero: phony obj/protos/perfetto/config/process_stats/zero.stamp
+build protos/perfetto/config/process_stats$:zero_gen: phony obj/protos/perfetto/config/process_stats/zero_gen.stamp
+build protos/perfetto/config/profiling$:cpp: phony obj/protos/perfetto/config/profiling/cpp.stamp
+build protos/perfetto/config/profiling$:cpp_gen: phony obj/protos/perfetto/config/profiling/cpp_gen.stamp
+build protos/perfetto/config/profiling$:lite: phony obj/protos/perfetto/config/profiling/lite.stamp
+build protos/perfetto/config/profiling$:lite_gen: phony obj/protos/perfetto/config/profiling/lite_gen.stamp
+build protos/perfetto/config/profiling$:source_set: phony obj/protos/perfetto/config/profiling/source_set.stamp
+build protos/perfetto/config/profiling$:zero: phony obj/protos/perfetto/config/profiling/zero.stamp
+build protos/perfetto/config/profiling$:zero_gen: phony obj/protos/perfetto/config/profiling/zero_gen.stamp
+build protos/perfetto/config/statsd$:cpp: phony obj/protos/perfetto/config/statsd/cpp.stamp
+build protos/perfetto/config/statsd$:cpp_gen: phony obj/protos/perfetto/config/statsd/cpp_gen.stamp
+build protos/perfetto/config/statsd$:lite: phony obj/protos/perfetto/config/statsd/lite.stamp
+build protos/perfetto/config/statsd$:lite_gen: phony obj/protos/perfetto/config/statsd/lite_gen.stamp
+build protos/perfetto/config/statsd$:source_set: phony obj/protos/perfetto/config/statsd/source_set.stamp
+build protos/perfetto/config/statsd$:zero: phony obj/protos/perfetto/config/statsd/zero.stamp
+build protos/perfetto/config/statsd$:zero_gen: phony obj/protos/perfetto/config/statsd/zero_gen.stamp
+build protos/perfetto/config/sys_stats$:cpp: phony obj/protos/perfetto/config/sys_stats/cpp.stamp
+build protos/perfetto/config/sys_stats$:cpp_gen: phony obj/protos/perfetto/config/sys_stats/cpp_gen.stamp
+build protos/perfetto/config/sys_stats$:lite: phony obj/protos/perfetto/config/sys_stats/lite.stamp
+build protos/perfetto/config/sys_stats$:lite_gen: phony obj/protos/perfetto/config/sys_stats/lite_gen.stamp
+build protos/perfetto/config/sys_stats$:source_set: phony obj/protos/perfetto/config/sys_stats/source_set.stamp
+build protos/perfetto/config/sys_stats$:zero: phony obj/protos/perfetto/config/sys_stats/zero.stamp
+build protos/perfetto/config/sys_stats$:zero_gen: phony obj/protos/perfetto/config/sys_stats/zero_gen.stamp
+build protos/perfetto/config/system_info$:cpp: phony obj/protos/perfetto/config/system_info/cpp.stamp
+build protos/perfetto/config/system_info$:cpp_gen: phony obj/protos/perfetto/config/system_info/cpp_gen.stamp
+build protos/perfetto/config/system_info$:lite: phony obj/protos/perfetto/config/system_info/lite.stamp
+build protos/perfetto/config/system_info$:lite_gen: phony obj/protos/perfetto/config/system_info/lite_gen.stamp
+build protos/perfetto/config/system_info$:source_set: phony obj/protos/perfetto/config/system_info/source_set.stamp
+build protos/perfetto/config/system_info$:zero: phony obj/protos/perfetto/config/system_info/zero.stamp
+build protos/perfetto/config/system_info$:zero_gen: phony obj/protos/perfetto/config/system_info/zero_gen.stamp
+build protos/perfetto/config/track_event$:cpp: phony obj/protos/perfetto/config/track_event/cpp.stamp
+build protos/perfetto/config/track_event$:cpp_gen: phony obj/protos/perfetto/config/track_event/cpp_gen.stamp
+build protos/perfetto/config/track_event$:lite: phony obj/protos/perfetto/config/track_event/lite.stamp
+build protos/perfetto/config/track_event$:lite_gen: phony obj/protos/perfetto/config/track_event/lite_gen.stamp
+build protos/perfetto/config/track_event$:source_set: phony obj/protos/perfetto/config/track_event/source_set.stamp
+build protos/perfetto/config/track_event$:zero: phony obj/protos/perfetto/config/track_event/zero.stamp
+build protos/perfetto/config/track_event$:zero_gen: phony obj/protos/perfetto/config/track_event/zero_gen.stamp
+build protos/perfetto/ipc$:cpp: phony obj/protos/perfetto/ipc/cpp.stamp
+build protos/perfetto/ipc$:cpp_gen: phony obj/protos/perfetto/ipc/cpp_gen.stamp
+build protos/perfetto/ipc$:ipc: phony obj/protos/perfetto/ipc/ipc.stamp
+build protos/perfetto/ipc: phony obj/protos/perfetto/ipc/ipc.stamp
+build protos/perfetto/ipc$:ipc_gen: phony obj/protos/perfetto/ipc/ipc_gen.stamp
+build protos/perfetto/ipc$:source_set: phony obj/protos/perfetto/ipc/source_set.stamp
+build protos/perfetto/ipc$:wire_protocol_cpp: phony obj/protos/perfetto/ipc/wire_protocol_cpp.stamp
+build protos/perfetto/ipc$:wire_protocol_cpp_gen: phony obj/protos/perfetto/ipc/wire_protocol_cpp_gen.stamp
+build protos/perfetto/ipc$:wire_protocol_source_set: phony obj/protos/perfetto/ipc/wire_protocol_source_set.stamp
+build protos/perfetto/ipc$:wire_protocol_zero: phony obj/protos/perfetto/ipc/wire_protocol_zero.stamp
+build protos/perfetto/ipc$:wire_protocol_zero_gen: phony obj/protos/perfetto/ipc/wire_protocol_zero_gen.stamp
+build protos/perfetto/metrics$:custom_options_lite: phony obj/protos/perfetto/metrics/custom_options_lite.stamp
+build protos/perfetto/metrics$:custom_options_lite_gen: phony obj/protos/perfetto/metrics/custom_options_lite_gen.stamp
+build protos/perfetto/metrics$:custom_options_source_set: phony obj/protos/perfetto/metrics/custom_options_source_set.stamp
+build protos/perfetto/metrics$:descriptor: phony obj/protos/perfetto/metrics/descriptor.stamp
+build protos/perfetto/metrics$:lite: phony obj/protos/perfetto/metrics/lite.stamp
+build protos/perfetto/metrics$:lite_gen: phony obj/protos/perfetto/metrics/lite_gen.stamp
+build protos/perfetto/metrics$:source_set: phony obj/protos/perfetto/metrics/source_set.stamp
+build protos/perfetto/metrics/android$:lite: phony obj/protos/perfetto/metrics/android/lite.stamp
+build protos/perfetto/metrics/android$:lite_gen: phony obj/protos/perfetto/metrics/android/lite_gen.stamp
+build protos/perfetto/metrics/android$:source_set: phony obj/protos/perfetto/metrics/android/source_set.stamp
+build protos/perfetto/metrics/chrome$:descriptor: phony obj/protos/perfetto/metrics/chrome/descriptor.stamp
+build protos/perfetto/metrics/chrome$:lite: phony obj/protos/perfetto/metrics/chrome/lite.stamp
+build protos/perfetto/metrics/chrome$:lite_gen: phony obj/protos/perfetto/metrics/chrome/lite_gen.stamp
+build protos/perfetto/metrics/chrome$:source_set: phony obj/protos/perfetto/metrics/chrome/source_set.stamp
+build protos/perfetto/metrics/common$:lite: phony obj/protos/perfetto/metrics/common/lite.stamp
+build protos/perfetto/metrics/common$:lite_gen: phony obj/protos/perfetto/metrics/common/lite_gen.stamp
+build protos/perfetto/metrics/common$:source_set: phony obj/protos/perfetto/metrics/common/source_set.stamp
+build protos/perfetto/metrics/webview$:descriptor: phony obj/protos/perfetto/metrics/webview/descriptor.stamp
+build protos/perfetto/metrics/webview$:source_set: phony obj/protos/perfetto/metrics/webview/source_set.stamp
+build protos/perfetto/perfetto_sql$:cpp: phony obj/protos/perfetto/perfetto_sql/cpp.stamp
+build protos/perfetto/perfetto_sql$:cpp_gen: phony obj/protos/perfetto/perfetto_sql/cpp_gen.stamp
+build protos/perfetto/perfetto_sql$:descriptor: phony obj/protos/perfetto/perfetto_sql/descriptor.stamp
+build protos/perfetto/perfetto_sql$:lite: phony obj/protos/perfetto/perfetto_sql/lite.stamp
+build protos/perfetto/perfetto_sql$:lite_gen: phony obj/protos/perfetto/perfetto_sql/lite_gen.stamp
+build protos/perfetto/perfetto_sql$:source_set: phony obj/protos/perfetto/perfetto_sql/source_set.stamp
+build protos/perfetto/perfetto_sql$:zero: phony obj/protos/perfetto/perfetto_sql/zero.stamp
+build protos/perfetto/perfetto_sql$:zero_gen: phony obj/protos/perfetto/perfetto_sql/zero_gen.stamp
+build protos/perfetto/trace$:cpp: phony obj/protos/perfetto/trace/cpp.stamp
+build protos/perfetto/trace$:descriptor: phony obj/protos/perfetto/trace/descriptor.stamp
+build protos/perfetto/trace$:lite: phony obj/protos/perfetto/trace/lite.stamp
+build protos/perfetto/trace$:minimal_cpp: phony obj/protos/perfetto/trace/minimal_cpp.stamp
+build protos/perfetto/trace$:minimal_cpp_gen: phony obj/protos/perfetto/trace/minimal_cpp_gen.stamp
+build protos/perfetto/trace$:minimal_lite: phony obj/protos/perfetto/trace/minimal_lite.stamp
+build protos/perfetto/trace$:minimal_lite_gen: phony obj/protos/perfetto/trace/minimal_lite_gen.stamp
+build protos/perfetto/trace$:minimal_source_set: phony obj/protos/perfetto/trace/minimal_source_set.stamp
+build protos/perfetto/trace$:minimal_zero: phony obj/protos/perfetto/trace/minimal_zero.stamp
+build protos/perfetto/trace$:minimal_zero_gen: phony obj/protos/perfetto/trace/minimal_zero_gen.stamp
+build protos/perfetto/trace$:non_minimal_cpp: phony obj/protos/perfetto/trace/non_minimal_cpp.stamp
+build protos/perfetto/trace$:non_minimal_cpp_gen: phony obj/protos/perfetto/trace/non_minimal_cpp_gen.stamp
+build protos/perfetto/trace$:non_minimal_lite: phony obj/protos/perfetto/trace/non_minimal_lite.stamp
+build protos/perfetto/trace$:non_minimal_lite_gen: phony obj/protos/perfetto/trace/non_minimal_lite_gen.stamp
+build protos/perfetto/trace$:non_minimal_source_set: phony obj/protos/perfetto/trace/non_minimal_source_set.stamp
+build protos/perfetto/trace$:non_minimal_zero: phony obj/protos/perfetto/trace/non_minimal_zero.stamp
+build protos/perfetto/trace$:non_minimal_zero_gen: phony obj/protos/perfetto/trace/non_minimal_zero_gen.stamp
+build protos/perfetto/trace$:perfetto_trace_protos: phony ./libperfetto_trace_protos.a
+build protos/perfetto/trace$:source_set: phony obj/protos/perfetto/trace/source_set.stamp
+build protos/perfetto/trace$:test_extensions_descriptor: phony obj/protos/perfetto/trace/test_extensions_descriptor.stamp
+build protos/perfetto/trace$:test_extensions_source_set: phony obj/protos/perfetto/trace/test_extensions_source_set.stamp
+build protos/perfetto/trace$:zero: phony obj/protos/perfetto/trace/zero.stamp
+build protos/perfetto/trace/android$:android_track_event_cpp: phony obj/protos/perfetto/trace/android/android_track_event_cpp.stamp
+build protos/perfetto/trace/android$:android_track_event_cpp_gen: phony obj/protos/perfetto/trace/android/android_track_event_cpp_gen.stamp
+build protos/perfetto/trace/android$:android_track_event_descriptor: phony obj/protos/perfetto/trace/android/android_track_event_descriptor.stamp
+build protos/perfetto/trace/android$:android_track_event_lite: phony obj/protos/perfetto/trace/android/android_track_event_lite.stamp
+build protos/perfetto/trace/android$:android_track_event_lite_gen: phony obj/protos/perfetto/trace/android/android_track_event_lite_gen.stamp
+build protos/perfetto/trace/android$:android_track_event_source_set: phony obj/protos/perfetto/trace/android/android_track_event_source_set.stamp
+build protos/perfetto/trace/android$:android_track_event_zero: phony obj/protos/perfetto/trace/android/android_track_event_zero.stamp
+build protos/perfetto/trace/android$:android_track_event_zero_gen: phony obj/protos/perfetto/trace/android/android_track_event_zero_gen.stamp
+build protos/perfetto/trace/android$:cpp: phony obj/protos/perfetto/trace/android/cpp.stamp
+build protos/perfetto/trace/android$:cpp_gen: phony obj/protos/perfetto/trace/android/cpp_gen.stamp
+build protos/perfetto/trace/android$:lite: phony obj/protos/perfetto/trace/android/lite.stamp
+build protos/perfetto/trace/android$:lite_gen: phony obj/protos/perfetto/trace/android/lite_gen.stamp
+build protos/perfetto/trace/android$:perfetto_winscope_extensions_zero: phony ./libperfetto_winscope_extensions_zero.a
+build protos/perfetto/trace/android$:source_set: phony obj/protos/perfetto/trace/android/source_set.stamp
+build protos/perfetto/trace/android$:winscope_common_cpp: phony obj/protos/perfetto/trace/android/winscope_common_cpp.stamp
+build protos/perfetto/trace/android$:winscope_common_cpp_gen: phony obj/protos/perfetto/trace/android/winscope_common_cpp_gen.stamp
+build protos/perfetto/trace/android$:winscope_common_lite: phony obj/protos/perfetto/trace/android/winscope_common_lite.stamp
+build protos/perfetto/trace/android$:winscope_common_lite_gen: phony obj/protos/perfetto/trace/android/winscope_common_lite_gen.stamp
+build protos/perfetto/trace/android$:winscope_common_source_set: phony obj/protos/perfetto/trace/android/winscope_common_source_set.stamp
+build protos/perfetto/trace/android$:winscope_common_zero: phony obj/protos/perfetto/trace/android/winscope_common_zero.stamp
+build protos/perfetto/trace/android$:winscope_common_zero_gen: phony obj/protos/perfetto/trace/android/winscope_common_zero_gen.stamp
+build protos/perfetto/trace/android$:winscope_descriptor: phony obj/protos/perfetto/trace/android/winscope_descriptor.stamp
+build protos/perfetto/trace/android$:winscope_extensions_source_set: phony obj/protos/perfetto/trace/android/winscope_extensions_source_set.stamp
+build protos/perfetto/trace/android$:winscope_extensions_zero: phony obj/protos/perfetto/trace/android/winscope_extensions_zero.stamp
+build protos/perfetto/trace/android$:winscope_extensions_zero_gen: phony obj/protos/perfetto/trace/android/winscope_extensions_zero_gen.stamp
+build protos/perfetto/trace/android$:winscope_regular_cpp: phony obj/protos/perfetto/trace/android/winscope_regular_cpp.stamp
+build protos/perfetto/trace/android$:winscope_regular_cpp_gen: phony obj/protos/perfetto/trace/android/winscope_regular_cpp_gen.stamp
+build protos/perfetto/trace/android$:winscope_regular_lite: phony obj/protos/perfetto/trace/android/winscope_regular_lite.stamp
+build protos/perfetto/trace/android$:winscope_regular_lite_gen: phony obj/protos/perfetto/trace/android/winscope_regular_lite_gen.stamp
+build protos/perfetto/trace/android$:winscope_regular_source_set: phony obj/protos/perfetto/trace/android/winscope_regular_source_set.stamp
+build protos/perfetto/trace/android$:winscope_regular_zero: phony obj/protos/perfetto/trace/android/winscope_regular_zero.stamp
+build protos/perfetto/trace/android$:winscope_regular_zero_gen: phony obj/protos/perfetto/trace/android/winscope_regular_zero_gen.stamp
+build protos/perfetto/trace/android$:winscope_source_set: phony obj/protos/perfetto/trace/android/winscope_source_set.stamp
+build protos/perfetto/trace/android$:zero: phony obj/protos/perfetto/trace/android/zero.stamp
+build protos/perfetto/trace/android$:zero_gen: phony obj/protos/perfetto/trace/android/zero_gen.stamp
+build protos/perfetto/trace/chrome$:cpp: phony obj/protos/perfetto/trace/chrome/cpp.stamp
+build protos/perfetto/trace/chrome$:cpp_gen: phony obj/protos/perfetto/trace/chrome/cpp_gen.stamp
+build protos/perfetto/trace/chrome$:lite: phony obj/protos/perfetto/trace/chrome/lite.stamp
+build protos/perfetto/trace/chrome$:lite_gen: phony obj/protos/perfetto/trace/chrome/lite_gen.stamp
+build protos/perfetto/trace/chrome$:minimal_complete_lite: phony obj/protos/perfetto/trace/chrome/minimal_complete_lite.stamp
+build protos/perfetto/trace/chrome$:minimal_complete_lite_gen: phony obj/protos/perfetto/trace/chrome/minimal_complete_lite_gen.stamp
+build protos/perfetto/trace/chrome$:minimal_complete_source_set: phony obj/protos/perfetto/trace/chrome/minimal_complete_source_set.stamp
+build protos/perfetto/trace/chrome$:source_set: phony obj/protos/perfetto/trace/chrome/source_set.stamp
+build protos/perfetto/trace/chrome$:zero: phony obj/protos/perfetto/trace/chrome/zero.stamp
+build protos/perfetto/trace/chrome$:zero_gen: phony obj/protos/perfetto/trace/chrome/zero_gen.stamp
+build protos/perfetto/trace/etw$:cpp: phony obj/protos/perfetto/trace/etw/cpp.stamp
+build protos/perfetto/trace/etw$:cpp_gen: phony obj/protos/perfetto/trace/etw/cpp_gen.stamp
+build protos/perfetto/trace/etw$:descriptor: phony obj/protos/perfetto/trace/etw/descriptor.stamp
+build protos/perfetto/trace/etw$:lite: phony obj/protos/perfetto/trace/etw/lite.stamp
+build protos/perfetto/trace/etw$:lite_gen: phony obj/protos/perfetto/trace/etw/lite_gen.stamp
+build protos/perfetto/trace/etw$:source_set: phony obj/protos/perfetto/trace/etw/source_set.stamp
+build protos/perfetto/trace/etw$:zero: phony obj/protos/perfetto/trace/etw/zero.stamp
+build protos/perfetto/trace/etw$:zero_gen: phony obj/protos/perfetto/trace/etw/zero_gen.stamp
+build protos/perfetto/trace/filesystem$:cpp: phony obj/protos/perfetto/trace/filesystem/cpp.stamp
+build protos/perfetto/trace/filesystem$:cpp_gen: phony obj/protos/perfetto/trace/filesystem/cpp_gen.stamp
+build protos/perfetto/trace/filesystem$:lite: phony obj/protos/perfetto/trace/filesystem/lite.stamp
+build protos/perfetto/trace/filesystem$:lite_gen: phony obj/protos/perfetto/trace/filesystem/lite_gen.stamp
+build protos/perfetto/trace/filesystem$:source_set: phony obj/protos/perfetto/trace/filesystem/source_set.stamp
+build protos/perfetto/trace/filesystem$:zero: phony obj/protos/perfetto/trace/filesystem/zero.stamp
+build protos/perfetto/trace/filesystem$:zero_gen: phony obj/protos/perfetto/trace/filesystem/zero_gen.stamp
+build protos/perfetto/trace/ftrace$:cpp: phony obj/protos/perfetto/trace/ftrace/cpp.stamp
+build protos/perfetto/trace/ftrace$:cpp_gen: phony obj/protos/perfetto/trace/ftrace/cpp_gen.stamp
+build protos/perfetto/trace/ftrace$:descriptor: phony obj/protos/perfetto/trace/ftrace/descriptor.stamp
+build protos/perfetto/trace/ftrace$:lite: phony obj/protos/perfetto/trace/ftrace/lite.stamp
+build protos/perfetto/trace/ftrace$:lite_gen: phony obj/protos/perfetto/trace/ftrace/lite_gen.stamp
+build protos/perfetto/trace/ftrace$:source_set: phony obj/protos/perfetto/trace/ftrace/source_set.stamp
+build protos/perfetto/trace/ftrace$:zero: phony obj/protos/perfetto/trace/ftrace/zero.stamp
+build protos/perfetto/trace/ftrace$:zero_gen: phony obj/protos/perfetto/trace/ftrace/zero_gen.stamp
+build protos/perfetto/trace/gpu$:cpp: phony obj/protos/perfetto/trace/gpu/cpp.stamp
+build protos/perfetto/trace/gpu$:cpp_gen: phony obj/protos/perfetto/trace/gpu/cpp_gen.stamp
+build protos/perfetto/trace/gpu$:lite: phony obj/protos/perfetto/trace/gpu/lite.stamp
+build protos/perfetto/trace/gpu$:lite_gen: phony obj/protos/perfetto/trace/gpu/lite_gen.stamp
+build protos/perfetto/trace/gpu$:source_set: phony obj/protos/perfetto/trace/gpu/source_set.stamp
+build protos/perfetto/trace/gpu$:zero: phony obj/protos/perfetto/trace/gpu/zero.stamp
+build protos/perfetto/trace/gpu$:zero_gen: phony obj/protos/perfetto/trace/gpu/zero_gen.stamp
+build protos/perfetto/trace/interned_data$:cpp: phony obj/protos/perfetto/trace/interned_data/cpp.stamp
+build protos/perfetto/trace/interned_data$:cpp_gen: phony obj/protos/perfetto/trace/interned_data/cpp_gen.stamp
+build protos/perfetto/trace/interned_data$:lite: phony obj/protos/perfetto/trace/interned_data/lite.stamp
+build protos/perfetto/trace/interned_data$:lite_gen: phony obj/protos/perfetto/trace/interned_data/lite_gen.stamp
+build protos/perfetto/trace/interned_data$:source_set: phony obj/protos/perfetto/trace/interned_data/source_set.stamp
+build protos/perfetto/trace/interned_data$:zero: phony obj/protos/perfetto/trace/interned_data/zero.stamp
+build protos/perfetto/trace/interned_data$:zero_gen: phony obj/protos/perfetto/trace/interned_data/zero_gen.stamp
+build protos/perfetto/trace/perfetto$:cpp: phony obj/protos/perfetto/trace/perfetto/cpp.stamp
+build protos/perfetto/trace/perfetto$:cpp_gen: phony obj/protos/perfetto/trace/perfetto/cpp_gen.stamp
+build protos/perfetto/trace/perfetto$:lite: phony obj/protos/perfetto/trace/perfetto/lite.stamp
+build protos/perfetto/trace/perfetto$:lite_gen: phony obj/protos/perfetto/trace/perfetto/lite_gen.stamp
+build protos/perfetto/trace/perfetto$:source_set: phony obj/protos/perfetto/trace/perfetto/source_set.stamp
+build protos/perfetto/trace/perfetto$:zero: phony obj/protos/perfetto/trace/perfetto/zero.stamp
+build protos/perfetto/trace/perfetto$:zero_gen: phony obj/protos/perfetto/trace/perfetto/zero_gen.stamp
+build protos/perfetto/trace/power$:cpp: phony obj/protos/perfetto/trace/power/cpp.stamp
+build protos/perfetto/trace/power$:cpp_gen: phony obj/protos/perfetto/trace/power/cpp_gen.stamp
+build protos/perfetto/trace/power$:lite: phony obj/protos/perfetto/trace/power/lite.stamp
+build protos/perfetto/trace/power$:lite_gen: phony obj/protos/perfetto/trace/power/lite_gen.stamp
+build protos/perfetto/trace/power$:source_set: phony obj/protos/perfetto/trace/power/source_set.stamp
+build protos/perfetto/trace/power$:zero: phony obj/protos/perfetto/trace/power/zero.stamp
+build protos/perfetto/trace/power$:zero_gen: phony obj/protos/perfetto/trace/power/zero_gen.stamp
+build protos/perfetto/trace/profiling$:cpp: phony obj/protos/perfetto/trace/profiling/cpp.stamp
+build protos/perfetto/trace/profiling$:cpp_gen: phony obj/protos/perfetto/trace/profiling/cpp_gen.stamp
+build protos/perfetto/trace/profiling$:lite: phony obj/protos/perfetto/trace/profiling/lite.stamp
+build protos/perfetto/trace/profiling$:lite_gen: phony obj/protos/perfetto/trace/profiling/lite_gen.stamp
+build protos/perfetto/trace/profiling$:source_set: phony obj/protos/perfetto/trace/profiling/source_set.stamp
+build protos/perfetto/trace/profiling$:zero: phony obj/protos/perfetto/trace/profiling/zero.stamp
+build protos/perfetto/trace/profiling$:zero_gen: phony obj/protos/perfetto/trace/profiling/zero_gen.stamp
+build protos/perfetto/trace/ps$:cpp: phony obj/protos/perfetto/trace/ps/cpp.stamp
+build protos/perfetto/trace/ps$:cpp_gen: phony obj/protos/perfetto/trace/ps/cpp_gen.stamp
+build protos/perfetto/trace/ps$:lite: phony obj/protos/perfetto/trace/ps/lite.stamp
+build protos/perfetto/trace/ps$:lite_gen: phony obj/protos/perfetto/trace/ps/lite_gen.stamp
+build protos/perfetto/trace/ps$:source_set: phony obj/protos/perfetto/trace/ps/source_set.stamp
+build protos/perfetto/trace/ps$:zero: phony obj/protos/perfetto/trace/ps/zero.stamp
+build protos/perfetto/trace/ps$:zero_gen: phony obj/protos/perfetto/trace/ps/zero_gen.stamp
+build protos/perfetto/trace/statsd$:cpp: phony obj/protos/perfetto/trace/statsd/cpp.stamp
+build protos/perfetto/trace/statsd$:cpp_gen: phony obj/protos/perfetto/trace/statsd/cpp_gen.stamp
+build protos/perfetto/trace/statsd$:lite: phony obj/protos/perfetto/trace/statsd/lite.stamp
+build protos/perfetto/trace/statsd$:lite_gen: phony obj/protos/perfetto/trace/statsd/lite_gen.stamp
+build protos/perfetto/trace/statsd$:source_set: phony obj/protos/perfetto/trace/statsd/source_set.stamp
+build protos/perfetto/trace/statsd$:zero: phony obj/protos/perfetto/trace/statsd/zero.stamp
+build protos/perfetto/trace/statsd$:zero_gen: phony obj/protos/perfetto/trace/statsd/zero_gen.stamp
+build protos/perfetto/trace/sys_stats$:cpp: phony obj/protos/perfetto/trace/sys_stats/cpp.stamp
+build protos/perfetto/trace/sys_stats$:cpp_gen: phony obj/protos/perfetto/trace/sys_stats/cpp_gen.stamp
+build protos/perfetto/trace/sys_stats$:lite: phony obj/protos/perfetto/trace/sys_stats/lite.stamp
+build protos/perfetto/trace/sys_stats$:lite_gen: phony obj/protos/perfetto/trace/sys_stats/lite_gen.stamp
+build protos/perfetto/trace/sys_stats$:source_set: phony obj/protos/perfetto/trace/sys_stats/source_set.stamp
+build protos/perfetto/trace/sys_stats$:zero: phony obj/protos/perfetto/trace/sys_stats/zero.stamp
+build protos/perfetto/trace/sys_stats$:zero_gen: phony obj/protos/perfetto/trace/sys_stats/zero_gen.stamp
+build protos/perfetto/trace/system_info$:cpp: phony obj/protos/perfetto/trace/system_info/cpp.stamp
+build protos/perfetto/trace/system_info$:cpp_gen: phony obj/protos/perfetto/trace/system_info/cpp_gen.stamp
+build protos/perfetto/trace/system_info$:lite: phony obj/protos/perfetto/trace/system_info/lite.stamp
+build protos/perfetto/trace/system_info$:lite_gen: phony obj/protos/perfetto/trace/system_info/lite_gen.stamp
+build protos/perfetto/trace/system_info$:source_set: phony obj/protos/perfetto/trace/system_info/source_set.stamp
+build protos/perfetto/trace/system_info$:zero: phony obj/protos/perfetto/trace/system_info/zero.stamp
+build protos/perfetto/trace/system_info$:zero_gen: phony obj/protos/perfetto/trace/system_info/zero_gen.stamp
+build protos/perfetto/trace/track_event$:cpp: phony obj/protos/perfetto/trace/track_event/cpp.stamp
+build protos/perfetto/trace/track_event$:cpp_gen: phony obj/protos/perfetto/trace/track_event/cpp_gen.stamp
+build protos/perfetto/trace/track_event$:descriptor: phony obj/protos/perfetto/trace/track_event/descriptor.stamp
+build protos/perfetto/trace/track_event$:lite: phony obj/protos/perfetto/trace/track_event/lite.stamp
+build protos/perfetto/trace/track_event$:lite_gen: phony obj/protos/perfetto/trace/track_event/lite_gen.stamp
+build protos/perfetto/trace/track_event$:source_set: phony obj/protos/perfetto/trace/track_event/source_set.stamp
+build protos/perfetto/trace/track_event$:zero: phony obj/protos/perfetto/trace/track_event/zero.stamp
+build protos/perfetto/trace/track_event$:zero_gen: phony obj/protos/perfetto/trace/track_event/zero_gen.stamp
+build protos/perfetto/trace/translation$:cpp: phony obj/protos/perfetto/trace/translation/cpp.stamp
+build protos/perfetto/trace/translation$:cpp_gen: phony obj/protos/perfetto/trace/translation/cpp_gen.stamp
+build protos/perfetto/trace/translation$:lite: phony obj/protos/perfetto/trace/translation/lite.stamp
+build protos/perfetto/trace/translation$:lite_gen: phony obj/protos/perfetto/trace/translation/lite_gen.stamp
+build protos/perfetto/trace/translation$:source_set: phony obj/protos/perfetto/trace/translation/source_set.stamp
+build protos/perfetto/trace/translation$:zero: phony obj/protos/perfetto/trace/translation/zero.stamp
+build protos/perfetto/trace/translation$:zero_gen: phony obj/protos/perfetto/trace/translation/zero_gen.stamp
+build protos/perfetto/trace_processor$:cpp: phony obj/protos/perfetto/trace_processor/cpp.stamp
+build protos/perfetto/trace_processor$:cpp_gen: phony obj/protos/perfetto/trace_processor/cpp_gen.stamp
+build protos/perfetto/trace_processor$:lite: phony obj/protos/perfetto/trace_processor/lite.stamp
+build protos/perfetto/trace_processor$:lite_gen: phony obj/protos/perfetto/trace_processor/lite_gen.stamp
+build protos/perfetto/trace_processor$:metrics_impl_source_set: phony obj/protos/perfetto/trace_processor/metrics_impl_source_set.stamp
+build protos/perfetto/trace_processor$:metrics_impl_zero: phony obj/protos/perfetto/trace_processor/metrics_impl_zero.stamp
+build protos/perfetto/trace_processor$:metrics_impl_zero_gen: phony obj/protos/perfetto/trace_processor/metrics_impl_zero_gen.stamp
+build protos/perfetto/trace_processor$:source_set: phony obj/protos/perfetto/trace_processor/source_set.stamp
+build protos/perfetto/trace_processor$:stack_descriptor: phony obj/protos/perfetto/trace_processor/stack_descriptor.stamp
+build protos/perfetto/trace_processor$:stack_source_set: phony obj/protos/perfetto/trace_processor/stack_source_set.stamp
+build protos/perfetto/trace_processor$:zero: phony obj/protos/perfetto/trace_processor/zero.stamp
+build protos/perfetto/trace_processor$:zero_gen: phony obj/protos/perfetto/trace_processor/zero_gen.stamp
+build protos/perfetto/trace_summary$:cpp: phony obj/protos/perfetto/trace_summary/cpp.stamp
+build protos/perfetto/trace_summary$:cpp_gen: phony obj/protos/perfetto/trace_summary/cpp_gen.stamp
+build protos/perfetto/trace_summary$:descriptor: phony obj/protos/perfetto/trace_summary/descriptor.stamp
+build protos/perfetto/trace_summary$:lite: phony obj/protos/perfetto/trace_summary/lite.stamp
+build protos/perfetto/trace_summary$:lite_gen: phony obj/protos/perfetto/trace_summary/lite_gen.stamp
+build protos/perfetto/trace_summary$:source_set: phony obj/protos/perfetto/trace_summary/source_set.stamp
+build protos/perfetto/trace_summary$:zero: phony obj/protos/perfetto/trace_summary/zero.stamp
+build protos/perfetto/trace_summary$:zero_gen: phony obj/protos/perfetto/trace_summary/zero_gen.stamp
+build protos/third_party/chromium$:cpp: phony obj/protos/third_party/chromium/cpp.stamp
+build protos/third_party/chromium$:cpp_gen: phony obj/protos/third_party/chromium/cpp_gen.stamp
+build protos/third_party/chromium$:descriptor: phony obj/protos/third_party/chromium/descriptor.stamp
+build protos/third_party/chromium$:lite: phony obj/protos/third_party/chromium/lite.stamp
+build protos/third_party/chromium$:lite_gen: phony obj/protos/third_party/chromium/lite_gen.stamp
+build protos/third_party/chromium$:source_set: phony obj/protos/third_party/chromium/source_set.stamp
+build protos/third_party/chromium$:zero: phony obj/protos/third_party/chromium/zero.stamp
+build protos/third_party/chromium$:zero_gen: phony obj/protos/third_party/chromium/zero_gen.stamp
+build protos/third_party/pprof$:cpp: phony obj/protos/third_party/pprof/cpp.stamp
+build protos/third_party/pprof$:cpp_gen: phony obj/protos/third_party/pprof/cpp_gen.stamp
+build protos/third_party/pprof$:descriptor: phony obj/protos/third_party/pprof/descriptor.stamp
+build protos/third_party/pprof$:source_set: phony obj/protos/third_party/pprof/source_set.stamp
+build protos/third_party/pprof$:zero: phony obj/protos/third_party/pprof/zero.stamp
+build protos/third_party/pprof$:zero_gen: phony obj/protos/third_party/pprof/zero_gen.stamp
+build protos/third_party/simpleperf$:cpp: phony obj/protos/third_party/simpleperf/cpp.stamp
+build protos/third_party/simpleperf$:cpp_gen: phony obj/protos/third_party/simpleperf/cpp_gen.stamp
+build protos/third_party/simpleperf$:lite: phony obj/protos/third_party/simpleperf/lite.stamp
+build protos/third_party/simpleperf$:lite_gen: phony obj/protos/third_party/simpleperf/lite_gen.stamp
+build protos/third_party/simpleperf$:source_set: phony obj/protos/third_party/simpleperf/source_set.stamp
+build protos/third_party/simpleperf$:zero: phony obj/protos/third_party/simpleperf/zero.stamp
+build protos/third_party/simpleperf$:zero_gen: phony obj/protos/third_party/simpleperf/zero_gen.stamp
+build protos/third_party/statsd$:config_source_set: phony obj/protos/third_party/statsd/config_source_set.stamp
+build protos/third_party/statsd$:config_zero: phony obj/protos/third_party/statsd/config_zero.stamp
+build protos/third_party/statsd$:config_zero_gen: phony obj/protos/third_party/statsd/config_zero_gen.stamp
+build python$:batch_trace_processor: phony obj/python/batch_trace_processor.stamp
+build python$:common: phony obj/python/common.stamp
+build python$:experimental_slice_breakdown_bin: phony obj/python/experimental_slice_breakdown_bin.stamp
+build python$:experimental_slice_breakdown_lib: phony obj/python/experimental_slice_breakdown_lib.stamp
+build python$:sql_processing: phony obj/python/sql_processing.stamp
+build python$:trace_processor_diff_tests: phony obj/python/trace_processor_diff_tests.stamp
+build python$:trace_processor_py: phony obj/python/trace_processor_py.stamp
+build python$:trace_processor_py_example: phony obj/python/trace_processor_py_example.stamp
+build python$:trace_processor_py_no_resolvers: phony obj/python/trace_processor_py_no_resolvers.stamp
+build python$:trace_processor_stdlib_docs: phony obj/python/trace_processor_stdlib_docs.stamp
+build python$:trace_processor_table_generator: phony obj/python/trace_processor_table_generator.stamp
+build python$:trace_uri_resolver: phony obj/python/trace_uri_resolver.stamp
+build src/android_internal$:headers: phony obj/src/android_internal/headers.stamp
+build src/android_internal$:lazy_library_loader: phony obj/src/android_internal/lazy_library_loader.stamp
+build src/android_stats$:android_stats: phony obj/src/android_stats/android_stats.stamp
+build src/android_stats: phony obj/src/android_stats/android_stats.stamp
+build src/android_stats$:perfetto_atoms: phony obj/src/android_stats/perfetto_atoms.stamp
+build src/base$:base: phony obj/src/base/base.stamp
+build src/base: phony obj/src/base/base.stamp
+build src/base$:benchmarks: phony obj/src/base/benchmarks.stamp
+build src/base$:clock_snapshots: phony obj/src/base/clock_snapshots.stamp
+build src/base$:perfetto_base_default_platform: phony obj/src/base/perfetto_base_default_platform.stamp
+build src/base$:test_support: phony obj/src/base/test_support.stamp
+build src/base$:unittests: phony obj/src/base/unittests.stamp
+build src/base$:unix_socket: phony obj/src/base/unix_socket.stamp
+build src/base$:version: phony obj/src/base/version.stamp
+build src/base$:version_gen_h: phony obj/src/base/version_gen_h.stamp
+build src/base/http$:http: phony obj/src/base/http/http.stamp
+build src/base/http: phony obj/src/base/http/http.stamp
+build src/base/http$:unittests: phony obj/src/base/http/unittests.stamp
+build src/base/threading$:threading: phony obj/src/base/threading/threading.stamp
+build src/base/threading: phony obj/src/base/threading/threading.stamp
+build src/base/threading$:unittests: phony obj/src/base/threading/unittests.stamp
+build src/ipc$:buffered_frame_deserializer_fuzzer: phony obj/src/ipc/buffered_frame_deserializer_fuzzer.stamp
+build src/ipc$:client: phony obj/src/ipc/client.stamp
+build src/ipc$:common: phony obj/src/ipc/common.stamp
+build src/ipc$:host: phony obj/src/ipc/host.stamp
+build src/ipc$:perfetto_ipc: phony obj/src/ipc/perfetto_ipc.stamp
+build src/ipc$:test_messages_cpp: phony obj/src/ipc/test_messages_cpp.stamp
+build src/ipc$:test_messages_cpp_gen: phony obj/src/ipc/test_messages_cpp_gen.stamp
+build src/ipc$:test_messages_ipc: phony obj/src/ipc/test_messages_ipc.stamp
+build src/ipc$:test_messages_ipc_gen: phony obj/src/ipc/test_messages_ipc_gen.stamp
+build src/ipc$:test_messages_source_set: phony obj/src/ipc/test_messages_source_set.stamp
+build src/ipc$:test_messages_zero: phony obj/src/ipc/test_messages_zero.stamp
+build src/ipc$:test_messages_zero_gen: phony obj/src/ipc/test_messages_zero_gen.stamp
+build src/ipc$:unittests: phony obj/src/ipc/unittests.stamp
+build src/ipc/protoc_plugin$:ipc_plugin: phony ./ipc_plugin
+build src/kallsyms$:benchmarks: phony obj/src/kallsyms/benchmarks.stamp
+build src/kallsyms$:kallsyms: phony obj/src/kallsyms/kallsyms.stamp
+build src/kallsyms: phony obj/src/kallsyms/kallsyms.stamp
+build src/kallsyms$:unittests: phony obj/src/kallsyms/unittests.stamp
+build src/kernel_utils$:syscall_table: phony obj/src/kernel_utils/syscall_table.stamp
+build src/kernel_utils$:unittests: phony obj/src/kernel_utils/unittests.stamp
+build src/perfetto_cmd$:bugreport_path: phony obj/src/perfetto_cmd/bugreport_path.stamp
+build src/perfetto_cmd$:perfetto: phony ./perfetto
+build src/perfetto_cmd$:perfetto_cmd: phony obj/src/perfetto_cmd/perfetto_cmd.stamp
+build src/perfetto_cmd: phony obj/src/perfetto_cmd/perfetto_cmd.stamp
+build src/perfetto_cmd$:protos_cpp: phony obj/src/perfetto_cmd/protos_cpp.stamp
+build src/perfetto_cmd$:protos_cpp_gen: phony obj/src/perfetto_cmd/protos_cpp_gen.stamp
+build src/perfetto_cmd$:protos_source_set: phony obj/src/perfetto_cmd/protos_source_set.stamp
+build src/perfetto_cmd$:trigger_perfetto: phony ./trigger_perfetto
+build src/perfetto_cmd$:trigger_perfetto_cmd: phony obj/src/perfetto_cmd/trigger_perfetto_cmd.stamp
+build src/perfetto_cmd$:trigger_producer: phony obj/src/perfetto_cmd/trigger_producer.stamp
+build src/perfetto_cmd$:unittests: phony obj/src/perfetto_cmd/unittests.stamp
+build src/profiling$:deobfuscator: phony obj/src/profiling/deobfuscator.stamp
+build src/profiling$:unittests: phony obj/src/profiling/unittests.stamp
+build src/profiling/common$:callstack_trie: phony obj/src/profiling/common/callstack_trie.stamp
+build src/profiling/common$:interner: phony obj/src/profiling/common/interner.stamp
+build src/profiling/common$:interning_output: phony obj/src/profiling/common/interning_output.stamp
+build src/profiling/common$:proc_cmdline: phony obj/src/profiling/common/proc_cmdline.stamp
+build src/profiling/common$:proc_utils: phony obj/src/profiling/common/proc_utils.stamp
+build src/profiling/common$:producer_support: phony obj/src/profiling/common/producer_support.stamp
+build src/profiling/common$:profiler_guardrails: phony obj/src/profiling/common/profiler_guardrails.stamp
+build src/profiling/common$:unittests: phony obj/src/profiling/common/unittests.stamp
+build src/profiling/common$:unwind_support: phony obj/src/profiling/common/unwind_support.stamp
+build src/profiling/memory$:benchmarks: phony obj/src/profiling/memory/benchmarks.stamp
+build src/profiling/memory$:bionic_libc_platform_headers_on_android: phony obj/src/profiling/memory/bionic_libc_platform_headers_on_android.stamp
+build src/profiling/memory$:client: phony obj/src/profiling/memory/client.stamp
+build src/profiling/memory$:client_api: phony obj/src/profiling/memory/client_api.stamp
+build src/profiling/memory$:client_api_standalone: phony obj/src/profiling/memory/client_api_standalone.stamp
+build src/profiling/memory$:daemon: phony obj/src/profiling/memory/daemon.stamp
+build src/profiling/memory$:end_to_end_tests: phony obj/src/profiling/memory/end_to_end_tests.stamp
+build src/profiling/memory$:heapprofd: phony ./heapprofd
+build src/profiling/memory$:heapprofd_api_noop: phony ./libheapprofd_api_noop.so
+build src/profiling/memory$:heapprofd_client_api: phony ./libheapprofd_client_api.so
+build src/profiling/memory$:heapprofd_glibc_preload: phony ./libheapprofd_glibc_preload.so
+build src/profiling/memory$:heapprofd_main: phony obj/src/profiling/memory/heapprofd_main.stamp
+build src/profiling/memory$:heapprofd_standalone_client: phony ./libheapprofd_standalone_client.so
+build src/profiling/memory$:heapprofd_standalone_client_example: phony ./heapprofd_standalone_client_example
+build src/profiling/memory$:ring_buffer: phony obj/src/profiling/memory/ring_buffer.stamp
+build src/profiling/memory$:ring_buffer_unittests: phony obj/src/profiling/memory/ring_buffer_unittests.stamp
+build src/profiling/memory$:scoped_spinlock: phony obj/src/profiling/memory/scoped_spinlock.stamp
+build src/profiling/memory$:shared_ring_buffer_fuzzer: phony obj/src/profiling/memory/shared_ring_buffer_fuzzer.stamp
+build src/profiling/memory$:shared_ring_buffer_write_fuzzer: phony obj/src/profiling/memory/shared_ring_buffer_write_fuzzer.stamp
+build src/profiling/memory$:unittests: phony obj/src/profiling/memory/unittests.stamp
+build src/profiling/memory$:unwinding_fuzzer: phony obj/src/profiling/memory/unwinding_fuzzer.stamp
+build src/profiling/memory$:wire_protocol: phony obj/src/profiling/memory/wire_protocol.stamp
+build src/profiling/memory$:wrap_allocators: phony obj/src/profiling/memory/wrap_allocators.stamp
+build src/profiling/perf$:common_types: phony obj/src/profiling/perf/common_types.stamp
+build src/profiling/perf$:proc_descriptors: phony obj/src/profiling/perf/proc_descriptors.stamp
+build src/profiling/perf$:producer: phony obj/src/profiling/perf/producer.stamp
+build src/profiling/perf$:producer_unittests: phony obj/src/profiling/perf/producer_unittests.stamp
+build src/profiling/perf$:regs_parsing: phony obj/src/profiling/perf/regs_parsing.stamp
+build src/profiling/perf$:traced_perf: phony ./traced_perf
+build src/profiling/perf$:traced_perf_main: phony obj/src/profiling/perf/traced_perf_main.stamp
+build src/profiling/perf$:unwinding: phony obj/src/profiling/perf/unwinding.stamp
+build src/profiling/symbolizer$:symbolize_database: phony obj/src/profiling/symbolizer/symbolize_database.stamp
+build src/profiling/symbolizer$:symbolizer: phony obj/src/profiling/symbolizer/symbolizer.stamp
+build src/profiling/symbolizer: phony obj/src/profiling/symbolizer/symbolizer.stamp
+build src/profiling/symbolizer$:unittests: phony obj/src/profiling/symbolizer/unittests.stamp
+build src/protozero$:benchmarks: phony obj/src/protozero/benchmarks.stamp
+build src/protozero$:proto_ring_buffer: phony obj/src/protozero/proto_ring_buffer.stamp
+build src/protozero$:protozero: phony obj/src/protozero/protozero.stamp
+build src/protozero: phony obj/src/protozero/protozero.stamp
+build src/protozero$:protozero_decoder_fuzzer: phony obj/src/protozero/protozero_decoder_fuzzer.stamp
+build src/protozero$:testing_messages_cpp: phony obj/src/protozero/testing_messages_cpp.stamp
+build src/protozero$:testing_messages_cpp_gen: phony obj/src/protozero/testing_messages_cpp_gen.stamp
+build src/protozero$:testing_messages_descriptor: phony obj/src/protozero/testing_messages_descriptor.stamp
+build src/protozero$:testing_messages_lite: phony obj/src/protozero/testing_messages_lite.stamp
+build src/protozero$:testing_messages_lite_gen: phony obj/src/protozero/testing_messages_lite_gen.stamp
+build src/protozero$:testing_messages_other_package_cpp: phony obj/src/protozero/testing_messages_other_package_cpp.stamp
+build src/protozero$:testing_messages_other_package_cpp_gen: phony obj/src/protozero/testing_messages_other_package_cpp_gen.stamp
+build src/protozero$:testing_messages_other_package_lite: phony obj/src/protozero/testing_messages_other_package_lite.stamp
+build src/protozero$:testing_messages_other_package_lite_gen: phony obj/src/protozero/testing_messages_other_package_lite_gen.stamp
+build src/protozero$:testing_messages_other_package_source_set: phony obj/src/protozero/testing_messages_other_package_source_set.stamp
+build src/protozero$:testing_messages_other_package_zero: phony obj/src/protozero/testing_messages_other_package_zero.stamp
+build src/protozero$:testing_messages_other_package_zero_gen: phony obj/src/protozero/testing_messages_other_package_zero_gen.stamp
+build src/protozero$:testing_messages_source_set: phony obj/src/protozero/testing_messages_source_set.stamp
+build src/protozero$:testing_messages_subpackage_cpp: phony obj/src/protozero/testing_messages_subpackage_cpp.stamp
+build src/protozero$:testing_messages_subpackage_cpp_gen: phony obj/src/protozero/testing_messages_subpackage_cpp_gen.stamp
+build src/protozero$:testing_messages_subpackage_lite: phony obj/src/protozero/testing_messages_subpackage_lite.stamp
+build src/protozero$:testing_messages_subpackage_lite_gen: phony obj/src/protozero/testing_messages_subpackage_lite_gen.stamp
+build src/protozero$:testing_messages_subpackage_source_set: phony obj/src/protozero/testing_messages_subpackage_source_set.stamp
+build src/protozero$:testing_messages_subpackage_zero: phony obj/src/protozero/testing_messages_subpackage_zero.stamp
+build src/protozero$:testing_messages_subpackage_zero_gen: phony obj/src/protozero/testing_messages_subpackage_zero_gen.stamp
+build src/protozero$:testing_messages_zero: phony obj/src/protozero/testing_messages_zero.stamp
+build src/protozero$:testing_messages_zero_gen: phony obj/src/protozero/testing_messages_zero_gen.stamp
+build src/protozero$:unittests: phony obj/src/protozero/unittests.stamp
+build src/protozero/filtering$:benchmarks: phony obj/src/protozero/filtering/benchmarks.stamp
+build src/protozero/filtering$:bytecode_common: phony obj/src/protozero/filtering/bytecode_common.stamp
+build src/protozero/filtering$:bytecode_generator: phony obj/src/protozero/filtering/bytecode_generator.stamp
+build src/protozero/filtering$:bytecode_parser: phony obj/src/protozero/filtering/bytecode_parser.stamp
+build src/protozero/filtering$:filter_util: phony obj/src/protozero/filtering/filter_util.stamp
+build src/protozero/filtering$:message_filter: phony obj/src/protozero/filtering/message_filter.stamp
+build src/protozero/filtering$:protozero_bytecode_parser_fuzzer: phony obj/src/protozero/filtering/protozero_bytecode_parser_fuzzer.stamp
+build src/protozero/filtering$:protozero_message_filter_fuzzer: phony obj/src/protozero/filtering/protozero_message_filter_fuzzer.stamp
+build src/protozero/filtering$:string_filter: phony obj/src/protozero/filtering/string_filter.stamp
+build src/protozero/filtering$:unittests: phony obj/src/protozero/filtering/unittests.stamp
+build src/protozero/protoc_plugin$:cppgen_plugin: phony ./cppgen_plugin
+build src/protozero/protoc_plugin$:protozero_c_plugin: phony ./protozero_c_plugin
+build src/protozero/protoc_plugin$:protozero_plugin: phony ./protozero_plugin
+build src/protozero/text_to_proto$:text_to_proto: phony obj/src/protozero/text_to_proto/text_to_proto.stamp
+build src/protozero/text_to_proto: phony obj/src/protozero/text_to_proto/text_to_proto.stamp
+build src/shared_lib$:intern_map: phony obj/src/shared_lib/intern_map.stamp
+build src/shared_lib$:libperfetto_c: phony ./libperfetto_c.so
+build src/shared_lib$:shared_lib: phony obj/src/shared_lib/shared_lib.stamp
+build src/shared_lib: phony obj/src/shared_lib/shared_lib.stamp
+build src/shared_lib$:unittests: phony obj/src/shared_lib/unittests.stamp
+build src/shared_lib/test$:benchmarks: phony obj/src/shared_lib/test/benchmarks.stamp
+build src/shared_lib/test$:integrationtests: phony obj/src/shared_lib/test/integrationtests.stamp
+build src/shared_lib/test$:utils: phony obj/src/shared_lib/test/utils.stamp
+build src/shared_lib/test/protos$:protos: phony obj/src/shared_lib/test/protos/protos.stamp
+build src/shared_lib/test/protos: phony obj/src/shared_lib/test/protos/protos.stamp
+build src/tools$:copy_protoc: phony obj/src/tools/copy_protoc.stamp
+build src/tools$:idle_alloc: phony ./idle_alloc
+build src/tools$:multithreaded_alloc: phony ./multithreaded_alloc
+build src/tools$:profiling_sample_distribution: phony ./profiling_sample_distribution
+build src/tools$:tools: phony obj/src/tools/tools.stamp
+build src/tools: phony obj/src/tools/tools.stamp
+build src/tools$:unittests: phony obj/src/tools/unittests.stamp
+build src/tools/busy_threads$:busy_threads: phony ./busy_threads
+build src/tools/busy_threads: phony ./busy_threads
+build src/tools/cpu_utilization$:cpu_utilization: phony ./cpu_utilization
+build src/tools/cpu_utilization: phony ./cpu_utilization
+build src/tools/dump_ftrace_stats$:dump_ftrace_stats: phony ./dump_ftrace_stats
+build src/tools/dump_ftrace_stats: phony ./dump_ftrace_stats
+build src/tools/ftrace_proto_gen$:ftrace_proto_gen: phony ./ftrace_proto_gen
+build src/tools/ftrace_proto_gen: phony ./ftrace_proto_gen
+build src/tools/ftrace_proto_gen$:lib: phony obj/src/tools/ftrace_proto_gen/lib.stamp
+build src/tools/ftrace_proto_gen$:unittests: phony obj/src/tools/ftrace_proto_gen/unittests.stamp
+build src/tools/proto_filter$:proto_filter: phony ./proto_filter
+build src/tools/proto_filter: phony ./proto_filter
+build src/tools/proto_merger$:proto_merger: phony ./proto_merger
+build src/tools/proto_merger: phony ./proto_merger
+build src/tools/protoprofile$:common: phony obj/src/tools/protoprofile/common.stamp
+build src/tools/protoprofile$:protoprofile: phony ./protoprofile
+build src/tools/protoprofile: phony ./protoprofile
+build src/tools/skippy$:skippy: phony ./skippy
+build src/tools/skippy: phony ./skippy
+build src/trace_config_utils$:gen_cc_config_descriptor: phony obj/src/trace_config_utils/gen_cc_config_descriptor.stamp
+build src/trace_config_utils$:main: phony obj/src/trace_config_utils/main.stamp
+build src/trace_config_utils$:pb_to_txt: phony obj/src/trace_config_utils/pb_to_txt.stamp
+build src/trace_config_utils$:trace_config_utils: phony ./trace_config_utils
+build src/trace_config_utils: phony ./trace_config_utils
+build src/trace_config_utils$:trace_config_utils_wasm: phony obj/src/trace_config_utils/trace_config_utils_wasm.stamp
+build src/trace_config_utils$:txt_to_pb: phony obj/src/trace_config_utils/txt_to_pb.stamp
+build src/trace_config_utils$:unittests: phony obj/src/trace_config_utils/unittests.stamp
+build src/trace_processor$:demangle: phony obj/src/trace_processor/demangle.stamp
+build src/trace_processor$:export_json: phony obj/src/trace_processor/export_json.stamp
+build src/trace_processor$:gen_cc_test_messages_descriptor: phony obj/src/trace_processor/gen_cc_test_messages_descriptor.stamp
+build src/trace_processor$:integrationtests: phony obj/src/trace_processor/integrationtests.stamp
+build src/trace_processor$:lib: phony obj/src/trace_processor/lib.stamp
+build src/trace_processor$:metatrace: phony obj/src/trace_processor/metatrace.stamp
+build src/trace_processor$:storage_minimal: phony obj/src/trace_processor/storage_minimal.stamp
+build src/trace_processor$:storage_minimal_smoke_tests: phony obj/src/trace_processor/storage_minimal_smoke_tests.stamp
+build src/trace_processor$:top_level_unittests: phony obj/src/trace_processor/top_level_unittests.stamp
+build src/trace_processor$:trace_processor: phony ./libtrace_processor.a
+build src/trace_processor: phony ./libtrace_processor.a
+build src/trace_processor$:trace_processor_fuzzer: phony obj/src/trace_processor/trace_processor_fuzzer.stamp
+build src/trace_processor$:trace_processor_minimal_shell: phony ./trace_processor_minimal_shell
+build src/trace_processor$:trace_processor_shell: phony ./trace_processor_shell
+build src/trace_processor$:trace_processor_wasm: phony obj/src/trace_processor/trace_processor_wasm.stamp
+build src/trace_processor$:unittests: phony obj/src/trace_processor/unittests.stamp
+build src/trace_processor/containers$:benchmarks: phony obj/src/trace_processor/containers/benchmarks.stamp
+build src/trace_processor/containers$:containers: phony obj/src/trace_processor/containers/containers.stamp
+build src/trace_processor/containers: phony obj/src/trace_processor/containers/containers.stamp
+build src/trace_processor/containers$:unittests: phony obj/src/trace_processor/containers/unittests.stamp
+build src/trace_processor/db$:benchmarks: phony obj/src/trace_processor/db/benchmarks.stamp
+build src/trace_processor/db$:compare: phony obj/src/trace_processor/db/compare.stamp
+build src/trace_processor/db$:db: phony obj/src/trace_processor/db/db.stamp
+build src/trace_processor/db: phony obj/src/trace_processor/db/db.stamp
+build src/trace_processor/db$:minimal: phony obj/src/trace_processor/db/minimal.stamp
+build src/trace_processor/db$:unittests: phony obj/src/trace_processor/db/unittests.stamp
+build src/trace_processor/db/column$:column: phony obj/src/trace_processor/db/column/column.stamp
+build src/trace_processor/db/column: phony obj/src/trace_processor/db/column/column.stamp
+build src/trace_processor/db/column$:fake_storage: phony obj/src/trace_processor/db/column/fake_storage.stamp
+build src/trace_processor/db/column$:unittests: phony obj/src/trace_processor/db/column/unittests.stamp
+build src/trace_processor/importers/android_bugreport$:android_bugreport: phony obj/src/trace_processor/importers/android_bugreport/android_bugreport.stamp
+build src/trace_processor/importers/android_bugreport: phony obj/src/trace_processor/importers/android_bugreport/android_bugreport.stamp
+build src/trace_processor/importers/android_bugreport$:android_dumpstate_event: phony obj/src/trace_processor/importers/android_bugreport/android_dumpstate_event.stamp
+build src/trace_processor/importers/android_bugreport$:android_log_event: phony obj/src/trace_processor/importers/android_bugreport/android_log_event.stamp
+build src/trace_processor/importers/android_bugreport$:unittests: phony obj/src/trace_processor/importers/android_bugreport/unittests.stamp
+build src/trace_processor/importers/archive$:archive: phony obj/src/trace_processor/importers/archive/archive.stamp
+build src/trace_processor/importers/archive: phony obj/src/trace_processor/importers/archive/archive.stamp
+build src/trace_processor/importers/art_method$:art_method: phony obj/src/trace_processor/importers/art_method/art_method.stamp
+build src/trace_processor/importers/art_method: phony obj/src/trace_processor/importers/art_method/art_method.stamp
+build src/trace_processor/importers/art_method$:art_method_event: phony obj/src/trace_processor/importers/art_method/art_method_event.stamp
+build src/trace_processor/importers/common$:common: phony obj/src/trace_processor/importers/common/common.stamp
+build src/trace_processor/importers/common: phony obj/src/trace_processor/importers/common/common.stamp
+build src/trace_processor/importers/common$:parser_types: phony obj/src/trace_processor/importers/common/parser_types.stamp
+build src/trace_processor/importers/common$:trace_parser_hdr: phony obj/src/trace_processor/importers/common/trace_parser_hdr.stamp
+build src/trace_processor/importers/common$:unittests: phony obj/src/trace_processor/importers/common/unittests.stamp
+build src/trace_processor/importers/elf$:binary_info: phony obj/src/trace_processor/importers/elf/binary_info.stamp
+build src/trace_processor/importers/etm$:etm: phony obj/src/trace_processor/importers/etm/etm.stamp
+build src/trace_processor/importers/etm: phony obj/src/trace_processor/importers/etm/etm.stamp
+build src/trace_processor/importers/etm$:etm_impl: phony obj/src/trace_processor/importers/etm/etm_impl.stamp
+build src/trace_processor/importers/etm$:file_tracker: phony obj/src/trace_processor/importers/etm/file_tracker.stamp
+build src/trace_processor/importers/etm$:public_hdr: phony obj/src/trace_processor/importers/etm/public_hdr.stamp
+build src/trace_processor/importers/etm$:unittests: phony obj/src/trace_processor/importers/etm/unittests.stamp
+build src/trace_processor/importers/etw$:full: phony obj/src/trace_processor/importers/etw/full.stamp
+build src/trace_processor/importers/etw$:minimal: phony obj/src/trace_processor/importers/etw/minimal.stamp
+build src/trace_processor/importers/ftrace$:ftrace_descriptors: phony obj/src/trace_processor/importers/ftrace/ftrace_descriptors.stamp
+build src/trace_processor/importers/ftrace$:full: phony obj/src/trace_processor/importers/ftrace/full.stamp
+build src/trace_processor/importers/ftrace$:minimal: phony obj/src/trace_processor/importers/ftrace/minimal.stamp
+build src/trace_processor/importers/ftrace$:unittests: phony obj/src/trace_processor/importers/ftrace/unittests.stamp
+build src/trace_processor/importers/fuchsia$:fuchsia_record: phony obj/src/trace_processor/importers/fuchsia/fuchsia_record.stamp
+build src/trace_processor/importers/fuchsia$:full: phony obj/src/trace_processor/importers/fuchsia/full.stamp
+build src/trace_processor/importers/fuchsia$:minimal: phony obj/src/trace_processor/importers/fuchsia/minimal.stamp
+build src/trace_processor/importers/fuchsia$:unittests: phony obj/src/trace_processor/importers/fuchsia/unittests.stamp
+build src/trace_processor/importers/gecko$:gecko: phony obj/src/trace_processor/importers/gecko/gecko.stamp
+build src/trace_processor/importers/gecko: phony obj/src/trace_processor/importers/gecko/gecko.stamp
+build src/trace_processor/importers/gecko$:gecko_event: phony obj/src/trace_processor/importers/gecko/gecko_event.stamp
+build src/trace_processor/importers/i2c$:full: phony obj/src/trace_processor/importers/i2c/full.stamp
+build src/trace_processor/importers/instruments$:instruments: phony obj/src/trace_processor/importers/instruments/instruments.stamp
+build src/trace_processor/importers/instruments: phony obj/src/trace_processor/importers/instruments/instruments.stamp
+build src/trace_processor/importers/instruments$:row: phony obj/src/trace_processor/importers/instruments/row.stamp
+build src/trace_processor/importers/json$:json: phony obj/src/trace_processor/importers/json/json.stamp
+build src/trace_processor/importers/json: phony obj/src/trace_processor/importers/json/json.stamp
+build src/trace_processor/importers/json$:minimal: phony obj/src/trace_processor/importers/json/minimal.stamp
+build src/trace_processor/importers/json$:unittests: phony obj/src/trace_processor/importers/json/unittests.stamp
+build src/trace_processor/importers/memory_tracker$:graph_processor: phony obj/src/trace_processor/importers/memory_tracker/graph_processor.stamp
+build src/trace_processor/importers/memory_tracker$:unittests: phony obj/src/trace_processor/importers/memory_tracker/unittests.stamp
+build src/trace_processor/importers/ninja$:ninja: phony obj/src/trace_processor/importers/ninja/ninja.stamp
+build src/trace_processor/importers/ninja: phony obj/src/trace_processor/importers/ninja/ninja.stamp
+build src/trace_processor/importers/perf$:perf: phony obj/src/trace_processor/importers/perf/perf.stamp
+build src/trace_processor/importers/perf: phony obj/src/trace_processor/importers/perf/perf.stamp
+build src/trace_processor/importers/perf$:record: phony obj/src/trace_processor/importers/perf/record.stamp
+build src/trace_processor/importers/perf$:unittests: phony obj/src/trace_processor/importers/perf/unittests.stamp
+build src/trace_processor/importers/perf_text$:perf_text: phony obj/src/trace_processor/importers/perf_text/perf_text.stamp
+build src/trace_processor/importers/perf_text: phony obj/src/trace_processor/importers/perf_text/perf_text.stamp
+build src/trace_processor/importers/perf_text$:perf_text_event: phony obj/src/trace_processor/importers/perf_text/perf_text_event.stamp
+build src/trace_processor/importers/perf_text$:perf_text_sample_line_parser: phony obj/src/trace_processor/importers/perf_text/perf_text_sample_line_parser.stamp
+build src/trace_processor/importers/proto$:full: phony obj/src/trace_processor/importers/proto/full.stamp
+build src/trace_processor/importers/proto$:gen_cc_android_track_event_descriptor: phony obj/src/trace_processor/importers/proto/gen_cc_android_track_event_descriptor.stamp
+build src/trace_processor/importers/proto$:gen_cc_chrome_track_event_descriptor: phony obj/src/trace_processor/importers/proto/gen_cc_chrome_track_event_descriptor.stamp
+build src/trace_processor/importers/proto$:gen_cc_statsd_atoms_descriptor: phony obj/src/trace_processor/importers/proto/gen_cc_statsd_atoms_descriptor.stamp
+build src/trace_processor/importers/proto$:gen_cc_trace_descriptor: phony obj/src/trace_processor/importers/proto/gen_cc_trace_descriptor.stamp
+build src/trace_processor/importers/proto$:gen_cc_track_event_descriptor: phony obj/src/trace_processor/importers/proto/gen_cc_track_event_descriptor.stamp
+build src/trace_processor/importers/proto$:minimal: phony obj/src/trace_processor/importers/proto/minimal.stamp
+build src/trace_processor/importers/proto$:packet_sequence_state_generation_hdr: phony obj/src/trace_processor/importers/proto/packet_sequence_state_generation_hdr.stamp
+build src/trace_processor/importers/proto$:proto_importer_module: phony obj/src/trace_processor/importers/proto/proto_importer_module.stamp
+build src/trace_processor/importers/proto$:unittests: phony obj/src/trace_processor/importers/proto/unittests.stamp
+build src/trace_processor/importers/proto/winscope$:full: phony obj/src/trace_processor/importers/proto/winscope/full.stamp
+build src/trace_processor/importers/proto/winscope$:gen_cc_winscope_descriptor: phony obj/src/trace_processor/importers/proto/winscope/gen_cc_winscope_descriptor.stamp
+build src/trace_processor/importers/syscalls$:full: phony obj/src/trace_processor/importers/syscalls/full.stamp
+build src/trace_processor/importers/syscalls$:unittests: phony obj/src/trace_processor/importers/syscalls/unittests.stamp
+build src/trace_processor/importers/systrace$:full: phony obj/src/trace_processor/importers/systrace/full.stamp
+build src/trace_processor/importers/systrace$:systrace_line: phony obj/src/trace_processor/importers/systrace/systrace_line.stamp
+build src/trace_processor/importers/systrace$:systrace_parser: phony obj/src/trace_processor/importers/systrace/systrace_parser.stamp
+build src/trace_processor/importers/systrace$:unittests: phony obj/src/trace_processor/importers/systrace/unittests.stamp
+build src/trace_processor/metrics$:gen_cc_all_chrome_metrics_descriptor: phony obj/src/trace_processor/metrics/gen_cc_all_chrome_metrics_descriptor.stamp
+build src/trace_processor/metrics$:gen_cc_all_webview_metrics_descriptor: phony obj/src/trace_processor/metrics/gen_cc_all_webview_metrics_descriptor.stamp
+build src/trace_processor/metrics$:gen_cc_metrics_descriptor: phony obj/src/trace_processor/metrics/gen_cc_metrics_descriptor.stamp
+build src/trace_processor/metrics$:metrics: phony obj/src/trace_processor/metrics/metrics.stamp
+build src/trace_processor/metrics: phony obj/src/trace_processor/metrics/metrics.stamp
+build src/trace_processor/metrics$:unittests: phony obj/src/trace_processor/metrics/unittests.stamp
+build src/trace_processor/metrics/sql$:gen_amalgamated_sql_metrics: phony obj/src/trace_processor/metrics/sql/gen_amalgamated_sql_metrics.stamp
+build src/trace_processor/metrics/sql$:gen_amalgamated_sql_metrics_generated_file: phony obj/src/trace_processor/metrics/sql/gen_amalgamated_sql_metrics_generated_file.stamp
+build src/trace_processor/metrics/sql$:misc_sql: phony obj/src/trace_processor/metrics/sql/misc_sql.stamp
+build src/trace_processor/metrics/sql/android$:android: phony obj/src/trace_processor/metrics/sql/android/android.stamp
+build src/trace_processor/metrics/sql/android: phony obj/src/trace_processor/metrics/sql/android/android.stamp
+build src/trace_processor/metrics/sql/chrome$:chrome_sql: phony obj/src/trace_processor/metrics/sql/chrome/chrome_sql.stamp
+build src/trace_processor/metrics/sql/common$:common: phony obj/src/trace_processor/metrics/sql/common/common.stamp
+build src/trace_processor/metrics/sql/common: phony obj/src/trace_processor/metrics/sql/common/common.stamp
+build src/trace_processor/metrics/sql/experimental$:experimental: phony obj/src/trace_processor/metrics/sql/experimental/experimental.stamp
+build src/trace_processor/metrics/sql/experimental: phony obj/src/trace_processor/metrics/sql/experimental/experimental.stamp
+build src/trace_processor/metrics/sql/webview$:webview: phony obj/src/trace_processor/metrics/sql/webview/webview.stamp
+build src/trace_processor/metrics/sql/webview: phony obj/src/trace_processor/metrics/sql/webview/webview.stamp
+build src/trace_processor/perfetto_sql/engine$:engine: phony obj/src/trace_processor/perfetto_sql/engine/engine.stamp
+build src/trace_processor/perfetto_sql/engine: phony obj/src/trace_processor/perfetto_sql/engine/engine.stamp
+build src/trace_processor/perfetto_sql/engine$:unittests: phony obj/src/trace_processor/perfetto_sql/engine/unittests.stamp
+build src/trace_processor/perfetto_sql/generator$:gen_cc_perfetto_sql_descriptor: phony obj/src/trace_processor/perfetto_sql/generator/gen_cc_perfetto_sql_descriptor.stamp
+build src/trace_processor/perfetto_sql/generator$:generator: phony obj/src/trace_processor/perfetto_sql/generator/generator.stamp
+build src/trace_processor/perfetto_sql/generator: phony obj/src/trace_processor/perfetto_sql/generator/generator.stamp
+build src/trace_processor/perfetto_sql/generator$:unittests: phony obj/src/trace_processor/perfetto_sql/generator/unittests.stamp
+build src/trace_processor/perfetto_sql/grammar$:grammar: phony obj/src/trace_processor/perfetto_sql/grammar/grammar.stamp
+build src/trace_processor/perfetto_sql/grammar: phony obj/src/trace_processor/perfetto_sql/grammar/grammar.stamp
+build src/trace_processor/perfetto_sql/intrinsics/functions$:functions: phony obj/src/trace_processor/perfetto_sql/intrinsics/functions/functions.stamp
+build src/trace_processor/perfetto_sql/intrinsics/functions: phony obj/src/trace_processor/perfetto_sql/intrinsics/functions/functions.stamp
+build src/trace_processor/perfetto_sql/intrinsics/functions$:interface: phony obj/src/trace_processor/perfetto_sql/intrinsics/functions/interface.stamp
+build src/trace_processor/perfetto_sql/intrinsics/functions$:tables: phony obj/src/trace_processor/perfetto_sql/intrinsics/functions/tables.stamp
+build src/trace_processor/perfetto_sql/intrinsics/functions$:unittests: phony obj/src/trace_processor/perfetto_sql/intrinsics/functions/unittests.stamp
+build src/trace_processor/perfetto_sql/intrinsics/operators$:etm: phony obj/src/trace_processor/perfetto_sql/intrinsics/operators/etm.stamp
+build src/trace_processor/perfetto_sql/intrinsics/operators$:etm_hdr: phony obj/src/trace_processor/perfetto_sql/intrinsics/operators/etm_hdr.stamp
+build src/trace_processor/perfetto_sql/intrinsics/operators$:etm_impl: phony obj/src/trace_processor/perfetto_sql/intrinsics/operators/etm_impl.stamp
+build src/trace_processor/perfetto_sql/intrinsics/operators$:operators: phony obj/src/trace_processor/perfetto_sql/intrinsics/operators/operators.stamp
+build src/trace_processor/perfetto_sql/intrinsics/operators: phony obj/src/trace_processor/perfetto_sql/intrinsics/operators/operators.stamp
+build src/trace_processor/perfetto_sql/intrinsics/operators$:unittests: phony obj/src/trace_processor/perfetto_sql/intrinsics/operators/unittests.stamp
+build src/trace_processor/perfetto_sql/intrinsics/table_functions$:interface: phony obj/src/trace_processor/perfetto_sql/intrinsics/table_functions/interface.stamp
+build src/trace_processor/perfetto_sql/intrinsics/table_functions$:table_functions: phony obj/src/trace_processor/perfetto_sql/intrinsics/table_functions/table_functions.stamp
+build src/trace_processor/perfetto_sql/intrinsics/table_functions: phony obj/src/trace_processor/perfetto_sql/intrinsics/table_functions/table_functions.stamp
+build src/trace_processor/perfetto_sql/intrinsics/table_functions$:tables: phony obj/src/trace_processor/perfetto_sql/intrinsics/table_functions/tables.stamp
+build src/trace_processor/perfetto_sql/intrinsics/table_functions$:unittests: phony obj/src/trace_processor/perfetto_sql/intrinsics/table_functions/unittests.stamp
+build src/trace_processor/perfetto_sql/intrinsics/types$:types: phony obj/src/trace_processor/perfetto_sql/intrinsics/types/types.stamp
+build src/trace_processor/perfetto_sql/intrinsics/types: phony obj/src/trace_processor/perfetto_sql/intrinsics/types/types.stamp
+build src/trace_processor/perfetto_sql/parser$:parser: phony obj/src/trace_processor/perfetto_sql/parser/parser.stamp
+build src/trace_processor/perfetto_sql/parser: phony obj/src/trace_processor/perfetto_sql/parser/parser.stamp
+build src/trace_processor/perfetto_sql/parser$:test_utils: phony obj/src/trace_processor/perfetto_sql/parser/test_utils.stamp
+build src/trace_processor/perfetto_sql/parser$:unittests: phony obj/src/trace_processor/perfetto_sql/parser/unittests.stamp
+build src/trace_processor/perfetto_sql/preprocessor$:grammar: phony obj/src/trace_processor/perfetto_sql/preprocessor/grammar.stamp
+build src/trace_processor/perfetto_sql/preprocessor$:preprocessor: phony obj/src/trace_processor/perfetto_sql/preprocessor/preprocessor.stamp
+build src/trace_processor/perfetto_sql/preprocessor: phony obj/src/trace_processor/perfetto_sql/preprocessor/preprocessor.stamp
+build src/trace_processor/perfetto_sql/preprocessor$:unittests: phony obj/src/trace_processor/perfetto_sql/preprocessor/unittests.stamp
+build src/trace_processor/perfetto_sql/stdlib$:stdlib: phony obj/src/trace_processor/perfetto_sql/stdlib/stdlib.stamp
+build src/trace_processor/perfetto_sql/stdlib: phony obj/src/trace_processor/perfetto_sql/stdlib/stdlib.stamp
+build src/trace_processor/perfetto_sql/stdlib$:stdlib_generated_file: phony obj/src/trace_processor/perfetto_sql/stdlib/stdlib_generated_file.stamp
+build src/trace_processor/perfetto_sql/stdlib$:stdlib_json_docs: phony obj/src/trace_processor/perfetto_sql/stdlib/stdlib_json_docs.stamp
+build src/trace_processor/perfetto_sql/stdlib/android$:android: phony obj/src/trace_processor/perfetto_sql/stdlib/android/android.stamp
+build src/trace_processor/perfetto_sql/stdlib/android: phony obj/src/trace_processor/perfetto_sql/stdlib/android/android.stamp
+build src/trace_processor/perfetto_sql/stdlib/android/auto$:auto: phony obj/src/trace_processor/perfetto_sql/stdlib/android/auto/auto.stamp
+build src/trace_processor/perfetto_sql/stdlib/android/auto: phony obj/src/trace_processor/perfetto_sql/stdlib/android/auto/auto.stamp
+build src/trace_processor/perfetto_sql/stdlib/android/battery$:battery: phony obj/src/trace_processor/perfetto_sql/stdlib/android/battery/battery.stamp
+build src/trace_processor/perfetto_sql/stdlib/android/battery: phony obj/src/trace_processor/perfetto_sql/stdlib/android/battery/battery.stamp
+build src/trace_processor/perfetto_sql/stdlib/android/cpu$:cpu: phony obj/src/trace_processor/perfetto_sql/stdlib/android/cpu/cpu.stamp
+build src/trace_processor/perfetto_sql/stdlib/android/cpu: phony obj/src/trace_processor/perfetto_sql/stdlib/android/cpu/cpu.stamp
+build src/trace_processor/perfetto_sql/stdlib/android/dumpsys$:dumpsys: phony obj/src/trace_processor/perfetto_sql/stdlib/android/dumpsys/dumpsys.stamp
+build src/trace_processor/perfetto_sql/stdlib/android/dumpsys: phony obj/src/trace_processor/perfetto_sql/stdlib/android/dumpsys/dumpsys.stamp
+build src/trace_processor/perfetto_sql/stdlib/android/frames$:frames: phony obj/src/trace_processor/perfetto_sql/stdlib/android/frames/frames.stamp
+build src/trace_processor/perfetto_sql/stdlib/android/frames: phony obj/src/trace_processor/perfetto_sql/stdlib/android/frames/frames.stamp
+build src/trace_processor/perfetto_sql/stdlib/android/gpu$:gpu: phony obj/src/trace_processor/perfetto_sql/stdlib/android/gpu/gpu.stamp
+build src/trace_processor/perfetto_sql/stdlib/android/gpu: phony obj/src/trace_processor/perfetto_sql/stdlib/android/gpu/gpu.stamp
+build src/trace_processor/perfetto_sql/stdlib/android/memory$:memory: phony obj/src/trace_processor/perfetto_sql/stdlib/android/memory/memory.stamp
+build src/trace_processor/perfetto_sql/stdlib/android/memory: phony obj/src/trace_processor/perfetto_sql/stdlib/android/memory/memory.stamp
+build src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph$:heap_graph: phony obj/src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/heap_graph.stamp
+build src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph: phony obj/src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/heap_graph.stamp
+build src/trace_processor/perfetto_sql/stdlib/android/memory/heap_profile$:heap_profile: phony obj/src/trace_processor/perfetto_sql/stdlib/android/memory/heap_profile/heap_profile.stamp
+build src/trace_processor/perfetto_sql/stdlib/android/memory/heap_profile: phony obj/src/trace_processor/perfetto_sql/stdlib/android/memory/heap_profile/heap_profile.stamp
+build src/trace_processor/perfetto_sql/stdlib/android/startup$:startup: phony obj/src/trace_processor/perfetto_sql/stdlib/android/startup/startup.stamp
+build src/trace_processor/perfetto_sql/stdlib/android/startup: phony obj/src/trace_processor/perfetto_sql/stdlib/android/startup/startup.stamp
+build src/trace_processor/perfetto_sql/stdlib/android/winscope$:winscope: phony obj/src/trace_processor/perfetto_sql/stdlib/android/winscope/winscope.stamp
+build src/trace_processor/perfetto_sql/stdlib/android/winscope: phony obj/src/trace_processor/perfetto_sql/stdlib/android/winscope/winscope.stamp
+build src/trace_processor/perfetto_sql/stdlib/appleos$:appleos: phony obj/src/trace_processor/perfetto_sql/stdlib/appleos/appleos.stamp
+build src/trace_processor/perfetto_sql/stdlib/appleos: phony obj/src/trace_processor/perfetto_sql/stdlib/appleos/appleos.stamp
+build src/trace_processor/perfetto_sql/stdlib/appleos/instruments$:instruments: phony obj/src/trace_processor/perfetto_sql/stdlib/appleos/instruments/instruments.stamp
+build src/trace_processor/perfetto_sql/stdlib/appleos/instruments: phony obj/src/trace_processor/perfetto_sql/stdlib/appleos/instruments/instruments.stamp
+build src/trace_processor/perfetto_sql/stdlib/callstacks$:callstacks: phony obj/src/trace_processor/perfetto_sql/stdlib/callstacks/callstacks.stamp
+build src/trace_processor/perfetto_sql/stdlib/callstacks: phony obj/src/trace_processor/perfetto_sql/stdlib/callstacks/callstacks.stamp
+build src/trace_processor/perfetto_sql/stdlib/chrome$:chrome_sql: phony obj/src/trace_processor/perfetto_sql/stdlib/chrome/chrome_sql.stamp
+build src/trace_processor/perfetto_sql/stdlib/counters$:counters: phony obj/src/trace_processor/perfetto_sql/stdlib/counters/counters.stamp
+build src/trace_processor/perfetto_sql/stdlib/counters: phony obj/src/trace_processor/perfetto_sql/stdlib/counters/counters.stamp
+build src/trace_processor/perfetto_sql/stdlib/export$:export: phony obj/src/trace_processor/perfetto_sql/stdlib/export/export.stamp
+build src/trace_processor/perfetto_sql/stdlib/export: phony obj/src/trace_processor/perfetto_sql/stdlib/export/export.stamp
+build src/trace_processor/perfetto_sql/stdlib/graphs$:graphs: phony obj/src/trace_processor/perfetto_sql/stdlib/graphs/graphs.stamp
+build src/trace_processor/perfetto_sql/stdlib/graphs: phony obj/src/trace_processor/perfetto_sql/stdlib/graphs/graphs.stamp
+build src/trace_processor/perfetto_sql/stdlib/intervals$:intervals: phony obj/src/trace_processor/perfetto_sql/stdlib/intervals/intervals.stamp
+build src/trace_processor/perfetto_sql/stdlib/intervals: phony obj/src/trace_processor/perfetto_sql/stdlib/intervals/intervals.stamp
+build src/trace_processor/perfetto_sql/stdlib/linux$:linux: phony obj/src/trace_processor/perfetto_sql/stdlib/linux/linux.stamp
+build src/trace_processor/perfetto_sql/stdlib/linux: phony obj/src/trace_processor/perfetto_sql/stdlib/linux/linux.stamp
+build src/trace_processor/perfetto_sql/stdlib/linux/cpu$:cpu: phony obj/src/trace_processor/perfetto_sql/stdlib/linux/cpu/cpu.stamp
+build src/trace_processor/perfetto_sql/stdlib/linux/cpu: phony obj/src/trace_processor/perfetto_sql/stdlib/linux/cpu/cpu.stamp
+build src/trace_processor/perfetto_sql/stdlib/linux/cpu/utilization$:utilization: phony obj/src/trace_processor/perfetto_sql/stdlib/linux/cpu/utilization/utilization.stamp
+build src/trace_processor/perfetto_sql/stdlib/linux/cpu/utilization: phony obj/src/trace_processor/perfetto_sql/stdlib/linux/cpu/utilization/utilization.stamp
+build src/trace_processor/perfetto_sql/stdlib/linux/memory$:memory: phony obj/src/trace_processor/perfetto_sql/stdlib/linux/memory/memory.stamp
+build src/trace_processor/perfetto_sql/stdlib/linux/memory: phony obj/src/trace_processor/perfetto_sql/stdlib/linux/memory/memory.stamp
+build src/trace_processor/perfetto_sql/stdlib/linux/perf$:perf: phony obj/src/trace_processor/perfetto_sql/stdlib/linux/perf/perf.stamp
+build src/trace_processor/perfetto_sql/stdlib/linux/perf: phony obj/src/trace_processor/perfetto_sql/stdlib/linux/perf/perf.stamp
+build src/trace_processor/perfetto_sql/stdlib/pixel$:pixel: phony obj/src/trace_processor/perfetto_sql/stdlib/pixel/pixel.stamp
+build src/trace_processor/perfetto_sql/stdlib/pixel: phony obj/src/trace_processor/perfetto_sql/stdlib/pixel/pixel.stamp
+build src/trace_processor/perfetto_sql/stdlib/pkvm$:pkvm: phony obj/src/trace_processor/perfetto_sql/stdlib/pkvm/pkvm.stamp
+build src/trace_processor/perfetto_sql/stdlib/pkvm: phony obj/src/trace_processor/perfetto_sql/stdlib/pkvm/pkvm.stamp
+build src/trace_processor/perfetto_sql/stdlib/prelude$:prelude: phony obj/src/trace_processor/perfetto_sql/stdlib/prelude/prelude.stamp
+build src/trace_processor/perfetto_sql/stdlib/prelude: phony obj/src/trace_processor/perfetto_sql/stdlib/prelude/prelude.stamp
+build src/trace_processor/perfetto_sql/stdlib/prelude/after_eof$:after_eof: phony obj/src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/after_eof.stamp
+build src/trace_processor/perfetto_sql/stdlib/prelude/after_eof: phony obj/src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/after_eof.stamp
+build src/trace_processor/perfetto_sql/stdlib/prelude/before_eof$:before_eof: phony obj/src/trace_processor/perfetto_sql/stdlib/prelude/before_eof/before_eof.stamp
+build src/trace_processor/perfetto_sql/stdlib/prelude/before_eof: phony obj/src/trace_processor/perfetto_sql/stdlib/prelude/before_eof/before_eof.stamp
+build src/trace_processor/perfetto_sql/stdlib/sched$:sched: phony obj/src/trace_processor/perfetto_sql/stdlib/sched/sched.stamp
+build src/trace_processor/perfetto_sql/stdlib/sched: phony obj/src/trace_processor/perfetto_sql/stdlib/sched/sched.stamp
+build src/trace_processor/perfetto_sql/stdlib/slices$:slices: phony obj/src/trace_processor/perfetto_sql/stdlib/slices/slices.stamp
+build src/trace_processor/perfetto_sql/stdlib/slices: phony obj/src/trace_processor/perfetto_sql/stdlib/slices/slices.stamp
+build src/trace_processor/perfetto_sql/stdlib/stack_trace$:stack_trace: phony obj/src/trace_processor/perfetto_sql/stdlib/stack_trace/stack_trace.stamp
+build src/trace_processor/perfetto_sql/stdlib/stack_trace: phony obj/src/trace_processor/perfetto_sql/stdlib/stack_trace/stack_trace.stamp
+build src/trace_processor/perfetto_sql/stdlib/stacks$:stacks: phony obj/src/trace_processor/perfetto_sql/stdlib/stacks/stacks.stamp
+build src/trace_processor/perfetto_sql/stdlib/stacks: phony obj/src/trace_processor/perfetto_sql/stdlib/stacks/stacks.stamp
+build src/trace_processor/perfetto_sql/stdlib/time$:time: phony obj/src/trace_processor/perfetto_sql/stdlib/time/time.stamp
+build src/trace_processor/perfetto_sql/stdlib/time: phony obj/src/trace_processor/perfetto_sql/stdlib/time/time.stamp
+build src/trace_processor/perfetto_sql/stdlib/v8$:v8: phony obj/src/trace_processor/perfetto_sql/stdlib/v8/v8.stamp
+build src/trace_processor/perfetto_sql/stdlib/v8: phony obj/src/trace_processor/perfetto_sql/stdlib/v8/v8.stamp
+build src/trace_processor/perfetto_sql/stdlib/viz$:viz: phony obj/src/trace_processor/perfetto_sql/stdlib/viz/viz.stamp
+build src/trace_processor/perfetto_sql/stdlib/viz: phony obj/src/trace_processor/perfetto_sql/stdlib/viz/viz.stamp
+build src/trace_processor/perfetto_sql/stdlib/viz/summary$:summary: phony obj/src/trace_processor/perfetto_sql/stdlib/viz/summary/summary.stamp
+build src/trace_processor/perfetto_sql/stdlib/viz/summary: phony obj/src/trace_processor/perfetto_sql/stdlib/viz/summary/summary.stamp
+build src/trace_processor/perfetto_sql/stdlib/wattson$:wattson: phony obj/src/trace_processor/perfetto_sql/stdlib/wattson/wattson.stamp
+build src/trace_processor/perfetto_sql/stdlib/wattson: phony obj/src/trace_processor/perfetto_sql/stdlib/wattson/wattson.stamp
+build src/trace_processor/perfetto_sql/tokenizer$:tokenize_internal: phony obj/src/trace_processor/perfetto_sql/tokenizer/tokenize_internal.stamp
+build src/trace_processor/perfetto_sql/tokenizer$:tokenizer: phony obj/src/trace_processor/perfetto_sql/tokenizer/tokenizer.stamp
+build src/trace_processor/perfetto_sql/tokenizer: phony obj/src/trace_processor/perfetto_sql/tokenizer/tokenizer.stamp
+build src/trace_processor/perfetto_sql/tokenizer$:unittests: phony obj/src/trace_processor/perfetto_sql/tokenizer/unittests.stamp
+build src/trace_processor/rpc$:benchmarks: phony obj/src/trace_processor/rpc/benchmarks.stamp
+build src/trace_processor/rpc$:httpd: phony obj/src/trace_processor/rpc/httpd.stamp
+build src/trace_processor/rpc$:rpc: phony obj/src/trace_processor/rpc/rpc.stamp
+build src/trace_processor/rpc: phony obj/src/trace_processor/rpc/rpc.stamp
+build src/trace_processor/rpc$:stdiod: phony obj/src/trace_processor/rpc/stdiod.stamp
+build src/trace_processor/rpc$:trace_processor_rpc: phony ./libtrace_processor_rpc.a
+build src/trace_processor/rpc$:unittests: phony obj/src/trace_processor/rpc/unittests.stamp
+build src/trace_processor/sorter$:sorter: phony obj/src/trace_processor/sorter/sorter.stamp
+build src/trace_processor/sorter: phony obj/src/trace_processor/sorter/sorter.stamp
+build src/trace_processor/sorter$:unittests: phony obj/src/trace_processor/sorter/unittests.stamp
+build src/trace_processor/sqlite$:benchmarks: phony obj/src/trace_processor/sqlite/benchmarks.stamp
+build src/trace_processor/sqlite$:sqlite: phony obj/src/trace_processor/sqlite/sqlite.stamp
+build src/trace_processor/sqlite: phony obj/src/trace_processor/sqlite/sqlite.stamp
+build src/trace_processor/sqlite$:unittests: phony obj/src/trace_processor/sqlite/unittests.stamp
+build src/trace_processor/sqlite/bindings$:bindings: phony obj/src/trace_processor/sqlite/bindings/bindings.stamp
+build src/trace_processor/sqlite/bindings: phony obj/src/trace_processor/sqlite/bindings/bindings.stamp
+build src/trace_processor/storage$:storage: phony obj/src/trace_processor/storage/storage.stamp
+build src/trace_processor/storage: phony obj/src/trace_processor/storage/storage.stamp
+build src/trace_processor/tables$:benchmarks: phony obj/src/trace_processor/tables/benchmarks.stamp
+build src/trace_processor/tables$:macros_internal: phony obj/src/trace_processor/tables/macros_internal.stamp
+build src/trace_processor/tables$:py_tables_benchmark: phony obj/src/trace_processor/tables/py_tables_benchmark.stamp
+build src/trace_processor/tables$:py_tables_unittest: phony obj/src/trace_processor/tables/py_tables_unittest.stamp
+build src/trace_processor/tables$:tables: phony obj/src/trace_processor/tables/tables.stamp
+build src/trace_processor/tables: phony obj/src/trace_processor/tables/tables.stamp
+build src/trace_processor/tables$:tables_python: phony obj/src/trace_processor/tables/tables_python.stamp
+build src/trace_processor/tables$:tables_python_docs: phony obj/src/trace_processor/tables/tables_python_docs.stamp
+build src/trace_processor/tables$:unittests: phony obj/src/trace_processor/tables/unittests.stamp
+build src/trace_processor/trace_summary$:gen_cc_trace_summary_descriptor: phony obj/src/trace_processor/trace_summary/gen_cc_trace_summary_descriptor.stamp
+build src/trace_processor/trace_summary$:trace_summary: phony obj/src/trace_processor/trace_summary/trace_summary.stamp
+build src/trace_processor/trace_summary: phony obj/src/trace_processor/trace_summary/trace_summary.stamp
+build src/trace_processor/types$:types: phony obj/src/trace_processor/types/types.stamp
+build src/trace_processor/types: phony obj/src/trace_processor/types/types.stamp
+build src/trace_processor/types$:unittests: phony obj/src/trace_processor/types/unittests.stamp
+build src/trace_processor/util$:benchmarks: phony obj/src/trace_processor/util/benchmarks.stamp
+build src/trace_processor/util$:build_id: phony obj/src/trace_processor/util/build_id.stamp
+build src/trace_processor/util$:bump_allocator: phony obj/src/trace_processor/util/bump_allocator.stamp
+build src/trace_processor/util$:descriptors: phony obj/src/trace_processor/util/descriptors.stamp
+build src/trace_processor/util$:glob: phony obj/src/trace_processor/util/glob.stamp
+build src/trace_processor/util$:gzip: phony obj/src/trace_processor/util/gzip.stamp
+build src/trace_processor/util$:interned_message_view: phony obj/src/trace_processor/util/interned_message_view.stamp
+build src/trace_processor/util$:profile_builder: phony obj/src/trace_processor/util/profile_builder.stamp
+build src/trace_processor/util$:profiler_util: phony obj/src/trace_processor/util/profiler_util.stamp
+build src/trace_processor/util$:proto_profiler: phony obj/src/trace_processor/util/proto_profiler.stamp
+build src/trace_processor/util$:proto_to_args_parser: phony obj/src/trace_processor/util/proto_to_args_parser.stamp
+build src/trace_processor/util$:protozero_to_json: phony obj/src/trace_processor/util/protozero_to_json.stamp
+build src/trace_processor/util$:protozero_to_text: phony obj/src/trace_processor/util/protozero_to_text.stamp
+build src/trace_processor/util$:regex: phony obj/src/trace_processor/util/regex.stamp
+build src/trace_processor/util$:sql_argument: phony obj/src/trace_processor/util/sql_argument.stamp
+build src/trace_processor/util$:stdlib: phony obj/src/trace_processor/util/stdlib.stamp
+build src/trace_processor/util$:trace_blob_view_reader: phony obj/src/trace_processor/util/trace_blob_view_reader.stamp
+build src/trace_processor/util$:trace_type: phony obj/src/trace_processor/util/trace_type.stamp
+build src/trace_processor/util$:unittests: phony obj/src/trace_processor/util/unittests.stamp
+build src/trace_processor/util$:util: phony obj/src/trace_processor/util/util.stamp
+build src/trace_processor/util: phony obj/src/trace_processor/util/util.stamp
+build src/trace_processor/util$:winscope_proto_mapping: phony obj/src/trace_processor/util/winscope_proto_mapping.stamp
+build src/trace_processor/util$:zip_reader: phony obj/src/trace_processor/util/zip_reader.stamp
+build src/trace_redaction$:integrationtests: phony obj/src/trace_redaction/integrationtests.stamp
+build src/trace_redaction$:trace_redaction: phony obj/src/trace_redaction/trace_redaction.stamp
+build src/trace_redaction: phony obj/src/trace_redaction/trace_redaction.stamp
+build src/trace_redaction$:trace_redactor: phony ./trace_redactor
+build src/trace_redaction$:unittests: phony obj/src/trace_redaction/unittests.stamp
+build src/tracebox$:tracebox: phony ./tracebox
+build src/tracebox: phony ./tracebox
+build src/traceconv$:gen_cc_trace_descriptor: phony obj/src/traceconv/gen_cc_trace_descriptor.stamp
+build src/traceconv$:gen_cc_winscope_descriptor: phony obj/src/traceconv/gen_cc_winscope_descriptor.stamp
+build src/traceconv$:integrationtests: phony obj/src/traceconv/integrationtests.stamp
+build src/traceconv$:lib: phony obj/src/traceconv/lib.stamp
+build src/traceconv$:libpprofbuilder: phony ./libpprofbuilder.a
+build src/traceconv$:main: phony obj/src/traceconv/main.stamp
+build src/traceconv$:pprofbuilder: phony obj/src/traceconv/pprofbuilder.stamp
+build src/traceconv$:traceconv: phony ./traceconv
+build src/traceconv: phony ./traceconv
+build src/traceconv$:traceconv_wasm: phony obj/src/traceconv/traceconv_wasm.stamp
+build src/traceconv$:utils: phony obj/src/traceconv/utils.stamp
+build src/traced/probes$:data_source: phony obj/src/traced/probes/data_source.stamp
+build src/traced/probes$:probes: phony obj/src/traced/probes/probes.stamp
+build src/traced/probes: phony obj/src/traced/probes/probes.stamp
+build src/traced/probes$:probes_src: phony obj/src/traced/probes/probes_src.stamp
+build src/traced/probes$:traced_probes: phony ./traced_probes
+build src/traced/probes$:unittests: phony obj/src/traced/probes/unittests.stamp
+build src/traced/probes/android_game_intervention_list$:android_game_intervention_list: phony obj/src/traced/probes/android_game_intervention_list/android_game_intervention_list.stamp
+build src/traced/probes/android_game_intervention_list: phony obj/src/traced/probes/android_game_intervention_list/android_game_intervention_list.stamp
+build src/traced/probes/android_game_intervention_list$:unittests: phony obj/src/traced/probes/android_game_intervention_list/unittests.stamp
+build src/traced/probes/android_kernel_wakelocks$:android_kernel_wakelocks: phony obj/src/traced/probes/android_kernel_wakelocks/android_kernel_wakelocks.stamp
+build src/traced/probes/android_kernel_wakelocks: phony obj/src/traced/probes/android_kernel_wakelocks/android_kernel_wakelocks.stamp
+build src/traced/probes/android_log$:android_log: phony obj/src/traced/probes/android_log/android_log.stamp
+build src/traced/probes/android_log: phony obj/src/traced/probes/android_log/android_log.stamp
+build src/traced/probes/android_log$:unittests: phony obj/src/traced/probes/android_log/unittests.stamp
+build src/traced/probes/android_system_property$:android_system_property: phony obj/src/traced/probes/android_system_property/android_system_property.stamp
+build src/traced/probes/android_system_property: phony obj/src/traced/probes/android_system_property/android_system_property.stamp
+build src/traced/probes/android_system_property$:unittests: phony obj/src/traced/probes/android_system_property/unittests.stamp
+build src/traced/probes/common$:common: phony obj/src/traced/probes/common/common.stamp
+build src/traced/probes/common: phony obj/src/traced/probes/common/common.stamp
+build src/traced/probes/common$:test_support: phony obj/src/traced/probes/common/test_support.stamp
+build src/traced/probes/common$:unittests: phony obj/src/traced/probes/common/unittests.stamp
+build src/traced/probes/filesystem$:filesystem: phony obj/src/traced/probes/filesystem/filesystem.stamp
+build src/traced/probes/filesystem: phony obj/src/traced/probes/filesystem/filesystem.stamp
+build src/traced/probes/filesystem$:unittests: phony obj/src/traced/probes/filesystem/unittests.stamp
+build src/traced/probes/ftrace$:benchmarks: phony obj/src/traced/probes/ftrace/benchmarks.stamp
+build src/traced/probes/ftrace$:cpu_reader_fuzzer: phony obj/src/traced/probes/ftrace/cpu_reader_fuzzer.stamp
+build src/traced/probes/ftrace$:ftrace: phony obj/src/traced/probes/ftrace/ftrace.stamp
+build src/traced/probes/ftrace: phony obj/src/traced/probes/ftrace/ftrace.stamp
+build src/traced/probes/ftrace$:ftrace_procfs: phony obj/src/traced/probes/ftrace/ftrace_procfs.stamp
+build src/traced/probes/ftrace$:integrationtests: phony obj/src/traced/probes/ftrace/integrationtests.stamp
+build src/traced/probes/ftrace$:test_messages_cpp: phony obj/src/traced/probes/ftrace/test_messages_cpp.stamp
+build src/traced/probes/ftrace$:test_messages_cpp_gen: phony obj/src/traced/probes/ftrace/test_messages_cpp_gen.stamp
+build src/traced/probes/ftrace$:test_messages_lite: phony obj/src/traced/probes/ftrace/test_messages_lite.stamp
+build src/traced/probes/ftrace$:test_messages_lite_gen: phony obj/src/traced/probes/ftrace/test_messages_lite_gen.stamp
+build src/traced/probes/ftrace$:test_messages_source_set: phony obj/src/traced/probes/ftrace/test_messages_source_set.stamp
+build src/traced/probes/ftrace$:test_messages_zero: phony obj/src/traced/probes/ftrace/test_messages_zero.stamp
+build src/traced/probes/ftrace$:test_messages_zero_gen: phony obj/src/traced/probes/ftrace/test_messages_zero_gen.stamp
+build src/traced/probes/ftrace$:test_support: phony obj/src/traced/probes/ftrace/test_support.stamp
+build src/traced/probes/ftrace$:unittests: phony obj/src/traced/probes/ftrace/unittests.stamp
+build src/traced/probes/ftrace/format_parser$:format_parser: phony obj/src/traced/probes/ftrace/format_parser/format_parser.stamp
+build src/traced/probes/ftrace/format_parser: phony obj/src/traced/probes/ftrace/format_parser/format_parser.stamp
+build src/traced/probes/ftrace/format_parser$:unittests: phony obj/src/traced/probes/ftrace/format_parser/unittests.stamp
+build src/traced/probes/initial_display_state$:initial_display_state: phony obj/src/traced/probes/initial_display_state/initial_display_state.stamp
+build src/traced/probes/initial_display_state: phony obj/src/traced/probes/initial_display_state/initial_display_state.stamp
+build src/traced/probes/initial_display_state$:unittests: phony obj/src/traced/probes/initial_display_state/unittests.stamp
+build src/traced/probes/metatrace$:metatrace: phony obj/src/traced/probes/metatrace/metatrace.stamp
+build src/traced/probes/metatrace: phony obj/src/traced/probes/metatrace/metatrace.stamp
+build src/traced/probes/packages_list$:packages_list: phony obj/src/traced/probes/packages_list/packages_list.stamp
+build src/traced/probes/packages_list: phony obj/src/traced/probes/packages_list/packages_list.stamp
+build src/traced/probes/packages_list$:packages_list_parser: phony obj/src/traced/probes/packages_list/packages_list_parser.stamp
+build src/traced/probes/packages_list$:unittests: phony obj/src/traced/probes/packages_list/unittests.stamp
+build src/traced/probes/power$:power: phony obj/src/traced/probes/power/power.stamp
+build src/traced/probes/power: phony obj/src/traced/probes/power/power.stamp
+build src/traced/probes/power$:unittests: phony obj/src/traced/probes/power/unittests.stamp
+build src/traced/probes/ps$:ps: phony obj/src/traced/probes/ps/ps.stamp
+build src/traced/probes/ps: phony obj/src/traced/probes/ps/ps.stamp
+build src/traced/probes/ps$:unittests: phony obj/src/traced/probes/ps/unittests.stamp
+build src/traced/probes/statsd_client$:statsd_client: phony obj/src/traced/probes/statsd_client/statsd_client.stamp
+build src/traced/probes/statsd_client: phony obj/src/traced/probes/statsd_client/statsd_client.stamp
+build src/traced/probes/statsd_client$:unittests: phony obj/src/traced/probes/statsd_client/unittests.stamp
+build src/traced/probes/sys_stats$:sys_stats: phony obj/src/traced/probes/sys_stats/sys_stats.stamp
+build src/traced/probes/sys_stats: phony obj/src/traced/probes/sys_stats/sys_stats.stamp
+build src/traced/probes/sys_stats$:unittests: phony obj/src/traced/probes/sys_stats/unittests.stamp
+build src/traced/probes/system_info$:cpu_info_features_allowlist: phony obj/src/traced/probes/system_info/cpu_info_features_allowlist.stamp
+build src/traced/probes/system_info$:system_info: phony obj/src/traced/probes/system_info/system_info.stamp
+build src/traced/probes/system_info: phony obj/src/traced/probes/system_info/system_info.stamp
+build src/traced/probes/system_info$:unittests: phony obj/src/traced/probes/system_info/unittests.stamp
+build src/traced/service$:builtin_producer: phony obj/src/traced/service/builtin_producer.stamp
+build src/traced/service$:service: phony obj/src/traced/service/service.stamp
+build src/traced/service: phony obj/src/traced/service/service.stamp
+build src/traced/service$:traced: phony ./traced
+build src/traced/service$:unittests: phony obj/src/traced/service/unittests.stamp
+build src/traced_relay$:integrationtests: phony obj/src/traced_relay/integrationtests.stamp
+build src/traced_relay$:lib: phony obj/src/traced_relay/lib.stamp
+build src/traced_relay$:traced_relay: phony ./traced_relay
+build src/traced_relay: phony ./traced_relay
+build src/traced_relay$:unittests: phony obj/src/traced_relay/unittests.stamp
+build src/tracing$:benchmarks: phony obj/src/tracing/benchmarks.stamp
+build src/tracing$:client_api: phony obj/src/tracing/client_api.stamp
+build src/tracing$:client_api_no_backends_compile_test: phony ./libclient_api_no_backends_compile_test.so
+build src/tracing$:client_api_without_backends: phony obj/src/tracing/client_api_without_backends.stamp
+build src/tracing$:common: phony obj/src/tracing/common.stamp
+build src/tracing$:in_process_backend: phony obj/src/tracing/in_process_backend.stamp
+build src/tracing$:integrationtests: phony obj/src/tracing/integrationtests.stamp
+build src/tracing$:platform_impl: phony obj/src/tracing/platform_impl.stamp
+build src/tracing$:system_backend: phony obj/src/tracing/system_backend.stamp
+build src/tracing$:unittests: phony obj/src/tracing/unittests.stamp
+build src/tracing/core$:core: phony obj/src/tracing/core/core.stamp
+build src/tracing/core: phony obj/src/tracing/core/core.stamp
+build src/tracing/core$:test_support: phony obj/src/tracing/core/test_support.stamp
+build src/tracing/core$:unittests: phony obj/src/tracing/core/unittests.stamp
+build src/tracing/ipc$:common: phony obj/src/tracing/ipc/common.stamp
+build src/tracing/ipc$:default_socket: phony obj/src/tracing/ipc/default_socket.stamp
+build src/tracing/ipc$:unittests: phony obj/src/tracing/ipc/unittests.stamp
+build src/tracing/ipc/consumer$:consumer: phony obj/src/tracing/ipc/consumer/consumer.stamp
+build src/tracing/ipc/consumer: phony obj/src/tracing/ipc/consumer/consumer.stamp
+build src/tracing/ipc/producer$:producer: phony obj/src/tracing/ipc/producer/producer.stamp
+build src/tracing/ipc/producer: phony obj/src/tracing/ipc/producer/producer.stamp
+build src/tracing/ipc/producer$:relay: phony obj/src/tracing/ipc/producer/relay.stamp
+build src/tracing/ipc/service$:service: phony obj/src/tracing/ipc/service/service.stamp
+build src/tracing/ipc/service: phony obj/src/tracing/ipc/service/service.stamp
+build src/tracing/service$:benchmarks: phony obj/src/tracing/service/benchmarks.stamp
+build src/tracing/service$:packet_stream_validator_fuzzer: phony obj/src/tracing/service/packet_stream_validator_fuzzer.stamp
+build src/tracing/service$:service: phony obj/src/tracing/service/service.stamp
+build src/tracing/service: phony obj/src/tracing/service/service.stamp
+build src/tracing/service$:unittests: phony obj/src/tracing/service/unittests.stamp
+build src/tracing/service$:zlib_compressor: phony obj/src/tracing/service/zlib_compressor.stamp
+build src/tracing/test$:api_test_support: phony obj/src/tracing/test/api_test_support.stamp
+build src/tracing/test$:client_api_integrationtests: phony obj/src/tracing/test/client_api_integrationtests.stamp
+build src/tracing/test$:test_support: phony obj/src/tracing/test/test_support.stamp
+build src/tracing/test$:tracing_integration_test: phony obj/src/tracing/test/tracing_integration_test.stamp
+build src/websocket_bridge$:lib: phony obj/src/websocket_bridge/lib.stamp
+build src/websocket_bridge$:websocket_bridge: phony ./websocket_bridge
+build src/websocket_bridge: phony ./websocket_bridge
+build test$:benchmark_main: phony obj/test/benchmark_main.stamp
+build test$:client_api_example: phony ./client_api_example
+build test$:end_to_end_benchmarks: phony obj/test/end_to_end_benchmarks.stamp
+build test$:end_to_end_shared_memory_fuzzer: phony obj/test/end_to_end_shared_memory_fuzzer.stamp
+build test$:integrationtest_initializer: phony obj/test/integrationtest_initializer.stamp
+build test$:integrationtest_main: phony obj/test/integrationtest_main.stamp
+build test$:perfetto_end_to_end_integrationtests: phony obj/test/perfetto_end_to_end_integrationtests.stamp
+build test$:producer_socket_fuzzer: phony obj/test/producer_socket_fuzzer.stamp
+build test$:test_helper: phony obj/test/test_helper.stamp
+build test/configs$:configs: phony obj/test/configs/configs.stamp
+build test/configs: phony obj/test/configs/configs.stamp
+build test/sanitizers$:unittests: phony obj/test/sanitizers/unittests.stamp
+build test/stress_test$:stress_producer: phony ./stress_producer
+build test/stress_test$:stress_test: phony ./stress_test
+build test/stress_test: phony ./stress_test
+build test/stress_test/configs$:configs: phony obj/test/stress_test/configs/configs.stamp
+build test/stress_test/configs: phony obj/test/stress_test/configs/configs.stamp
+build ui$:deprecation_warning: phony obj/ui/deprecation_warning.stamp
+build ui$:ui: phony obj/ui/ui.stamp
+build ui$:ui_build: phony obj/ui/ui_build.stamp
+
+build all: phony $
+    obj/all.stamp $
+    obj/default.stamp $
+    ./libperfetto.so $
+    ./libperfetto_client_experimental.a $
+    ./perfetto_benchmarks $
+    ./perfetto_integrationtests $
+    ./perfetto_unittests $
+    ./trace_processor_minimal_smoke_tests $
+    obj/ui.stamp $
+    obj/buildtools/benchmark.stamp $
+    obj/buildtools/expat.stamp $
+    obj/buildtools/gmock.stamp $
+    obj/buildtools/gtest.stamp $
+    obj/buildtools/gtest_main.stamp $
+    obj/buildtools/jsoncpp.stamp $
+    obj/buildtools/libbacktrace.stamp $
+    obj/buildtools/libc++.stamp $
+    obj/buildtools/libc++abi.stamp $
+    obj/buildtools/libunwind.stamp $
+    obj/buildtools/libunwindstack.stamp $
+    obj/buildtools/linenoise.stamp $
+    obj/buildtools/llvm_demangle.stamp $
+    obj/buildtools/lzma.stamp $
+    obj/buildtools/open_csd.stamp $
+    obj/buildtools/protobuf_full.stamp $
+    obj/buildtools/protobuf_lite.stamp $
+    ./protoc $
+    obj/buildtools/protoc_lib.stamp $
+    obj/buildtools/sqlite.stamp $
+    obj/buildtools/zlib.stamp $
+    obj/buildtools/zstd.stamp $
+    ./example_custom_data_source $
+    ./example_startup_trace $
+    ./example_system_wide $
+    ./sdk_example $
+    ./example_shlib_data_source $
+    ./example_shlib_track_event $
+    obj/gn/android_test_common.stamp $
+    obj/gn/base_platform.stamp $
+    obj/gn/benchmark.stamp $
+    obj/gn/bionic_kernel_uapi_headers.stamp $
+    obj/gn/default_deps.stamp $
+    obj/gn/expat.stamp $
+    obj/gn/gen_buildflags.stamp $
+    obj/gn/gtest_and_gmock.stamp $
+    obj/gn/gtest_main.stamp $
+    obj/gn/jsoncpp.stamp $
+    obj/gn/libbacktrace.stamp $
+    obj/gn/libunwindstack.stamp $
+    obj/gn/linenoise.stamp $
+    obj/gn/llvm_demangle.stamp $
+    obj/gn/open_csd.stamp $
+    obj/gn/pandas_py.stamp $
+    obj/gn/protobuf_full.stamp $
+    obj/gn/protobuf_lite.stamp $
+    obj/gn/protobuf_py.stamp $
+    obj/gn/protoc.stamp $
+    obj/gn/protoc_lib.stamp $
+    obj/gn/sqlite.stamp $
+    obj/gn/tp_resolvers_py.stamp $
+    obj/gn/tp_vendor_py.stamp $
+    obj/gn/zlib.stamp $
+    obj/gn/standalone/check_build_deps.stamp $
+    obj/gn/standalone/check_build_deps_android.stamp $
+    obj/gn/standalone/libc++/deps.stamp $
+    obj/gn/standalone/sanitizers/deps.stamp $
+    obj/gn/standalone/sanitizers/ignorelist_copy.stamp $
+    obj/include/perfetto/base/base.stamp $
+    obj/include/perfetto/ext/base/base.stamp $
+    obj/include/perfetto/ext/base/version.stamp $
+    obj/include/perfetto/ext/base/http/http.stamp $
+    obj/include/perfetto/ext/base/threading/threading.stamp $
+    obj/include/perfetto/ext/ipc/ipc.stamp $
+    obj/include/perfetto/ext/protozero/protozero.stamp $
+    obj/include/perfetto/ext/trace_processor/demangle.stamp $
+    obj/include/perfetto/ext/trace_processor/export_json.stamp $
+    obj/include/perfetto/ext/trace_processor/importers/memory_tracker/memory_tracker.stamp $
+    obj/include/perfetto/ext/trace_processor/rpc/query_result_serializer.stamp $
+    obj/include/perfetto/ext/traced/sys_stats_counters.stamp $
+    obj/include/perfetto/ext/traced/traced.stamp $
+    obj/include/perfetto/ext/tracing/core/core.stamp $
+    obj/include/perfetto/ext/tracing/core/test_support.stamp $
+    obj/include/perfetto/ext/tracing/ipc/ipc.stamp $
+    obj/include/perfetto/profiling/pprof_builder.stamp $
+    obj/include/perfetto/protozero/protozero.stamp $
+    obj/include/perfetto/public/base.stamp $
+    obj/include/perfetto/public/protozero.stamp $
+    obj/include/perfetto/public/public.stamp $
+    obj/include/perfetto/public/abi/base.stamp $
+    obj/include/perfetto/public/abi/public.stamp $
+    obj/include/perfetto/public/protos/protos.stamp $
+    obj/include/perfetto/test/test_support.stamp $
+    obj/include/perfetto/trace_processor/basic_types.stamp $
+    obj/include/perfetto/trace_processor/storage.stamp $
+    obj/include/perfetto/trace_processor/trace_processor.stamp $
+    obj/include/perfetto/tracing/tracing.stamp $
+    obj/include/perfetto/tracing/core/core.stamp $
+    obj/include/perfetto/tracing/core/forward_decls.stamp $
+    obj/protos/perfetto/common/cpp.stamp $
+    obj/protos/perfetto/common/cpp_gen.stamp $
+    obj/protos/perfetto/common/lite.stamp $
+    obj/protos/perfetto/common/lite_gen.stamp $
+    obj/protos/perfetto/common/source_set.stamp $
+    obj/protos/perfetto/common/zero.stamp $
+    obj/protos/perfetto/common/zero_gen.stamp $
+    obj/protos/perfetto/config/cpp.stamp $
+    obj/protos/perfetto/config/cpp_gen.stamp $
+    obj/protos/perfetto/config/descriptor.stamp $
+    obj/protos/perfetto/config/lite.stamp $
+    obj/protos/perfetto/config/lite_gen.stamp $
+    obj/protos/perfetto/config/source_set.stamp $
+    obj/protos/perfetto/config/zero.stamp $
+    obj/protos/perfetto/config/zero_gen.stamp $
+    obj/protos/perfetto/config/android/cpp.stamp $
+    obj/protos/perfetto/config/android/cpp_gen.stamp $
+    obj/protos/perfetto/config/android/lite.stamp $
+    obj/protos/perfetto/config/android/lite_gen.stamp $
+    obj/protos/perfetto/config/android/source_set.stamp $
+    obj/protos/perfetto/config/android/zero.stamp $
+    obj/protos/perfetto/config/android/zero_gen.stamp $
+    obj/protos/perfetto/config/ftrace/cpp.stamp $
+    obj/protos/perfetto/config/ftrace/cpp_gen.stamp $
+    obj/protos/perfetto/config/ftrace/lite.stamp $
+    obj/protos/perfetto/config/ftrace/lite_gen.stamp $
+    obj/protos/perfetto/config/ftrace/source_set.stamp $
+    obj/protos/perfetto/config/ftrace/zero.stamp $
+    obj/protos/perfetto/config/ftrace/zero_gen.stamp $
+    obj/protos/perfetto/config/gpu/cpp.stamp $
+    obj/protos/perfetto/config/gpu/cpp_gen.stamp $
+    obj/protos/perfetto/config/gpu/lite.stamp $
+    obj/protos/perfetto/config/gpu/lite_gen.stamp $
+    obj/protos/perfetto/config/gpu/source_set.stamp $
+    obj/protos/perfetto/config/gpu/zero.stamp $
+    obj/protos/perfetto/config/gpu/zero_gen.stamp $
+    obj/protos/perfetto/config/inode_file/cpp.stamp $
+    obj/protos/perfetto/config/inode_file/cpp_gen.stamp $
+    obj/protos/perfetto/config/inode_file/lite.stamp $
+    obj/protos/perfetto/config/inode_file/lite_gen.stamp $
+    obj/protos/perfetto/config/inode_file/source_set.stamp $
+    obj/protos/perfetto/config/inode_file/zero.stamp $
+    obj/protos/perfetto/config/inode_file/zero_gen.stamp $
+    obj/protos/perfetto/config/interceptors/cpp.stamp $
+    obj/protos/perfetto/config/interceptors/cpp_gen.stamp $
+    obj/protos/perfetto/config/interceptors/lite.stamp $
+    obj/protos/perfetto/config/interceptors/lite_gen.stamp $
+    obj/protos/perfetto/config/interceptors/source_set.stamp $
+    obj/protos/perfetto/config/interceptors/zero.stamp $
+    obj/protos/perfetto/config/interceptors/zero_gen.stamp $
+    obj/protos/perfetto/config/power/cpp.stamp $
+    obj/protos/perfetto/config/power/cpp_gen.stamp $
+    obj/protos/perfetto/config/power/lite.stamp $
+    obj/protos/perfetto/config/power/lite_gen.stamp $
+    obj/protos/perfetto/config/power/source_set.stamp $
+    obj/protos/perfetto/config/power/zero.stamp $
+    obj/protos/perfetto/config/power/zero_gen.stamp $
+    obj/protos/perfetto/config/process_stats/cpp.stamp $
+    obj/protos/perfetto/config/process_stats/cpp_gen.stamp $
+    obj/protos/perfetto/config/process_stats/lite.stamp $
+    obj/protos/perfetto/config/process_stats/lite_gen.stamp $
+    obj/protos/perfetto/config/process_stats/source_set.stamp $
+    obj/protos/perfetto/config/process_stats/zero.stamp $
+    obj/protos/perfetto/config/process_stats/zero_gen.stamp $
+    obj/protos/perfetto/config/profiling/cpp.stamp $
+    obj/protos/perfetto/config/profiling/cpp_gen.stamp $
+    obj/protos/perfetto/config/profiling/lite.stamp $
+    obj/protos/perfetto/config/profiling/lite_gen.stamp $
+    obj/protos/perfetto/config/profiling/source_set.stamp $
+    obj/protos/perfetto/config/profiling/zero.stamp $
+    obj/protos/perfetto/config/profiling/zero_gen.stamp $
+    obj/protos/perfetto/config/statsd/cpp.stamp $
+    obj/protos/perfetto/config/statsd/cpp_gen.stamp $
+    obj/protos/perfetto/config/statsd/lite.stamp $
+    obj/protos/perfetto/config/statsd/lite_gen.stamp $
+    obj/protos/perfetto/config/statsd/source_set.stamp $
+    obj/protos/perfetto/config/statsd/zero.stamp $
+    obj/protos/perfetto/config/statsd/zero_gen.stamp $
+    obj/protos/perfetto/config/sys_stats/cpp.stamp $
+    obj/protos/perfetto/config/sys_stats/cpp_gen.stamp $
+    obj/protos/perfetto/config/sys_stats/lite.stamp $
+    obj/protos/perfetto/config/sys_stats/lite_gen.stamp $
+    obj/protos/perfetto/config/sys_stats/source_set.stamp $
+    obj/protos/perfetto/config/sys_stats/zero.stamp $
+    obj/protos/perfetto/config/sys_stats/zero_gen.stamp $
+    obj/protos/perfetto/config/system_info/cpp.stamp $
+    obj/protos/perfetto/config/system_info/cpp_gen.stamp $
+    obj/protos/perfetto/config/system_info/lite.stamp $
+    obj/protos/perfetto/config/system_info/lite_gen.stamp $
+    obj/protos/perfetto/config/system_info/source_set.stamp $
+    obj/protos/perfetto/config/system_info/zero.stamp $
+    obj/protos/perfetto/config/system_info/zero_gen.stamp $
+    obj/protos/perfetto/config/track_event/cpp.stamp $
+    obj/protos/perfetto/config/track_event/cpp_gen.stamp $
+    obj/protos/perfetto/config/track_event/lite.stamp $
+    obj/protos/perfetto/config/track_event/lite_gen.stamp $
+    obj/protos/perfetto/config/track_event/source_set.stamp $
+    obj/protos/perfetto/config/track_event/zero.stamp $
+    obj/protos/perfetto/config/track_event/zero_gen.stamp $
+    obj/protos/perfetto/ipc/cpp.stamp $
+    obj/protos/perfetto/ipc/cpp_gen.stamp $
+    obj/protos/perfetto/ipc/ipc.stamp $
+    obj/protos/perfetto/ipc/ipc_gen.stamp $
+    obj/protos/perfetto/ipc/source_set.stamp $
+    obj/protos/perfetto/ipc/wire_protocol_cpp.stamp $
+    obj/protos/perfetto/ipc/wire_protocol_cpp_gen.stamp $
+    obj/protos/perfetto/ipc/wire_protocol_source_set.stamp $
+    obj/protos/perfetto/ipc/wire_protocol_zero.stamp $
+    obj/protos/perfetto/ipc/wire_protocol_zero_gen.stamp $
+    obj/protos/perfetto/metrics/custom_options_lite.stamp $
+    obj/protos/perfetto/metrics/custom_options_lite_gen.stamp $
+    obj/protos/perfetto/metrics/custom_options_source_set.stamp $
+    obj/protos/perfetto/metrics/descriptor.stamp $
+    obj/protos/perfetto/metrics/lite.stamp $
+    obj/protos/perfetto/metrics/lite_gen.stamp $
+    obj/protos/perfetto/metrics/source_set.stamp $
+    obj/protos/perfetto/metrics/android/lite.stamp $
+    obj/protos/perfetto/metrics/android/lite_gen.stamp $
+    obj/protos/perfetto/metrics/android/source_set.stamp $
+    obj/protos/perfetto/metrics/chrome/descriptor.stamp $
+    obj/protos/perfetto/metrics/chrome/lite.stamp $
+    obj/protos/perfetto/metrics/chrome/lite_gen.stamp $
+    obj/protos/perfetto/metrics/chrome/source_set.stamp $
+    obj/protos/perfetto/metrics/common/lite.stamp $
+    obj/protos/perfetto/metrics/common/lite_gen.stamp $
+    obj/protos/perfetto/metrics/common/source_set.stamp $
+    obj/protos/perfetto/metrics/webview/descriptor.stamp $
+    obj/protos/perfetto/metrics/webview/source_set.stamp $
+    obj/protos/perfetto/perfetto_sql/cpp.stamp $
+    obj/protos/perfetto/perfetto_sql/cpp_gen.stamp $
+    obj/protos/perfetto/perfetto_sql/descriptor.stamp $
+    obj/protos/perfetto/perfetto_sql/lite.stamp $
+    obj/protos/perfetto/perfetto_sql/lite_gen.stamp $
+    obj/protos/perfetto/perfetto_sql/source_set.stamp $
+    obj/protos/perfetto/perfetto_sql/zero.stamp $
+    obj/protos/perfetto/perfetto_sql/zero_gen.stamp $
+    obj/protos/perfetto/trace/cpp.stamp $
+    obj/protos/perfetto/trace/descriptor.stamp $
+    obj/protos/perfetto/trace/lite.stamp $
+    obj/protos/perfetto/trace/minimal_cpp.stamp $
+    obj/protos/perfetto/trace/minimal_cpp_gen.stamp $
+    obj/protos/perfetto/trace/minimal_lite.stamp $
+    obj/protos/perfetto/trace/minimal_lite_gen.stamp $
+    obj/protos/perfetto/trace/minimal_source_set.stamp $
+    obj/protos/perfetto/trace/minimal_zero.stamp $
+    obj/protos/perfetto/trace/minimal_zero_gen.stamp $
+    obj/protos/perfetto/trace/non_minimal_cpp.stamp $
+    obj/protos/perfetto/trace/non_minimal_cpp_gen.stamp $
+    obj/protos/perfetto/trace/non_minimal_lite.stamp $
+    obj/protos/perfetto/trace/non_minimal_lite_gen.stamp $
+    obj/protos/perfetto/trace/non_minimal_source_set.stamp $
+    obj/protos/perfetto/trace/non_minimal_zero.stamp $
+    obj/protos/perfetto/trace/non_minimal_zero_gen.stamp $
+    ./libperfetto_trace_protos.a $
+    obj/protos/perfetto/trace/source_set.stamp $
+    obj/protos/perfetto/trace/test_extensions_descriptor.stamp $
+    obj/protos/perfetto/trace/test_extensions_source_set.stamp $
+    obj/protos/perfetto/trace/zero.stamp $
+    obj/protos/perfetto/trace/android/android_track_event_cpp.stamp $
+    obj/protos/perfetto/trace/android/android_track_event_cpp_gen.stamp $
+    obj/protos/perfetto/trace/android/android_track_event_descriptor.stamp $
+    obj/protos/perfetto/trace/android/android_track_event_lite.stamp $
+    obj/protos/perfetto/trace/android/android_track_event_lite_gen.stamp $
+    obj/protos/perfetto/trace/android/android_track_event_source_set.stamp $
+    obj/protos/perfetto/trace/android/android_track_event_zero.stamp $
+    obj/protos/perfetto/trace/android/android_track_event_zero_gen.stamp $
+    obj/protos/perfetto/trace/android/cpp.stamp $
+    obj/protos/perfetto/trace/android/cpp_gen.stamp $
+    obj/protos/perfetto/trace/android/lite.stamp $
+    obj/protos/perfetto/trace/android/lite_gen.stamp $
+    ./libperfetto_winscope_extensions_zero.a $
+    obj/protos/perfetto/trace/android/source_set.stamp $
+    obj/protos/perfetto/trace/android/winscope_common_cpp.stamp $
+    obj/protos/perfetto/trace/android/winscope_common_cpp_gen.stamp $
+    obj/protos/perfetto/trace/android/winscope_common_lite.stamp $
+    obj/protos/perfetto/trace/android/winscope_common_lite_gen.stamp $
+    obj/protos/perfetto/trace/android/winscope_common_source_set.stamp $
+    obj/protos/perfetto/trace/android/winscope_common_zero.stamp $
+    obj/protos/perfetto/trace/android/winscope_common_zero_gen.stamp $
+    obj/protos/perfetto/trace/android/winscope_descriptor.stamp $
+    obj/protos/perfetto/trace/android/winscope_extensions_source_set.stamp $
+    obj/protos/perfetto/trace/android/winscope_extensions_zero.stamp $
+    obj/protos/perfetto/trace/android/winscope_extensions_zero_gen.stamp $
+    obj/protos/perfetto/trace/android/winscope_regular_cpp.stamp $
+    obj/protos/perfetto/trace/android/winscope_regular_cpp_gen.stamp $
+    obj/protos/perfetto/trace/android/winscope_regular_lite.stamp $
+    obj/protos/perfetto/trace/android/winscope_regular_lite_gen.stamp $
+    obj/protos/perfetto/trace/android/winscope_regular_source_set.stamp $
+    obj/protos/perfetto/trace/android/winscope_regular_zero.stamp $
+    obj/protos/perfetto/trace/android/winscope_regular_zero_gen.stamp $
+    obj/protos/perfetto/trace/android/winscope_source_set.stamp $
+    obj/protos/perfetto/trace/android/zero.stamp $
+    obj/protos/perfetto/trace/android/zero_gen.stamp $
+    obj/protos/perfetto/trace/chrome/cpp.stamp $
+    obj/protos/perfetto/trace/chrome/cpp_gen.stamp $
+    obj/protos/perfetto/trace/chrome/lite.stamp $
+    obj/protos/perfetto/trace/chrome/lite_gen.stamp $
+    obj/protos/perfetto/trace/chrome/minimal_complete_lite.stamp $
+    obj/protos/perfetto/trace/chrome/minimal_complete_lite_gen.stamp $
+    obj/protos/perfetto/trace/chrome/minimal_complete_source_set.stamp $
+    obj/protos/perfetto/trace/chrome/source_set.stamp $
+    obj/protos/perfetto/trace/chrome/zero.stamp $
+    obj/protos/perfetto/trace/chrome/zero_gen.stamp $
+    obj/protos/perfetto/trace/etw/cpp.stamp $
+    obj/protos/perfetto/trace/etw/cpp_gen.stamp $
+    obj/protos/perfetto/trace/etw/descriptor.stamp $
+    obj/protos/perfetto/trace/etw/lite.stamp $
+    obj/protos/perfetto/trace/etw/lite_gen.stamp $
+    obj/protos/perfetto/trace/etw/source_set.stamp $
+    obj/protos/perfetto/trace/etw/zero.stamp $
+    obj/protos/perfetto/trace/etw/zero_gen.stamp $
+    obj/protos/perfetto/trace/filesystem/cpp.stamp $
+    obj/protos/perfetto/trace/filesystem/cpp_gen.stamp $
+    obj/protos/perfetto/trace/filesystem/lite.stamp $
+    obj/protos/perfetto/trace/filesystem/lite_gen.stamp $
+    obj/protos/perfetto/trace/filesystem/source_set.stamp $
+    obj/protos/perfetto/trace/filesystem/zero.stamp $
+    obj/protos/perfetto/trace/filesystem/zero_gen.stamp $
+    obj/protos/perfetto/trace/ftrace/cpp.stamp $
+    obj/protos/perfetto/trace/ftrace/cpp_gen.stamp $
+    obj/protos/perfetto/trace/ftrace/descriptor.stamp $
+    obj/protos/perfetto/trace/ftrace/lite.stamp $
+    obj/protos/perfetto/trace/ftrace/lite_gen.stamp $
+    obj/protos/perfetto/trace/ftrace/source_set.stamp $
+    obj/protos/perfetto/trace/ftrace/zero.stamp $
+    obj/protos/perfetto/trace/ftrace/zero_gen.stamp $
+    obj/protos/perfetto/trace/gpu/cpp.stamp $
+    obj/protos/perfetto/trace/gpu/cpp_gen.stamp $
+    obj/protos/perfetto/trace/gpu/lite.stamp $
+    obj/protos/perfetto/trace/gpu/lite_gen.stamp $
+    obj/protos/perfetto/trace/gpu/source_set.stamp $
+    obj/protos/perfetto/trace/gpu/zero.stamp $
+    obj/protos/perfetto/trace/gpu/zero_gen.stamp $
+    obj/protos/perfetto/trace/interned_data/cpp.stamp $
+    obj/protos/perfetto/trace/interned_data/cpp_gen.stamp $
+    obj/protos/perfetto/trace/interned_data/lite.stamp $
+    obj/protos/perfetto/trace/interned_data/lite_gen.stamp $
+    obj/protos/perfetto/trace/interned_data/source_set.stamp $
+    obj/protos/perfetto/trace/interned_data/zero.stamp $
+    obj/protos/perfetto/trace/interned_data/zero_gen.stamp $
+    obj/protos/perfetto/trace/perfetto/cpp.stamp $
+    obj/protos/perfetto/trace/perfetto/cpp_gen.stamp $
+    obj/protos/perfetto/trace/perfetto/lite.stamp $
+    obj/protos/perfetto/trace/perfetto/lite_gen.stamp $
+    obj/protos/perfetto/trace/perfetto/source_set.stamp $
+    obj/protos/perfetto/trace/perfetto/zero.stamp $
+    obj/protos/perfetto/trace/perfetto/zero_gen.stamp $
+    obj/protos/perfetto/trace/power/cpp.stamp $
+    obj/protos/perfetto/trace/power/cpp_gen.stamp $
+    obj/protos/perfetto/trace/power/lite.stamp $
+    obj/protos/perfetto/trace/power/lite_gen.stamp $
+    obj/protos/perfetto/trace/power/source_set.stamp $
+    obj/protos/perfetto/trace/power/zero.stamp $
+    obj/protos/perfetto/trace/power/zero_gen.stamp $
+    obj/protos/perfetto/trace/profiling/cpp.stamp $
+    obj/protos/perfetto/trace/profiling/cpp_gen.stamp $
+    obj/protos/perfetto/trace/profiling/lite.stamp $
+    obj/protos/perfetto/trace/profiling/lite_gen.stamp $
+    obj/protos/perfetto/trace/profiling/source_set.stamp $
+    obj/protos/perfetto/trace/profiling/zero.stamp $
+    obj/protos/perfetto/trace/profiling/zero_gen.stamp $
+    obj/protos/perfetto/trace/ps/cpp.stamp $
+    obj/protos/perfetto/trace/ps/cpp_gen.stamp $
+    obj/protos/perfetto/trace/ps/lite.stamp $
+    obj/protos/perfetto/trace/ps/lite_gen.stamp $
+    obj/protos/perfetto/trace/ps/source_set.stamp $
+    obj/protos/perfetto/trace/ps/zero.stamp $
+    obj/protos/perfetto/trace/ps/zero_gen.stamp $
+    obj/protos/perfetto/trace/statsd/cpp.stamp $
+    obj/protos/perfetto/trace/statsd/cpp_gen.stamp $
+    obj/protos/perfetto/trace/statsd/lite.stamp $
+    obj/protos/perfetto/trace/statsd/lite_gen.stamp $
+    obj/protos/perfetto/trace/statsd/source_set.stamp $
+    obj/protos/perfetto/trace/statsd/zero.stamp $
+    obj/protos/perfetto/trace/statsd/zero_gen.stamp $
+    obj/protos/perfetto/trace/sys_stats/cpp.stamp $
+    obj/protos/perfetto/trace/sys_stats/cpp_gen.stamp $
+    obj/protos/perfetto/trace/sys_stats/lite.stamp $
+    obj/protos/perfetto/trace/sys_stats/lite_gen.stamp $
+    obj/protos/perfetto/trace/sys_stats/source_set.stamp $
+    obj/protos/perfetto/trace/sys_stats/zero.stamp $
+    obj/protos/perfetto/trace/sys_stats/zero_gen.stamp $
+    obj/protos/perfetto/trace/system_info/cpp.stamp $
+    obj/protos/perfetto/trace/system_info/cpp_gen.stamp $
+    obj/protos/perfetto/trace/system_info/lite.stamp $
+    obj/protos/perfetto/trace/system_info/lite_gen.stamp $
+    obj/protos/perfetto/trace/system_info/source_set.stamp $
+    obj/protos/perfetto/trace/system_info/zero.stamp $
+    obj/protos/perfetto/trace/system_info/zero_gen.stamp $
+    obj/protos/perfetto/trace/track_event/cpp.stamp $
+    obj/protos/perfetto/trace/track_event/cpp_gen.stamp $
+    obj/protos/perfetto/trace/track_event/descriptor.stamp $
+    obj/protos/perfetto/trace/track_event/lite.stamp $
+    obj/protos/perfetto/trace/track_event/lite_gen.stamp $
+    obj/protos/perfetto/trace/track_event/source_set.stamp $
+    obj/protos/perfetto/trace/track_event/zero.stamp $
+    obj/protos/perfetto/trace/track_event/zero_gen.stamp $
+    obj/protos/perfetto/trace/translation/cpp.stamp $
+    obj/protos/perfetto/trace/translation/cpp_gen.stamp $
+    obj/protos/perfetto/trace/translation/lite.stamp $
+    obj/protos/perfetto/trace/translation/lite_gen.stamp $
+    obj/protos/perfetto/trace/translation/source_set.stamp $
+    obj/protos/perfetto/trace/translation/zero.stamp $
+    obj/protos/perfetto/trace/translation/zero_gen.stamp $
+    obj/protos/perfetto/trace_processor/cpp.stamp $
+    obj/protos/perfetto/trace_processor/cpp_gen.stamp $
+    obj/protos/perfetto/trace_processor/lite.stamp $
+    obj/protos/perfetto/trace_processor/lite_gen.stamp $
+    obj/protos/perfetto/trace_processor/metrics_impl_source_set.stamp $
+    obj/protos/perfetto/trace_processor/metrics_impl_zero.stamp $
+    obj/protos/perfetto/trace_processor/metrics_impl_zero_gen.stamp $
+    obj/protos/perfetto/trace_processor/source_set.stamp $
+    obj/protos/perfetto/trace_processor/stack_descriptor.stamp $
+    obj/protos/perfetto/trace_processor/stack_source_set.stamp $
+    obj/protos/perfetto/trace_processor/zero.stamp $
+    obj/protos/perfetto/trace_processor/zero_gen.stamp $
+    obj/protos/perfetto/trace_summary/cpp.stamp $
+    obj/protos/perfetto/trace_summary/cpp_gen.stamp $
+    obj/protos/perfetto/trace_summary/descriptor.stamp $
+    obj/protos/perfetto/trace_summary/lite.stamp $
+    obj/protos/perfetto/trace_summary/lite_gen.stamp $
+    obj/protos/perfetto/trace_summary/source_set.stamp $
+    obj/protos/perfetto/trace_summary/zero.stamp $
+    obj/protos/perfetto/trace_summary/zero_gen.stamp $
+    obj/protos/third_party/chromium/cpp.stamp $
+    obj/protos/third_party/chromium/cpp_gen.stamp $
+    obj/protos/third_party/chromium/descriptor.stamp $
+    obj/protos/third_party/chromium/lite.stamp $
+    obj/protos/third_party/chromium/lite_gen.stamp $
+    obj/protos/third_party/chromium/source_set.stamp $
+    obj/protos/third_party/chromium/zero.stamp $
+    obj/protos/third_party/chromium/zero_gen.stamp $
+    obj/protos/third_party/pprof/cpp.stamp $
+    obj/protos/third_party/pprof/cpp_gen.stamp $
+    obj/protos/third_party/pprof/descriptor.stamp $
+    obj/protos/third_party/pprof/source_set.stamp $
+    obj/protos/third_party/pprof/zero.stamp $
+    obj/protos/third_party/pprof/zero_gen.stamp $
+    obj/protos/third_party/simpleperf/cpp.stamp $
+    obj/protos/third_party/simpleperf/cpp_gen.stamp $
+    obj/protos/third_party/simpleperf/lite.stamp $
+    obj/protos/third_party/simpleperf/lite_gen.stamp $
+    obj/protos/third_party/simpleperf/source_set.stamp $
+    obj/protos/third_party/simpleperf/zero.stamp $
+    obj/protos/third_party/simpleperf/zero_gen.stamp $
+    obj/protos/third_party/statsd/config_source_set.stamp $
+    obj/protos/third_party/statsd/config_zero.stamp $
+    obj/protos/third_party/statsd/config_zero_gen.stamp $
+    obj/python/batch_trace_processor.stamp $
+    obj/python/common.stamp $
+    obj/python/experimental_slice_breakdown_bin.stamp $
+    obj/python/experimental_slice_breakdown_lib.stamp $
+    obj/python/sql_processing.stamp $
+    obj/python/trace_processor_diff_tests.stamp $
+    obj/python/trace_processor_py.stamp $
+    obj/python/trace_processor_py_example.stamp $
+    obj/python/trace_processor_py_no_resolvers.stamp $
+    obj/python/trace_processor_stdlib_docs.stamp $
+    obj/python/trace_processor_table_generator.stamp $
+    obj/python/trace_uri_resolver.stamp $
+    obj/src/android_internal/headers.stamp $
+    obj/src/android_internal/lazy_library_loader.stamp $
+    obj/src/android_stats/android_stats.stamp $
+    obj/src/android_stats/perfetto_atoms.stamp $
+    obj/src/base/base.stamp $
+    obj/src/base/benchmarks.stamp $
+    obj/src/base/clock_snapshots.stamp $
+    obj/src/base/perfetto_base_default_platform.stamp $
+    obj/src/base/test_support.stamp $
+    obj/src/base/unittests.stamp $
+    obj/src/base/unix_socket.stamp $
+    obj/src/base/version.stamp $
+    obj/src/base/version_gen_h.stamp $
+    obj/src/base/http/http.stamp $
+    obj/src/base/http/unittests.stamp $
+    obj/src/base/threading/threading.stamp $
+    obj/src/base/threading/unittests.stamp $
+    obj/src/ipc/buffered_frame_deserializer_fuzzer.stamp $
+    obj/src/ipc/client.stamp $
+    obj/src/ipc/common.stamp $
+    obj/src/ipc/host.stamp $
+    obj/src/ipc/perfetto_ipc.stamp $
+    obj/src/ipc/test_messages_cpp.stamp $
+    obj/src/ipc/test_messages_cpp_gen.stamp $
+    obj/src/ipc/test_messages_ipc.stamp $
+    obj/src/ipc/test_messages_ipc_gen.stamp $
+    obj/src/ipc/test_messages_source_set.stamp $
+    obj/src/ipc/test_messages_zero.stamp $
+    obj/src/ipc/test_messages_zero_gen.stamp $
+    obj/src/ipc/unittests.stamp $
+    ./ipc_plugin $
+    obj/src/kallsyms/benchmarks.stamp $
+    obj/src/kallsyms/kallsyms.stamp $
+    obj/src/kallsyms/unittests.stamp $
+    obj/src/kernel_utils/syscall_table.stamp $
+    obj/src/kernel_utils/unittests.stamp $
+    obj/src/perfetto_cmd/bugreport_path.stamp $
+    ./perfetto $
+    obj/src/perfetto_cmd/perfetto_cmd.stamp $
+    obj/src/perfetto_cmd/protos_cpp.stamp $
+    obj/src/perfetto_cmd/protos_cpp_gen.stamp $
+    obj/src/perfetto_cmd/protos_source_set.stamp $
+    ./trigger_perfetto $
+    obj/src/perfetto_cmd/trigger_perfetto_cmd.stamp $
+    obj/src/perfetto_cmd/trigger_producer.stamp $
+    obj/src/perfetto_cmd/unittests.stamp $
+    obj/src/profiling/deobfuscator.stamp $
+    obj/src/profiling/unittests.stamp $
+    obj/src/profiling/common/callstack_trie.stamp $
+    obj/src/profiling/common/interner.stamp $
+    obj/src/profiling/common/interning_output.stamp $
+    obj/src/profiling/common/proc_cmdline.stamp $
+    obj/src/profiling/common/proc_utils.stamp $
+    obj/src/profiling/common/producer_support.stamp $
+    obj/src/profiling/common/profiler_guardrails.stamp $
+    obj/src/profiling/common/unittests.stamp $
+    obj/src/profiling/common/unwind_support.stamp $
+    obj/src/profiling/memory/benchmarks.stamp $
+    obj/src/profiling/memory/bionic_libc_platform_headers_on_android.stamp $
+    obj/src/profiling/memory/client.stamp $
+    obj/src/profiling/memory/client_api.stamp $
+    obj/src/profiling/memory/client_api_standalone.stamp $
+    obj/src/profiling/memory/daemon.stamp $
+    obj/src/profiling/memory/end_to_end_tests.stamp $
+    ./heapprofd $
+    ./libheapprofd_api_noop.so $
+    ./libheapprofd_client_api.so $
+    ./libheapprofd_glibc_preload.so $
+    obj/src/profiling/memory/heapprofd_main.stamp $
+    ./libheapprofd_standalone_client.so $
+    ./heapprofd_standalone_client_example $
+    obj/src/profiling/memory/ring_buffer.stamp $
+    obj/src/profiling/memory/ring_buffer_unittests.stamp $
+    obj/src/profiling/memory/scoped_spinlock.stamp $
+    obj/src/profiling/memory/shared_ring_buffer_fuzzer.stamp $
+    obj/src/profiling/memory/shared_ring_buffer_write_fuzzer.stamp $
+    obj/src/profiling/memory/unittests.stamp $
+    obj/src/profiling/memory/unwinding_fuzzer.stamp $
+    obj/src/profiling/memory/wire_protocol.stamp $
+    obj/src/profiling/memory/wrap_allocators.stamp $
+    obj/src/profiling/perf/common_types.stamp $
+    obj/src/profiling/perf/proc_descriptors.stamp $
+    obj/src/profiling/perf/producer.stamp $
+    obj/src/profiling/perf/producer_unittests.stamp $
+    obj/src/profiling/perf/regs_parsing.stamp $
+    ./traced_perf $
+    obj/src/profiling/perf/traced_perf_main.stamp $
+    obj/src/profiling/perf/unwinding.stamp $
+    obj/src/profiling/symbolizer/symbolize_database.stamp $
+    obj/src/profiling/symbolizer/symbolizer.stamp $
+    obj/src/profiling/symbolizer/unittests.stamp $
+    obj/src/protozero/benchmarks.stamp $
+    obj/src/protozero/proto_ring_buffer.stamp $
+    obj/src/protozero/protozero.stamp $
+    obj/src/protozero/protozero_decoder_fuzzer.stamp $
+    obj/src/protozero/testing_messages_cpp.stamp $
+    obj/src/protozero/testing_messages_cpp_gen.stamp $
+    obj/src/protozero/testing_messages_descriptor.stamp $
+    obj/src/protozero/testing_messages_lite.stamp $
+    obj/src/protozero/testing_messages_lite_gen.stamp $
+    obj/src/protozero/testing_messages_other_package_cpp.stamp $
+    obj/src/protozero/testing_messages_other_package_cpp_gen.stamp $
+    obj/src/protozero/testing_messages_other_package_lite.stamp $
+    obj/src/protozero/testing_messages_other_package_lite_gen.stamp $
+    obj/src/protozero/testing_messages_other_package_source_set.stamp $
+    obj/src/protozero/testing_messages_other_package_zero.stamp $
+    obj/src/protozero/testing_messages_other_package_zero_gen.stamp $
+    obj/src/protozero/testing_messages_source_set.stamp $
+    obj/src/protozero/testing_messages_subpackage_cpp.stamp $
+    obj/src/protozero/testing_messages_subpackage_cpp_gen.stamp $
+    obj/src/protozero/testing_messages_subpackage_lite.stamp $
+    obj/src/protozero/testing_messages_subpackage_lite_gen.stamp $
+    obj/src/protozero/testing_messages_subpackage_source_set.stamp $
+    obj/src/protozero/testing_messages_subpackage_zero.stamp $
+    obj/src/protozero/testing_messages_subpackage_zero_gen.stamp $
+    obj/src/protozero/testing_messages_zero.stamp $
+    obj/src/protozero/testing_messages_zero_gen.stamp $
+    obj/src/protozero/unittests.stamp $
+    obj/src/protozero/filtering/benchmarks.stamp $
+    obj/src/protozero/filtering/bytecode_common.stamp $
+    obj/src/protozero/filtering/bytecode_generator.stamp $
+    obj/src/protozero/filtering/bytecode_parser.stamp $
+    obj/src/protozero/filtering/filter_util.stamp $
+    obj/src/protozero/filtering/message_filter.stamp $
+    obj/src/protozero/filtering/protozero_bytecode_parser_fuzzer.stamp $
+    obj/src/protozero/filtering/protozero_message_filter_fuzzer.stamp $
+    obj/src/protozero/filtering/string_filter.stamp $
+    obj/src/protozero/filtering/unittests.stamp $
+    ./cppgen_plugin $
+    ./protozero_c_plugin $
+    ./protozero_plugin $
+    obj/src/protozero/text_to_proto/text_to_proto.stamp $
+    obj/src/shared_lib/intern_map.stamp $
+    ./libperfetto_c.so $
+    obj/src/shared_lib/shared_lib.stamp $
+    obj/src/shared_lib/unittests.stamp $
+    obj/src/shared_lib/test/benchmarks.stamp $
+    obj/src/shared_lib/test/integrationtests.stamp $
+    obj/src/shared_lib/test/utils.stamp $
+    obj/src/shared_lib/test/protos/protos.stamp $
+    obj/src/tools/copy_protoc.stamp $
+    ./idle_alloc $
+    ./multithreaded_alloc $
+    ./profiling_sample_distribution $
+    obj/src/tools/tools.stamp $
+    obj/src/tools/unittests.stamp $
+    ./busy_threads $
+    ./cpu_utilization $
+    ./dump_ftrace_stats $
+    ./ftrace_proto_gen $
+    obj/src/tools/ftrace_proto_gen/lib.stamp $
+    obj/src/tools/ftrace_proto_gen/unittests.stamp $
+    ./proto_filter $
+    ./proto_merger $
+    obj/src/tools/protoprofile/common.stamp $
+    ./protoprofile $
+    ./skippy $
+    obj/src/trace_config_utils/gen_cc_config_descriptor.stamp $
+    obj/src/trace_config_utils/main.stamp $
+    obj/src/trace_config_utils/pb_to_txt.stamp $
+    ./trace_config_utils $
+    obj/src/trace_config_utils/trace_config_utils_wasm.stamp $
+    obj/src/trace_config_utils/txt_to_pb.stamp $
+    obj/src/trace_config_utils/unittests.stamp $
+    obj/src/trace_processor/demangle.stamp $
+    obj/src/trace_processor/export_json.stamp $
+    obj/src/trace_processor/gen_cc_test_messages_descriptor.stamp $
+    obj/src/trace_processor/integrationtests.stamp $
+    obj/src/trace_processor/lib.stamp $
+    obj/src/trace_processor/metatrace.stamp $
+    obj/src/trace_processor/storage_minimal.stamp $
+    obj/src/trace_processor/storage_minimal_smoke_tests.stamp $
+    obj/src/trace_processor/top_level_unittests.stamp $
+    ./libtrace_processor.a $
+    obj/src/trace_processor/trace_processor_fuzzer.stamp $
+    ./trace_processor_minimal_shell $
+    ./trace_processor_shell $
+    obj/src/trace_processor/trace_processor_wasm.stamp $
+    obj/src/trace_processor/unittests.stamp $
+    obj/src/trace_processor/containers/benchmarks.stamp $
+    obj/src/trace_processor/containers/containers.stamp $
+    obj/src/trace_processor/containers/unittests.stamp $
+    obj/src/trace_processor/db/benchmarks.stamp $
+    obj/src/trace_processor/db/compare.stamp $
+    obj/src/trace_processor/db/db.stamp $
+    obj/src/trace_processor/db/minimal.stamp $
+    obj/src/trace_processor/db/unittests.stamp $
+    obj/src/trace_processor/db/column/column.stamp $
+    obj/src/trace_processor/db/column/fake_storage.stamp $
+    obj/src/trace_processor/db/column/unittests.stamp $
+    obj/src/trace_processor/importers/android_bugreport/android_bugreport.stamp $
+    obj/src/trace_processor/importers/android_bugreport/android_dumpstate_event.stamp $
+    obj/src/trace_processor/importers/android_bugreport/android_log_event.stamp $
+    obj/src/trace_processor/importers/android_bugreport/unittests.stamp $
+    obj/src/trace_processor/importers/archive/archive.stamp $
+    obj/src/trace_processor/importers/art_method/art_method.stamp $
+    obj/src/trace_processor/importers/art_method/art_method_event.stamp $
+    obj/src/trace_processor/importers/common/common.stamp $
+    obj/src/trace_processor/importers/common/parser_types.stamp $
+    obj/src/trace_processor/importers/common/trace_parser_hdr.stamp $
+    obj/src/trace_processor/importers/common/unittests.stamp $
+    obj/src/trace_processor/importers/elf/binary_info.stamp $
+    obj/src/trace_processor/importers/etm/etm.stamp $
+    obj/src/trace_processor/importers/etm/etm_impl.stamp $
+    obj/src/trace_processor/importers/etm/file_tracker.stamp $
+    obj/src/trace_processor/importers/etm/public_hdr.stamp $
+    obj/src/trace_processor/importers/etm/unittests.stamp $
+    obj/src/trace_processor/importers/etw/full.stamp $
+    obj/src/trace_processor/importers/etw/minimal.stamp $
+    obj/src/trace_processor/importers/ftrace/ftrace_descriptors.stamp $
+    obj/src/trace_processor/importers/ftrace/full.stamp $
+    obj/src/trace_processor/importers/ftrace/minimal.stamp $
+    obj/src/trace_processor/importers/ftrace/unittests.stamp $
+    obj/src/trace_processor/importers/fuchsia/fuchsia_record.stamp $
+    obj/src/trace_processor/importers/fuchsia/full.stamp $
+    obj/src/trace_processor/importers/fuchsia/minimal.stamp $
+    obj/src/trace_processor/importers/fuchsia/unittests.stamp $
+    obj/src/trace_processor/importers/gecko/gecko.stamp $
+    obj/src/trace_processor/importers/gecko/gecko_event.stamp $
+    obj/src/trace_processor/importers/i2c/full.stamp $
+    obj/src/trace_processor/importers/instruments/instruments.stamp $
+    obj/src/trace_processor/importers/instruments/row.stamp $
+    obj/src/trace_processor/importers/json/json.stamp $
+    obj/src/trace_processor/importers/json/minimal.stamp $
+    obj/src/trace_processor/importers/json/unittests.stamp $
+    obj/src/trace_processor/importers/memory_tracker/graph_processor.stamp $
+    obj/src/trace_processor/importers/memory_tracker/unittests.stamp $
+    obj/src/trace_processor/importers/ninja/ninja.stamp $
+    obj/src/trace_processor/importers/perf/perf.stamp $
+    obj/src/trace_processor/importers/perf/record.stamp $
+    obj/src/trace_processor/importers/perf/unittests.stamp $
+    obj/src/trace_processor/importers/perf_text/perf_text.stamp $
+    obj/src/trace_processor/importers/perf_text/perf_text_event.stamp $
+    obj/src/trace_processor/importers/perf_text/perf_text_sample_line_parser.stamp $
+    obj/src/trace_processor/importers/proto/full.stamp $
+    obj/src/trace_processor/importers/proto/gen_cc_android_track_event_descriptor.stamp $
+    obj/src/trace_processor/importers/proto/gen_cc_chrome_track_event_descriptor.stamp $
+    obj/src/trace_processor/importers/proto/gen_cc_statsd_atoms_descriptor.stamp $
+    obj/src/trace_processor/importers/proto/gen_cc_trace_descriptor.stamp $
+    obj/src/trace_processor/importers/proto/gen_cc_track_event_descriptor.stamp $
+    obj/src/trace_processor/importers/proto/minimal.stamp $
+    obj/src/trace_processor/importers/proto/packet_sequence_state_generation_hdr.stamp $
+    obj/src/trace_processor/importers/proto/proto_importer_module.stamp $
+    obj/src/trace_processor/importers/proto/unittests.stamp $
+    obj/src/trace_processor/importers/proto/winscope/full.stamp $
+    obj/src/trace_processor/importers/proto/winscope/gen_cc_winscope_descriptor.stamp $
+    obj/src/trace_processor/importers/syscalls/full.stamp $
+    obj/src/trace_processor/importers/syscalls/unittests.stamp $
+    obj/src/trace_processor/importers/systrace/full.stamp $
+    obj/src/trace_processor/importers/systrace/systrace_line.stamp $
+    obj/src/trace_processor/importers/systrace/systrace_parser.stamp $
+    obj/src/trace_processor/importers/systrace/unittests.stamp $
+    obj/src/trace_processor/metrics/gen_cc_all_chrome_metrics_descriptor.stamp $
+    obj/src/trace_processor/metrics/gen_cc_all_webview_metrics_descriptor.stamp $
+    obj/src/trace_processor/metrics/gen_cc_metrics_descriptor.stamp $
+    obj/src/trace_processor/metrics/metrics.stamp $
+    obj/src/trace_processor/metrics/unittests.stamp $
+    obj/src/trace_processor/metrics/sql/gen_amalgamated_sql_metrics.stamp $
+    obj/src/trace_processor/metrics/sql/gen_amalgamated_sql_metrics_generated_file.stamp $
+    obj/src/trace_processor/metrics/sql/misc_sql.stamp $
+    obj/src/trace_processor/metrics/sql/android/android.stamp $
+    obj/src/trace_processor/metrics/sql/chrome/chrome_sql.stamp $
+    obj/src/trace_processor/metrics/sql/common/common.stamp $
+    obj/src/trace_processor/metrics/sql/experimental/experimental.stamp $
+    obj/src/trace_processor/metrics/sql/webview/webview.stamp $
+    obj/src/trace_processor/perfetto_sql/engine/engine.stamp $
+    obj/src/trace_processor/perfetto_sql/engine/unittests.stamp $
+    obj/src/trace_processor/perfetto_sql/generator/gen_cc_perfetto_sql_descriptor.stamp $
+    obj/src/trace_processor/perfetto_sql/generator/generator.stamp $
+    obj/src/trace_processor/perfetto_sql/generator/unittests.stamp $
+    obj/src/trace_processor/perfetto_sql/grammar/grammar.stamp $
+    obj/src/trace_processor/perfetto_sql/intrinsics/functions/functions.stamp $
+    obj/src/trace_processor/perfetto_sql/intrinsics/functions/interface.stamp $
+    obj/src/trace_processor/perfetto_sql/intrinsics/functions/tables.stamp $
+    obj/src/trace_processor/perfetto_sql/intrinsics/functions/unittests.stamp $
+    obj/src/trace_processor/perfetto_sql/intrinsics/operators/etm.stamp $
+    obj/src/trace_processor/perfetto_sql/intrinsics/operators/etm_hdr.stamp $
+    obj/src/trace_processor/perfetto_sql/intrinsics/operators/etm_impl.stamp $
+    obj/src/trace_processor/perfetto_sql/intrinsics/operators/operators.stamp $
+    obj/src/trace_processor/perfetto_sql/intrinsics/operators/unittests.stamp $
+    obj/src/trace_processor/perfetto_sql/intrinsics/table_functions/interface.stamp $
+    obj/src/trace_processor/perfetto_sql/intrinsics/table_functions/table_functions.stamp $
+    obj/src/trace_processor/perfetto_sql/intrinsics/table_functions/tables.stamp $
+    obj/src/trace_processor/perfetto_sql/intrinsics/table_functions/unittests.stamp $
+    obj/src/trace_processor/perfetto_sql/intrinsics/types/types.stamp $
+    obj/src/trace_processor/perfetto_sql/parser/parser.stamp $
+    obj/src/trace_processor/perfetto_sql/parser/test_utils.stamp $
+    obj/src/trace_processor/perfetto_sql/parser/unittests.stamp $
+    obj/src/trace_processor/perfetto_sql/preprocessor/grammar.stamp $
+    obj/src/trace_processor/perfetto_sql/preprocessor/preprocessor.stamp $
+    obj/src/trace_processor/perfetto_sql/preprocessor/unittests.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/stdlib.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/stdlib_generated_file.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/stdlib_json_docs.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/android/android.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/android/auto/auto.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/android/battery/battery.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/android/cpu/cpu.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/android/dumpsys/dumpsys.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/android/frames/frames.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/android/gpu/gpu.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/android/memory/memory.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/heap_graph.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/android/memory/heap_profile/heap_profile.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/android/startup/startup.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/android/winscope/winscope.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/appleos/appleos.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/appleos/instruments/instruments.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/callstacks/callstacks.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/chrome/chrome_sql.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/counters/counters.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/export/export.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/graphs/graphs.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/intervals/intervals.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/linux/linux.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/linux/cpu/cpu.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/linux/cpu/utilization/utilization.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/linux/memory/memory.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/linux/perf/perf.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/pixel/pixel.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/pkvm/pkvm.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/prelude/prelude.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/after_eof.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/prelude/before_eof/before_eof.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/sched/sched.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/slices/slices.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/stack_trace/stack_trace.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/stacks/stacks.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/time/time.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/v8/v8.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/viz/viz.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/viz/summary/summary.stamp $
+    obj/src/trace_processor/perfetto_sql/stdlib/wattson/wattson.stamp $
+    obj/src/trace_processor/perfetto_sql/tokenizer/tokenize_internal.stamp $
+    obj/src/trace_processor/perfetto_sql/tokenizer/tokenizer.stamp $
+    obj/src/trace_processor/perfetto_sql/tokenizer/unittests.stamp $
+    obj/src/trace_processor/rpc/benchmarks.stamp $
+    obj/src/trace_processor/rpc/httpd.stamp $
+    obj/src/trace_processor/rpc/rpc.stamp $
+    obj/src/trace_processor/rpc/stdiod.stamp $
+    ./libtrace_processor_rpc.a $
+    obj/src/trace_processor/rpc/unittests.stamp $
+    obj/src/trace_processor/sorter/sorter.stamp $
+    obj/src/trace_processor/sorter/unittests.stamp $
+    obj/src/trace_processor/sqlite/benchmarks.stamp $
+    obj/src/trace_processor/sqlite/sqlite.stamp $
+    obj/src/trace_processor/sqlite/unittests.stamp $
+    obj/src/trace_processor/sqlite/bindings/bindings.stamp $
+    obj/src/trace_processor/storage/storage.stamp $
+    obj/src/trace_processor/tables/benchmarks.stamp $
+    obj/src/trace_processor/tables/macros_internal.stamp $
+    obj/src/trace_processor/tables/py_tables_benchmark.stamp $
+    obj/src/trace_processor/tables/py_tables_unittest.stamp $
+    obj/src/trace_processor/tables/tables.stamp $
+    obj/src/trace_processor/tables/tables_python.stamp $
+    obj/src/trace_processor/tables/tables_python_docs.stamp $
+    obj/src/trace_processor/tables/unittests.stamp $
+    obj/src/trace_processor/trace_summary/gen_cc_trace_summary_descriptor.stamp $
+    obj/src/trace_processor/trace_summary/trace_summary.stamp $
+    obj/src/trace_processor/types/types.stamp $
+    obj/src/trace_processor/types/unittests.stamp $
+    obj/src/trace_processor/util/benchmarks.stamp $
+    obj/src/trace_processor/util/build_id.stamp $
+    obj/src/trace_processor/util/bump_allocator.stamp $
+    obj/src/trace_processor/util/descriptors.stamp $
+    obj/src/trace_processor/util/glob.stamp $
+    obj/src/trace_processor/util/gzip.stamp $
+    obj/src/trace_processor/util/interned_message_view.stamp $
+    obj/src/trace_processor/util/profile_builder.stamp $
+    obj/src/trace_processor/util/profiler_util.stamp $
+    obj/src/trace_processor/util/proto_profiler.stamp $
+    obj/src/trace_processor/util/proto_to_args_parser.stamp $
+    obj/src/trace_processor/util/protozero_to_json.stamp $
+    obj/src/trace_processor/util/protozero_to_text.stamp $
+    obj/src/trace_processor/util/regex.stamp $
+    obj/src/trace_processor/util/sql_argument.stamp $
+    obj/src/trace_processor/util/stdlib.stamp $
+    obj/src/trace_processor/util/trace_blob_view_reader.stamp $
+    obj/src/trace_processor/util/trace_type.stamp $
+    obj/src/trace_processor/util/unittests.stamp $
+    obj/src/trace_processor/util/util.stamp $
+    obj/src/trace_processor/util/winscope_proto_mapping.stamp $
+    obj/src/trace_processor/util/zip_reader.stamp $
+    obj/src/trace_redaction/integrationtests.stamp $
+    obj/src/trace_redaction/trace_redaction.stamp $
+    ./trace_redactor $
+    obj/src/trace_redaction/unittests.stamp $
+    ./tracebox $
+    obj/src/traceconv/gen_cc_trace_descriptor.stamp $
+    obj/src/traceconv/gen_cc_winscope_descriptor.stamp $
+    obj/src/traceconv/integrationtests.stamp $
+    obj/src/traceconv/lib.stamp $
+    ./libpprofbuilder.a $
+    obj/src/traceconv/main.stamp $
+    obj/src/traceconv/pprofbuilder.stamp $
+    ./traceconv $
+    obj/src/traceconv/traceconv_wasm.stamp $
+    obj/src/traceconv/utils.stamp $
+    obj/src/traced/probes/data_source.stamp $
+    obj/src/traced/probes/probes.stamp $
+    obj/src/traced/probes/probes_src.stamp $
+    ./traced_probes $
+    obj/src/traced/probes/unittests.stamp $
+    obj/src/traced/probes/android_game_intervention_list/android_game_intervention_list.stamp $
+    obj/src/traced/probes/android_game_intervention_list/unittests.stamp $
+    obj/src/traced/probes/android_kernel_wakelocks/android_kernel_wakelocks.stamp $
+    obj/src/traced/probes/android_log/android_log.stamp $
+    obj/src/traced/probes/android_log/unittests.stamp $
+    obj/src/traced/probes/android_system_property/android_system_property.stamp $
+    obj/src/traced/probes/android_system_property/unittests.stamp $
+    obj/src/traced/probes/common/common.stamp $
+    obj/src/traced/probes/common/test_support.stamp $
+    obj/src/traced/probes/common/unittests.stamp $
+    obj/src/traced/probes/filesystem/filesystem.stamp $
+    obj/src/traced/probes/filesystem/unittests.stamp $
+    obj/src/traced/probes/ftrace/benchmarks.stamp $
+    obj/src/traced/probes/ftrace/cpu_reader_fuzzer.stamp $
+    obj/src/traced/probes/ftrace/ftrace.stamp $
+    obj/src/traced/probes/ftrace/ftrace_procfs.stamp $
+    obj/src/traced/probes/ftrace/integrationtests.stamp $
+    obj/src/traced/probes/ftrace/test_messages_cpp.stamp $
+    obj/src/traced/probes/ftrace/test_messages_cpp_gen.stamp $
+    obj/src/traced/probes/ftrace/test_messages_lite.stamp $
+    obj/src/traced/probes/ftrace/test_messages_lite_gen.stamp $
+    obj/src/traced/probes/ftrace/test_messages_source_set.stamp $
+    obj/src/traced/probes/ftrace/test_messages_zero.stamp $
+    obj/src/traced/probes/ftrace/test_messages_zero_gen.stamp $
+    obj/src/traced/probes/ftrace/test_support.stamp $
+    obj/src/traced/probes/ftrace/unittests.stamp $
+    obj/src/traced/probes/ftrace/format_parser/format_parser.stamp $
+    obj/src/traced/probes/ftrace/format_parser/unittests.stamp $
+    obj/src/traced/probes/initial_display_state/initial_display_state.stamp $
+    obj/src/traced/probes/initial_display_state/unittests.stamp $
+    obj/src/traced/probes/metatrace/metatrace.stamp $
+    obj/src/traced/probes/packages_list/packages_list.stamp $
+    obj/src/traced/probes/packages_list/packages_list_parser.stamp $
+    obj/src/traced/probes/packages_list/unittests.stamp $
+    obj/src/traced/probes/power/power.stamp $
+    obj/src/traced/probes/power/unittests.stamp $
+    obj/src/traced/probes/ps/ps.stamp $
+    obj/src/traced/probes/ps/unittests.stamp $
+    obj/src/traced/probes/statsd_client/statsd_client.stamp $
+    obj/src/traced/probes/statsd_client/unittests.stamp $
+    obj/src/traced/probes/sys_stats/sys_stats.stamp $
+    obj/src/traced/probes/sys_stats/unittests.stamp $
+    obj/src/traced/probes/system_info/cpu_info_features_allowlist.stamp $
+    obj/src/traced/probes/system_info/system_info.stamp $
+    obj/src/traced/probes/system_info/unittests.stamp $
+    obj/src/traced/service/builtin_producer.stamp $
+    obj/src/traced/service/service.stamp $
+    ./traced $
+    obj/src/traced/service/unittests.stamp $
+    obj/src/traced_relay/integrationtests.stamp $
+    obj/src/traced_relay/lib.stamp $
+    ./traced_relay $
+    obj/src/traced_relay/unittests.stamp $
+    obj/src/tracing/benchmarks.stamp $
+    obj/src/tracing/client_api.stamp $
+    ./libclient_api_no_backends_compile_test.so $
+    obj/src/tracing/client_api_without_backends.stamp $
+    obj/src/tracing/common.stamp $
+    obj/src/tracing/in_process_backend.stamp $
+    obj/src/tracing/integrationtests.stamp $
+    obj/src/tracing/platform_impl.stamp $
+    obj/src/tracing/system_backend.stamp $
+    obj/src/tracing/unittests.stamp $
+    obj/src/tracing/core/core.stamp $
+    obj/src/tracing/core/test_support.stamp $
+    obj/src/tracing/core/unittests.stamp $
+    obj/src/tracing/ipc/common.stamp $
+    obj/src/tracing/ipc/default_socket.stamp $
+    obj/src/tracing/ipc/unittests.stamp $
+    obj/src/tracing/ipc/consumer/consumer.stamp $
+    obj/src/tracing/ipc/producer/producer.stamp $
+    obj/src/tracing/ipc/producer/relay.stamp $
+    obj/src/tracing/ipc/service/service.stamp $
+    obj/src/tracing/service/benchmarks.stamp $
+    obj/src/tracing/service/packet_stream_validator_fuzzer.stamp $
+    obj/src/tracing/service/service.stamp $
+    obj/src/tracing/service/unittests.stamp $
+    obj/src/tracing/service/zlib_compressor.stamp $
+    obj/src/tracing/test/api_test_support.stamp $
+    obj/src/tracing/test/client_api_integrationtests.stamp $
+    obj/src/tracing/test/test_support.stamp $
+    obj/src/tracing/test/tracing_integration_test.stamp $
+    obj/src/websocket_bridge/lib.stamp $
+    ./websocket_bridge $
+    obj/test/benchmark_main.stamp $
+    ./client_api_example $
+    obj/test/end_to_end_benchmarks.stamp $
+    obj/test/end_to_end_shared_memory_fuzzer.stamp $
+    obj/test/integrationtest_initializer.stamp $
+    obj/test/integrationtest_main.stamp $
+    obj/test/perfetto_end_to_end_integrationtests.stamp $
+    obj/test/producer_socket_fuzzer.stamp $
+    obj/test/test_helper.stamp $
+    obj/test/configs/configs.stamp $
+    obj/test/sanitizers/unittests.stamp $
+    ./stress_producer $
+    ./stress_test $
+    obj/test/stress_test/configs/configs.stamp $
+    obj/ui/deprecation_warning.stamp $
+    obj/ui/ui.stamp $
+    obj/ui/ui_build.stamp
+
+default default

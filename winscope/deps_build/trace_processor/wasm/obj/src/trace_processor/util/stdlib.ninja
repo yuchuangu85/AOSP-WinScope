@@ -1,0 +1,7 @@
+defines = -DNDEBUG
+include_dirs =
+root_out_dir = wasm
+target_output_name = stdlib
+
+
+build wasm/obj/src/trace_processor/util/stdlib.stamp: wasm_stamp

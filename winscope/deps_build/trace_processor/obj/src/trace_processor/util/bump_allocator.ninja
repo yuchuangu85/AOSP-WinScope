@@ -1,0 +1,11 @@
+defines = -D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS -D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS -DNDEBUG -DPERFETTO_IMPLEMENTATION
+include_dirs = -I../buildtools/libcxx_config -I.. -I../src/profiling/memory/include -I../include -Igen/build_config -Igen
+cflags = -fstrict-aliasing -Wformat -g -fPIC -fstack-protector-strong -Werror -fcolor-diagnostics -fdiagnostics-show-template-tree -Wno-c99-designator -fno-omit-frame-pointer -mbmi -mbmi2 -mavx2 -mpopcnt -msse4.2 -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -Wall -Wextra -Wpedantic -Weverything -Wno-c++98-compat-pedantic -Wno-c++98-compat -Wno-disabled-macro-expansion -Wno-documentation-unknown-command -Wno-gnu-include-next -Wno-gnu-statement-expression -Wno-gnu-zero-variadic-macro-arguments -Wno-padded -Wno-poison-system-directories -Wno-pre-c11-compat -Wno-reserved-id-macro -Wno-reserved-identifier -Wno-shadow-uncaptured-local -Wno-unknown-sanitizers -Wno-unknown-warning-option -Wno-unsafe-buffer-usage -Wno-switch-default -Wthread-safety -Wno-thread-safety-negative -fvisibility=hidden -O3 -fdata-sections -ffunction-sections
+cflags_cc = -fno-exceptions -fno-rtti -nostdinc++ -isystem../buildtools/libcxx/include -isystem../buildtools/libcxxabi/include -std=c++17
+root_out_dir = .
+target_output_name = bump_allocator
+
+build obj/src/trace_processor/util/bump_allocator.inputdeps.stamp: stamp obj/gn/gen_buildflags.stamp obj/gn/standalone/check_build_deps.stamp
+build obj/src/trace_processor/util/bump_allocator.bump_allocator.o: cxx ../src/trace_processor/util/bump_allocator.cc || obj/src/trace_processor/util/bump_allocator.inputdeps.stamp
+
+build obj/src/trace_processor/util/bump_allocator.stamp: stamp obj/src/trace_processor/util/bump_allocator.bump_allocator.o || obj/gn/default_deps.stamp obj/src/base/base.stamp obj/buildtools/libc++.stamp obj/buildtools/libc++abi.stamp obj/include/perfetto/base/base.stamp obj/include/perfetto/public/base.stamp obj/include/perfetto/public/abi/base.stamp obj/include/perfetto/ext/base/base.stamp obj/src/base/perfetto_base_default_platform.stamp

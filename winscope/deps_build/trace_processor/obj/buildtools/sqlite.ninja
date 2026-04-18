@@ -1,0 +1,12 @@
+defines = -D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS -D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS -DNDEBUG -DPERFETTO_IMPLEMENTATION
+include_dirs = -I../buildtools/libcxx_config -I../buildtools/sqlite -I.. -I../src/profiling/memory/include -I../include -Igen/build_config -Igen
+cflags = -fstrict-aliasing -Wformat -g -fPIC -fstack-protector-strong -Werror -fcolor-diagnostics -fdiagnostics-show-template-tree -Wno-c99-designator -fno-omit-frame-pointer -mbmi -mbmi2 -mavx2 -mpopcnt -msse4.2 -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -fvisibility=hidden -O3 -fdata-sections -ffunction-sections -DSQLITE_THREADSAFE=0 -DSQLITE_DEFAULT_MEMSTATUS=0 -DSQLITE_LIKE_DOESNT_MATCH_BLOBS -DSQLITE_OMIT_DEPRECATED -DSQLITE_OMIT_SHARED_CACHE -DHAVE_USLEEP -DHAVE_UTIME -DSQLITE_BYTEORDER=1234 -DSQLITE_DEFAULT_AUTOVACUUM=0 -DSQLITE_DEFAULT_MMAP_SIZE=0 -DSQLITE_CORE -DSQLITE_TEMP_STORE=3 -DSQLITE_OMIT_LOAD_EXTENSION -DSQLITE_OMIT_RANDOMNESS -DSQLITE_OMIT_AUTOINIT -DSQLITE_ENABLE_JSON1
+cflags_c =
+root_out_dir = .
+target_output_name = sqlite
+
+build obj/buildtools/sqlite.inputdeps.stamp: stamp obj/gn/gen_buildflags.stamp obj/gn/standalone/check_build_deps.stamp
+build obj/buildtools/sqlite/sqlite.sqlite3.o: cc ../buildtools/sqlite/sqlite3.c || obj/buildtools/sqlite.inputdeps.stamp
+build obj/buildtools/sqlite_src/ext/misc/sqlite.percentile.o: cc ../buildtools/sqlite_src/ext/misc/percentile.c || obj/buildtools/sqlite.inputdeps.stamp
+
+build obj/buildtools/sqlite.stamp: stamp obj/buildtools/sqlite/sqlite.sqlite3.o obj/buildtools/sqlite_src/ext/misc/sqlite.percentile.o || obj/gn/default_deps.stamp obj/buildtools/libc++.stamp obj/buildtools/libc++abi.stamp

@@ -1,0 +1,47 @@
+defines = -D_7ZIP_ST -D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS -D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS -DNDEBUG -DPERFETTO_IMPLEMENTATION
+include_dirs = -I../buildtools/libcxx_config -I.. -I../src/profiling/memory/include -I../include -Igen/build_config -Igen
+cflags = -Wno-empty-body -Wno-enum-conversion -fstrict-aliasing -Wformat -g -fPIC -fstack-protector-strong -Werror -fcolor-diagnostics -fdiagnostics-show-template-tree -Wno-c99-designator -fno-omit-frame-pointer -mbmi -mbmi2 -mavx2 -mpopcnt -msse4.2 -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -fvisibility=hidden -O3 -fdata-sections -ffunction-sections
+cflags_c =
+root_out_dir = .
+target_output_name = lzma
+
+build obj/buildtools/lzma.inputdeps.stamp: stamp obj/gn/gen_buildflags.stamp obj/gn/standalone/check_build_deps.stamp
+build obj/buildtools/lzma/C/lzma.7zAlloc.o: cc ../buildtools/lzma/C/7zAlloc.c || obj/buildtools/lzma.inputdeps.stamp
+build obj/buildtools/lzma/C/lzma.7zArcIn.o: cc ../buildtools/lzma/C/7zArcIn.c || obj/buildtools/lzma.inputdeps.stamp
+build obj/buildtools/lzma/C/lzma.7zBuf.o: cc ../buildtools/lzma/C/7zBuf.c || obj/buildtools/lzma.inputdeps.stamp
+build obj/buildtools/lzma/C/lzma.7zBuf2.o: cc ../buildtools/lzma/C/7zBuf2.c || obj/buildtools/lzma.inputdeps.stamp
+build obj/buildtools/lzma/C/lzma.7zCrc.o: cc ../buildtools/lzma/C/7zCrc.c || obj/buildtools/lzma.inputdeps.stamp
+build obj/buildtools/lzma/C/lzma.7zCrcOpt.o: cc ../buildtools/lzma/C/7zCrcOpt.c || obj/buildtools/lzma.inputdeps.stamp
+build obj/buildtools/lzma/C/lzma.7zDec.o: cc ../buildtools/lzma/C/7zDec.c || obj/buildtools/lzma.inputdeps.stamp
+build obj/buildtools/lzma/C/lzma.7zFile.o: cc ../buildtools/lzma/C/7zFile.c || obj/buildtools/lzma.inputdeps.stamp
+build obj/buildtools/lzma/C/lzma.7zStream.o: cc ../buildtools/lzma/C/7zStream.c || obj/buildtools/lzma.inputdeps.stamp
+build obj/buildtools/lzma/C/lzma.Aes.o: cc ../buildtools/lzma/C/Aes.c || obj/buildtools/lzma.inputdeps.stamp
+build obj/buildtools/lzma/C/lzma.AesOpt.o: cc ../buildtools/lzma/C/AesOpt.c || obj/buildtools/lzma.inputdeps.stamp
+build obj/buildtools/lzma/C/lzma.Alloc.o: cc ../buildtools/lzma/C/Alloc.c || obj/buildtools/lzma.inputdeps.stamp
+build obj/buildtools/lzma/C/lzma.Bcj2.o: cc ../buildtools/lzma/C/Bcj2.c || obj/buildtools/lzma.inputdeps.stamp
+build obj/buildtools/lzma/C/lzma.Bra.o: cc ../buildtools/lzma/C/Bra.c || obj/buildtools/lzma.inputdeps.stamp
+build obj/buildtools/lzma/C/lzma.Bra86.o: cc ../buildtools/lzma/C/Bra86.c || obj/buildtools/lzma.inputdeps.stamp
+build obj/buildtools/lzma/C/lzma.BraIA64.o: cc ../buildtools/lzma/C/BraIA64.c || obj/buildtools/lzma.inputdeps.stamp
+build obj/buildtools/lzma/C/lzma.CpuArch.o: cc ../buildtools/lzma/C/CpuArch.c || obj/buildtools/lzma.inputdeps.stamp
+build obj/buildtools/lzma/C/lzma.Delta.o: cc ../buildtools/lzma/C/Delta.c || obj/buildtools/lzma.inputdeps.stamp
+build obj/buildtools/lzma/C/lzma.LzFind.o: cc ../buildtools/lzma/C/LzFind.c || obj/buildtools/lzma.inputdeps.stamp
+build obj/buildtools/lzma/C/lzma.Lzma2Dec.o: cc ../buildtools/lzma/C/Lzma2Dec.c || obj/buildtools/lzma.inputdeps.stamp
+build obj/buildtools/lzma/C/lzma.Lzma2Enc.o: cc ../buildtools/lzma/C/Lzma2Enc.c || obj/buildtools/lzma.inputdeps.stamp
+build obj/buildtools/lzma/C/lzma.Lzma86Dec.o: cc ../buildtools/lzma/C/Lzma86Dec.c || obj/buildtools/lzma.inputdeps.stamp
+build obj/buildtools/lzma/C/lzma.Lzma86Enc.o: cc ../buildtools/lzma/C/Lzma86Enc.c || obj/buildtools/lzma.inputdeps.stamp
+build obj/buildtools/lzma/C/lzma.LzmaDec.o: cc ../buildtools/lzma/C/LzmaDec.c || obj/buildtools/lzma.inputdeps.stamp
+build obj/buildtools/lzma/C/lzma.LzmaEnc.o: cc ../buildtools/lzma/C/LzmaEnc.c || obj/buildtools/lzma.inputdeps.stamp
+build obj/buildtools/lzma/C/lzma.LzmaLib.o: cc ../buildtools/lzma/C/LzmaLib.c || obj/buildtools/lzma.inputdeps.stamp
+build obj/buildtools/lzma/C/lzma.Ppmd7.o: cc ../buildtools/lzma/C/Ppmd7.c || obj/buildtools/lzma.inputdeps.stamp
+build obj/buildtools/lzma/C/lzma.Ppmd7Dec.o: cc ../buildtools/lzma/C/Ppmd7Dec.c || obj/buildtools/lzma.inputdeps.stamp
+build obj/buildtools/lzma/C/lzma.Ppmd7Enc.o: cc ../buildtools/lzma/C/Ppmd7Enc.c || obj/buildtools/lzma.inputdeps.stamp
+build obj/buildtools/lzma/C/lzma.Sha256.o: cc ../buildtools/lzma/C/Sha256.c || obj/buildtools/lzma.inputdeps.stamp
+build obj/buildtools/lzma/C/lzma.Sort.o: cc ../buildtools/lzma/C/Sort.c || obj/buildtools/lzma.inputdeps.stamp
+build obj/buildtools/lzma/C/lzma.Xz.o: cc ../buildtools/lzma/C/Xz.c || obj/buildtools/lzma.inputdeps.stamp
+build obj/buildtools/lzma/C/lzma.XzCrc64.o: cc ../buildtools/lzma/C/XzCrc64.c || obj/buildtools/lzma.inputdeps.stamp
+build obj/buildtools/lzma/C/lzma.XzCrc64Opt.o: cc ../buildtools/lzma/C/XzCrc64Opt.c || obj/buildtools/lzma.inputdeps.stamp
+build obj/buildtools/lzma/C/lzma.XzDec.o: cc ../buildtools/lzma/C/XzDec.c || obj/buildtools/lzma.inputdeps.stamp
+build obj/buildtools/lzma/C/lzma.XzEnc.o: cc ../buildtools/lzma/C/XzEnc.c || obj/buildtools/lzma.inputdeps.stamp
+build obj/buildtools/lzma/C/lzma.XzIn.o: cc ../buildtools/lzma/C/XzIn.c || obj/buildtools/lzma.inputdeps.stamp
+
+build obj/buildtools/lzma.stamp: stamp obj/buildtools/lzma/C/lzma.7zAlloc.o obj/buildtools/lzma/C/lzma.7zArcIn.o obj/buildtools/lzma/C/lzma.7zBuf.o obj/buildtools/lzma/C/lzma.7zBuf2.o obj/buildtools/lzma/C/lzma.7zCrc.o obj/buildtools/lzma/C/lzma.7zCrcOpt.o obj/buildtools/lzma/C/lzma.7zDec.o obj/buildtools/lzma/C/lzma.7zFile.o obj/buildtools/lzma/C/lzma.7zStream.o obj/buildtools/lzma/C/lzma.Aes.o obj/buildtools/lzma/C/lzma.AesOpt.o obj/buildtools/lzma/C/lzma.Alloc.o obj/buildtools/lzma/C/lzma.Bcj2.o obj/buildtools/lzma/C/lzma.Bra.o obj/buildtools/lzma/C/lzma.Bra86.o obj/buildtools/lzma/C/lzma.BraIA64.o obj/buildtools/lzma/C/lzma.CpuArch.o obj/buildtools/lzma/C/lzma.Delta.o obj/buildtools/lzma/C/lzma.LzFind.o obj/buildtools/lzma/C/lzma.Lzma2Dec.o obj/buildtools/lzma/C/lzma.Lzma2Enc.o obj/buildtools/lzma/C/lzma.Lzma86Dec.o obj/buildtools/lzma/C/lzma.Lzma86Enc.o obj/buildtools/lzma/C/lzma.LzmaDec.o obj/buildtools/lzma/C/lzma.LzmaEnc.o obj/buildtools/lzma/C/lzma.LzmaLib.o obj/buildtools/lzma/C/lzma.Ppmd7.o obj/buildtools/lzma/C/lzma.Ppmd7Dec.o obj/buildtools/lzma/C/lzma.Ppmd7Enc.o obj/buildtools/lzma/C/lzma.Sha256.o obj/buildtools/lzma/C/lzma.Sort.o obj/buildtools/lzma/C/lzma.Xz.o obj/buildtools/lzma/C/lzma.XzCrc64.o obj/buildtools/lzma/C/lzma.XzCrc64Opt.o obj/buildtools/lzma/C/lzma.XzDec.o obj/buildtools/lzma/C/lzma.XzEnc.o obj/buildtools/lzma/C/lzma.XzIn.o || obj/gn/default_deps.stamp obj/buildtools/libc++.stamp obj/buildtools/libc++abi.stamp

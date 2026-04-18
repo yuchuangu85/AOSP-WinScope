@@ -1,7 +1,7 @@
 # AOSP-WinScope
 winscope from aosp, The Tools used to analyze black screen, flashing screen, and white screen issues.(用来分析黑屏，闪屏，白屏问题的工具)
 
-版本：Android-15
+版本：Android-16
 
 
 
@@ -41,7 +41,7 @@ adb shell perfetto --txt --config /data/misc/perfetto-traces/perfetto_config.pbt
 
 ```Java
 npm i -g http-server      # 只需装一次，mac下如果没有权限，在前面加上sudo
-cd D:\WinScope
+cd winscope/dist/prod
 http-server -p 8000 -o
 ```
 

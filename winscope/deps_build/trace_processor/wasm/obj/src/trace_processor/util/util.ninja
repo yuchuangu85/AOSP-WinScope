@@ -1,0 +1,7 @@
+defines = -DNDEBUG -DPERFETTO_IMPLEMENTATION
+include_dirs = -I.. -I../src/profiling/memory/include -I../include -Iwasm/gen/build_config -Iwasm/gen
+root_out_dir = wasm
+target_output_name = util
+
+
+build wasm/obj/src/trace_processor/util/util.stamp: wasm_stamp || wasm/obj/gn/default_deps.stamp wasm/obj/include/perfetto/trace_processor/basic_types.stamp wasm/obj/include/perfetto/base/base.stamp wasm/obj/include/perfetto/public/base.stamp wasm/obj/include/perfetto/public/abi/base.stamp

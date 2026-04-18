@@ -1,0 +1,7 @@
+defines = -DNDEBUG
+include_dirs =
+root_out_dir = wasm
+target_output_name = pprof_builder
+
+
+build wasm/obj/include/perfetto/profiling/pprof_builder.stamp: wasm_stamp

@@ -1,0 +1,7 @@
+defines = -DNDEBUG
+include_dirs =
+root_out_dir = wasm
+target_output_name = query_result_serializer
+
+
+build wasm/obj/include/perfetto/ext/trace_processor/rpc/query_result_serializer.stamp: wasm_stamp

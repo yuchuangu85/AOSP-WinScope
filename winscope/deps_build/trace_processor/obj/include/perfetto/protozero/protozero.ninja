@@ -1,0 +1,7 @@
+defines = -D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS -D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS -DNDEBUG
+include_dirs = -I../buildtools/libcxx_config
+root_out_dir = .
+target_output_name = protozero
+
+
+build obj/include/perfetto/protozero/protozero.stamp: stamp || obj/include/perfetto/base/base.stamp obj/include/perfetto/public/protozero.stamp obj/include/perfetto/public/base.stamp obj/include/perfetto/public/abi/base.stamp
