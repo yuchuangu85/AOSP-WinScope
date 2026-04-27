@@ -45,11 +45,11 @@ class TrackNode {
     // A human readable string for this track - displayed in the track shell.
     // TODO(stevegolton): Make this optional, so that if we implement a string for
     // this track then we can implement it here as well.
-    title;
+    name;
     // The URI of the track content to display here.
     uri;
     // Optional sort order, which workspaces may or may not take advantage of for
-    // sorting when displaying the workspace.
+    // sorting when displaying the workspace. Lower numbers appear first.
     sortOrder;
     // Don't show the header at all for this track, just show its un-nested
     // children. This is helpful to group together tracks that logically belong to
@@ -76,11 +76,11 @@ class TrackNode {
         return this._parent;
     }
     constructor(args) {
-        const { title = '', uri, headless = false, sortOrder, collapsed = true, isSummary = false, removable = false, } = args ?? {};
+        const { name = '', uri, headless = false, sortOrder, collapsed = true, isSummary = false, removable = false, } = args ?? {};
         this.id = createSessionUniqueId();
         this.uri = uri;
         this.headless = headless;
-        this.title = title;
+        this.name = name;
         this.sortOrder = sortOrder;
         this.isSummary = isSummary;
         this._collapsed = collapsed;
@@ -151,6 +151,19 @@ class TrackNode {
         }
     }
     /**
+     * Get all ancestors of this node from root to immediate parent.
+     * Returns an empty array if this node has no parent.
+     */
+    getAncestors() {
+        const ancestors = [];
+        let current = this.parent;
+        while (current && current.name !== '') {
+            ancestors.push(current);
+            current = current.parent;
+        }
+        return ancestors.reverse(); // Return from root to immediate parent
+    }
+    /**
      * Find this node's root node - this may be a workspace or another node.
      */
     get rootNode() {
@@ -204,12 +217,12 @@ class TrackNode {
      * omitted.
      */
     get fullPath() {
-        let fullPath = [this.title];
+        let fullPath = [this.name];
         let parent = this.parent;
         while (parent) {
             // Ignore headless containers as they don't appear in the tree...
-            if (!parent.headless && parent.title !== '') {
-                fullPath = [parent.title, ...fullPath];
+            if (!parent.headless && parent.name !== '') {
+                fullPath = [parent.name, ...fullPath];
             }
             parent = parent.parent;
         }
@@ -467,7 +480,7 @@ class Workspace {
         // Make a lightweight clone of this track - just the uri and the title.
         const cloned = new TrackNode({
             uri: track.uri,
-            title: track.title,
+            name: track.name,
             removable: track.removable,
         });
         this.pinnedTracksNode.addChildLast(cloned);

@@ -18,7 +18,7 @@ class default_1 {
     static id = 'dev.perfetto.Chaos';
     static onActivate(ctx) {
         ctx.commands.registerCommand({
-            id: 'dev.perfetto.Chaos#CrashNow',
+            id: 'dev.perfetto.CrashNow',
             name: 'Chaos: crash now',
             callback: () => {
                 throw new Error('Manual crash from dev.perfetto.Chaos#CrashNow');
@@ -27,7 +27,7 @@ class default_1 {
     }
     async onTraceLoad(ctx) {
         ctx.commands.registerCommand({
-            id: 'dev.perfetto.Chaos#CrashNowQuery',
+            id: 'dev.perfetto.CrashNowQuery',
             name: 'Chaos: run crashing query',
             callback: () => {
                 ctx.engine.query(`this is a
@@ -41,7 +41,7 @@ class default_1 {
             },
         });
         ctx.commands.registerCommand({
-            id: 'dev.perfetto.Chaos#AddCrashingDebugTrack',
+            id: 'dev.perfetto.AddCrashingDebugTrack',
             name: 'Chaos: add crashing debug track',
             callback: () => {
                 (0, debug_tracks_1.addDebugSliceTrack)({

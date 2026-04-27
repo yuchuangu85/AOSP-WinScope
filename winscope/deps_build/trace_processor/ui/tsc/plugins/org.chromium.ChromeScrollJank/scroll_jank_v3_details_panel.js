@@ -181,12 +181,15 @@ class ScrollJankV3DetailsPanel {
         if ((0, utils_1.exists)(this.data)) {
             details['Name'] = this.data.name;
             details['Expected Frame Presentation Timestamp'] = (0, mithril_1.default)(timestamp_1.Timestamp, {
+                trace: this.trace,
                 ts: this.data.ts,
             });
             details['Actual Frame Presentation Timestamp'] = (0, mithril_1.default)(timestamp_1.Timestamp, {
+                trace: this.trace,
                 ts: time_1.Time.add(this.data.ts, this.data.dur),
             });
             details['Frame Presentation Delay'] = (0, mithril_1.default)(duration_1.DurationWidget, {
+                trace: this.trace,
                 dur: this.data.dur,
             });
             details['Vsyncs Delayed'] = this.data.delayedVsyncCount;

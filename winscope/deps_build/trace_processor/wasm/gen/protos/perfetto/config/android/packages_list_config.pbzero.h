@@ -17,13 +17,15 @@ namespace perfetto {
 namespace protos {
 namespace pbzero {
 
-class PackagesListConfig_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/1, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
+class PackagesListConfig_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/2, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
  public:
   PackagesListConfig_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
   explicit PackagesListConfig_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
   explicit PackagesListConfig_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
   bool has_package_name_filter() const { return at<1>().valid(); }
   ::protozero::RepeatedFieldIterator<::protozero::ConstChars> package_name_filter() const { return GetRepeated<::protozero::ConstChars>(1); }
+  bool has_only_write_on_cpu_use_every_ms() const { return at<2>().valid(); }
+  uint32_t only_write_on_cpu_use_every_ms() const { return at<2>().as_uint32(); }
 };
 
 class PackagesListConfig : public ::protozero::Message {
@@ -31,6 +33,7 @@ class PackagesListConfig : public ::protozero::Message {
   using Decoder = PackagesListConfig_Decoder;
   enum : int32_t {
     kPackageNameFilterFieldNumber = 1,
+    kOnlyWriteOnCpuUseEveryMsFieldNumber = 2,
   };
   static constexpr const char* GetName() { return ".perfetto.protos.PackagesListConfig"; }
 
@@ -56,6 +59,24 @@ class PackagesListConfig : public ::protozero::Message {
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
       ::protozero::proto_utils::ProtoSchemaType::kString>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_OnlyWriteOnCpuUseEveryMs =
+    ::protozero::proto_utils::FieldMetadata<
+      2,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kUint32,
+      uint32_t,
+      PackagesListConfig>;
+
+  static constexpr FieldMetadata_OnlyWriteOnCpuUseEveryMs kOnlyWriteOnCpuUseEveryMs{};
+  void set_only_write_on_cpu_use_every_ms(uint32_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_OnlyWriteOnCpuUseEveryMs::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint32>
         ::Append(*this, field_id, value);
   }
 };

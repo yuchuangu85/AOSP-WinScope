@@ -15,7 +15,6 @@
  */
 
 import {InMemoryStorage} from 'common/store/in_memory_storage';
-import {TimestampConverterUtils} from 'common/time/test_utils';
 import {
   InitializeTraceSearchRequest,
   TraceAddRequest,
@@ -25,13 +24,15 @@ import {
   TraceSearchInitialized,
   TraceSearchRequest,
 } from 'messaging/winscope_event';
+import {makeRealTimestamp, UTC_CONVERTER} from 'test/unit/time_test_helpers';
 import {TraceBuilder} from 'test/unit/trace_builder';
+import {makeEmptyTrace} from 'test/unit/trace_utils';
 import {UserNotifierChecker} from 'test/unit/user_notifier_checker';
-import {UnitTestUtils} from 'test/unit/utils';
-import {Trace} from 'trace/trace';
-import {Traces} from 'trace/traces';
-import {TraceType} from 'trace/trace_type';
+import {Trace} from 'trace_api/trace';
+import {TraceType} from 'trace_api/trace_type';
+import {Traces} from 'trace_api/traces';
 import {QueryResult} from 'trace_processor/query_result';
+import {makeSearchTraceSpies} from 'trace_processor/test_utils';
 import {
   ClearQueryClickDetail,
   DeleteSavedQueryClickDetail,
@@ -60,7 +61,7 @@ describe('PresenterSearch', () => {
       new Traces(),
       new InMemoryStorage(),
       (newData: UiData) => (uiData = newData),
-      TimestampConverterUtils.TIMESTAMP_CONVERTER,
+      UTC_CONVERTER,
     );
     userNotifierChecker.reset();
     element = document.createElement('div');
@@ -142,7 +143,7 @@ describe('PresenterSearch', () => {
     const query = 'successful empty query';
     await runSearchWithNoRowsAndCheckUiData(
       query,
-      UnitTestUtils.makeEmptyTrace(TraceType.SEARCH, [query, '1']),
+      makeEmptyTrace(TraceType.SEARCH, [query, '1']),
     );
   });
 
@@ -153,14 +154,11 @@ describe('PresenterSearch', () => {
       new TraceSearchRequest(testQuery),
     );
 
-    const time100 = TimestampConverterUtils.makeRealTimestamp(100n);
-    const [spyQueryResult, spyIter] = UnitTestUtils.makeSearchTraceSpies(
-      time100,
-      '123',
-    );
+    const time100 = makeRealTimestamp(100n);
+    const [spyQueryResult, spyIter] = makeSearchTraceSpies(time100, '123');
     spyIter.get.withArgs('property').and.returnValue('test_time_ns');
     const spyTimestamp = spyOn(
-      TimestampConverterUtils.TIMESTAMP_CONVERTER,
+      UTC_CONVERTER,
       'makeTimestampFromBootTimeNs',
     ).and.callThrough();
     const trace = new TraceBuilder<QueryResult>()
@@ -181,11 +179,13 @@ describe('PresenterSearch', () => {
     await presenter.onAppEvent(
       TracePositionUpdate.fromTraceEntry(trace.getEntry(0)),
     );
-    expect(uiData.currentSearches.length).toEqual(1);
-    expect(uiData.currentSearches[0].result?.currentIndex).toEqual(0);
-    expect(uiData.currentSearches[0].result?.headers.length).toEqual(3);
-    expect(uiData.currentSearches[0].result?.entries.length).toEqual(1);
-    expect(spyTimestamp).toHaveBeenCalledOnceWith(123n);
+    expect(uiData.currentSearches.length).toBe(1);
+    expect(uiData.currentSearches[0].result?.currentIndex).toBe(0);
+    expect(uiData.currentSearches[0].result?.headers.length).toBe(4);
+    expect(uiData.currentSearches[0].result?.entries.length).toBe(1);
+    expect(spyTimestamp).toHaveBeenCalledTimes(2);
+    expect(spyTimestamp).toHaveBeenCalledWith(200n);
+    expect(spyTimestamp).toHaveBeenCalledWith(123n);
     expect(uiData.lastTraceFailed).toEqual(false);
     expect(uiData.recentSearches).toEqual([new ListedSearch(testQuery)]);
 
@@ -205,13 +205,13 @@ describe('PresenterSearch', () => {
     const query = 'successful query';
     await runSearchWithNoRowsAndCheckUiData(
       query,
-      UnitTestUtils.makeEmptyTrace(TraceType.SEARCH, [query]),
+      makeEmptyTrace(TraceType.SEARCH, [query]),
     );
     emitEventSpy.calls.reset();
     presenter.addSearch();
     await runSearchWithNoRowsAndCheckUiData(
       query,
-      UnitTestUtils.makeEmptyTrace(TraceType.SEARCH, [query]),
+      makeEmptyTrace(TraceType.SEARCH, [query]),
       2,
       [
         new CurrentSearch(1, query, new SearchResult([], [])),
@@ -222,7 +222,7 @@ describe('PresenterSearch', () => {
 
   it('handles non-search trace added event', async () => {
     const currData = uiData;
-    const trace = UnitTestUtils.makeEmptyTrace(TraceType.SURFACE_FLINGER);
+    const trace = makeEmptyTrace(TraceType.SURFACE_FLINGER);
     await presenter.onAppEvent(new TraceAddRequest(trace));
     expect(uiData).toEqual(currData);
   });
@@ -238,7 +238,7 @@ describe('PresenterSearch', () => {
 
   it('clears current search result when query run again, keeping both in recent searches', async () => {
     const testQuery = 'query to be overwritten';
-    const trace = UnitTestUtils.makeEmptyTrace(TraceType.SEARCH, [testQuery]);
+    const trace = makeEmptyTrace(TraceType.SEARCH, [testQuery]);
     await runSearchWithNoRowsAndCheckUiData(testQuery, trace);
     emitEventSpy.calls.reset();
 
@@ -247,27 +247,27 @@ describe('PresenterSearch', () => {
     expect(emitEventSpy).toHaveBeenCalledWith(
       new TraceSearchRequest(testQuery),
     );
-    expect(uiData.currentSearches.length).toEqual(1);
+    expect(uiData.currentSearches.length).toBe(1);
     emitEventSpy.calls.reset();
 
     await presenter.onAppEvent(new TraceSearchFailed());
-    expect(uiData.currentSearches.length).toEqual(1);
+    expect(uiData.currentSearches.length).toBe(1);
     expect(uiData.recentSearches).toEqual([new ListedSearch(testQuery)]);
     emitEventSpy.calls.reset();
 
     const newQuery = 'new query';
-    const newTrace = UnitTestUtils.makeEmptyTrace(TraceType.SEARCH, [newQuery]);
+    const newTrace = makeEmptyTrace(TraceType.SEARCH, [newQuery]);
     await runSearchWithNoRowsAndCheckUiData(newQuery, newTrace);
     emitEventSpy.calls.reset();
 
     // check removed presenter cannot still affect ui data
     element.dispatchEvent(new CustomEvent(ViewerEvents.ArrowDownPress));
-    expect(uiData.currentSearches.length).toEqual(1);
+    expect(uiData.currentSearches.length).toBe(1);
 
     await presenter.onSearchQueryClick(newQuery, 1);
     expect(emitEventSpy).toHaveBeenCalledWith(new TraceRemoveRequest(newTrace));
     expect(emitEventSpy).toHaveBeenCalledWith(new TraceSearchRequest(newQuery));
-    expect(uiData.currentSearches.length).toEqual(1);
+    expect(uiData.currentSearches.length).toBe(1);
     expect(uiData.recentSearches).toEqual([
       new ListedSearch(newQuery),
       new ListedSearch(testQuery),
@@ -304,30 +304,24 @@ describe('PresenterSearch', () => {
 
   it('handles clear query click', async () => {
     const testQuery = 'clear query';
-    const trace = UnitTestUtils.makeEmptyTrace(TraceType.SEARCH, [
-      testQuery,
-      '1',
-    ]);
+    const trace = makeEmptyTrace(TraceType.SEARCH, [testQuery, '1']);
     await runSearchWithNoRowsAndCheckUiData(testQuery, trace);
 
     await presenter.onClearQueryClick(0);
-    expect(uiData.currentSearches.length).toEqual(1);
+    expect(uiData.currentSearches.length).toBe(1);
     await presenter.onClearQueryClick(1);
-    expect(uiData.currentSearches.length).toEqual(0);
+    expect(uiData.currentSearches.length).toBe(0);
   });
 
   it('retains at most 10 recent searches', async () => {
     for (let i = 0; i < 12; i++) {
       const testQuery = 'recent query';
-      const trace = UnitTestUtils.makeEmptyTrace(TraceType.SEARCH, [
-        testQuery,
-        '1',
-      ]);
+      const trace = makeEmptyTrace(TraceType.SEARCH, [testQuery, '1']);
       await presenter.onSearchQueryClick(testQuery, 1);
       await presenter.onAppEvent(new TraceAddRequest(trace));
     }
-    expect(uiData.currentSearches.length).toEqual(1);
-    expect(uiData.recentSearches.length).toEqual(10);
+    expect(uiData.currentSearches.length).toBe(1);
+    expect(uiData.recentSearches.length).toBe(10);
   });
 
   function searchEqualityTester(

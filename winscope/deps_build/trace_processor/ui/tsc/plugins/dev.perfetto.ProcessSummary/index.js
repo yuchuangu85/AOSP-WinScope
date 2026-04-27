@@ -14,7 +14,6 @@
 // limitations under the License.
 Object.defineProperty(exports, "__esModule", { value: true });
 const tslib_1 = require("tslib");
-const multi_machine_trace_1 = require("../../base/multi_machine_trace");
 const utils_1 = require("../../public/utils");
 const query_result_1 = require("../../trace_processor/query_result");
 const dev_perfetto_Thread_1 = tslib_1.__importDefault(require("../dev.perfetto.Thread"));
@@ -42,11 +41,19 @@ class default_1 {
         // Makes the queries in `ProcessSchedulingTrack` significantly faster.
         // TODO(lalitm): figure out a better way to do this without hardcoding this
         // here.
-        await (0, sql_utils_1.createPerfettoIndex)(ctx.engine, `__process_scheduling_${(0, uuid_1.uuidv4Sql)()}`, `__intrinsic_sched_slice(utid)`);
+        await (0, sql_utils_1.createPerfettoIndex)({
+            engine: ctx.engine,
+            name: `__process_scheduling_${(0, uuid_1.uuidv4Sql)()}`,
+            on: `__intrinsic_sched_slice(utid)`,
+        });
         // Makes the queries in `ProcessSummaryTrack` significantly faster.
         // TODO(lalitm): figure out a better way to do this without hardcoding this
         // here.
-        await (0, sql_utils_1.createPerfettoIndex)(ctx.engine, `__process_summary_${(0, uuid_1.uuidv4Sql)()}`, `__intrinsic_slice(track_id)`);
+        await (0, sql_utils_1.createPerfettoIndex)({
+            engine: ctx.engine,
+            name: `__process_summary_${(0, uuid_1.uuidv4Sql)()}`,
+            on: `__intrinsic_slice(track_id)`,
+        });
         const threads = ctx.plugins.getPlugin(dev_perfetto_Thread_1.default).getThreadMap();
         const cpuCountByMachine = this.getCpuCountByMachine(ctx);
         const result = await ctx.engine.query(`
@@ -136,7 +143,6 @@ class default_1 {
             // See https://source.android.com/docs/core/runtime/boot-image-profiles
             // for additional details.
             isBootImageProfiling && chips.push('boot image profiling');
-            const machineLabel = (0, multi_machine_trace_1.maybeMachineLabel)(machine);
             if (hasSched) {
                 const config = {
                     pidForColor,
@@ -146,12 +152,11 @@ class default_1 {
                 const cpuCount = cpuCountByMachine[machine] ?? 0;
                 ctx.tracks.registerTrack({
                     uri,
-                    title: `${upid === null ? tid : pid}${machineLabel} schedule`,
                     tags: {
                         kind: process_scheduling_track_1.PROCESS_SCHEDULING_TRACK_KIND,
                     },
                     chips,
-                    track: new process_scheduling_track_1.ProcessSchedulingTrack(ctx, config, cpuCount, threads),
+                    renderer: new process_scheduling_track_1.ProcessSchedulingTrack(ctx, config, cpuCount, threads),
                     subtitle,
                 });
             }
@@ -163,12 +168,11 @@ class default_1 {
                 };
                 ctx.tracks.registerTrack({
                     uri,
-                    title: `${upid === null ? tid : pid}${machineLabel} summary`,
                     tags: {
                         kind: process_summary_track_1.PROCESS_SUMMARY_TRACK,
                     },
                     chips,
-                    track: new process_summary_track_1.ProcessSummaryTrack(ctx.engine, config),
+                    renderer: new process_summary_track_1.ProcessSummaryTrack(ctx.engine, config),
                     subtitle,
                 });
             }
@@ -216,11 +220,10 @@ class default_1 {
         };
         ctx.tracks.registerTrack({
             uri: '/kernel',
-            title: `Kernel thread summary`,
             tags: {
                 kind: process_summary_track_1.PROCESS_SUMMARY_TRACK,
             },
-            track: new process_summary_track_1.ProcessSummaryTrack(ctx.engine, config),
+            renderer: new process_summary_track_1.ProcessSummaryTrack(ctx.engine, config),
         });
     }
 }

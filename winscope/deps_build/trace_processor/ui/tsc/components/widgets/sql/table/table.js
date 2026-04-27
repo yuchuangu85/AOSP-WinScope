@@ -22,16 +22,14 @@ const menu_1 = require("../../../../widgets/menu");
 const query_builder_1 = require("./query_builder");
 const semantic_icons_1 = require("../../../../base/semantic_icons");
 const string_utils_1 = require("../../../../base/string_utils");
-const anchor_1 = require("../../../../widgets/anchor");
-const basic_table_1 = require("../../../../widgets/basic_table");
 const spinner_1 = require("../../../../widgets/spinner");
+const grid_1 = require("../../../../widgets/grid");
 const render_cell_utils_1 = require("./render_cell_utils");
 const form_1 = require("../../../../widgets/form");
 const text_input_1 = require("../../../../widgets/text_input");
 const table_column_1 = require("./table_column");
 const sql_column_1 = require("./sql_column");
 const select_column_menu_1 = require("./select_column_menu");
-const table_header_1 = require("./table_header");
 function renderCell(column, row, state) {
     const { columns } = state.getCurrentRequest();
     const sqlValue = row[columns[(0, sql_column_1.sqlColumnId)(column.column)]];
@@ -40,7 +38,8 @@ function renderCell(column, row, state) {
     for (const [key, col] of Object.entries(supportingColumns)) {
         additionalValues[key] = row[columns[(0, sql_column_1.sqlColumnId)(col)]];
     }
-    return column.renderCell(sqlValue, getTableManager(state), additionalValues);
+    const result = column.renderCell(sqlValue, getTableManager(state), additionalValues);
+    return result;
 }
 function columnTitle(column) {
     if (column.getTitle !== undefined) {
@@ -167,21 +166,6 @@ class SqlTable {
             state: this.state,
         }));
     }
-    renderColumnHeader(column, index, additionalColumnHeaderMenuItems) {
-        const sorted = this.state.isSortedBy(column);
-        return (0, mithril_1.default)(menu_1.PopupMenu, {
-            trigger: (0, mithril_1.default)(anchor_1.Anchor, { icon: (0, table_header_1.renderColumnIcon)(sorted) }, columnTitle(column)),
-        }, (0, table_header_1.renderSortMenuItems)(sorted, (direction) => this.state.sortBy({ column, direction })), this.state.getSelectedColumns().length > 1 &&
-            (0, mithril_1.default)(menu_1.MenuItem, {
-                label: 'Hide',
-                icon: semantic_icons_1.Icons.Hide,
-                onclick: () => this.state.hideColumnAtIndex(index),
-            }), (0, mithril_1.default)(menu_1.MenuItem, { label: 'Add filter', icon: semantic_icons_1.Icons.Filter }, this.renderColumnFilterOptions(column)), additionalColumnHeaderMenuItems, 
-        // Menu items before divider apply to selected column
-        (0, mithril_1.default)(menu_1.MenuDivider), 
-        // Menu items after divider apply to entire table
-        (0, mithril_1.default)(AddColumnMenuItem, { table: this, state: this.state, index }));
-    }
     getAdditionalColumnMenuItems(addColumnMenuItems) {
         if (addColumnMenuItems === undefined)
             return;
@@ -196,20 +180,64 @@ class SqlTable {
         const rows = this.state.getDisplayedRows();
         const additionalColumnMenuItems = this.getAdditionalColumnMenuItems(attrs.addColumnMenuItems);
         const columns = this.state.getSelectedColumns();
-        const columnDescriptors = columns.map((column, i) => {
-            return {
-                title: this.renderColumnHeader(column, i, additionalColumnMenuItems &&
-                    additionalColumnMenuItems[this.state.getCurrentRequest().columns[(0, sql_column_1.sqlColumnId)(column.column)]]),
-                render: (row) => renderCell(column, row, this.state),
-            };
-        });
         return [
-            (0, mithril_1.default)((basic_table_1.BasicTable), {
-                data: rows,
-                columns: columnDescriptors,
-                onreorder: (from, to) => this.state.moveColumn(from, to),
-            }, this.state.isLoading() && (0, mithril_1.default)(spinner_1.Spinner), this.state.getQueryError() !== undefined &&
-                (0, mithril_1.default)('.query-error', this.state.getQueryError())),
+            (0, mithril_1.default)(grid_1.Grid, {
+                className: 'sql-table',
+                fillHeight: true,
+            }, [
+                (0, mithril_1.default)(grid_1.GridHeader, (0, mithril_1.default)(grid_1.GridRow, columns.map((column, i) => {
+                    const sorted = this.state.isSortedBy(column);
+                    const menuItems = [
+                        (0, grid_1.renderSortMenuItems)(sorted, (direction) => this.state.sortBy({ column, direction })),
+                        (0, mithril_1.default)(menu_1.MenuDivider),
+                        this.state.getSelectedColumns().length > 1 &&
+                            (0, mithril_1.default)(menu_1.MenuItem, {
+                                label: 'Hide',
+                                icon: semantic_icons_1.Icons.Hide,
+                                onclick: () => this.state.hideColumnAtIndex(i),
+                            }),
+                        (0, mithril_1.default)(menu_1.MenuItem, { label: 'Add filter', icon: semantic_icons_1.Icons.Filter }, this.renderColumnFilterOptions(column)),
+                        additionalColumnMenuItems &&
+                            additionalColumnMenuItems[this.state.getCurrentRequest().columns[(0, sql_column_1.sqlColumnId)(column.column)]],
+                        // Menu items before divider apply to selected column
+                        (0, mithril_1.default)(menu_1.MenuDivider),
+                        // Menu items after divider apply to entire table
+                        (0, mithril_1.default)(AddColumnMenuItem, {
+                            table: this,
+                            state: this.state,
+                            index: i,
+                        }),
+                    ];
+                    return (0, mithril_1.default)(grid_1.GridHeaderCell, {
+                        key: i,
+                        sort: sorted,
+                        onSort: (direction) => {
+                            this.state.sortBy({ column, direction });
+                        },
+                        menuItems,
+                        reorderable: { handle: 'column' },
+                        onReorder: (from, to, position) => {
+                            if (typeof from === 'number' && typeof to === 'number') {
+                                const toIndex = position === 'before' ? to : to + 1;
+                                this.state.moveColumn(from, toIndex);
+                            }
+                        },
+                    }, columnTitle(column));
+                }))),
+                (0, mithril_1.default)(grid_1.GridBody, rows.map((row) => {
+                    return (0, mithril_1.default)(grid_1.GridRow, columns.map((col) => {
+                        const { content, menu, isNumerical, isNull } = renderCell(col, row, this.state);
+                        return (0, mithril_1.default)(grid_1.GridDataCell, {
+                            menuItems: menu,
+                            align: isNull ? 'center' : isNumerical ? 'right' : 'left',
+                            isMissing: isNull,
+                        }, content);
+                    }));
+                })),
+            ]),
+            this.state.isLoading() && (0, mithril_1.default)(spinner_1.Spinner),
+            this.state.getQueryError() !== undefined &&
+                (0, mithril_1.default)('.query-error', this.state.getQueryError()),
         ];
     }
 }

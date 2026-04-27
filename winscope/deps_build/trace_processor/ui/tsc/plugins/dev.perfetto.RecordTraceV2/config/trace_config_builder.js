@@ -65,6 +65,18 @@ class TraceConfigBuilder {
         cfg.ftraceConfig.atraceCategories ??= [];
         cfg.ftraceConfig.atraceCategories.push(...cats);
     }
+    addTrackEventEnabledCategories(...cats) {
+        const cfg = this.addDataSource('track_event');
+        cfg.trackEventConfig ??= {};
+        cfg.trackEventConfig.enabledCategories ??= [];
+        cfg.trackEventConfig.enabledCategories.push(...cats);
+    }
+    addTrackEventDisabledCategories(...cats) {
+        const cfg = this.addDataSource('track_event');
+        cfg.trackEventConfig ??= {};
+        cfg.trackEventConfig.disabledCategories ??= [];
+        cfg.trackEventConfig.disabledCategories.push(...cats);
+    }
     toTraceConfig() {
         const traceCfg = new protos_1.default.TraceConfig();
         traceCfg.durationMs = this.durationMs;

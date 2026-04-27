@@ -59,8 +59,15 @@ class ProcessSummaryTrack {
       `;
         };
         const trash = new disposable_stack_1.AsyncDisposableStack();
-        trash.use(await (0, sql_utils_1.createPerfettoTable)(this.engine, `tmp_${this.uuid}`, getQuery()));
-        trash.use(await (0, sql_utils_1.createPerfettoTable)(this.engine, `changes_${this.uuid}`, `
+        trash.use(await (0, sql_utils_1.createPerfettoTable)({
+            engine: this.engine,
+            name: `tmp_${this.uuid}`,
+            as: getQuery(),
+        }));
+        trash.use(await (0, sql_utils_1.createPerfettoTable)({
+            engine: this.engine,
+            name: `changes_${this.uuid}`,
+            as: `
           select ts, 1.0 as value
           from tmp_${this.uuid}
           cross join slice using (track_id)
@@ -70,8 +77,12 @@ class ProcessSummaryTrack {
           from tmp_${this.uuid}
           cross join slice using (track_id)
           where slice.depth = 0
-        `));
-        await (0, sql_utils_1.createVirtualTable)(this.engine, `process_summary_${this.uuid}`, `__intrinsic_counter_mipmap((
+        `,
+        }));
+        await (0, sql_utils_1.createVirtualTable)({
+            engine: this.engine,
+            name: `process_summary_${this.uuid}`,
+            using: `__intrinsic_counter_mipmap((
         select
           ts,
           sum(value) over (order by ts) / (
@@ -79,7 +90,8 @@ class ProcessSummaryTrack {
           ) as value
         from changes_${this.uuid}
         order by ts
-      ))`);
+      ))`,
+        });
         await trash.asyncDispose();
     }
     async onUpdate({ visibleWindow, resolution, }) {

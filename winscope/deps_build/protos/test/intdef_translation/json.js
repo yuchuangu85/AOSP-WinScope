@@ -8,18 +8,16 @@ const $root = ($protobuf.roots.test_intdef_translation || ($protobuf.roots.test_
       test: {
         nested: {
           RootMessage: {
+            edition: "proto2",
             fields: {
-              intdefMappingEntry: {
+              inputWindowInfo: {
                 type: "InputWindowInfoProto",
                 id: 1
-              },
-              windowLayoutParams: {
-                type: "WindowLayoutParamsProto",
-                id: 2
               }
             }
           },
           InputWindowInfoProto: {
+            edition: "proto2",
             fields: {
               layoutParamsFlags: {
                 type: "int32",
@@ -27,76 +25,23 @@ const $root = ($protobuf.roots.test_intdef_translation || ($protobuf.roots.test_
               },
               inputConfig: {
                 type: "int32",
-                id: 2
-              }
-            }
-          },
-          WindowLayoutParamsProto: {
-            options: {
-              "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
-            },
-            fields: {
-              type: {
+                id: 2,
+                options: {
+                  "(.perfetto.protos.typedef)": "android.view.WindowInsets.Side.InsetsSide"
+                }
+              },
+              testAndroidTypedef: {
                 type: "int32",
-                id: 1,
+                id: 3,
                 options: {
-                  "(.android.typedef)": "android.view.WindowManager.LayoutParams.WindowType"
+                  "(.android.typedef)": "android.content.pm.ActivityInfo.ScreenOrientation"
                 }
               },
-              gravity: {
+              testAndroidCommonTypedef: {
                 type: "int32",
-                id: 8,
+                id: 4,
                 options: {
-                  "(.android.typedef)": "android.view.Gravity.GravityFlags"
-                }
-              },
-              softInputMode: {
-                type: "int32",
-                id: 9,
-                options: {
-                  "(.android.typedef)": "android.view.WindowManager.LayoutParams.SoftInputModeFlags"
-                }
-              },
-              inputFeatureFlags: {
-                type: "uint32",
-                id: 19,
-                options: {
-                  "(.android.typedef)": "android.view.WindowManager.LayoutParams.InputFeatureFlags"
-                }
-              },
-              flags: {
-                type: "uint32",
-                id: 24,
-                options: {
-                  "(.android.typedef)": "android.view.WindowManager.LayoutParams.Flags"
-                }
-              },
-              systemUiVisibilityFlags: {
-                type: "uint32",
-                id: 27,
-                options: {
-                  "(.android.typedef)": "android.view.WindowManager.LayoutParams.SystemUiVisibilityFlags"
-                }
-              },
-              subtreeSystemUiVisibilityFlags: {
-                type: "uint32",
-                id: 28,
-                options: {
-                  "(.android.typedef)": "android.view.WindowManager.LayoutParams.SystemUiVisibilityFlags"
-                }
-              },
-              appearance: {
-                type: "uint32",
-                id: 29,
-                options: {
-                  "(.android.typedef)": "android.view.WindowInsetsController.Appearance"
-                }
-              },
-              behavior: {
-                type: "uint32",
-                id: 30,
-                options: {
-                  "(.android.typedef)": "android.view.WindowInsetsController.Behavior"
+                  "(.android_common.typedef)": "android.view.WindowManager.TransitionFlags"
                 }
               }
             }

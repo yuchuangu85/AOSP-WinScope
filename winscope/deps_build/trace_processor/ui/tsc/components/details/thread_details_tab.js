@@ -20,7 +20,6 @@ const details_shell_1 = require("../../widgets/details_shell");
 const grid_layout_1 = require("../../widgets/grid_layout");
 const section_1 = require("../../widgets/section");
 const details_1 = require("../widgets/sql/details/details");
-var d = details_1.DetailsSchema;
 class ThreadDetailsTab {
     args;
     data;
@@ -30,13 +29,13 @@ class ThreadDetailsTab {
     constructor(args) {
         this.args = args;
         this.data = new details_1.Details(args.trace, 'thread', args.utid, {
-            'tid': d.Value('tid'),
-            'Name': d.Value('name'),
-            'Process': d.SqlIdRef('process', 'upid'),
-            'Is main thread': d.Boolean('is_main_thread'),
-            'Start time': d.Timestamp('start_ts', { skipIfNull: true }),
-            'End time': d.Timestamp('end_ts', { skipIfNull: true }),
-            'Machine id': d.Value('machine_id', { skipIfNull: true }),
+            'tid': details_1.DetailsSchema.Value('tid'),
+            'Name': details_1.DetailsSchema.Value('name'),
+            'Process': details_1.DetailsSchema.SqlIdRef('process', 'upid'),
+            'Is main thread': details_1.DetailsSchema.Boolean('is_main_thread'),
+            'Start time': details_1.DetailsSchema.Timestamp('start_ts', { skipIfNull: true }),
+            'End time': details_1.DetailsSchema.Timestamp('end_ts', { skipIfNull: true }),
+            'Machine id': details_1.DetailsSchema.Value('machine_id', { skipIfNull: true }),
         });
     }
     render() {

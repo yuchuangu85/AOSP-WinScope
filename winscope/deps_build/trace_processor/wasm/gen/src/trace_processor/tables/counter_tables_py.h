@@ -6,49 +6,67 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <tuple>
 #include <type_traits>
 #include <utility>
+#include <variant>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/ref_counted.h"
-#include "src/trace_processor/containers/bit_vector.h"
-#include "src/trace_processor/containers/row_map.h"
-#include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/db/column/arrangement_overlay.h"
-#include "src/trace_processor/db/column/data_layer.h"
-#include "src/trace_processor/db/column/dense_null_overlay.h"
-#include "src/trace_processor/db/column/numeric_storage.h"
-#include "src/trace_processor/db/column/id_storage.h"
-#include "src/trace_processor/db/column/null_overlay.h"
-#include "src/trace_processor/db/column/range_overlay.h"
-#include "src/trace_processor/db/column/selector_overlay.h"
-#include "src/trace_processor/db/column/set_id_storage.h"
-#include "src/trace_processor/db/column/string_storage.h"
-#include "src/trace_processor/db/column/types.h"
-#include "src/trace_processor/db/column_storage.h"
-#include "src/trace_processor/db/column.h"
-#include "src/trace_processor/db/table.h"
-#include "src/trace_processor/db/typed_column.h"
-#include "src/trace_processor/db/typed_column_internal.h"
+#include "src/trace_processor/dataframe/dataframe.h"
+#include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/dataframe/typed_cursor.h"
 #include "src/trace_processor/tables/macros_internal.h"
 
 #include "src/trace_processor/tables/track_tables_py.h"
 
 namespace perfetto::trace_processor::tables {
 
-class CounterTable : public macros_internal::MacroTable {
+class CounterTable {
  public:
-  static constexpr uint32_t kColumnCount = 5;
+  static constexpr auto kSpec = dataframe::CreateTypedDataframeSpec(
+    {"id","ts","track_id","value","arg_set_id"},
+    dataframe::CreateTypedColumnSpec(dataframe::Id{}, dataframe::NonNull{}, dataframe::IdSorted{}, dataframe::NoDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Int64{}, dataframe::NonNull{}, dataframe::Sorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Double{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::SparseNullWithPopcountAlways{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}));
 
-  struct Id : public BaseId {
+  struct Id : BaseId {
     Id() = default;
-    explicit constexpr Id(uint32_t v) : BaseId(v) {}
+    explicit constexpr Id(uint32_t _value) : BaseId(_value) {}
+
+    bool operator==(const Id& other) const {
+      return value == other.value;
+    }
   };
-  static_assert(std::is_trivially_destructible_v<Id>,
-                "Inheritance used without trivial destruction");
-    
+  struct RowReference;
+  struct ConstRowReference;
+  struct RowNumber {
+   public:
+    explicit constexpr RowNumber(uint32_t value) : value_(value) {}
+    uint32_t row_number() const { return value_; }
+
+    RowReference ToRowReference(CounterTable* table) const {
+      return RowReference(table, value_);
+    }
+    ConstRowReference ToRowReference(const CounterTable& table) const {
+      return ConstRowReference(&table, value_);
+    }
+
+    bool operator==(const RowNumber& other) const {
+      return value_ == other.value_;
+    }
+    bool operator<(const RowNumber& other) const {
+      return value_ < other.value_;
+    }
+   private:
+    uint32_t value_;
+  };
   struct ColumnIndex {
     static constexpr uint32_t id = 0;
     static constexpr uint32_t ts = 1;
@@ -56,381 +74,364 @@ class CounterTable : public macros_internal::MacroTable {
     static constexpr uint32_t value = 3;
     static constexpr uint32_t arg_set_id = 4;
   };
-  struct ColumnType {
-    using id = IdColumn<CounterTable::Id>;
-    using ts = TypedColumn<int64_t>;
-    using track_id = TypedColumn<TrackTable::Id>;
-    using value = TypedColumn<double>;
-    using arg_set_id = TypedColumn<std::optional<uint32_t>>;
+  struct RowReference {
+   public:
+    explicit RowReference(CounterTable* table, uint32_t row)
+        : table_(table), row_(row) {
+        base::ignore_result(table_);
+    }
+    CounterTable::Id id() const {
+        
+        return CounterTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+        int64_t ts() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::ts>(kSpec, row_);
+    }
+          TrackTable::Id track_id() const {
+        
+        return TrackTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::track_id>(kSpec, row_)};
+      }
+        double value() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::value>(kSpec, row_);
+    }
+        std::optional<uint32_t> arg_set_id() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::arg_set_id>(kSpec, row_);
+    }
+    void set_track_id(TrackTable::Id res) {
+        
+        table_->dataframe_.SetCellUnchecked<ColumnIndex::track_id>(kSpec, row_, res.value);
+      }
+        void set_value(double res) {
+      
+      table_->dataframe_.SetCellUnchecked<ColumnIndex::value>(kSpec, row_, res);
+    }
+        void set_arg_set_id(std::optional<uint32_t> res) {
+      
+      table_->dataframe_.SetCellUnchecked<ColumnIndex::arg_set_id>(kSpec, row_, res);
+    }
+    RowNumber ToRowNumber() const {
+      return RowNumber{row_};
+    }
+
+   private:
+    friend struct ConstRowReference;
+    CounterTable* table_;
+    uint32_t row_;
   };
-  struct Row : public macros_internal::RootParentTable::Row {
-    Row(int64_t in_ts = {},
-        TrackTable::Id in_track_id = {},
-        double in_value = {},
-        std::optional<uint32_t> in_arg_set_id = {},
-        std::nullptr_t = nullptr)
-        : macros_internal::RootParentTable::Row(),
-          ts(in_ts),
-          track_id(in_track_id),
-          value(in_value),
-          arg_set_id(in_arg_set_id) {}
-    int64_t ts;
+  struct ConstRowReference {
+   public:
+    explicit ConstRowReference(const CounterTable* table, uint32_t row)
+        : table_(table), row_(row) {
+        base::ignore_result(table_);
+    }
+    ConstRowReference(const RowReference& other)
+        : table_(other.table_), row_(other.row_) {}
+    CounterTable::Id id() const {
+        
+        return CounterTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+        int64_t ts() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::ts>(kSpec, row_);
+    }
+          TrackTable::Id track_id() const {
+        
+        return TrackTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::track_id>(kSpec, row_)};
+      }
+        double value() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::value>(kSpec, row_);
+    }
+        std::optional<uint32_t> arg_set_id() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::arg_set_id>(kSpec, row_);
+    }
+    RowNumber ToRowNumber() const {
+      return RowNumber{row_};
+    }
+   private:
+    const CounterTable* table_;
+    uint32_t row_;
+  };
+  class ConstCursor {
+   public:
+    explicit ConstCursor(const dataframe::Dataframe& df,
+                         std::vector<dataframe::FilterSpec> filters,
+                         std::vector<dataframe::SortSpec> sorts)
+      : dataframe_(&df), cursor_(&df, std::move(filters), std::move(sorts)) {
+      base::ignore_result(dataframe_);
+    }
+
+    PERFETTO_ALWAYS_INLINE void Execute() { cursor_.ExecuteUnchecked(); }
+    PERFETTO_ALWAYS_INLINE bool Eof() const { return cursor_.Eof(); }
+    PERFETTO_ALWAYS_INLINE void Next() { cursor_.Next(); }
+    template <typename C>
+    PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index, C value) {
+      cursor_.SetFilterValueUnchecked(index, std::move(value));
+    }
+    RowNumber ToRowNumber() const {
+      return RowNumber{cursor_.RowIndex()};
+    }
+    void Reset() { cursor_.Reset(); }
+    CounterTable::Id id() const {
+        
+        return CounterTable::Id{cursor_.GetCellUnchecked<ColumnIndex::id>(kSpec)};
+      }
+    int64_t ts() const {
+      
+      return cursor_.GetCellUnchecked<ColumnIndex::ts>(kSpec);
+    }
+      TrackTable::Id track_id() const {
+        
+        return TrackTable::Id{cursor_.GetCellUnchecked<ColumnIndex::track_id>(kSpec)};
+      }
+    double value() const {
+      
+      return cursor_.GetCellUnchecked<ColumnIndex::value>(kSpec);
+    }
+    std::optional<uint32_t> arg_set_id() const {
+      
+      return cursor_.GetCellUnchecked<ColumnIndex::arg_set_id>(kSpec);
+    }
+
+   private:
+    const dataframe::Dataframe* dataframe_;
+    dataframe::TypedCursor cursor_;
+  };
+  class Cursor {
+   public:
+    explicit Cursor(dataframe::Dataframe& df,
+                    std::vector<dataframe::FilterSpec> filters,
+                    std::vector<dataframe::SortSpec> sorts)
+      : dataframe_(&df), cursor_(&df, std::move(filters), std::move(sorts)) {
+      base::ignore_result(dataframe_);
+    }
+
+    PERFETTO_ALWAYS_INLINE void Execute() { cursor_.ExecuteUnchecked(); }
+    PERFETTO_ALWAYS_INLINE bool Eof() const { return cursor_.Eof(); }
+    PERFETTO_ALWAYS_INLINE void Next() { cursor_.Next(); }
+    template <typename C>
+    PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index, C value) {
+      cursor_.SetFilterValueUnchecked(index, std::move(value));
+    }
+    RowNumber ToRowNumber() const {
+      return RowNumber{cursor_.RowIndex()};
+    }
+    void Reset() { cursor_.Reset(); }
+
+    CounterTable::Id id() const {
+        
+        return CounterTable::Id{cursor_.GetCellUnchecked<ColumnIndex::id>(kSpec)};
+      }
+    int64_t ts() const {
+      
+      return cursor_.GetCellUnchecked<ColumnIndex::ts>(kSpec);
+    }
+      TrackTable::Id track_id() const {
+        
+        return TrackTable::Id{cursor_.GetCellUnchecked<ColumnIndex::track_id>(kSpec)};
+      }
+    double value() const {
+      
+      return cursor_.GetCellUnchecked<ColumnIndex::value>(kSpec);
+    }
+    std::optional<uint32_t> arg_set_id() const {
+      
+      return cursor_.GetCellUnchecked<ColumnIndex::arg_set_id>(kSpec);
+    }
+    void set_track_id(TrackTable::Id res) {
+        
+        cursor_.SetCellUnchecked<ColumnIndex::track_id>(kSpec, res.value);
+      }
+    void set_value(double res) {
+        
+      cursor_.SetCellUnchecked<ColumnIndex::value>(kSpec, res);
+    }
+    void set_arg_set_id(std::optional<uint32_t> res) {
+        
+      cursor_.SetCellUnchecked<ColumnIndex::arg_set_id>(kSpec, res);
+    }
+
+   private:
+    dataframe::Dataframe* dataframe_;
+    dataframe::TypedCursor cursor_;
+  };
+  class Iterator {
+    public:
+      explicit Iterator(CounterTable* table) : table_(table) {
+        base::ignore_result(table_);
+      }
+      explicit operator bool() const { return row_ < table_->row_count(); }
+      Iterator& operator++() {
+        ++row_;
+        return *this;
+      }
+      RowNumber row_number() const {
+        return RowNumber{row_};
+      }
+      RowReference ToRowReference() const {
+        return RowReference(table_, row_);
+      }
+      CounterTable::Id id() const {
+        
+        return CounterTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+        int64_t ts() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::ts>(kSpec, row_);
+    }
+          TrackTable::Id track_id() const {
+        
+        return TrackTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::track_id>(kSpec, row_)};
+      }
+        double value() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::value>(kSpec, row_);
+    }
+        std::optional<uint32_t> arg_set_id() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::arg_set_id>(kSpec, row_);
+    }
+      void set_track_id(TrackTable::Id res) {
+        
+        table_->dataframe_.SetCellUnchecked<ColumnIndex::track_id>(kSpec, row_, res.value);
+      }
+        void set_value(double res) {
+      
+      table_->dataframe_.SetCellUnchecked<ColumnIndex::value>(kSpec, row_, res);
+    }
+        void set_arg_set_id(std::optional<uint32_t> res) {
+      
+      table_->dataframe_.SetCellUnchecked<ColumnIndex::arg_set_id>(kSpec, row_, res);
+    }
+
+    private:
+      CounterTable* table_;
+      uint32_t row_ = 0;
+  };
+  class ConstIterator {
+    public:
+      explicit ConstIterator(const CounterTable* table) : table_(table) {
+        base::ignore_result(table_);
+      }
+      explicit operator bool() const { return row_ < table_->row_count(); }
+      ConstIterator& operator++() {
+        ++row_;
+        return *this;
+      }
+      RowNumber row_number() const {
+        return RowNumber{row_};
+      }
+      ConstRowReference ToRowReference() const {
+        return ConstRowReference(table_, row_);
+      }
+      CounterTable::Id id() const {
+        
+        return CounterTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+        int64_t ts() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::ts>(kSpec, row_);
+    }
+          TrackTable::Id track_id() const {
+        
+        return TrackTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::track_id>(kSpec, row_)};
+      }
+        double value() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::value>(kSpec, row_);
+    }
+        std::optional<uint32_t> arg_set_id() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::arg_set_id>(kSpec, row_);
+    }
+
+    private:
+      const CounterTable* table_;
+      uint32_t row_ = 0;
+  };
+  struct IdAndRow {
+    Id id;
+    RowNumber row_number;
+    uint32_t row;
+    RowReference row_reference;
+  };
+  
+  struct Row {
+    Row(int64_t _ts = {}, TrackTable::Id _track_id = {}, double _value = {}, std::optional<uint32_t> _arg_set_id = {}) : ts(std::move(_ts)), track_id(std::move(_track_id)), value(std::move(_value)), arg_set_id(std::move(_arg_set_id)) {}
+
+    bool operator==(const Row& other) const {
+      return std::tie(ts, track_id, value, arg_set_id) ==
+             std::tie(other.ts, other.track_id, other.value, other.arg_set_id);
+    }
+
+        int64_t ts;
     TrackTable::Id track_id;
     double value;
     std::optional<uint32_t> arg_set_id;
-
-    bool operator==(const CounterTable::Row& other) const {
-      return ColumnType::ts::Equals(ts, other.ts) &&
-       ColumnType::track_id::Equals(track_id, other.track_id) &&
-       ColumnType::value::Equals(value, other.value) &&
-       ColumnType::arg_set_id::Equals(arg_set_id, other.arg_set_id);
-    }
-  };
-  struct ColumnFlag {
-    static constexpr uint32_t ts = static_cast<uint32_t>(ColumnLegacy::Flag::kSorted) | ColumnType::ts::default_flags();
-    static constexpr uint32_t track_id = ColumnType::track_id::default_flags();
-    static constexpr uint32_t value = ColumnType::value::default_flags();
-    static constexpr uint32_t arg_set_id = ColumnType::arg_set_id::default_flags();
   };
 
-  class RowNumber;
-  class ConstRowReference;
-  class RowReference;
-
-  class RowNumber : public macros_internal::AbstractRowNumber<
-      CounterTable, ConstRowReference, RowReference> {
-   public:
-    explicit RowNumber(uint32_t row_number)
-        : AbstractRowNumber(row_number) {}
-  };
-  static_assert(std::is_trivially_destructible_v<RowNumber>,
-                "Inheritance used without trivial destruction");
-
-  class ConstRowReference : public macros_internal::AbstractConstRowReference<
-    CounterTable, RowNumber> {
-   public:
-    ConstRowReference(const CounterTable* table, uint32_t row_number)
-        : AbstractConstRowReference(table, row_number) {}
-
-    ColumnType::id::type id() const {
-      return table()->id()[row_number_];
-    }
-    ColumnType::ts::type ts() const {
-      return table()->ts()[row_number_];
-    }
-    ColumnType::track_id::type track_id() const {
-      return table()->track_id()[row_number_];
-    }
-    ColumnType::value::type value() const {
-      return table()->value()[row_number_];
-    }
-    ColumnType::arg_set_id::type arg_set_id() const {
-      return table()->arg_set_id()[row_number_];
-    }
-  };
-  static_assert(std::is_trivially_destructible_v<ConstRowReference>,
-                "Inheritance used without trivial destruction");
-  class RowReference : public ConstRowReference {
-   public:
-    RowReference(const CounterTable* table, uint32_t row_number)
-        : ConstRowReference(table, row_number) {}
-
-    void set_ts(
-        ColumnType::ts::non_optional_type v) {
-      return mutable_table()->mutable_ts()->Set(row_number_, v);
-    }
-    void set_track_id(
-        ColumnType::track_id::non_optional_type v) {
-      return mutable_table()->mutable_track_id()->Set(row_number_, v);
-    }
-    void set_value(
-        ColumnType::value::non_optional_type v) {
-      return mutable_table()->mutable_value()->Set(row_number_, v);
-    }
-    void set_arg_set_id(
-        ColumnType::arg_set_id::non_optional_type v) {
-      return mutable_table()->mutable_arg_set_id()->Set(row_number_, v);
-    }
-
-   private:
-    CounterTable* mutable_table() const {
-      return const_cast<CounterTable*>(table());
-    }
-  };
-  static_assert(std::is_trivially_destructible_v<RowReference>,
-                "Inheritance used without trivial destruction");
-
-  class ConstIterator;
-  class ConstIterator : public macros_internal::AbstractConstIterator<
-    ConstIterator, CounterTable, RowNumber, ConstRowReference> {
-   public:
-    ColumnType::id::type id() const {
-      const auto& col = table()->id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::ts::type ts() const {
-      const auto& col = table()->ts();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::track_id::type track_id() const {
-      const auto& col = table()->track_id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::value::type value() const {
-      const auto& col = table()->value();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::arg_set_id::type arg_set_id() const {
-      const auto& col = table()->arg_set_id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-
-   protected:
-    explicit ConstIterator(const CounterTable* table,
-                           Table::Iterator iterator)
-        : AbstractConstIterator(table, std::move(iterator)) {}
-
-    uint32_t CurrentRowNumber() const {
-      return iterator_.StorageIndexForLastOverlay();
-    }
-
-   private:
-    friend class CounterTable;
-    friend class macros_internal::AbstractConstIterator<
-      ConstIterator, CounterTable, RowNumber, ConstRowReference>;
-  };
-  class Iterator : public ConstIterator {
-    public:
-     RowReference row_reference() const {
-       return {const_cast<CounterTable*>(table()), CurrentRowNumber()};
-     }
-
-    private:
-     friend class CounterTable;
-
-     explicit Iterator(CounterTable* table, Table::Iterator iterator)
-        : ConstIterator(table, std::move(iterator)) {}
-  };
-
-  struct IdAndRow {
-    Id id;
-    uint32_t row;
-    RowReference row_reference;
-    RowNumber row_number;
-  };
-
-  static std::vector<ColumnLegacy> GetColumns(
-      CounterTable* self,
-      const macros_internal::MacroTable* parent) {
-    std::vector<ColumnLegacy> columns =
-        CopyColumnsFromParentOrAddRootColumns(parent);
-    uint32_t olay_idx = OverlayCount(parent);
-    AddColumnToVector(columns, "ts", &self->ts_, ColumnFlag::ts,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "track_id", &self->track_id_, ColumnFlag::track_id,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "value", &self->value_, ColumnFlag::value,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "arg_set_id", &self->arg_set_id_, ColumnFlag::arg_set_id,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    base::ignore_result(self);
-    return columns;
-  }
-
-  PERFETTO_NO_INLINE explicit CounterTable(StringPool* pool)
-      : macros_internal::MacroTable(
-          pool,
-          GetColumns(this, nullptr),
-          nullptr),
-        ts_(ColumnStorage<ColumnType::ts::stored_type>::Create<false>()),
-        track_id_(ColumnStorage<ColumnType::track_id::stored_type>::Create<false>()),
-        value_(ColumnStorage<ColumnType::value::stored_type>::Create<false>()),
-        arg_set_id_(ColumnStorage<ColumnType::arg_set_id::stored_type>::Create<false>())
-,
-        id_storage_layer_(new column::IdStorage()),
-        ts_storage_layer_(
-        new column::NumericStorage<ColumnType::ts::non_optional_stored_type>(
-          &ts_.vector(),
-          ColumnTypeHelper<ColumnType::ts::stored_type>::ToColumnType(),
-          true)),
-        track_id_storage_layer_(
-        new column::NumericStorage<ColumnType::track_id::non_optional_stored_type>(
-          &track_id_.vector(),
-          ColumnTypeHelper<ColumnType::track_id::stored_type>::ToColumnType(),
-          false)),
-        value_storage_layer_(
-        new column::NumericStorage<ColumnType::value::non_optional_stored_type>(
-          &value_.vector(),
-          ColumnTypeHelper<ColumnType::value::stored_type>::ToColumnType(),
-          false)),
-        arg_set_id_storage_layer_(
-          new column::NumericStorage<ColumnType::arg_set_id::non_optional_stored_type>(
-            &arg_set_id_.non_null_vector(),
-            ColumnTypeHelper<ColumnType::arg_set_id::stored_type>::ToColumnType(),
-            false))
-,
-        arg_set_id_null_layer_(new column::NullOverlay(arg_set_id_.bv())) {
-    static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::ts::stored_type>(
-          ColumnFlag::ts),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::track_id::stored_type>(
-          ColumnFlag::track_id),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::value::stored_type>(
-          ColumnFlag::value),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::arg_set_id::stored_type>(
-          ColumnFlag::arg_set_id),
-        "Column type and flag combination is not valid");
-    OnConstructionCompletedRegularConstructor(
-      {id_storage_layer_,ts_storage_layer_,track_id_storage_layer_,value_storage_layer_,arg_set_id_storage_layer_},
-      {{},{},{},{},arg_set_id_null_layer_});
-  }
-  ~CounterTable() override;
-
-  static const char* Name() { return "__intrinsic_counter"; }
-
-  static Table::Schema ComputeStaticSchema() {
-    Table::Schema schema;
-    schema.columns.emplace_back(Table::Schema::Column{
-        "id", SqlValue::Type::kLong, true, true, false, false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "ts", ColumnType::ts::SqlValueType(), false,
-        true,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "track_id", ColumnType::track_id::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "value", ColumnType::value::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "arg_set_id", ColumnType::arg_set_id::SqlValueType(), false,
-        false,
-        false,
-        false});
-    return schema;
-  }
-
-  ConstIterator IterateRows() const {
-    return ConstIterator(this, Table::IterateRows());
-  }
-
-  Iterator IterateRows() { return Iterator(this, Table::IterateRows()); }
-
-  ConstIterator FilterToIterator(const Query& q) const {
-    return ConstIterator(this, QueryToIterator(q));
-  }
-
-  Iterator FilterToIterator(const Query& q) {
-    return Iterator(this, QueryToIterator(q));
-  }
-
-  void ShrinkToFit() {
-    ts_.ShrinkToFit();
-    track_id_.ShrinkToFit();
-    value_.ShrinkToFit();
-    arg_set_id_.ShrinkToFit();
-  }
-
-  ConstRowReference operator[](uint32_t r) const {
-    return ConstRowReference(this, r);
-  }
-  RowReference operator[](uint32_t r) { return RowReference(this, r); }
-  ConstRowReference operator[](RowNumber r) const {
-    return ConstRowReference(this, r.row_number());
-  }
-  RowReference operator[](RowNumber r) {
-    return RowReference(this, r.row_number());
-  }
-
-  std::optional<ConstRowReference> FindById(Id find_id) const {
-    std::optional<uint32_t> row = id().IndexOf(find_id);
-    return row ? std::make_optional(ConstRowReference(this, *row))
-               : std::nullopt;
-  }
-
-  std::optional<RowReference> FindById(Id find_id) {
-    std::optional<uint32_t> row = id().IndexOf(find_id);
-    return row ? std::make_optional(RowReference(this, *row)) : std::nullopt;
-  }
+  explicit CounterTable(StringPool* pool)
+      : dataframe_(dataframe::Dataframe::CreateFromTypedSpec(kSpec, pool)) {}
 
   IdAndRow Insert(const Row& row) {
-    uint32_t row_number = row_count();
-    Id id = Id{row_number};
-    mutable_ts()->Append(row.ts);
-    mutable_track_id()->Append(row.track_id);
-    mutable_value()->Append(row.value);
-    mutable_arg_set_id()->Append(row.arg_set_id);
-    UpdateSelfOverlayAfterInsert();
-    return IdAndRow{id, row_number, RowReference(this, row_number),
-                     RowNumber(row_number)};
+    uint32_t row_count = dataframe_.row_count();
+    dataframe_.InsertUnchecked(kSpec, std::monostate(), row.ts, row.track_id.value, row.value, row.arg_set_id);
+    return IdAndRow{Id{row_count}, RowNumber{row_count}, row_count, RowReference(this, row_count)};
   }
 
-  
-
-  const IdColumn<CounterTable::Id>& id() const {
-    return static_cast<const ColumnType::id&>(columns()[ColumnIndex::id]);
-  }
-  const TypedColumn<int64_t>& ts() const {
-    return static_cast<const ColumnType::ts&>(columns()[ColumnIndex::ts]);
-  }
-  const TypedColumn<TrackTable::Id>& track_id() const {
-    return static_cast<const ColumnType::track_id&>(columns()[ColumnIndex::track_id]);
-  }
-  const TypedColumn<double>& value() const {
-    return static_cast<const ColumnType::value&>(columns()[ColumnIndex::value]);
-  }
-  const TypedColumn<std::optional<uint32_t>>& arg_set_id() const {
-    return static_cast<const ColumnType::arg_set_id&>(columns()[ColumnIndex::arg_set_id]);
+  uint32_t row_count() const {
+    return dataframe_.row_count();
   }
 
-  TypedColumn<int64_t>* mutable_ts() {
-    return static_cast<ColumnType::ts*>(
-        GetColumn(ColumnIndex::ts));
+  std::optional<ConstRowReference> FindById(Id id) const {
+    return ConstRowReference(this, id.value);
   }
-  TypedColumn<TrackTable::Id>* mutable_track_id() {
-    return static_cast<ColumnType::track_id*>(
-        GetColumn(ColumnIndex::track_id));
+  ConstRowReference operator[](uint32_t row) const {
+    return ConstRowReference(this, row);
   }
-  TypedColumn<double>* mutable_value() {
-    return static_cast<ColumnType::value*>(
-        GetColumn(ColumnIndex::value));
+
+  std::optional<RowReference> FindById(Id id) {
+    return RowReference(this, id.value);
   }
-  TypedColumn<std::optional<uint32_t>>* mutable_arg_set_id() {
-    return static_cast<ColumnType::arg_set_id*>(
-        GetColumn(ColumnIndex::arg_set_id));
+  RowReference operator[](uint32_t row) {
+    return RowReference(this, row);
+  }
+
+  ConstCursor CreateCursor(
+      std::vector<dataframe::FilterSpec> filters = {},
+      std::vector<dataframe::SortSpec> sorts = {}) const {
+    return ConstCursor(dataframe_, std::move(filters), std::move(sorts));
+  }
+  Cursor CreateCursor(
+      std::vector<dataframe::FilterSpec> filters = {},
+      std::vector<dataframe::SortSpec> sorts = {}) {
+    return Cursor(dataframe_, std::move(filters), std::move(sorts));
+  }
+
+  Iterator IterateRows() { return Iterator(this); }
+  ConstIterator IterateRows() const { return ConstIterator(this); }
+
+  void Finalize() { dataframe_.Finalize(); }
+
+  void Clear() { dataframe_.Clear(); }
+
+  static const char* Name() {
+    return "__intrinsic_counter";
+  }
+
+  dataframe::Dataframe& dataframe() {
+    return dataframe_;
+  }
+  const dataframe::Dataframe& dataframe() const {
+    return dataframe_;
   }
 
  private:
-  
-  
-  ColumnStorage<ColumnType::ts::stored_type> ts_;
-  ColumnStorage<ColumnType::track_id::stored_type> track_id_;
-  ColumnStorage<ColumnType::value::stored_type> value_;
-  ColumnStorage<ColumnType::arg_set_id::stored_type> arg_set_id_;
-
-  RefPtr<column::StorageLayer> id_storage_layer_;
-  RefPtr<column::StorageLayer> ts_storage_layer_;
-  RefPtr<column::StorageLayer> track_id_storage_layer_;
-  RefPtr<column::StorageLayer> value_storage_layer_;
-  RefPtr<column::StorageLayer> arg_set_id_storage_layer_;
-
-  RefPtr<column::OverlayLayer> arg_set_id_null_layer_;
+  dataframe::Dataframe dataframe_;
 };
 
 }  // namespace perfetto

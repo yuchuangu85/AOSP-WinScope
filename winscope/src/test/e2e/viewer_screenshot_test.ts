@@ -14,20 +14,26 @@
  * limitations under the License.
  */
 import {browser, by, element} from 'protractor';
-import {E2eTestUtils} from './utils';
+import {
+  clickViewTracesButton,
+  closeSnackBar,
+  setTimeouts,
+  uploadFixture,
+  WINSCOPE_URL,
+} from './utils';
 
 describe('Viewer Screenshot', () => {
   const viewerSelector = 'viewer-media-based';
 
   beforeEach(async () => {
-    await E2eTestUtils.beforeEach(1000);
-    await browser.get(E2eTestUtils.WINSCOPE_URL);
+    await setTimeouts(1000);
+    await browser.get(WINSCOPE_URL);
   });
 
   it('processes file and renders view', async () => {
-    await E2eTestUtils.uploadFixture('traces/screenshot.png');
-    await E2eTestUtils.closeSnackBar();
-    await E2eTestUtils.clickViewTracesButton();
+    await uploadFixture('traces/screenshot/screenshot.png');
+    await closeSnackBar();
+    await clickViewTracesButton(false);
 
     const viewer = element(by.css(viewerSelector));
     expect(await viewer.isPresent()).toBeTruthy();
@@ -38,12 +44,12 @@ describe('Viewer Screenshot', () => {
   });
 
   it('processes files and renders view with multiple screenshots', async () => {
-    await E2eTestUtils.uploadFixture(
-      'traces/screenshot.png',
-      'traces/screenshot_2.png',
+    await uploadFixture(
+      'traces/screenshot/screenshot.png',
+      'traces/screenshot/screenshot_2.png',
     );
-    await E2eTestUtils.closeSnackBar();
-    await E2eTestUtils.clickViewTracesButton();
+    await closeSnackBar();
+    await clickViewTracesButton(false);
 
     const viewer = element(by.css(viewerSelector));
     expect(await viewer.isPresent()).toBeTruthy();
@@ -54,20 +60,20 @@ describe('Viewer Screenshot', () => {
     expect(src).toContain('blob:');
 
     const overlayTitle = element(by.css(`${viewerSelector} .overlay-title`));
-    expect(await overlayTitle.getText()).toEqual('screenshot');
+    expect(await overlayTitle.getText()).toBe('screenshot');
 
     const selectTrigger = element(
-      by.css(`${viewerSelector} .mat-select-trigger`),
+      by.css(`${viewerSelector} .mat-mdc-select-trigger`),
     );
     expect(await selectTrigger.isPresent()).toBeTruthy();
     await selectTrigger.click();
-    const option2 = element.all(by.css('.mat-option')).last();
+    const option2 = element.all(by.css('.mat-mdc-option')).last();
     await option2.click();
 
     expect(await img.isPresent()).toBeTruthy();
     const newSrc = await img.getAttribute('src');
     expect(newSrc).toContain('blob:');
     expect(newSrc).not.toEqual(src);
-    expect(await overlayTitle.getText()).toEqual('screenshot_2');
+    expect(await overlayTitle.getText()).toBe('screenshot_2');
   });
 });

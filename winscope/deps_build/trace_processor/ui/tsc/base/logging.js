@@ -14,23 +14,30 @@
 // limitations under the License.
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.assertExists = assertExists;
+exports.assertDefined = assertDefined;
 exports.assertIsInstance = assertIsInstance;
 exports.assertTrue = assertTrue;
 exports.assertFalse = assertFalse;
+exports.assertUnreachable = assertUnreachable;
 exports.addErrorHandler = addErrorHandler;
 exports.reportError = reportError;
-exports.assertUnreachable = assertUnreachable;
 const perfetto_version_1 = require("../gen/perfetto_version");
 const utils_1 = require("./utils");
 const errorHandlers = [];
-function assertExists(value) {
+function assertExists(value, optMsg) {
     if (value === null || value === undefined) {
-        throw new Error("Value doesn't exist");
+        throw new Error(optMsg ?? "Value doesn't exist");
     }
     return value;
 }
-function assertIsInstance(value, clazz) {
-    assertTrue(value instanceof clazz);
+// assertExists trips over NULLs, but in many contexts NULL is a valid SQL value we have to work with.
+function assertDefined(value) {
+    if (value === undefined)
+        throw new Error('Value is undefined');
+    return value;
+}
+function assertIsInstance(value, clazz, optMsg) {
+    assertTrue(value instanceof clazz, optMsg ?? `Value is not an instance of ${clazz.name}`);
     return value;
 }
 function assertTrue(value, optMsg) {
@@ -40,6 +47,16 @@ function assertTrue(value, optMsg) {
 }
 function assertFalse(value, optMsg) {
     assertTrue(!value, optMsg);
+}
+// This function serves two purposes.
+// 1) A runtime check - if we are ever called, we throw an exception.
+// This is useful for checking that code we suspect should never be reached is
+// actually never reached.
+// 2) A compile time check where typescript asserts that the value passed can be
+// cast to the "never" type.
+// This is useful for ensuring we exhaustively check union types.
+function assertUnreachable(value, optMsg) {
+    throw new Error(optMsg ?? `This code should not be reachable ${value}`);
 }
 function addErrorHandler(handler) {
     if (!errorHandlers.includes(handler)) {
@@ -147,15 +164,5 @@ function reportError(err) {
             stack,
         });
     }
-}
-// This function serves two purposes.
-// 1) A runtime check - if we are ever called, we throw an exception.
-// This is useful for checking that code we suspect should never be reached is
-// actually never reached.
-// 2) A compile time check where typescript asserts that the value passed can be
-// cast to the "never" type.
-// This is useful for ensuring we exhastively check union types.
-function assertUnreachable(value) {
-    throw new Error(`This code should not be reachable ${value}`);
 }
 //# sourceMappingURL=logging.js.map

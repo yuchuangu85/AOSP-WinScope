@@ -70,6 +70,8 @@ const shiftExceptions = [
     '!',
     '[',
     ']',
+    '.',
+    ',',
 ];
 const macModifierStrings = new Map([
     ['', ''],

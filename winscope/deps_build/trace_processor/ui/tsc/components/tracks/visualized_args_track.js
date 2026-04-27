@@ -30,7 +30,10 @@ async function createVisualizedArgsTrack({ uri, trace, trackId, maxDepth, argNam
     const uuid = (0, uuid_1.uuidv4Sql)();
     const escapedArgName = argName.replace(/[^a-zA-Z]/g, '_');
     const viewName = `__arg_visualisation_helper_${escapedArgName}_${uuid}_slice`;
-    await (0, sql_utils_1.createView)(trace.engine, viewName, `
+    await (0, sql_utils_1.createView)({
+        engine: trace.engine,
+        name: viewName,
+        as: `
       with slice_with_arg as (
         select
           slice.id,
@@ -52,7 +55,8 @@ async function createVisualizedArgsTrack({ uri, trace, trackId, maxDepth, argNam
         ) as depth
       from slice_with_arg s1
       order by id
-    `);
+    `,
+    });
     return new dataset_slice_track_1.DatasetSliceTrack({
         trace,
         uri,

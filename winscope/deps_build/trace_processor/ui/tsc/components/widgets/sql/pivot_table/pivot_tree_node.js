@@ -18,12 +18,6 @@ const logging_1 = require("../../../../base/logging");
 const filters_1 = require("../table/filters");
 const aggregations_1 = require("./aggregations");
 const ids_1 = require("./ids");
-// assertExists trips over NULLs, but NULL is a valid SQL value we have to work with.
-function assertNotUndefined(value) {
-    if (value === undefined)
-        throw new Error('Value is undefined');
-    return value;
-}
 // A node in the pivot tree.
 // Each node represents a partially aggregated values for the first `depth` pivots.
 class PivotTreeNode {
@@ -158,7 +152,7 @@ class PivotTreeNode {
         const sorted = [...this.children.values()].sort((lhs, rhs) => PivotTreeNode.compare(lhs, rhs, order));
         this.children.clear();
         for (const child of sorted) {
-            this.children.set(assertNotUndefined(child.pivotValue), child);
+            this.children.set((0, logging_1.assertDefined)(child.pivotValue), child);
         }
     }
     // Recursively copy the expanded state from the old pivot tree, trying to preserve
@@ -188,7 +182,7 @@ class PivotTreeNode {
         return result.reverse();
     }
     getFilter() {
-        return filters_1.StandardFilters.valueEquals(this.config.pivots[this.getPivotIndex()].column, assertNotUndefined(this.pivotValue));
+        return filters_1.StandardFilters.valueEquals(this.config.pivots[this.getPivotIndex()].column, (0, logging_1.assertDefined)(this.pivotValue));
     }
     // Return the id of the pivot which was used to create this node.
     getPivotId() {
@@ -254,7 +248,7 @@ class PivotTreeNode {
                 (0, logging_1.assertTrue)(index !== -1);
                 // For pivot sorting, we only compare the pivot values at the given depth.
                 if (index + 1 === lhs.depth) {
-                    const cmp = compareSqlValues(assertNotUndefined(lhs.pivotValue), assertNotUndefined(rhs.pivotValue));
+                    const cmp = compareSqlValues((0, logging_1.assertDefined)(lhs.pivotValue), (0, logging_1.assertDefined)(rhs.pivotValue));
                     if (cmp !== 0)
                         return direction === 'ASC' ? cmp : -cmp;
                 }

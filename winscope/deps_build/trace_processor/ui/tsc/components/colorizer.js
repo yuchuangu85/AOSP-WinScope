@@ -13,10 +13,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.UNEXPECTED_PINK = void 0;
+exports.UNEXPECTED_PINK = exports.GRAY = exports.GRAY_COLOR = exports.BLACK_COLOR = exports.WHITE_COLOR = void 0;
 exports.makeColorScheme = makeColorScheme;
 exports.materialColorScheme = materialColorScheme;
-exports.colorForState = colorForState;
 exports.colorForTid = colorForTid;
 exports.colorForThread = colorForThread;
 exports.colorForCpu = colorForCpu;
@@ -69,19 +68,19 @@ const MD_PALETTE_RAW = [
     new color_1.HSLColor({ h: 200, s: 18, l: 46 }),
     new color_1.HSLColor({ h: 54, s: 100, l: 62 }),
 ];
-const WHITE_COLOR = new color_1.HSLColor([0, 0, 100]);
-const BLACK_COLOR = new color_1.HSLColor([0, 0, 0]);
-const GRAY_COLOR = new color_1.HSLColor([0, 0, 90]);
+exports.WHITE_COLOR = new color_1.HSLColor([0, 0, 100]);
+exports.BLACK_COLOR = new color_1.HSLColor([0, 0, 0]);
+exports.GRAY_COLOR = new color_1.HSLColor([0, 0, 50]).setAlpha(0.5);
 const MD_PALETTE = MD_PALETTE_RAW.map((color) => {
-    const base = color.lighten(10, 60).desaturate(20);
-    const variant = base.lighten(30, 80).desaturate(20);
+    const base = color.desaturate(20);
+    const variant = base.desaturate(20).setAlpha(0.8);
     return {
         base,
         variant,
-        disabled: GRAY_COLOR,
-        textBase: WHITE_COLOR, // White text suits MD colors quite well
-        textVariant: WHITE_COLOR,
-        textDisabled: WHITE_COLOR, // Low contrast is on purpose
+        disabled: exports.GRAY_COLOR,
+        textBase: exports.WHITE_COLOR, // White text suits MD colors quite well
+        textVariant: exports.WHITE_COLOR,
+        textDisabled: exports.WHITE_COLOR.setAlpha(0.5), // Low contrast is on purpose
     };
 });
 // Create a color scheme based on a single color, which defines the variant
@@ -91,23 +90,17 @@ function makeColorScheme(base, variant) {
     return {
         base,
         variant,
-        disabled: GRAY_COLOR,
+        disabled: exports.GRAY_COLOR,
         textBase: base.perceivedBrightness >= PERCEIVED_BRIGHTNESS_LIMIT
-            ? BLACK_COLOR
-            : WHITE_COLOR,
+            ? exports.BLACK_COLOR
+            : exports.WHITE_COLOR,
         textVariant: variant.perceivedBrightness >= PERCEIVED_BRIGHTNESS_LIMIT
-            ? BLACK_COLOR
-            : WHITE_COLOR,
-        textDisabled: WHITE_COLOR, // Low contrast is on purpose
+            ? exports.BLACK_COLOR
+            : exports.WHITE_COLOR,
+        textDisabled: exports.WHITE_COLOR, // Low contrast is on purpose
     };
 }
-const GRAY = makeColorScheme(new color_1.HSLColor([0, 0, 62]));
-const DESAT_RED = makeColorScheme(new color_1.HSLColor([3, 30, 49]));
-const DARK_GREEN = makeColorScheme(new color_1.HSLColor([120, 44, 34]));
-const LIME_GREEN = makeColorScheme(new color_1.HSLColor([75, 55, 47]));
-const TRANSPARENT_WHITE = makeColorScheme(new color_1.HSLColor([0, 1, 97], 0.55));
-const ORANGE = makeColorScheme(new color_1.HSLColor([36, 100, 50]));
-const INDIGO = makeColorScheme(new color_1.HSLColor([231, 48, 48]));
+exports.GRAY = makeColorScheme(new color_1.HSLColor([0, 0, 62]));
 // A piece of wisdom from a long forgotten blog post: "Don't make
 // colors you want to change something normal like grey."
 exports.UNEXPECTED_PINK = makeColorScheme(new color_1.HSLColor([330, 100, 70]));
@@ -144,33 +137,12 @@ function proceduralColorScheme(seed) {
         return colorScheme;
     }
 }
-function colorForState(state) {
-    if (state === 'Running') {
-        return DARK_GREEN;
-    }
-    else if (state.startsWith('Runnable')) {
-        return LIME_GREEN;
-    }
-    else if (state.includes('Uninterruptible Sleep')) {
-        if (state.includes('non-IO')) {
-            return DESAT_RED;
-        }
-        return ORANGE;
-    }
-    else if (state.includes('Dead')) {
-        return GRAY;
-    }
-    else if (state.includes('Sleeping') || state.includes('Idle')) {
-        return TRANSPARENT_WHITE;
-    }
-    return INDIGO;
-}
 function colorForTid(tid) {
     return materialColorScheme(tid.toString());
 }
 function colorForThread(thread) {
     if (thread === undefined) {
-        return GRAY;
+        return exports.GRAY;
     }
     const tid = thread.pid ?? thread.tid;
     return colorForTid(tid);
@@ -195,8 +167,10 @@ function randomColor() {
         return '#' + color_convert_1.hsl.hex([hue, 90, 30]);
     }
 }
-function getColorForSlice(sliceName) {
-    const name = sliceName.replace(/( )?\d+/g, '');
+function getColorForSlice(sliceName, { stripTrailingDigits = true } = {}) {
+    const name = stripTrailingDigits
+        ? sliceName.replace(/( )?\d+/g, '')
+        : sliceName;
     if (USE_CONSISTENT_COLORS.get()) {
         return materialColorScheme(name);
     }

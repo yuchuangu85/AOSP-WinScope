@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ViewerPage = void 0;
+exports.renderViewerPage = renderViewerPage;
 const tslib_1 = require("tslib");
 const mithril_1 = tslib_1.__importDefault(require("mithril"));
 const disposable_stack_1 = require("../../base/disposable_stack");
@@ -22,7 +22,7 @@ const time_scale_1 = require("../../base/time_scale");
 const app_impl_1 = require("../../core/app_impl");
 const feature_flags_1 = require("../../core/feature_flags");
 const raf_scheduler_1 = require("../../core/raf_scheduler");
-const overview_timeline_panel_1 = require("./overview_timeline_panel");
+const minimap_1 = require("./minimap");
 const tab_panel_1 = require("./tab_panel");
 const timeline_header_1 = require("./timeline_header");
 const track_tree_view_1 = require("./track_tree_view");
@@ -34,13 +34,23 @@ const OVERVIEW_PANEL_FLAG = feature_flags_1.featureFlags.register({
     description: 'Show the panel providing an overview of the trace',
     defaultValue: true,
 });
+function renderViewerPage() {
+    // Only render if a trace is loaded
+    const trace = app_impl_1.AppImpl.instance.trace;
+    if (trace) {
+        return (0, mithril_1.default)(ViewerPage, { trace });
+    }
+    else {
+        return undefined;
+    }
+}
 class ViewerPage {
     trash = new disposable_stack_1.DisposableStack();
     timelineBounds;
     view({ attrs }) {
         const { trace } = attrs;
-        return (0, mithril_1.default)('.pf-viewer-page.page', (0, mithril_1.default)(tab_panel_1.TabPanel, { trace }, OVERVIEW_PANEL_FLAG.get() &&
-            (0, mithril_1.default)(overview_timeline_panel_1.OverviewTimeline, {
+        return (0, mithril_1.default)('.pf-viewer-page', (0, mithril_1.default)(tab_panel_1.TabPanel, { trace }, OVERVIEW_PANEL_FLAG.get() &&
+            (0, mithril_1.default)(minimap_1.Minimap, {
                 trace,
                 className: 'pf-viewer-page__overview',
             }), (0, mithril_1.default)(timeline_header_1.TimelineHeader, {
@@ -113,5 +123,4 @@ class ViewerPage {
         this.trash.dispose();
     }
 }
-exports.ViewerPage = ViewerPage;
 //# sourceMappingURL=viewer_page.js.map

@@ -19,6 +19,12 @@ const test_1 = require("@playwright/test");
 const fs_1 = tslib_1.__importDefault(require("fs"));
 const path_1 = tslib_1.__importDefault(require("path"));
 const logging_1 = require("../base/logging");
+// Define the locators for elements you always want to mask.
+const GLOBAL_MASKS = [
+    // Hide the footer when running integration tests, as the version code and the
+    // tiny text with pending queries can fail the screenshot diff test.
+    (page) => page.locator('.pf-sidebar__footer'),
+];
 class PerfettoTestHelper {
     page;
     cachedSidebarSize;
@@ -26,11 +32,11 @@ class PerfettoTestHelper {
         this.page = page;
     }
     resetFocus() {
-        return this.page.click('.sidebar img.brand');
+        return this.page.click('.pf-sidebar img.pf-sidebar__brand');
     }
     async sidebarSize() {
         if (this.cachedSidebarSize === undefined) {
-            const size = await this.page.locator('main > .sidebar').boundingBox();
+            const size = await this.page.locator('main > .pf-sidebar').boundingBox();
             this.cachedSidebarSize = (0, logging_1.assertExists)(size);
         }
         return this.cachedSidebarSize;
@@ -61,7 +67,15 @@ class PerfettoTestHelper {
     async waitForIdleAndScreenshot(screenshotName, opts) {
         await this.page.mouse.move(0, 0); // Move mouse out of the way.
         await this.waitForPerfettoIdle();
-        await test_1.expect.soft(this.page).toHaveScreenshot(screenshotName, opts);
+        // Get instances of the global locators for the current page.
+        const globalMaskLocators = GLOBAL_MASKS.map((getLocator) => getLocator(this.page));
+        // Combine global masks with any masks specific to this test call.
+        const allMasks = [...globalMaskLocators, ...(opts?.mask || [])];
+        // Call the original expect with the combined masks.
+        await test_1.expect.soft(this.page).toHaveScreenshot(screenshotName, {
+            ...opts,
+            mask: allMasks,
+        });
     }
     async toggleTrackGroup(locator) {
         await locator.locator('.pf-track__shell').first().click();
@@ -102,9 +116,10 @@ class PerfettoTestHelper {
             .click();
     }
     async switchToTab(text) {
-        await this.page
-            .locator('.pf-tab-handle .pf-tab-handle__tab', { hasText: text })
-            .click();
+        await this.page.locator('.pf-split-panel__tab', { hasText: text }).click();
+    }
+    async scheduleFullRedraw() {
+        await this.page.evaluate(() => self.app.raf.scheduleFullRedraw());
     }
 }
 exports.PerfettoTestHelper = PerfettoTestHelper;

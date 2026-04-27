@@ -13,174 +13,316 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import {assertDefined} from 'common/assert_utils';
+
+import {
+  assertBigIntOrUndefined,
+  assertDefined,
+  assertString,
+} from 'common/assert';
+import {MakeTimestampStrategyType} from 'common/time/time';
+import {ParserTimestampConverter} from 'common/time/timestamp_converter';
+import {HierarchyTreeBuilderLog} from 'parsers/hierarchy_tree_builder_log';
+import {AddDefaults} from 'parsers/operations/add_defaults';
+import {TransformToTimestamp} from 'parsers/operations/transform_to_timestamp';
+import {TranslateIntDef} from 'parsers/operations/translate_intdef';
 import {AbstractParser} from 'parsers/perfetto/abstract_parser';
-import {FakeProtoBuilder} from 'parsers/perfetto/fake_proto_builder';
-import {EntryPropertiesTreeFactory} from 'parsers/transitions/entry_properties_tree_factory';
-import {perfetto} from 'protos/transitions/latest/static';
-import {TraceType} from 'trace/trace_type';
-import {PropertyTreeNode} from 'trace/tree_node/property_tree_node';
+import {FakeProtoTransformer} from 'parsers/perfetto/fake_proto_transformer';
+import {queryArgs} from 'parsers/perfetto/utils';
+import {PropertyTreeBuilderFromProto} from 'parsers/property_tree_builder_from_proto';
+import {PropertyTreeBuilderFromQueryRow} from 'parsers/property_tree_builder_from_query_row';
+import {TransformDuration} from 'parsers/transitions/operations/transform_duration';
+import {TransitionType} from 'parsers/transitions/transition_type';
+import {
+  EnumFormatter,
+  TIMESTAMP_NODE_FORMATTER,
+  UPPER_CASE_FORMATTER,
+} from 'trace/formatters';
+import {TAMPERED_TRACE_PACKET} from 'trace/proto_utils/tampered_message_type';
+import {TraceType} from 'trace_api/trace_type';
+import {ColumnType, RowIterator} from 'trace_processor/query_result';
+import {HierarchyTreeNode} from 'tree_node/hierarchy_tree_node';
+import {Operation} from 'tree_node/operation';
+import {PropertiesProvider} from 'tree_node/properties_provider';
+import {PropertiesProviderBuilder} from 'tree_node/properties_provider_builder';
+import {
+  PropertyFormatter,
+  PropertyTreeNode,
+} from 'tree_node/property_tree_node';
+import {SetFormatters} from 'viewers/operations/set_formatters';
 
-export class ParserTransitions extends AbstractParser<PropertyTreeNode> {
+/**
+ * Parser for Transitions Perfetto traces.
+ */
+export class ParserTransitions extends AbstractParser<HierarchyTreeNode> {
+  private static readonly TRANSITION_FIELD =
+    TAMPERED_TRACE_PACKET.fields['shellTransition'];
+  private static readonly PROTO_TRANSFORMER = new FakeProtoTransformer(
+    assertDefined(ParserTransitions.TRANSITION_FIELD.tamperedMessageType),
+  );
+  private static readonly EAGER_COLUMNS = [
+    'transition_id',
+    'arg_set_id',
+    'transition_type',
+    'send_time_ns',
+    'dispatch_time_ns',
+    'duration_ns',
+    'handler',
+    'status',
+    'flags',
+  ];
+  private static readonly EAGER_TIMESTAMP_PROPERTIES = [
+    'wmAbortTimeNs',
+    'shellAbortTimeNs',
+    'sendTimeNs',
+    'dispatchTimeNs',
+  ];
+  private static readonly LAZY_TIMESTAMP_PROPERTIES = [
+    'wmAbortTimeNs',
+    'shellAbortTimeNs',
+    'createTimeNs',
+    'sendTimeNs',
+    'finishTimeNs',
+    'startingWindowRemoveTimeNs',
+    'dispatchTimeNs',
+    'mergeRequestTimeNs',
+    'mergeTimeNs',
+  ];
+  private static readonly TRANSFORM_DURATION_OPERATION =
+    new TransformDuration();
+  private static readonly TRANSLATE_INTDEF_OPERATION = new TranslateIntDef(
+    ParserTransitions.TRANSITION_FIELD,
+  );
+  private static readonly ADD_DEFAULTS_OPERATION = new AddDefaults(
+    ParserTransitions.TRANSITION_FIELD,
+    ['type', 'targets'],
+  );
+  private static readonly TRANSITION_TYPE_FORMATTER = new EnumFormatter(
+    TransitionType,
+  );
+
   private handlerIdToName: {[id: number]: string} | undefined = undefined;
-  private readonly internalTableName = 'window_manager_shell_transitions';
-
-  protected override async preProcessTrace() {
-    // Entry timestamps are defined as shell dispatch time, which corresponds
-    // to the ts column of the internal Perfetto table - if this is 0 and
-    // send time is not null we fall back on send time
-    const sql = `
-      CREATE PERFETTO TABLE ${this.getTableName()} AS
-      SELECT
-        STATE.id as id,
-        CASE
-          WHEN (STATE.ts = 0 AND TRANS.int_value IS NOT NULL) THEN TRANS.int_value
-          ELSE STATE.ts END
-        AS ts,
-        STATE.transition_id,
-        STATE.arg_set_id
-      FROM ${this.internalTableName} STATE
-      LEFT JOIN args TRANS
-        ON TRANS.arg_set_id = STATE.arg_set_id AND TRANS.key = 'send_time_ns'
-      ORDER BY id;
-   `;
-    await this.traceProcessor.queryAllRows(sql);
-  }
 
   override getTraceType(): TraceType {
     return TraceType.TRANSITION;
   }
 
-  override async getEntry(index: number): Promise<PropertyTreeNode> {
-    const transitionProto = await this.queryEntry(index);
-    if (this.handlerIdToName === undefined) {
-      const handlers = await this.queryHandlers();
-      this.handlerIdToName = {};
-      handlers.forEach(
-        (it) => (assertDefined(this.handlerIdToName)[it.id] = it.name),
-      );
-    }
-    return this.makePropertiesTree(transitionProto);
+  override async getEntry(index: number): Promise<HierarchyTreeNode> {
+    const columns = ParserTransitions.EAGER_COLUMNS.map(
+      (column) => `transitions.${column}`,
+    ).join(', ');
+    const sql =
+      `SELECT ${columns} FROM ${this.getTableName()} as transitions` +
+      ` WHERE transitions.id = ${this.entryIndexToRowIdMap[index]};`;
+    return this.makeHierarchyTrees(sql).then((trees) =>
+      assertDefined(trees[0]),
+    );
+  }
+
+  override async getAllEntries(): Promise<
+    Array<HierarchyTreeNode | undefined>
+  > {
+    const columns = ParserTransitions.EAGER_COLUMNS.map(
+      (column) => `transitions.${column}`,
+    ).join(', ');
+    const sql = `SELECT ${columns} FROM ${this.getTableName()} as transitions ORDER BY transitions.ts;`;
+    return this.makeHierarchyTrees(sql);
   }
 
   protected override getTableName(): string {
-    return 'transitions_with_updated_ts';
+    return 'window_manager_shell_transitions';
   }
 
-  private async queryEntry(
-    index: number,
-  ): Promise<perfetto.protos.ShellTransition> {
-    const protoBuilder = new FakeProtoBuilder();
+  protected override getStdLibModuleName(): string {
+    return 'android.winscope.transitions';
+  }
 
-    const sql = `
-      SELECT
-        transitions.transition_id,
-        args.key,
-        args.value_type,
-        args.int_value,
-        args.string_value,
-        args.real_value
-      FROM
-        ${this.getTableName()} as transitions
-        INNER JOIN args ON transitions.arg_set_id = args.arg_set_id
-      WHERE transitions.id = ${this.entryIndexToRowIdMap[index]};
-    `;
-    const result = await this.traceProcessor.queryAllRows(sql);
-
-    for (const it = result.iter({}); it.valid(); it.next()) {
-      protoBuilder.addArg(
-        it.get('key') as string,
-        it.get('value_type') as string,
-        it.get('int_value') as bigint | undefined,
-        it.get('real_value') as number | undefined,
-        it.get('string_value') as string | undefined,
-      );
+  private async makeHierarchyTrees(
+    sql: string,
+  ): Promise<Array<HierarchyTreeNode | undefined>> {
+    if (this.handlerIdToName === undefined) {
+      await this.updateHandlers();
     }
-
-    return protoBuilder.build();
+    const queryResult = await this.traceProcessor.query(sql);
+    const trees = [];
+    for (const it = queryResult.iter({}); it.valid(); it.next()) {
+      trees.push(await this.makeHierarchyTree(it));
+    }
+    return trees;
   }
 
-  private makePropertiesTree(
-    transitionProto: perfetto.protos.ShellTransition,
-  ): PropertyTreeNode {
-    this.validatePerfettoTransition(transitionProto);
-
-    const perfettoTransitionInfo = {
-      entry: transitionProto,
-      realToBootTimeOffsetNs: undefined,
-      handlerMapping: this.handlerIdToName,
-      timestampConverter: this.timestampConverter,
-    };
-
-    const shellEntryTree = EntryPropertiesTreeFactory.makeShellPropertiesTree(
-      perfettoTransitionInfo,
-      [
-        'createTimeNs',
-        'sendTimeNs',
-        'wmAbortTimeNs',
-        'finishTimeNs',
-        'startTransactionId',
-        'finishTransactionId',
-        'type',
-        'targets',
-        'flags',
-        'startingWindowRemoveTimeNs',
-      ],
-    );
-    const wmEntryTree = EntryPropertiesTreeFactory.makeWmPropertiesTree(
-      perfettoTransitionInfo,
-      [
-        'dispatchTimeNs',
-        'mergeTimeNs',
-        'mergeRequestTimeNs',
-        'shellAbortTimeNs',
-        'handler',
-        'mergeTarget',
-      ],
-    );
-
-    return EntryPropertiesTreeFactory.makeTransitionPropertiesTree(
-      shellEntryTree,
-      wmEntryTree,
+  private async updateHandlers() {
+    const handlers = await this.queryHandlers();
+    this.handlerIdToName = {};
+    handlers.forEach(
+      (it) => (assertDefined(this.handlerIdToName)[it.id] = it.name),
     );
   }
 
   private async queryHandlers(): Promise<TransitionHandler[]> {
     const sql =
       'SELECT handler_id, handler_name FROM window_manager_shell_transition_handlers;';
-    const result = await this.traceProcessor.queryAllRows(sql);
+    const result = await this.traceProcessor.query(sql);
 
     const handlers: TransitionHandler[] = [];
     for (const it = result.iter({}); it.valid(); it.next()) {
+      const handlerid = assertBigIntOrUndefined(it.get('handler_id'));
+      if (handlerid === undefined) continue;
       handlers.push({
-        id: it.get('handler_id') as number,
-        name: it.get('handler_name') as string,
+        id: Number(handlerid),
+        name: assertString(it.get('handler_name')),
       });
     }
 
     return handlers;
   }
 
-  private validatePerfettoTransition(
-    transition: perfetto.protos.IShellTransition,
-  ) {
-    if (transition.id === 0) {
-      throw new Error('Transitions entry need a non null id');
+  private async makeHierarchyTree(
+    row: RowIterator,
+  ): Promise<HierarchyTreeNode | undefined> {
+    try {
+      const transition = await this.makeTransitionsPropertiesProvider(row);
+      return new HierarchyTreeBuilderLog()
+        .setRoot(transition)
+        .setChildren([])
+        .build();
+    } catch (e) {
+      console.error(e);
+      return undefined;
     }
-    if (
-      !transition.createTimeNs &&
-      !transition.sendTimeNs &&
-      !transition.wmAbortTimeNs &&
-      !transition.finishTimeNs &&
-      !transition.dispatchTimeNs &&
-      !transition.mergeRequestTimeNs &&
-      !transition.mergeTimeNs &&
-      !transition.shellAbortTimeNs
-    ) {
-      throw new Error(
-        'Transitions entry requires at least one non-null timestamp',
-      );
+  }
+
+  private async makeTransitionsPropertiesProvider(
+    transitionRow: RowIterator,
+  ): Promise<PropertiesProvider> {
+    const eagerProperties = await this.makeEagerPropertiesTree(transitionRow);
+
+    const builder = new PropertiesProviderBuilder()
+      .setEagerProperties(eagerProperties)
+      .setEagerOperations(this.getEagerOperations());
+
+    const argSetId = transitionRow.get('arg_set_id') ?? undefined;
+    if (argSetId !== undefined) {
+      builder
+        .setLazyPropertiesStrategy(this.makeLazyPropertiesStrategy(argSetId))
+        .setLazyOperations(this.getLazyOperations());
     }
+
+    return builder.build();
+  }
+
+  private async makeEagerPropertiesTree(
+    transitionRow: RowIterator,
+  ): Promise<PropertyTreeNode> {
+    const eagerProperties = new PropertyTreeBuilderFromQueryRow()
+      .setData(transitionRow)
+      .setColumns(ParserTransitions.EAGER_COLUMNS)
+      .setRootId('TransitionTraceEntry')
+      .setRootName('Transition')
+      .build();
+
+    const participants = await this.makeParticipants(transitionRow);
+    eagerProperties.addOrReplaceChild(
+      assertDefined(participants.getChildByName('layers')),
+    );
+    eagerProperties.addOrReplaceChild(
+      assertDefined(participants.getChildByName('windows')),
+    );
+    return eagerProperties;
+  }
+
+  private async makeParticipants(
+    transitionRow: RowIterator,
+  ): Promise<PropertyTreeNode> {
+    const transitionId = assertDefined(
+      transitionRow.get('transition_id'),
+      () => 'transition requires non-null id',
+    );
+
+    const participantsSql =
+      'SELECT DISTINCT window_id, layer_id from android_window_manager_shell_transition_participants' +
+      ` WHERE transition_id = ${transitionId}`;
+    const participantsRes = await this.traceProcessor.query(participantsSql);
+
+    const layers = [];
+    const windows = [];
+    for (const it = participantsRes.iter({}); it.valid(); it.next()) {
+      const layer = it.get('layer_id') ?? undefined;
+      if (layer !== undefined) {
+        layers.push(layer);
+      }
+      const window = it.get('window_id') ?? undefined;
+      if (window !== undefined) {
+        windows.push(window);
+      }
+    }
+    return new PropertyTreeBuilderFromProto()
+      .setData({layers, windows})
+      .setRootId('TransitionTraceEntry')
+      .setRootName('Transition')
+      .build();
+  }
+
+  private getEagerOperations(): Array<Operation<PropertyTreeNode>> {
+    const transformToTimestampEager = new TransformToTimestamp(
+      ParserTransitions.EAGER_TIMESTAMP_PROPERTIES,
+      ParserTransitions.makeTimestampStrategy(this.timestampConverter),
+    );
+
+    const customFormattersEager = new Map<string, PropertyFormatter>([
+      ['transitionType', ParserTransitions.TRANSITION_TYPE_FORMATTER],
+      ['handler', new EnumFormatter(assertDefined(this.handlerIdToName))],
+      ['status', UPPER_CASE_FORMATTER],
+      ['durationNs', TIMESTAMP_NODE_FORMATTER],
+    ]);
+
+    return [
+      transformToTimestampEager,
+      ParserTransitions.TRANSFORM_DURATION_OPERATION,
+      new SetFormatters(
+        ParserTransitions.TRANSITION_FIELD,
+        customFormattersEager,
+      ),
+      ParserTransitions.TRANSLATE_INTDEF_OPERATION,
+    ];
+  }
+
+  private getLazyOperations(): Array<Operation<PropertyTreeNode>> {
+    const transformToTimestamp = new TransformToTimestamp(
+      ParserTransitions.LAZY_TIMESTAMP_PROPERTIES,
+      ParserTransitions.makeTimestampStrategy(this.timestampConverter),
+    );
+
+    const customFormatters = new Map<string, PropertyFormatter>([
+      ['type', ParserTransitions.TRANSITION_TYPE_FORMATTER],
+      ['mode', ParserTransitions.TRANSITION_TYPE_FORMATTER],
+      ['handler', new EnumFormatter(assertDefined(this.handlerIdToName))],
+    ]);
+
+    return [
+      ParserTransitions.ADD_DEFAULTS_OPERATION,
+      transformToTimestamp,
+      new SetFormatters(ParserTransitions.TRANSITION_FIELD, customFormatters),
+      ParserTransitions.TRANSLATE_INTDEF_OPERATION,
+    ];
+  }
+
+  private makeLazyPropertiesStrategy(argSetId: ColumnType) {
+    return async () => {
+      const data = await queryArgs(this.traceProcessor, Number(argSetId));
+      return new PropertyTreeBuilderFromProto()
+        .setData(ParserTransitions.PROTO_TRANSFORMER.transform(data))
+        .setRootId('TransitionTraceEntry')
+        .setRootName('Transition')
+        .build();
+    };
+  }
+
+  private static makeTimestampStrategy(
+    timestampConverter: ParserTimestampConverter,
+  ): MakeTimestampStrategyType {
+    return (valueNs: bigint) => {
+      return timestampConverter.makeTimestampFromBootTimeNs(valueNs);
+    };
   }
 }
 

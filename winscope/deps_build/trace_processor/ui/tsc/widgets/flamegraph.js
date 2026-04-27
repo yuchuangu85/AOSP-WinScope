@@ -146,7 +146,7 @@ class Flamegraph {
             NODE_HEIGHT;
         const hoveredNode = this.renderNodes?.find((n) => isIntersecting(this.hoveredX, this.hoveredY, n));
         return (0, mithril_1.default)('.pf-flamegraph', this.renderFilterBar(attrs), (0, mithril_1.default)(virtual_overlay_canvas_1.VirtualOverlayCanvas, {
-            className: 'virtual-canvas',
+            className: 'pf-virtual-canvas',
             overflowX: 'hidden',
             overflowY: 'auto',
             onCanvasRedraw: ({ ctx, virtualCanvasSize, canvasRect }) => {
@@ -221,6 +221,9 @@ class Flamegraph {
                     top: this.tooltipPos?.y + 'px',
                 },
             }),
+            // We have a wide set of buttons that would overflow given the
+            // normal width constraints of the popup.
+            fitContent: true,
             position: popup_1.PopupPosition.Bottom,
             isOpen: this.tooltipPos?.state === 'HOVER' ||
                 this.tooltipPos?.state === 'CLICK',

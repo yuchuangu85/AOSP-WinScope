@@ -26,6 +26,7 @@ const time_1 = require("../../base/time");
 const flamegraph_1 = require("../../widgets/flamegraph");
 const dataset_slice_track_1 = require("../../components/tracks/dataset_slice_track");
 const dataset_1 = require("../../trace_processor/dataset");
+const stack_1 = require("../../widgets/stack");
 // TODO(stevegolton): Dedupe this file with instrument_samples_profile_track.ts
 function createProcessPerfSamplesProfileTrack(trace, uri, upid) {
     return new dataset_slice_track_1.DatasetSliceTrack({
@@ -63,8 +64,7 @@ function createProcessPerfSamplesProfileTrack(trace, uri, upid) {
               parent_id as parentId,
               name,
               mapping_name,
-              source_file,
-              cast(line_number AS text) as line_number,
+              source_file || ':' || line_number as source_location,
               self_count
             from _callstacks_for_callsites!((
               select p.callsite_id
@@ -83,14 +83,9 @@ function createProcessPerfSamplesProfileTrack(trace, uri, upid) {
                 },
             ], 'include perfetto module linux.perf.samples', [{ name: 'mapping_name', displayName: 'Mapping' }], [
                 {
-                    name: 'source_file',
-                    displayName: 'Source File',
-                    mergeAggregation: 'ONE_OR_NULL',
-                },
-                {
-                    name: 'line_number',
-                    displayName: 'Line Number',
-                    mergeAggregation: 'ONE_OR_NULL',
+                    name: 'source_location',
+                    displayName: 'Source Location',
+                    mergeAggregation: 'ONE_OR_SUMMARY',
                 },
             ]);
             const serialization = {
@@ -99,7 +94,7 @@ function createProcessPerfSamplesProfileTrack(trace, uri, upid) {
             };
             const flamegraph = new query_flamegraph_1.QueryFlamegraph(trace, metrics, serialization);
             return {
-                render: () => renderDetailsPanel(flamegraph, time_1.Time.fromRaw(row.ts)),
+                render: () => renderDetailsPanel(trace, flamegraph, time_1.Time.fromRaw(row.ts)),
                 serialization,
             };
         },
@@ -140,8 +135,7 @@ function createThreadPerfSamplesProfileTrack(trace, uri, utid) {
               parent_id as parentId,
               name,
               mapping_name,
-              source_file,
-              cast(line_number AS text) as line_number,
+              source_file || ':' || line_number as source_location,
               self_count
             from _callstacks_for_callsites!((
               select p.callsite_id
@@ -159,14 +153,9 @@ function createThreadPerfSamplesProfileTrack(trace, uri, utid) {
                 },
             ], 'include perfetto module linux.perf.samples', [{ name: 'mapping_name', displayName: 'Mapping' }], [
                 {
-                    name: 'source_file',
-                    displayName: 'Source File',
-                    mergeAggregation: 'ONE_OR_NULL',
-                },
-                {
-                    name: 'line_number',
-                    displayName: 'Line Number',
-                    mergeAggregation: 'ONE_OR_NULL',
+                    name: 'source_location',
+                    displayName: 'Source Location',
+                    mergeAggregation: 'ONE_OR_SUMMARY',
                 },
             ]);
             const serialization = {
@@ -175,25 +164,32 @@ function createThreadPerfSamplesProfileTrack(trace, uri, utid) {
             };
             const flamegraph = new query_flamegraph_1.QueryFlamegraph(trace, metrics, serialization);
             return {
-                render: () => renderDetailsPanel(flamegraph, time_1.Time.fromRaw(row.ts)),
+                render: () => renderDetailsPanel(trace, flamegraph, time_1.Time.fromRaw(row.ts)),
                 serialization,
             };
         },
     });
 }
-function renderDetailsPanel(flamegraph, ts) {
-    return (0, mithril_1.default)('.flamegraph-profile', (0, mithril_1.default)(details_shell_1.DetailsShell, {
+function renderDetailsPanel(trace, flamegraph, ts) {
+    return (0, mithril_1.default)('.pf-flamegraph-profile', (0, mithril_1.default)(details_shell_1.DetailsShell, {
         fillParent: true,
-        title: (0, mithril_1.default)('.title', 'Perf Samples'),
-        description: [],
-        buttons: [
-            (0, mithril_1.default)('div.time', `First timestamp: `, (0, mithril_1.default)(timestamp_1.Timestamp, {
-                ts,
-            })),
-            (0, mithril_1.default)('div.time', `Last timestamp: `, (0, mithril_1.default)(timestamp_1.Timestamp, {
-                ts,
-            })),
-        ],
+        title: 'Perf Samples',
+        buttons: (0, mithril_1.default)(stack_1.Stack, { orientation: 'horizontal', spacing: 'large' }, [
+            (0, mithril_1.default)('span', [
+                `First timestamp: `,
+                (0, mithril_1.default)(timestamp_1.Timestamp, {
+                    trace,
+                    ts,
+                }),
+            ]),
+            (0, mithril_1.default)('span', [
+                `Last timestamp: `,
+                (0, mithril_1.default)(timestamp_1.Timestamp, {
+                    trace,
+                    ts,
+                }),
+            ]),
+        ]),
     }, flamegraph.render()));
 }
 //# sourceMappingURL=perf_samples_profile_track.js.map

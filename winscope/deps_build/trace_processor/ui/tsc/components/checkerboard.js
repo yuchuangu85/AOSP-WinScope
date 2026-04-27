@@ -15,15 +15,16 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.checkerboard = checkerboard;
 exports.checkerboardExcept = checkerboardExcept;
+const css_constants_1 = require("../frontend/css_constants");
 const LOADING_TEXT = 'Loading...';
 let LOADING_TEXT_WIDTH = 0;
 // Checker board the range [leftPx, rightPx].
 function checkerboard(ctx, heightPx, leftPx, rightPx) {
     const widthPx = rightPx - leftPx;
     ctx.font = '12px Roboto Condensed';
-    ctx.fillStyle = '#eee';
+    ctx.fillStyle = css_constants_1.COLOR_BACKGROUND_SECONDARY;
     ctx.fillRect(leftPx, 0, widthPx, heightPx);
-    ctx.fillStyle = '#666';
+    ctx.fillStyle = css_constants_1.COLOR_TEXT_MUTED;
     const oldBaseline = ctx.textBaseline;
     ctx.textBaseline = 'middle';
     if (LOADING_TEXT_WIDTH === 0) {

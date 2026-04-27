@@ -13,23 +13,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import {assertDefined} from 'common/assert_utils';
+import {assertDefined} from 'common/assert';
+import {getPerfettoParser} from 'test/unit/fixture_utils';
 import {
-  TimestampConverterUtils,
+  makeRealTimestamp,
   timestampEqualityTester,
-} from 'common/time/test_utils';
-import {UnitTestUtils} from 'test/unit/utils';
-import {CoarseVersion} from 'trace/coarse_version';
-import {Parser} from 'trace/parser';
-import {TraceType} from 'trace/trace_type';
-import {HierarchyTreeNode} from 'trace/tree_node/hierarchy_tree_node';
+} from 'test/unit/time_test_helpers';
+import {CoarseVersion} from 'trace_api/coarse_version';
+import {Parser} from 'trace_api/parser';
+import {TraceType} from 'trace_api/trace_type';
+import {HierarchyTreeNode} from 'tree_node/hierarchy_tree_node';
 
-describe('Perfetto ParserInputMethodClients', () => {
+describe('PerfettoParserInputMethodClients', () => {
   let parser: Parser<HierarchyTreeNode>;
 
   beforeAll(async () => {
     jasmine.addCustomEqualityTester(timestampEqualityTester);
-    parser = (await UnitTestUtils.getPerfettoParser(
+    parser = (await getPerfettoParser(
       TraceType.INPUT_METHOD_CLIENTS,
       'traces/perfetto/ime.perfetto-trace',
     )) as Parser<HierarchyTreeNode>;
@@ -44,12 +44,12 @@ describe('Perfetto ParserInputMethodClients', () => {
   });
 
   it('provides timestamps', () => {
-    expect(assertDefined(parser.getTimestamps()).length).toEqual(56);
+    expect(assertDefined(parser.getTimestamps()).length).toBe(56);
 
     const expected = [
-      TimestampConverterUtils.makeRealTimestamp(1714659585862265133n),
-      TimestampConverterUtils.makeRealTimestamp(1714659585890068600n),
-      TimestampConverterUtils.makeRealTimestamp(1714659587314072751n),
+      makeRealTimestamp(1714659585862265133n),
+      makeRealTimestamp(1714659585890068600n),
+      makeRealTimestamp(1714659587314072751n),
     ];
     expect(assertDefined(parser.getTimestamps()).slice(0, 3)).toEqual(expected);
   });
@@ -57,7 +57,7 @@ describe('Perfetto ParserInputMethodClients', () => {
   it('retrieves trace entry', async () => {
     const entry = await parser.getEntry(1);
     expect(entry).toBeInstanceOf(HierarchyTreeNode);
-    expect(entry.id).toEqual('InputMethodClients entry');
+    expect(entry.id).toBe('InputMethodClients entry');
   });
 
   it('translates intdefs', async () => {
@@ -70,6 +70,6 @@ describe('Perfetto ParserInputMethodClients', () => {
         ?.getChildByName('windowAttributes')
         ?.getChildByName('type'),
     );
-    expect(intdefProperty.formattedValue()).toEqual('TYPE_BASE_APPLICATION');
+    expect(intdefProperty.formattedValue()).toBe('TYPE_BASE_APPLICATION');
   });
 });

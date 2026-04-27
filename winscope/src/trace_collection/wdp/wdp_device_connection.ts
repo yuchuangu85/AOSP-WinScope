@@ -14,17 +14,14 @@
  * limitations under the License.
  */
 
-import {
-  byteArrayToString,
-  ResizableBuffer,
-  stringToByteArray,
-} from 'common/buffer_utils';
-import {UserNotifier} from 'common/user_notifier';
-import {WindowUtils} from 'common/window_utils';
+import {ResizableBuffer} from 'common/buffer';
+import {binaryEncode, utf8Decode} from 'common/string_helpers';
+import {showPopupWindow} from 'common/window';
 import {
   ProxyTracingErrors,
   ProxyTracingWarnings,
 } from 'messaging/user_warnings';
+import {UserNotifier} from 'services/user_notifier';
 import {
   AdbDeviceConnection,
   AdbDeviceConnectionListener,
@@ -34,7 +31,6 @@ import {TraceTarget} from 'trace_collection/trace_target';
 import {DataListener} from './adb_websocket_stream';
 import {ShellStream} from './shell_stream';
 import {StreamProvider} from './stream_provider';
-import {WdpDeviceConnectionResponse} from './wdp_host_connection';
 import {ErrorListener} from './websocket_stream';
 
 export class WdpDeviceConnection extends AdbDeviceConnection {
@@ -47,6 +43,7 @@ export class WdpDeviceConnection extends AdbDeviceConnection {
     id: string,
     listener: AdbDeviceConnectionListener,
     private approveUrl?: string,
+    private showWindow: (url: string) => boolean = showPopupWindow,
   ) {
     super(id, listener);
   }
@@ -57,7 +54,7 @@ export class WdpDeviceConnection extends AdbDeviceConnection {
 
   override async tryAuthorize(): Promise<void> {
     if (this.approveUrl) {
-      const popup = WindowUtils.showPopupWindow(this.approveUrl);
+      const popup = this.showWindow(this.approveUrl);
       if (!popup) {
         await this.listener.onError(`Please enable popups and try again.`);
         this.authorizeDevicePopup = false;
@@ -78,7 +75,7 @@ export class WdpDeviceConnection extends AdbDeviceConnection {
     const stream = this.createShellStream(dataListener, errorListener);
     await stream.connect(cmd);
     await stream.complete;
-    const output = byteArrayToString(cmdOut.get()).trimEnd();
+    const output = utf8Decode(cmdOut.get()).trimEnd();
     this.streamProvider.removeStream(stream);
     return output;
   }
@@ -166,7 +163,7 @@ export class WdpDeviceConnection extends AdbDeviceConnection {
     const stream = this.createShellStream(dataListener);
     this.screenRecordingStreams.set(target.traceName, stream);
     stream.complete.then(() => {
-      const stdout = byteArrayToString(cmdOut.get());
+      const stdout = utf8Decode(cmdOut.get());
       const index = stdout.indexOf('ERROR');
       if (index === -1) {
         return;
@@ -180,7 +177,7 @@ export class WdpDeviceConnection extends AdbDeviceConnection {
       UserNotifier.add(new ProxyTracingErrors([output])).notify();
     });
     await stream.connect();
-    await stream.write(stringToByteArray(target.startCmd));
+    await stream.write(binaryEncode(target.startCmd));
   }
 
   private createShellStream(
@@ -202,3 +199,11 @@ export class WdpDeviceConnection extends AdbDeviceConnection {
 }
 
 const ESC_CHAR_VINTR = new Uint8Array([0x03]);
+
+export interface WdpDeviceConnectionResponse {
+  serialNumber: string;
+  proxyStatus: 'ADB' | 'PROXY_UNAUTHORIZED';
+  adbStatus: string;
+  adbProps?: {[key: string]: string};
+  approveUrl?: string;
+}

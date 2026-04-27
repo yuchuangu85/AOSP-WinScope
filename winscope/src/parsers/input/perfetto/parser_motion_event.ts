@@ -14,95 +14,35 @@
  * limitations under the License.
  */
 
-import {assertDefined} from 'common/assert_utils';
-import {ParserTimestampConverter} from 'common/time/timestamp_converter';
+import {assertDefined} from 'common/assert';
 import {AbstractInputEventParser} from 'parsers/input/perfetto/abstract_input_event_parser';
-import {SetFormatters} from 'parsers/operations/set_formatters';
 import {TranslateIntDef} from 'parsers/operations/translate_intdef';
 import {FakeProtoTransformer} from 'parsers/perfetto/fake_proto_transformer';
-import {Utils} from 'parsers/perfetto/utils';
-import {perfetto} from 'protos/input/latest/static';
-import {TraceFile} from 'trace/trace_file';
-import {TraceType} from 'trace/trace_type';
-import {PropertyTreeBuilderFromProto} from 'trace/tree_node/property_tree_builder_from_proto';
-import {PropertyTreeNode} from 'trace/tree_node/property_tree_node';
-import {TraceProcessor} from 'trace_processor/trace_processor';
+import {InputEventType} from 'trace/input/input_event_type';
+import {TraceType} from 'trace_api/trace_type';
+import {SetFormatters} from 'viewers/operations/set_formatters';
 
 export class ParserMotionEvent extends AbstractInputEventParser {
-  private static readonly MotionEventField =
-    AbstractInputEventParser.WrapperProto.fields['motionEvent'];
+  private static readonly MOTION_EVENT_FIELD =
+    AbstractInputEventParser.WRAPPER_PROTO.fields['dispatcherMotionEvent'];
 
-  private static readonly MOTION_EVENT_OPS = [
-    new SetFormatters(ParserMotionEvent.MotionEventField),
-    new TranslateIntDef(ParserMotionEvent.MotionEventField),
+  protected override readonly transformer = new FakeProtoTransformer(
+    assertDefined(ParserMotionEvent.MOTION_EVENT_FIELD.tamperedMessageType),
+  );
+  protected override readonly eventOps = [
+    new SetFormatters(ParserMotionEvent.MOTION_EVENT_FIELD),
+    new TranslateIntDef(ParserMotionEvent.MOTION_EVENT_FIELD),
   ];
-
-  private motionEventTransformer: FakeProtoTransformer;
-
-  constructor(
-    traceFile: TraceFile,
-    traceProcessor: TraceProcessor,
-    timestampConverter: ParserTimestampConverter,
-  ) {
-    super(traceFile, traceProcessor, timestampConverter);
-
-    this.motionEventTransformer = new FakeProtoTransformer(
-      assertDefined(ParserMotionEvent.MotionEventField.tamperedMessageType),
-    );
-  }
+  protected override readonly hierarchyTreeRootId = 'AndroidMotionEvent';
+  protected override readonly eventType = InputEventType.MOTION;
+  protected override readonly eventTableColumns =
+    AbstractInputEventParser.COMMON_EVENT_COLUMNS;
 
   override getTraceType(): TraceType {
     return TraceType.INPUT_MOTION_EVENT;
   }
 
-  override async getEntry(index: number): Promise<PropertyTreeNode> {
-    const motionEvent = await this.getMotionEventProto(index);
-    const events = perfetto.protos.InputEventWrapper.create({
-      motionEvent,
-      windowDispatchEvents: await this.getDispatchEvents(motionEvent.eventId),
-    });
-    return this.makeMotionPropertiesTree(events);
-  }
-
-  private async getMotionEventProto(
-    index: number,
-  ): Promise<perfetto.protos.AndroidMotionEvent> {
-    let motionEventProto = await Utils.queryEntry(
-      this.traceProcessor,
-      this.getTableName(),
-      this.entryIndexToRowIdMap,
-      index,
-    );
-
-    motionEventProto = this.motionEventTransformer.transform(motionEventProto);
-    return motionEventProto;
-  }
-
   protected override getTableName(): string {
-    return 'android_motion_events';
-  }
-
-  protected override getStdLibModuleName(): string | undefined {
-    return 'android.input';
-  }
-
-  private makeMotionPropertiesTree(
-    entryProto: perfetto.protos.InputEventWrapper,
-  ): PropertyTreeNode {
-    const tree = new PropertyTreeBuilderFromProto()
-      .setData(entryProto)
-      .setRootId('AndroidMotionEvent')
-      .setRootName('entry')
-      .build();
-
-    ParserMotionEvent.MOTION_EVENT_OPS.forEach((operation) => {
-      operation.apply(assertDefined(tree.getChildByName('motionEvent')));
-    });
-
-    this.processDispatchEventsTree(
-      assertDefined(tree.getChildByName('windowDispatchEvents')),
-    );
-
-    return tree;
+    return AbstractInputEventParser.MOTION_EVENT_TABLE;
   }
 }

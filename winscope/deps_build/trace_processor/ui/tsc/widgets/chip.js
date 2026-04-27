@@ -13,18 +13,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ChipBar = exports.Chip = void 0;
+exports.Chip = void 0;
 const tslib_1 = require("tslib");
 const mithril_1 = tslib_1.__importDefault(require("mithril"));
 const classnames_1 = require("../base/classnames");
 const common_1 = require("./common");
 const icon_1 = require("./icon");
 const spinner_1 = require("./spinner");
+const button_1 = require("./button");
 class Chip {
     view({ attrs }) {
-        const { icon, compact, rightIcon, className, iconFilled, intent = common_1.Intent.None, rounded, ...htmlAttrs } = attrs;
+        const { icon, compact, rightIcon, className, iconFilled, intent = common_1.Intent.None, rounded, removable, onRemove, ...htmlAttrs } = attrs;
         const label = 'label' in attrs ? attrs.label : undefined;
-        const classes = (0, classnames_1.classNames)(compact && 'pf-compact', (0, common_1.classForIntent)(intent), icon && !label && 'pf-icon-only', className, rounded && 'pf-rounded');
+        const classes = (0, classnames_1.classNames)(compact && 'pf-compact', (0, common_1.classForIntent)(intent), icon && !label && 'pf-icon-only', className, rounded && 'pf-chip--rounded');
         return (0, mithril_1.default)('.pf-chip', {
             ...htmlAttrs,
             className: classes,
@@ -33,7 +34,14 @@ class Chip {
                 className: 'pf-right-icon',
                 icon: rightIcon,
                 filled: iconFilled,
-            }), label || '\u200B');
+            }), label || '\u200B', // Zero width space keeps chip in-flow
+        removable &&
+            (0, mithril_1.default)(button_1.Button, {
+                compact: true,
+                rounded,
+                icon: 'close',
+                onclick: () => onRemove?.(),
+            }));
     }
     renderIcon(attrs) {
         const { icon, iconFilled } = attrs;
@@ -50,13 +58,4 @@ class Chip {
     }
 }
 exports.Chip = Chip;
-/**
- * Space chips out with a little gap between each one.
- */
-class ChipBar {
-    view({ attrs, children }) {
-        return (0, mithril_1.default)('.pf-chip-bar', attrs, children);
-    }
-}
-exports.ChipBar = ChipBar;
 //# sourceMappingURL=chip.js.map

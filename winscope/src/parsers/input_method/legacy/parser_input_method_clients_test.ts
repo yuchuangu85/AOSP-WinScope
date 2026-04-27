@@ -14,16 +14,18 @@
  * limitations under the License.
  */
 
-import {assertDefined} from 'common/assert_utils';
+import {assertDefined} from 'common/assert';
+import Long from 'long';
+import {LegacyParserProvider} from 'test/unit/fixture_utils';
 import {
-  TimestampConverterUtils,
+  makeElapsedTimestamp,
+  makeRealTimestamp,
   timestampEqualityTester,
-} from 'common/time/test_utils';
-import {UnitTestUtils} from 'test/unit/utils';
-import {CoarseVersion} from 'trace/coarse_version';
-import {Parser} from 'trace/parser';
-import {TraceType} from 'trace/trace_type';
-import {HierarchyTreeNode} from 'trace/tree_node/hierarchy_tree_node';
+} from 'test/unit/time_test_helpers';
+import {CoarseVersion} from 'trace_api/coarse_version';
+import {Parser} from 'trace_api/parser';
+import {TraceType} from 'trace_api/trace_type';
+import {HierarchyTreeNode} from 'tree_node/hierarchy_tree_node';
 
 describe('ParserInputMethodClients', () => {
   describe('trace with real timestamps', () => {
@@ -31,9 +33,9 @@ describe('ParserInputMethodClients', () => {
 
     beforeAll(async () => {
       jasmine.addCustomEqualityTester(timestampEqualityTester);
-      parser = (await UnitTestUtils.getParser(
-        'traces/elapsed_and_real_timestamp/InputMethodClients.pb',
-      )) as Parser<HierarchyTreeNode>;
+      parser = await new LegacyParserProvider()
+        .addFile('traces/elapsed_and_real_timestamp/InputMethodClients.pb')
+        .getParser<HierarchyTreeNode>();
     });
 
     it('has expected trace type', () => {
@@ -46,19 +48,56 @@ describe('ParserInputMethodClients', () => {
 
     it('provides timestamps', () => {
       const expected = [
-        TimestampConverterUtils.makeRealTimestamp(1659107090215405395n),
-        TimestampConverterUtils.makeRealTimestamp(1659107090249283325n),
-        TimestampConverterUtils.makeRealTimestamp(1659107090279417928n),
+        makeRealTimestamp(1659107090215405395n),
+        makeRealTimestamp(1659107090249283325n),
+        makeRealTimestamp(1659107090279417928n),
       ];
-      expect(assertDefined(parser.getTimestamps()).slice(0, 3)).toEqual(
-        expected,
-      );
+      expect(parser.getTimestamps()?.slice(0, 3)).toEqual(expected);
     });
 
-    it('retrieves trace entry', async () => {
-      const entry = await parser.getEntry(1);
+    it('does not provide entry', () => {
+      expect(parser.getEntry).toThrow();
+    });
+
+    it('converts to valid perfetto packets', async () => {
+      const packets = parser.convertToPerfettoPackets!(10);
+      expect(packets.length).toBe(13);
+      expect(packets[0].trustedPacketSequenceId).toBe(10);
+      const data =
+        packets[0].winscopeExtensions?.[
+          '.perfetto.protos.WinscopeExtensionsImpl.inputmethodClients'
+        ];
+      expect(data?.client).toBeDefined();
+      expect(data?.where).toBe('InsetsSourceConsumer#setControl');
+      const ts = Long.fromString(BigInt(15613638434).toString());
+      ts.unsigned = true;
+      expect(packets[0].timestamp).toEqual(ts);
+    });
+
+    it('converts to valid perfetto trace', async () => {
+      const perfettoParser = await new LegacyParserProvider()
+        .addFile('traces/elapsed_and_real_timestamp/InputMethodClients.pb')
+        .setConvertToPerfetto(true)
+        .getParser<HierarchyTreeNode>();
+
+      expect(perfettoParser.getTimestamps()?.slice(0, 3)).toEqual([
+        makeRealTimestamp(1659107090215405395n),
+        makeRealTimestamp(1659107090249283325n),
+        makeRealTimestamp(1659107090279417928n),
+      ]);
+
+      const entry = await perfettoParser.getEntry(10);
       expect(entry).toBeInstanceOf(HierarchyTreeNode);
-      expect(entry.id).toEqual('InputMethodClients entry');
+      expect(entry.getEagerPropertyByName('where')?.getValue()).toEqual(
+        'InsetsSourceConsumer#setControl',
+      );
+      const client = assertDefined(entry.getChildByName('client'));
+      const properties = await client.getAllProperties();
+      const intdefProperty = properties
+        ?.getChildByName('viewRootImpl')
+        ?.getChildByName('windowAttributes')
+        ?.getChildByName('type');
+      expect(intdefProperty?.formattedValue()).toBe('TYPE_BASE_APPLICATION');
     });
   });
 
@@ -67,9 +106,9 @@ describe('ParserInputMethodClients', () => {
 
     beforeAll(async () => {
       jasmine.addCustomEqualityTester(timestampEqualityTester);
-      parser = (await UnitTestUtils.getParser(
-        'traces/elapsed_timestamp/InputMethodClients.pb',
-      )) as Parser<HierarchyTreeNode>;
+      parser = await new LegacyParserProvider()
+        .addFile('traces/elapsed_timestamp/InputMethodClients.pb')
+        .getParser<HierarchyTreeNode>();
     });
 
     it('has expected trace type', () => {
@@ -78,27 +117,27 @@ describe('ParserInputMethodClients', () => {
 
     it('provides timestamps', () => {
       expect(assertDefined(parser.getTimestamps())[0]).toEqual(
-        TimestampConverterUtils.makeElapsedTimestamp(1149083651642n),
+        makeElapsedTimestamp(1149083651642n),
       );
     });
 
-    it('retrieves trace entry from timestamp', async () => {
-      const entry = await parser.getEntry(0);
-      expect(entry).toBeInstanceOf(HierarchyTreeNode);
-      expect(entry.id).toEqual('InputMethodClients entry');
+    it('does not provide entry', () => {
+      expect(parser.getEntry).toThrow();
     });
 
-    it('translates intdefs', async () => {
-      const entry = await parser.getEntry(8);
-      const client = assertDefined(entry.getChildByName('client'));
-      const properties = await client.getAllProperties();
-      const intdefProperty = assertDefined(
-        properties
-          ?.getChildByName('viewRootImpl')
-          ?.getChildByName('windowAttributes')
-          ?.getChildByName('type'),
-      );
-      expect(intdefProperty.formattedValue()).toEqual('TYPE_BASE_APPLICATION');
+    it('converts to valid perfetto packets', async () => {
+      const packets = parser.convertToPerfettoPackets!(10);
+      expect(packets.length).toBe(33);
+      expect(packets[0].trustedPacketSequenceId).toBe(10);
+      const data =
+        packets[0].winscopeExtensions?.[
+          '.perfetto.protos.WinscopeExtensionsImpl.inputmethodClients'
+        ];
+      expect(data?.client).toBeDefined();
+      expect(data?.where).toBe('InsetsSourceConsumer#setControl');
+      const ts = Long.fromString(BigInt(1149083651642).toString());
+      ts.unsigned = true;
+      expect(packets[0].timestamp).toEqual(ts);
     });
   });
 });

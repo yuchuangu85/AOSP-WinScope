@@ -33,11 +33,17 @@ test_1.test.beforeAll(async ({ browser }, _testInfo) => {
     await omnibox.fill('select id, ts, dur, name, track_id from slices limit 100');
     await pth.waitForPerfettoIdle();
     await omnibox.press('Enter');
-    await pth.waitForIdleAndScreenshot('query mode.png');
-    page.locator('.pf-query-table').getByText('17806091326279').click();
-    await pth.waitForIdleAndScreenshot('row 1 clicked.png');
-    page.locator('.pf-query-table').getByText('17806092405136').click();
-    await pth.waitForIdleAndScreenshot('row 2 clicked.png');
+    await pth.waitForIdleAndScreenshot('query mode.png', {
+        mask: [page.locator('.pf-query-table .pf-header-bar')],
+    });
+    page.locator('.pf-data-grid').getByText('17806091326279').click();
+    await pth.waitForIdleAndScreenshot('row 1 clicked.png', {
+        mask: [page.locator('.pf-query-table .pf-header-bar')],
+    });
+    page.locator('.pf-data-grid').getByText('17806092405136').click();
+    await pth.waitForIdleAndScreenshot('row 2 clicked.png', {
+        mask: [page.locator('.pf-query-table .pf-header-bar')],
+    });
     // Clear the omnibox
     await omnibox.selectText();
     for (let i = 0; i < 2; i++) {
@@ -58,18 +64,23 @@ test_1.test.beforeAll(async ({ browser }, _testInfo) => {
         await textbox.fill(`select id, ts, dur, name from slices limit ${i}`);
         await textbox.press('ControlOrMeta+Enter');
         await textbox.blur();
-        await pth.waitForIdleAndScreenshot(`query limit ${i}.png`);
+        await pth.waitForIdleAndScreenshot(`query limit ${i}.png`, {
+            mask: [page.locator('.pf-data-grid__toolbar')],
+        });
     }
     // Now test the query history.
-    page.locator('.query-history .history-item').nth(0).click();
+    page.locator('.pf-query-history .pf-query-history__item').nth(0).click();
     await pth.waitForPerfettoIdle();
     (0, test_1.expect)(await textbox.textContent()).toEqual('select id, ts, dur, name from slices limit 3');
-    page.locator('.query-history .history-item').nth(2).click();
+    page.locator('.pf-query-history .pf-query-history__item').nth(2).click();
     await pth.waitForPerfettoIdle();
     (0, test_1.expect)(await textbox.textContent()).toEqual('select id, ts, dur, name from slices limit 1');
     // Double click on the 2nd one and expect the query is re-ran.
-    page.locator('.query-history .history-item').nth(1).dblclick();
+    page
+        .locator('.pf-query-page .pf-query-history .pf-query-history__item')
+        .nth(1)
+        .dblclick();
     await pth.waitForPerfettoIdle();
-    (0, test_1.expect)(await page.locator('.pf-query-table tbody tr').count()).toEqual(2);
+    (0, test_1.expect)(await page.locator('.pf-query-page .pf-data-grid tbody tr').count()).toEqual(2);
 });
 //# sourceMappingURL=queries.test.js.map

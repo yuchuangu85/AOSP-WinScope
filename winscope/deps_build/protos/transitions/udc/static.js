@@ -67,7 +67,7 @@
                              * Properties of a TransitionTraceProto.
                              * @memberof com.android.server.wm.shell
                              * @interface ITransitionTraceProto
-                             * @property {Long} magicNumber TransitionTraceProto magicNumber
+                             * @property {Long|null} [magicNumber] TransitionTraceProto magicNumber
                              * @property {Array.<com.android.server.wm.shell.ITransition>|null} [transitions] TransitionTraceProto transitions
                              * @property {Long|null} [realToElapsedTimeOffsetNanos] TransitionTraceProto realToElapsedTimeOffsetNanos
                              */
@@ -136,7 +136,8 @@
                             TransitionTraceProto.encode = function encode(message, writer) {
                                 if (!writer)
                                     writer = $Writer.create();
-                                writer.uint32(/* id 1, wireType 1 =*/9).fixed64(message.magicNumber);
+                                if (message.magicNumber != null && Object.hasOwnProperty.call(message, "magicNumber"))
+                                    writer.uint32(/* id 1, wireType 1 =*/9).fixed64(message.magicNumber);
                                 if (message.transitions != null && message.transitions.length)
                                     for (var i = 0; i < message.transitions.length; ++i)
                                         $root.com.android.server.wm.shell.Transition.encode(message.transitions[i], writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim();
@@ -169,12 +170,14 @@
                              * @throws {Error} If the payload is not a reader or valid buffer
                              * @throws {$protobuf.util.ProtocolError} If required fields are missing
                              */
-                            TransitionTraceProto.decode = function decode(reader, length) {
+                            TransitionTraceProto.decode = function decode(reader, length, error) {
                                 if (!(reader instanceof $Reader))
                                     reader = $Reader.create(reader);
                                 var end = length === undefined ? reader.len : reader.pos + length, message = new $root.com.android.server.wm.shell.TransitionTraceProto();
                                 while (reader.pos < end) {
                                     var tag = reader.uint32();
+                                    if (tag === error)
+                                        break;
                                     switch (tag >>> 3) {
                                     case 1: {
                                             message.magicNumber = reader.fixed64();
@@ -195,8 +198,6 @@
                                         break;
                                     }
                                 }
-                                if (!message.hasOwnProperty("magicNumber"))
-                                    throw $util.ProtocolError("missing required 'magicNumber'", { instance: message });
                                 return message;
                             };
     
@@ -227,8 +228,9 @@
                             TransitionTraceProto.verify = function verify(message) {
                                 if (typeof message !== "object" || message === null)
                                     return "object expected";
-                                if (!$util.isInteger(message.magicNumber) && !(message.magicNumber && $util.isInteger(message.magicNumber.low) && $util.isInteger(message.magicNumber.high)))
-                                    return "magicNumber: integer|Long expected";
+                                if (message.magicNumber != null && message.hasOwnProperty("magicNumber"))
+                                    if (!$util.isInteger(message.magicNumber) && !(message.magicNumber && $util.isInteger(message.magicNumber.low) && $util.isInteger(message.magicNumber.high)))
+                                        return "magicNumber: integer|Long expected";
                                 if (message.transitions != null && message.hasOwnProperty("transitions")) {
                                     if (!Array.isArray(message.transitions))
                                         return "transitions: array expected";
@@ -383,7 +385,7 @@
                              * Properties of a Transition.
                              * @memberof com.android.server.wm.shell
                              * @interface ITransition
-                             * @property {number} id Transition id
+                             * @property {number|null} [id] Transition id
                              * @property {Long|null} [startTransactionId] Transition startTransactionId
                              * @property {Long|null} [finishTransactionId] Transition finishTransactionId
                              * @property {Long|null} [createTimeNs] Transition createTimeNs
@@ -524,7 +526,8 @@
                             Transition.encode = function encode(message, writer) {
                                 if (!writer)
                                     writer = $Writer.create();
-                                writer.uint32(/* id 1, wireType 0 =*/8).int32(message.id);
+                                if (message.id != null && Object.hasOwnProperty.call(message, "id"))
+                                    writer.uint32(/* id 1, wireType 0 =*/8).int32(message.id);
                                 if (message.startTransactionId != null && Object.hasOwnProperty.call(message, "startTransactionId"))
                                     writer.uint32(/* id 2, wireType 0 =*/16).uint64(message.startTransactionId);
                                 if (message.finishTransactionId != null && Object.hasOwnProperty.call(message, "finishTransactionId"))
@@ -573,12 +576,14 @@
                              * @throws {Error} If the payload is not a reader or valid buffer
                              * @throws {$protobuf.util.ProtocolError} If required fields are missing
                              */
-                            Transition.decode = function decode(reader, length) {
+                            Transition.decode = function decode(reader, length, error) {
                                 if (!(reader instanceof $Reader))
                                     reader = $Reader.create(reader);
                                 var end = length === undefined ? reader.len : reader.pos + length, message = new $root.com.android.server.wm.shell.Transition();
                                 while (reader.pos < end) {
                                     var tag = reader.uint32();
+                                    if (tag === error)
+                                        break;
                                     switch (tag >>> 3) {
                                     case 1: {
                                             message.id = reader.int32();
@@ -631,8 +636,6 @@
                                         break;
                                     }
                                 }
-                                if (!message.hasOwnProperty("id"))
-                                    throw $util.ProtocolError("missing required 'id'", { instance: message });
                                 return message;
                             };
     
@@ -663,8 +666,9 @@
                             Transition.verify = function verify(message) {
                                 if (typeof message !== "object" || message === null)
                                     return "object expected";
-                                if (!$util.isInteger(message.id))
-                                    return "id: integer expected";
+                                if (message.id != null && message.hasOwnProperty("id"))
+                                    if (!$util.isInteger(message.id))
+                                        return "id: integer expected";
                                 if (message.startTransactionId != null && message.hasOwnProperty("startTransactionId"))
                                     if (!$util.isInteger(message.startTransactionId) && !(message.startTransactionId && $util.isInteger(message.startTransactionId.low) && $util.isInteger(message.startTransactionId.high)))
                                         return "startTransactionId: integer|Long expected";
@@ -1049,12 +1053,14 @@
                              * @throws {Error} If the payload is not a reader or valid buffer
                              * @throws {$protobuf.util.ProtocolError} If required fields are missing
                              */
-                            Target.decode = function decode(reader, length) {
+                            Target.decode = function decode(reader, length, error) {
                                 if (!(reader instanceof $Reader))
                                     reader = $Reader.create(reader);
                                 var end = length === undefined ? reader.len : reader.pos + length, message = new $root.com.android.server.wm.shell.Target();
                                 while (reader.pos < end) {
                                     var tag = reader.uint32();
+                                    if (tag === error)
+                                        break;
                                     switch (tag >>> 3) {
                                     case 1: {
                                             message.mode = reader.int32();
@@ -1237,7 +1243,7 @@
                          * Properties of a WmShellTransitionTraceProto.
                          * @memberof com.android.wm.shell
                          * @interface IWmShellTransitionTraceProto
-                         * @property {Long} magicNumber WmShellTransitionTraceProto magicNumber
+                         * @property {Long|null} [magicNumber] WmShellTransitionTraceProto magicNumber
                          * @property {Array.<com.android.wm.shell.ITransition>|null} [transitions] WmShellTransitionTraceProto transitions
                          * @property {Array.<com.android.wm.shell.IHandlerMapping>|null} [handlerMappings] WmShellTransitionTraceProto handlerMappings
                          * @property {Long|null} [realToElapsedTimeOffsetNanos] WmShellTransitionTraceProto realToElapsedTimeOffsetNanos
@@ -1316,7 +1322,8 @@
                         WmShellTransitionTraceProto.encode = function encode(message, writer) {
                             if (!writer)
                                 writer = $Writer.create();
-                            writer.uint32(/* id 1, wireType 1 =*/9).fixed64(message.magicNumber);
+                            if (message.magicNumber != null && Object.hasOwnProperty.call(message, "magicNumber"))
+                                writer.uint32(/* id 1, wireType 1 =*/9).fixed64(message.magicNumber);
                             if (message.transitions != null && message.transitions.length)
                                 for (var i = 0; i < message.transitions.length; ++i)
                                     $root.com.android.wm.shell.Transition.encode(message.transitions[i], writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim();
@@ -1352,12 +1359,14 @@
                          * @throws {Error} If the payload is not a reader or valid buffer
                          * @throws {$protobuf.util.ProtocolError} If required fields are missing
                          */
-                        WmShellTransitionTraceProto.decode = function decode(reader, length) {
+                        WmShellTransitionTraceProto.decode = function decode(reader, length, error) {
                             if (!(reader instanceof $Reader))
                                 reader = $Reader.create(reader);
                             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.com.android.wm.shell.WmShellTransitionTraceProto();
                             while (reader.pos < end) {
                                 var tag = reader.uint32();
+                                if (tag === error)
+                                    break;
                                 switch (tag >>> 3) {
                                 case 1: {
                                         message.magicNumber = reader.fixed64();
@@ -1384,8 +1393,6 @@
                                     break;
                                 }
                             }
-                            if (!message.hasOwnProperty("magicNumber"))
-                                throw $util.ProtocolError("missing required 'magicNumber'", { instance: message });
                             return message;
                         };
     
@@ -1416,8 +1423,9 @@
                         WmShellTransitionTraceProto.verify = function verify(message) {
                             if (typeof message !== "object" || message === null)
                                 return "object expected";
-                            if (!$util.isInteger(message.magicNumber) && !(message.magicNumber && $util.isInteger(message.magicNumber.low) && $util.isInteger(message.magicNumber.high)))
-                                return "magicNumber: integer|Long expected";
+                            if (message.magicNumber != null && message.hasOwnProperty("magicNumber"))
+                                if (!$util.isInteger(message.magicNumber) && !(message.magicNumber && $util.isInteger(message.magicNumber.low) && $util.isInteger(message.magicNumber.high)))
+                                    return "magicNumber: integer|Long expected";
                             if (message.transitions != null && message.hasOwnProperty("transitions")) {
                                 if (!Array.isArray(message.transitions))
                                     return "transitions: array expected";
@@ -1598,7 +1606,7 @@
                          * Properties of a Transition.
                          * @memberof com.android.wm.shell
                          * @interface ITransition
-                         * @property {number} id Transition id
+                         * @property {number|null} [id] Transition id
                          * @property {Long|null} [dispatchTimeNs] Transition dispatchTimeNs
                          * @property {number|null} [handler] Transition handler
                          * @property {Long|null} [mergeTimeNs] Transition mergeTimeNs
@@ -1702,7 +1710,8 @@
                         Transition.encode = function encode(message, writer) {
                             if (!writer)
                                 writer = $Writer.create();
-                            writer.uint32(/* id 1, wireType 0 =*/8).int32(message.id);
+                            if (message.id != null && Object.hasOwnProperty.call(message, "id"))
+                                writer.uint32(/* id 1, wireType 0 =*/8).int32(message.id);
                             if (message.dispatchTimeNs != null && Object.hasOwnProperty.call(message, "dispatchTimeNs"))
                                 writer.uint32(/* id 2, wireType 0 =*/16).int64(message.dispatchTimeNs);
                             if (message.handler != null && Object.hasOwnProperty.call(message, "handler"))
@@ -1742,12 +1751,14 @@
                          * @throws {Error} If the payload is not a reader or valid buffer
                          * @throws {$protobuf.util.ProtocolError} If required fields are missing
                          */
-                        Transition.decode = function decode(reader, length) {
+                        Transition.decode = function decode(reader, length, error) {
                             if (!(reader instanceof $Reader))
                                 reader = $Reader.create(reader);
                             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.com.android.wm.shell.Transition();
                             while (reader.pos < end) {
                                 var tag = reader.uint32();
+                                if (tag === error)
+                                    break;
                                 switch (tag >>> 3) {
                                 case 1: {
                                         message.id = reader.int32();
@@ -1782,8 +1793,6 @@
                                     break;
                                 }
                             }
-                            if (!message.hasOwnProperty("id"))
-                                throw $util.ProtocolError("missing required 'id'", { instance: message });
                             return message;
                         };
     
@@ -1814,8 +1823,9 @@
                         Transition.verify = function verify(message) {
                             if (typeof message !== "object" || message === null)
                                 return "object expected";
-                            if (!$util.isInteger(message.id))
-                                return "id: integer expected";
+                            if (message.id != null && message.hasOwnProperty("id"))
+                                if (!$util.isInteger(message.id))
+                                    return "id: integer expected";
                             if (message.dispatchTimeNs != null && message.hasOwnProperty("dispatchTimeNs"))
                                 if (!$util.isInteger(message.dispatchTimeNs) && !(message.dispatchTimeNs && $util.isInteger(message.dispatchTimeNs.low) && $util.isInteger(message.dispatchTimeNs.high)))
                                     return "dispatchTimeNs: integer|Long expected";
@@ -1996,8 +2006,8 @@
                          * Properties of a HandlerMapping.
                          * @memberof com.android.wm.shell
                          * @interface IHandlerMapping
-                         * @property {number} id HandlerMapping id
-                         * @property {string} name HandlerMapping name
+                         * @property {number|null} [id] HandlerMapping id
+                         * @property {string|null} [name] HandlerMapping name
                          */
     
                         /**
@@ -2055,8 +2065,10 @@
                         HandlerMapping.encode = function encode(message, writer) {
                             if (!writer)
                                 writer = $Writer.create();
-                            writer.uint32(/* id 1, wireType 0 =*/8).int32(message.id);
-                            writer.uint32(/* id 2, wireType 2 =*/18).string(message.name);
+                            if (message.id != null && Object.hasOwnProperty.call(message, "id"))
+                                writer.uint32(/* id 1, wireType 0 =*/8).int32(message.id);
+                            if (message.name != null && Object.hasOwnProperty.call(message, "name"))
+                                writer.uint32(/* id 2, wireType 2 =*/18).string(message.name);
                             return writer;
                         };
     
@@ -2084,12 +2096,14 @@
                          * @throws {Error} If the payload is not a reader or valid buffer
                          * @throws {$protobuf.util.ProtocolError} If required fields are missing
                          */
-                        HandlerMapping.decode = function decode(reader, length) {
+                        HandlerMapping.decode = function decode(reader, length, error) {
                             if (!(reader instanceof $Reader))
                                 reader = $Reader.create(reader);
                             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.com.android.wm.shell.HandlerMapping();
                             while (reader.pos < end) {
                                 var tag = reader.uint32();
+                                if (tag === error)
+                                    break;
                                 switch (tag >>> 3) {
                                 case 1: {
                                         message.id = reader.int32();
@@ -2104,10 +2118,6 @@
                                     break;
                                 }
                             }
-                            if (!message.hasOwnProperty("id"))
-                                throw $util.ProtocolError("missing required 'id'", { instance: message });
-                            if (!message.hasOwnProperty("name"))
-                                throw $util.ProtocolError("missing required 'name'", { instance: message });
                             return message;
                         };
     
@@ -2138,10 +2148,12 @@
                         HandlerMapping.verify = function verify(message) {
                             if (typeof message !== "object" || message === null)
                                 return "object expected";
-                            if (!$util.isInteger(message.id))
-                                return "id: integer expected";
-                            if (!$util.isString(message.name))
-                                return "name: string expected";
+                            if (message.id != null && message.hasOwnProperty("id"))
+                                if (!$util.isInteger(message.id))
+                                    return "id: integer expected";
+                            if (message.name != null && message.hasOwnProperty("name"))
+                                if (!$util.isString(message.name))
+                                    return "name: string expected";
                             return null;
                         };
     

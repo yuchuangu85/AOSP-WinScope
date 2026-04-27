@@ -14,37 +14,46 @@
 // limitations under the License.
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.WattsonEstimateSelectionAggregator = void 0;
-const track_kinds_1 = require("../../public/track_kinds");
 const utils_1 = require("../../base/utils");
+const track_kinds_1 = require("./track_kinds");
+const aggregation_panel_1 = require("./aggregation_panel");
 class WattsonEstimateSelectionAggregator {
     id = 'wattson_plugin_estimate_aggregation';
-    async createAggregateView(engine, area) {
-        await engine.query(`drop view if exists ${this.id};`);
+    Panel = aggregation_panel_1.WattsonAggregationPanel;
+    probe(area) {
         const estimateTracks = [];
         for (const trackInfo of area.tracks) {
-            if (trackInfo?.tags?.kind === track_kinds_1.CPUSS_ESTIMATE_TRACK_KIND &&
+            if ((trackInfo?.tags?.kind === track_kinds_1.CPUSS_ESTIMATE_TRACK_KIND ||
+                trackInfo?.tags?.kind === track_kinds_1.GPUSS_ESTIMATE_TRACK_KIND) &&
                 (0, utils_1.exists)(trackInfo.tags?.wattson)) {
                 estimateTracks.push(`${trackInfo.tags.wattson}`);
             }
         }
         if (estimateTracks.length === 0)
-            return false;
-        const query = this.getEstimateTracksQuery(area, estimateTracks);
-        engine.query(query);
-        return true;
+            return undefined;
+        return {
+            prepareData: async (engine) => {
+                await engine.query(`drop view if exists ${this.id};`);
+                const query = this.getEstimateTracksQuery(area, estimateTracks);
+                await engine.query(query);
+                return {
+                    tableName: this.id,
+                };
+            },
+        };
     }
     getEstimateTracksQuery(area, estimateTracks) {
         const duration = area.end - area.start;
         let query = `
-      INCLUDE PERFETTO MODULE wattson.curves.estimates;
+      INCLUDE PERFETTO MODULE wattson.estimates;
 
       CREATE OR REPLACE PERFETTO TABLE wattson_plugin_ui_selection_window AS
       SELECT
         ${area.start} as ts,
         ${duration} as dur;
 
-      DROP TABLE IF EXISTS wattson_plugin_windowed_cpuss_estimate;
-      CREATE VIRTUAL TABLE wattson_plugin_windowed_cpuss_estimate
+      DROP TABLE IF EXISTS wattson_plugin_windowed_subsystems_estimate;
+      CREATE VIRTUAL TABLE wattson_plugin_windowed_subsystems_estimate
       USING
         SPAN_JOIN(wattson_plugin_ui_selection_window, _system_state_mw);
 
@@ -59,9 +68,9 @@ class WattsonEstimateSelectionAggregator {
             query += `
         SELECT
         '${estimateTrack}' as name,
-        ROUND(SUM(${estimateTrack}_mw * dur) / ${duration}, 3) as power,
-        ROUND(SUM(${estimateTrack}_mw * dur) / 1000000000, 3) as energy
-        FROM wattson_plugin_windowed_cpuss_estimate
+        ROUND(SUM(${estimateTrack}_mw * dur) / ${duration}, 3) as power_mw,
+        ROUND(SUM(${estimateTrack}_mw * dur) / 1000000000, 3) as energy_mws
+        FROM wattson_plugin_windowed_subsystems_estimate
       `;
         });
         query += `;`;
@@ -71,27 +80,20 @@ class WattsonEstimateSelectionAggregator {
         return [
             {
                 title: 'Name',
-                kind: 'STRING',
-                columnConstructor: Uint16Array,
                 columnId: 'name',
             },
             {
                 title: 'Power (estimated mW)',
-                kind: 'NUMBER',
-                columnConstructor: Float64Array,
-                columnId: 'power',
+                columnId: 'power_mw',
                 sum: true,
             },
             {
                 title: 'Energy (estimated mWs)',
-                kind: 'NUMBER',
-                columnConstructor: Float64Array,
-                columnId: 'energy',
+                columnId: 'energy_mws',
                 sum: true,
             },
         ];
     }
-    async getExtra() { }
     getTabName() {
         return 'Wattson estimates';
     }

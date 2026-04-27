@@ -116,8 +116,9 @@ class VegaWrapper {
     _status;
     _error;
     _engine;
-    _onPointSelection;
-    _onIntervalSelection;
+    _signalHandlers;
+    _eventHandlers;
+    _onViewDestroyed;
     constructor(dom) {
         this.dom = dom;
         this._status = Status.Empty;
@@ -144,11 +145,36 @@ class VegaWrapper {
     set engine(engine) {
         this._engine = engine;
     }
-    set onPointSelection(cb) {
-        this._onPointSelection = cb;
+    set signalHandlers(handlers) {
+        for (const { name, handler } of this._signalHandlers ?? []) {
+            this.view?.removeSignalListener(name, handler);
+        }
+        this._signalHandlers = handlers.map(({ name, handler }) => {
+            return {
+                name,
+                handler: (name2, value) => handler({ view: this.view, name: name2, value }),
+            };
+        });
+        for (const { name, handler } of this._signalHandlers) {
+            this.view?.addSignalListener(name, handler);
+        }
     }
-    set onIntervalSelection(cb) {
-        this._onIntervalSelection = cb;
+    set eventHandlers(handlers) {
+        for (const { name, handler } of this._eventHandlers ?? []) {
+            this.view?.removeEventListener(name, handler);
+        }
+        this._eventHandlers = handlers.map(({ name, handler }) => {
+            return {
+                name,
+                handler: (event, item) => handler({ view: this.view, event, item }),
+            };
+        });
+        for (const { name, handler } of this._eventHandlers) {
+            this.view?.addEventListener(name, handler);
+        }
+    }
+    set onViewDestroyed(handler) {
+        this._onViewDestroyed = handler;
     }
     onResize() {
         if (this.view) {
@@ -164,6 +190,7 @@ class VegaWrapper {
         }
         // Destroy existing view if needed:
         if (this.view) {
+            this._onViewDestroyed?.();
             this.view.finalize();
             this.view = undefined;
         }
@@ -192,27 +219,18 @@ class VegaWrapper {
             this.view = new vega.View(runtime, {
                 loader: new EngineLoader(this._engine),
             });
+            this.view.hover();
             this.view.initialize(this.dom);
             for (const [key, value] of Object.entries(this._data)) {
                 this.view.data(key, value);
             }
-            // Attaching event listeners for Vega-Lite
-            // selection interactions only (interval and point selection)
-            // Both will trigger a pointerup event
             if (isVegaLite(this._spec)) {
-                this.view.addEventListener('pointerup', (_, item) => {
-                    if (item) {
-                        if (this.view?.signal(VegaLiteSelectionTypes.INTERVAL) !==
-                            undefined &&
-                            Object.values(this.view?.signal(VegaLiteSelectionTypes.INTERVAL))
-                                .length > 0) {
-                            this._onIntervalSelection?.(this.view?.signal(VegaLiteSelectionTypes.INTERVAL));
-                        }
-                        else {
-                            this._onPointSelection?.(item);
-                        }
-                    }
-                });
+                for (const { name, handler } of this._signalHandlers ?? []) {
+                    this.view.addSignalListener(name, handler);
+                }
+                for (const { name, handler } of this._eventHandlers ?? []) {
+                    this.view.addEventListener(name, handler);
+                }
             }
             const pending = this.view.runAsync();
             pending
@@ -260,9 +278,9 @@ class VegaView {
         wrapper.spec = attrs.spec;
         wrapper.data = attrs.data;
         wrapper.engine = attrs.engine;
-        // Chart interactivity handlers
-        wrapper.onPointSelection = attrs.onPointSelection;
-        wrapper.onIntervalSelection = attrs.onIntervalSelection;
+        wrapper.signalHandlers = attrs.signalHandlers ?? [];
+        wrapper.eventHandlers = attrs.eventHandlers ?? [];
+        wrapper.onViewDestroyed = attrs.onViewDestroyed;
         this.wrapper = wrapper;
         this.resize = new resize_observer_1.SimpleResizeObserver(dom, () => {
             wrapper.onResize();
@@ -273,6 +291,9 @@ class VegaView {
             this.wrapper.spec = attrs.spec;
             this.wrapper.data = attrs.data;
             this.wrapper.engine = attrs.engine;
+            this.wrapper.signalHandlers = attrs.signalHandlers ?? [];
+            this.wrapper.eventHandlers = attrs.eventHandlers ?? [];
+            this.wrapper.onViewDestroyed = attrs.onViewDestroyed;
         }
     }
     onremove() {

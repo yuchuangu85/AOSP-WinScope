@@ -41,7 +41,6 @@ class default_1 {
       `;
         await ctx.engine.query('INCLUDE PERFETTO MODULE android.input;');
         const uri = 'com.android.InputEvents#InputEventsTrack';
-        const title = 'Input Events';
         const track = await (0, query_slice_track_1.createQuerySliceTrack)({
             trace: ctx,
             uri,
@@ -51,10 +50,9 @@ class default_1 {
         });
         ctx.tracks.registerTrack({
             uri,
-            title: title,
-            track,
+            renderer: track,
         });
-        const node = new workspace_1.TrackNode({ uri, title });
+        const node = new workspace_1.TrackNode({ uri, name: 'Input Events' });
         const group = ctx.plugins
             .getPlugin(dev_perfetto_StandardGroups_1.default)
             .getOrCreateStandardGroup(ctx.workspace, 'USER_INTERACTION');

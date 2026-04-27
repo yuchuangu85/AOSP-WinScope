@@ -15,11 +15,15 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Intent = void 0;
 exports.classForIntent = classForIntent;
+exports.classForSpacing = classForSpacing;
 const logging_1 = require("../base/logging");
 var Intent;
 (function (Intent) {
-    Intent["None"] = "none";
-    Intent["Primary"] = "primary";
+    Intent["None"] = "None";
+    Intent["Primary"] = "Primary";
+    Intent["Success"] = "Success";
+    Intent["Danger"] = "Danger";
+    Intent["Warning"] = "Warning";
 })(Intent || (exports.Intent = Intent = {}));
 function classForIntent(intent) {
     switch (intent) {
@@ -27,8 +31,28 @@ function classForIntent(intent) {
             return undefined;
         case Intent.Primary:
             return 'pf-intent-primary';
+        case Intent.Success:
+            return 'pf-intent-success';
+        case Intent.Danger:
+            return 'pf-intent-danger';
+        case Intent.Warning:
+            return 'pf-intent-warning';
         default:
             return (0, logging_1.assertUnreachable)(intent);
+    }
+}
+function classForSpacing(spacing) {
+    switch (spacing) {
+        case 'none':
+            return 'pf-spacing-none';
+        case 'small':
+            return 'pf-spacing-small';
+        case 'medium':
+            return 'pf-spacing-medium';
+        case 'large':
+            return 'pf-spacing-large';
+        default:
+            (0, logging_1.assertUnreachable)(spacing);
     }
 }
 //# sourceMappingURL=common.js.map

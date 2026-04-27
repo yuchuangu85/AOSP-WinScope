@@ -14,12 +14,13 @@
 // limitations under the License.
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CpuFreqTrack = void 0;
+const tslib_1 = require("tslib");
 const bigint_math_1 = require("../../base/bigint_math");
 const binary_search_1 = require("../../base/binary_search");
 const logging_1 = require("../../base/logging");
 const time_1 = require("../../base/time");
-const canvas_utils_1 = require("../../base/canvas_utils");
 const colorizer_1 = require("../../components/colorizer");
+const mithril_1 = tslib_1.__importDefault(require("mithril"));
 const track_helper_1 = require("../../components/tracks/track_helper");
 const checkerboard_1 = require("../../components/checkerboard");
 const query_result_1 = require("../../trace_processor/query_result");
@@ -32,7 +33,6 @@ const RECT_HEIGHT = 20;
 class CpuFreqTrack {
     config;
     trace;
-    mousePos = { x: 0, y: 0 };
     hoveredValue = undefined;
     hoveredTs = undefined;
     hoveredTsEnd = undefined;
@@ -50,25 +50,36 @@ class CpuFreqTrack {
       INCLUDE PERFETTO MODULE counters.intervals;
     `);
         if (this.config.idleTrackId === undefined) {
-            this.trash.use(await (0, sql_utils_1.createView)(this.trace.engine, `raw_freq_idle_${this.trackUuid}`, `
+            this.trash.use(await (0, sql_utils_1.createView)({
+                engine: this.trace.engine,
+                name: `raw_freq_idle_${this.trackUuid}`,
+                as: `
             select ts, dur, value as freqValue, -1 as idleValue
             from counter_leading_intervals!((
               select id, ts, track_id, value
               from counter
               where track_id = ${this.config.freqTrackId}
             ))
-          `));
+          `,
+            }));
         }
         else {
-            this.trash.use(await (0, sql_utils_1.createPerfettoTable)(this.trace.engine, `raw_freq_${this.trackUuid}`, `
+            this.trash.use(await (0, sql_utils_1.createPerfettoTable)({
+                engine: this.trace.engine,
+                name: `raw_freq_${this.trackUuid}`,
+                as: `
             select ts, dur, value as freqValue
             from counter_leading_intervals!((
               select id, ts, track_id, value
               from counter
              where track_id = ${this.config.freqTrackId}
             ))
-          `));
-            this.trash.use(await (0, sql_utils_1.createPerfettoTable)(this.trace.engine, `raw_idle_${this.trackUuid}`, `
+          `,
+            }));
+            this.trash.use(await (0, sql_utils_1.createPerfettoTable)({
+                engine: this.trace.engine,
+                name: `raw_idle_${this.trackUuid}`,
+                as: `
             select
               ts,
               dur,
@@ -78,21 +89,34 @@ class CpuFreqTrack {
               from counter
               where track_id = ${this.config.idleTrackId}
             ))
-          `));
-            this.trash.use(await (0, sql_utils_1.createVirtualTable)(this.trace.engine, `raw_freq_idle_${this.trackUuid}`, `span_join(raw_freq_${this.trackUuid}, raw_idle_${this.trackUuid})`));
+          `,
+            }));
+            this.trash.use(await (0, sql_utils_1.createVirtualTable)({
+                engine: this.trace.engine,
+                name: `raw_freq_idle_${this.trackUuid}`,
+                using: `span_join(raw_freq_${this.trackUuid}, raw_idle_${this.trackUuid})`,
+            }));
         }
-        this.trash.use(await (0, sql_utils_1.createVirtualTable)(this.trace.engine, `cpu_freq_${this.trackUuid}`, `
-          __intrinsic_counter_mipmap((
-            select ts, freqValue as value
-            from raw_freq_idle_${this.trackUuid}
-          ))
-        `));
-        this.trash.use(await (0, sql_utils_1.createVirtualTable)(this.trace.engine, `cpu_idle_${this.trackUuid}`, `
-          __intrinsic_counter_mipmap((
-            select ts, idleValue as value
-            from raw_freq_idle_${this.trackUuid}
-          ))
-        `));
+        this.trash.use(await (0, sql_utils_1.createVirtualTable)({
+            engine: this.trace.engine,
+            name: `cpu_freq_${this.trackUuid}`,
+            using: `
+        __intrinsic_counter_mipmap((
+          select ts, freqValue as value
+          from raw_freq_idle_${this.trackUuid}
+        ))
+      `,
+        }));
+        this.trash.use(await (0, sql_utils_1.createVirtualTable)({
+            engine: this.trace.engine,
+            name: `cpu_idle_${this.trackUuid}`,
+            using: `
+        __intrinsic_counter_mipmap((
+          select ts, idleValue as value
+          from raw_freq_idle_${this.trackUuid}
+        ))
+      `,
+        }));
     }
     async onUpdate({ visibleWindow, resolution, }) {
         await this.fetcher.requestData(visibleWindow.toTimeSpan(), resolution);
@@ -159,7 +183,19 @@ class CpuFreqTrack {
     getHeight() {
         return MARGIN_TOP + RECT_HEIGHT;
     }
-    render({ ctx, size, timescale, visibleWindow }) {
+    renderTooltip() {
+        if (this.hoveredValue === undefined || this.hoveredTs === undefined) {
+            return undefined;
+        }
+        let text = `${this.hoveredValue.toLocaleString()}kHz`;
+        // Display idle value if current hover is idle.
+        if (this.hoveredIdle !== undefined && this.hoveredIdle !== -1) {
+            // Display the idle value +1 to be consistent with catapult.
+            text += ` (Idle: ${(this.hoveredIdle + 1).toLocaleString()})`;
+        }
+        return text;
+    }
+    render({ ctx, size, timescale, visibleWindow, theme, }) {
         // TODO: fonts and colors should come from the CSS and not hardcoded here.
         const data = this.fetcher.data;
         if (data === undefined || data.timestamps.length === 0) {
@@ -187,8 +223,10 @@ class CpuFreqTrack {
         if (this.trace.timeline.hoveredUtid !== undefined) {
             saturation = 0;
         }
-        ctx.fillStyle = color.setHSL({ s: saturation, l: 70 }).cssString;
-        ctx.strokeStyle = color.setHSL({ s: saturation, l: 55 }).cssString;
+        ctx.fillStyle = color
+            .setHSL({ s: saturation, l: 50 })
+            .setAlpha(0.6).cssString;
+        ctx.strokeStyle = color.setHSL({ s: saturation, l: 50 }).cssString;
         const calculateX = (timestamp) => {
             return Math.floor(timescale.timeToPx(timestamp));
         };
@@ -233,7 +271,7 @@ class CpuFreqTrack {
             ctx.stroke();
         }
         // Draw CPU idle rectangles that overlay the CPU freq graph.
-        ctx.fillStyle = `rgba(240, 240, 240, 1)`;
+        ctx.fillStyle = `rgba(128,128,128, 0.2)`;
         {
             for (let i = startIdx; i < endIdx; i++) {
                 if (data.lastIdleValues[i] < 0) {
@@ -250,12 +288,12 @@ class CpuFreqTrack {
                     : timescale.timeToPx(time_1.Time.fromRaw(data.timestamps[i + 1]));
                 const width = xEnd - x;
                 const height = calculateY(data.lastFreqKHz[i]) - zeroY;
+                ctx.clearRect(x, zeroY, width, height);
                 ctx.fillRect(x, zeroY, width, height);
             }
         }
         ctx.font = '10px Roboto Condensed';
         if (this.hoveredValue !== undefined && this.hoveredTs !== undefined) {
-            let text = `${this.hoveredValue.toLocaleString()}kHz`;
             ctx.fillStyle = color.setHSL({ s: 45, l: 75 }).cssString;
             ctx.strokeStyle = color.setHSL({ s: 45, l: 45 }).cssString;
             const xStart = Math.floor(timescale.timeToPx(this.hoveredTs));
@@ -275,30 +313,24 @@ class CpuFreqTrack {
             ctx.arc(xStart, y, 3 /* r*/, 0 /* start angle*/, 2 * Math.PI /* end angle*/);
             ctx.fill();
             ctx.stroke();
-            // Display idle value if current hover is idle.
-            if (this.hoveredIdle !== undefined && this.hoveredIdle !== -1) {
-                // Display the idle value +1 to be consistent with catapult.
-                text += ` (Idle: ${(this.hoveredIdle + 1).toLocaleString()})`;
-            }
-            // Draw the tooltip.
-            (0, canvas_utils_1.drawTrackHoverTooltip)(ctx, this.mousePos, size, text);
         }
         // Write the Y scale on the top left corner.
         ctx.textBaseline = 'alphabetic';
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.fillStyle = theme.COLOR_BACKGROUND;
+        ctx.globalAlpha = 0.6;
         ctx.fillRect(0, 0, 42, 18);
-        ctx.fillStyle = '#666';
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = theme.COLOR_TEXT;
         ctx.textAlign = 'left';
         ctx.fillText(`${yLabel}`, 4, 14);
         // If the cached trace slices don't fully cover the visible time range,
         // show a gray rectangle with a "Loading..." label.
         (0, checkerboard_1.checkerboardExcept)(ctx, this.getHeight(), 0, size.width, timescale.timeToPx(data.start), timescale.timeToPx(data.end));
     }
-    onMouseMove({ x, y, timescale }) {
+    onMouseMove({ x, timescale }) {
         const data = this.fetcher.data;
         if (data === undefined)
             return;
-        this.mousePos = { x, y };
         const time = timescale.pxToHpTime(x);
         const [left, right] = (0, binary_search_1.searchSegment)(data.timestamps, time.toTime());
         this.hoveredTs =
@@ -307,6 +339,8 @@ class CpuFreqTrack {
             right === -1 ? undefined : time_1.Time.fromRaw(data.timestamps[right]);
         this.hoveredValue = left === -1 ? undefined : data.lastFreqKHz[left];
         this.hoveredIdle = left === -1 ? undefined : data.lastIdleValues[left];
+        // Trigger redraw to update tooltip
+        mithril_1.default.redraw();
     }
     onMouseOut() {
         this.hoveredValue = undefined;

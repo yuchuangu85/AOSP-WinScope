@@ -3,7 +3,7 @@ import * as $protobuf from "protobufjs/light";
 
 const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanager_udc = new $protobuf.Root()))
 .setOptions({
-  java_multiple_files: true
+  optimize_for: "LITE_RUNTIME"
 })
 .addJSON({
   com: {
@@ -18,6 +18,7 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                 },
                 nested: {
                   WindowManagerTraceFileProto: {
+                    edition: "proto2",
                     fields: {
                       magicNumber: {
                         type: "fixed64",
@@ -44,6 +45,7 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                     }
                   },
                   WindowManagerTraceProto: {
+                    edition: "proto2",
                     fields: {
                       elapsedRealtimeNanos: {
                         type: "fixed64",
@@ -60,8 +62,9 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                     }
                   },
                   WindowManagerServiceDumpProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       policy: {
@@ -92,7 +95,7 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                         type: "int32",
                         id: 7,
                         options: {
-                          "(.android.typedef)": "android.view.Surface.Rotation",
+                          "(.android_common.typedef)": "android.view.Surface.Rotation",
                           deprecated: true
                         }
                       },
@@ -100,7 +103,7 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                         type: "int32",
                         id: 8,
                         options: {
-                          "(.android.typedef)": "android.content.pm.ActivityInfo.ScreenOrientation",
+                          "(.android_common.typedef)": "android.content.pm.ActivityInfo.ScreenOrientation",
                           deprecated: true
                         }
                       },
@@ -123,8 +126,9 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                     }
                   },
                   RootWindowContainerProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       windowContainer: {
@@ -179,23 +183,25 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                     ]
                   },
                   BarControllerProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       state: {
-                        type: ".android.app.StatusBarManagerProto.WindowState",
+                        type: ".android_common.app.StatusBarManagerProto.WindowState",
                         id: 1
                       },
                       transientState: {
-                        type: ".android.app.StatusBarManagerProto.TransientWindowState",
+                        type: ".android_common.app.StatusBarManagerProto.TransientWindowState",
                         id: 2
                       }
                     }
                   },
                   WindowOrientationListenerProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       enabled: {
@@ -203,14 +209,15 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                         id: 1
                       },
                       rotation: {
-                        type: ".android.view.SurfaceProto.Rotation",
+                        type: ".android_common.view.SurfaceProto.Rotation",
                         id: 2
                       }
                     }
                   },
                   KeyguardServiceDelegateProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       showing: {
@@ -254,8 +261,9 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                     }
                   },
                   KeyguardControllerProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       keyguardShowing: {
@@ -286,8 +294,9 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                     }
                   },
                   KeyguardOccludedProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       displayId: {
@@ -301,8 +310,9 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                     }
                   },
                   KeyguardPerDisplayProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       displayId: {
@@ -328,8 +338,9 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                     }
                   },
                   WindowManagerPolicyProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       lastSystemUiFlags: {
@@ -344,11 +355,11 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                         id: 2
                       },
                       rotation: {
-                        type: ".android.view.SurfaceProto.Rotation",
+                        type: ".android_common.view.SurfaceProto.Rotation",
                         id: 3
                       },
                       orientation: {
-                        type: ".android.content.ActivityInfoProto.ScreenOrientation",
+                        type: ".android_common.content.ActivityInfoProto.ScreenOrientation",
                         id: 4
                       },
                       screenOnFully: {
@@ -453,8 +464,9 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                     }
                   },
                   AppTransitionProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       appTransitionState: {
@@ -462,7 +474,7 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                         id: 1
                       },
                       lastUsedAppTransition: {
-                        type: ".android.view.TransitionTypeEnum",
+                        type: ".android_common.view.TransitionTypeEnum",
                         id: 2
                       }
                     },
@@ -478,8 +490,9 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                     }
                   },
                   DisplayContentProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       windowContainer: {
@@ -536,14 +549,14 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                         id: 9
                       },
                       displayInfo: {
-                        type: ".android.view.DisplayInfoProto",
+                        type: ".android_common.view.DisplayInfoProto",
                         id: 10
                       },
                       rotation: {
                         type: "int32",
                         id: 11,
                         options: {
-                          "(.android.typedef)": "android.view.Surface.Rotation",
+                          "(.android_common.typedef)": "android.view.Surface.Rotation",
                           deprecated: true
                         }
                       },
@@ -687,7 +700,7 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                       },
                       keepClearAreas: {
                         rule: "repeated",
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 38
                       },
                       minSizeOfResizeableTaskDp: {
@@ -709,6 +722,10 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                       currentFocusIdentifier: {
                         type: "IdentifierProto",
                         id: 43
+                      },
+                      remoteInsetsControlTarget: {
+                        type: "RemoteInsetsControlTargetProto",
+                        id: 44
                       }
                     },
                     reserved: [
@@ -719,8 +736,9 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                     ]
                   },
                   DisplayAreaProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       windowContainer: {
@@ -731,7 +749,7 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                         type: "string",
                         id: 2,
                         options: {
-                          "(.android.privacy).dest": "DEST_EXPLICIT"
+                          "(.android_common.privacy).dest": "DEST_EXPLICIT"
                         }
                       },
                       children: {
@@ -765,8 +783,9 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                     }
                   },
                   DisplayAreaChildProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       displayArea: {
@@ -785,26 +804,27 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                     }
                   },
                   DisplayFramesProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       stableBounds: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 1,
                         options: {
                           deprecated: true
                         }
                       },
                       dock: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 2,
                         options: {
                           deprecated: true
                         }
                       },
                       current: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 3,
                         options: {
                           deprecated: true
@@ -813,15 +833,16 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                     }
                   },
                   DisplayRotationProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       rotation: {
                         type: "int32",
                         id: 1,
                         options: {
-                          "(.android.typedef)": "android.view.Surface.Rotation"
+                          "(.android_common.typedef)": "android.view.Surface.Rotation"
                         }
                       },
                       frozenToUserRotation: {
@@ -832,7 +853,7 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                         type: "int32",
                         id: 3,
                         options: {
-                          "(.android.typedef)": "android.view.Surface.Rotation"
+                          "(.android_common.typedef)": "android.view.Surface.Rotation"
                         }
                       },
                       fixedToUserRotationMode: {
@@ -843,7 +864,7 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                         type: "int32",
                         id: 5,
                         options: {
-                          "(.android.typedef)": "android.content.pm.ActivityInfo.ScreenOrientation"
+                          "(.android_common.typedef)": "android.content.pm.ActivityInfo.ScreenOrientation"
                         }
                       },
                       isFixedToUserRotation: {
@@ -853,8 +874,9 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                     }
                   },
                   DockedTaskDividerControllerProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       minimizedDock: {
@@ -867,19 +889,20 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                     }
                   },
                   PinnedTaskControllerProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       defaultBounds: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 1,
                         options: {
                           deprecated: true
                         }
                       },
                       movementBounds: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 2,
                         options: {
                           deprecated: true
@@ -888,8 +911,9 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                     }
                   },
                   TaskProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       windowContainer: {
@@ -908,11 +932,11 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                         id: 4
                       },
                       bounds: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 5
                       },
                       displayedBounds: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 6,
                         options: {
                           deprecated: true
@@ -973,7 +997,7 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                         type: "int32",
                         id: 17,
                         options: {
-                          "(.android.typedef)": "android.app.WindowConfiguration.ActivityType",
+                          "(.android_common.typedef)": "android.app.WindowConfiguration.ActivityType",
                           deprecated: true
                         }
                       },
@@ -981,7 +1005,7 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                         type: "int32",
                         id: 18,
                         options: {
-                          "(.android.typedef)": "android.appwidget.AppWidgetProviderInfo.ResizeModeFlags"
+                          "(.android_common.typedef)": "android.appwidget.AppWidgetProviderInfo.ResizeModeFlags"
                         }
                       },
                       minWidth: {
@@ -999,11 +1023,11 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                         }
                       },
                       adjustedBounds: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 21
                       },
                       lastNonFullscreenBounds: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 22
                       },
                       adjustedForIme: {
@@ -1044,6 +1068,10 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                       taskFragment: {
                         type: "TaskFragmentProto",
                         id: 31
+                      },
+                      taskName: {
+                        type: "string",
+                        id: 32
                       }
                     },
                     reserved: [
@@ -1054,8 +1082,9 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                     ]
                   },
                   TaskFragmentProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       windowContainer: {
@@ -1070,7 +1099,7 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                         type: "int32",
                         id: 3,
                         options: {
-                          "(.android.typedef)": "android.app.WindowConfiguration.ActivityType"
+                          "(.android_common.typedef)": "android.app.WindowConfiguration.ActivityType"
                         }
                       },
                       minWidth: {
@@ -1084,15 +1113,16 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                     }
                   },
                   ActivityRecordProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       name: {
                         type: "string",
                         id: 1,
                         options: {
-                          "(.android.privacy).dest": "DEST_EXPLICIT"
+                          "(.android_common.privacy).dest": "DEST_EXPLICIT"
                         }
                       },
                       windowToken: {
@@ -1177,7 +1207,7 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                       },
                       frozenBounds: {
                         rule: "repeated",
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 23,
                         options: {
                           deprecated: true
@@ -1198,7 +1228,7 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                         type: "string",
                         id: 27,
                         options: {
-                          "(.android.privacy).dest": "DEST_EXPLICIT"
+                          "(.android_common.privacy).dest": "DEST_EXPLICIT"
                         }
                       },
                       frontOfTask: {
@@ -1241,7 +1271,7 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                         type: "int32",
                         id: 37,
                         options: {
-                          "(.android.typedef)": "android.content.pm.ActivityInfo.ScreenOrientation"
+                          "(.android_common.typedef)": "android.content.pm.ActivityInfo.ScreenOrientation"
                         }
                       },
                       shouldSendCompatFakeFocus: {
@@ -1283,6 +1313,14 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                       requestOpenInBrowserEducationTimestamp: {
                         type: "int64",
                         id: 47
+                      },
+                      shouldAllowSimulateRequestedOrientationForCameraCompat: {
+                        type: "bool",
+                        id: 48
+                      },
+                      safeRegionBounds: {
+                        type: ".android_common.graphics.RectProto",
+                        id: 49
                       }
                     },
                     reserved: [
@@ -1297,8 +1335,9 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                     ]
                   },
                   WindowTokenProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       windowContainer: {
@@ -1331,8 +1370,9 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                     }
                   },
                   WindowStateProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       windowContainer: {
@@ -1355,50 +1395,50 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                         id: 4
                       },
                       attributes: {
-                        type: ".android.view.WindowLayoutParamsProto",
+                        type: ".android_common.view.WindowLayoutParamsProto",
                         id: 5
                       },
                       givenContentInsets: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 6
                       },
                       frame: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 7,
                         options: {
                           deprecated: true
                         }
                       },
                       containingFrame: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 8,
                         options: {
                           deprecated: true
                         }
                       },
                       parentFrame: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 9,
                         options: {
                           deprecated: true
                         }
                       },
                       contentFrame: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 10,
                         options: {
                           deprecated: true
                         }
                       },
                       contentInsets: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 11,
                         options: {
                           deprecated: true
                         }
                       },
                       surfaceInsets: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 12
                       },
                       animator: {
@@ -1418,7 +1458,7 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                         }
                       },
                       surfacePosition: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 16
                       },
                       requestedWidth: {
@@ -1433,7 +1473,7 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                         type: "int32",
                         id: 20,
                         options: {
-                          "(.android.typedef)": "android.view.View.Visibility"
+                          "(.android_common.typedef)": "android.view.View.Visibility"
                         }
                       },
                       systemUiVisibility: {
@@ -1452,70 +1492,70 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                         id: 23
                       },
                       displayFrame: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 24,
                         options: {
                           deprecated: true
                         }
                       },
                       overscanFrame: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 25,
                         options: {
                           deprecated: true
                         }
                       },
                       visibleFrame: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 26,
                         options: {
                           deprecated: true
                         }
                       },
                       decorFrame: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 27,
                         options: {
                           deprecated: true
                         }
                       },
                       outsetFrame: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 28,
                         options: {
                           deprecated: true
                         }
                       },
                       overscanInsets: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 29,
                         options: {
                           deprecated: true
                         }
                       },
                       visibleInsets: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 30,
                         options: {
                           deprecated: true
                         }
                       },
                       stableInsets: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 31,
                         options: {
                           deprecated: true
                         }
                       },
                       outsets: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 32,
                         options: {
                           deprecated: true
                         }
                       },
                       cutout: {
-                        type: ".android.view.DisplayCutoutProto",
+                        type: ".android_common.view.DisplayCutoutProto",
                         id: 33,
                         options: {
                           deprecated: true
@@ -1570,17 +1610,17 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                       },
                       keepClearAreas: {
                         rule: "repeated",
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 45
                       },
                       unrestrictedKeepClearAreas: {
                         rule: "repeated",
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 46
                       },
                       mergedLocalInsetsSources: {
                         rule: "repeated",
-                        type: ".android.view.InsetsSourceProto",
+                        type: ".android_common.view.InsetsSourceProto",
                         id: 47
                       },
                       requestedVisibleTypes: {
@@ -1588,10 +1628,10 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                         id: 48
                       },
                       dimBounds: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 49
                       },
-                      prepareSyncSeqId: {
+                      bufferSeqId: {
                         type: "int32",
                         id: 50
                       },
@@ -1601,9 +1641,27 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                       }
                     }
                   },
+                  RemoteInsetsControlTargetProto: {
+                    edition: "proto2",
+                    fields: {
+                      identifier: {
+                        type: "IdentifierProto",
+                        id: 1
+                      },
+                      requestedVisibleTypes: {
+                        type: "int32",
+                        id: 2
+                      },
+                      animatingTypes: {
+                        type: "int32",
+                        id: 3
+                      }
+                    }
+                  },
                   IdentifierProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       hashCode: {
@@ -1618,18 +1676,19 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                         type: "string",
                         id: 3,
                         options: {
-                          "(.android.privacy).dest": "DEST_EXPLICIT"
+                          "(.android_common.privacy).dest": "DEST_EXPLICIT"
                         }
                       }
                     }
                   },
                   WindowStateAnimatorProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       lastClipRect: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 1
                       },
                       surface: {
@@ -1641,7 +1700,7 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                         id: 3
                       },
                       systemDecorRect: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 4
                       }
                     },
@@ -1658,8 +1717,9 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                     }
                   },
                   WindowSurfaceControllerProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       shown: {
@@ -1673,8 +1733,9 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                     }
                   },
                   ScreenRotationAnimationProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       started: {
@@ -1688,8 +1749,9 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                     }
                   },
                   WindowContainerProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       configurationContainer: {
@@ -1700,7 +1762,7 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                         type: "int32",
                         id: 2,
                         options: {
-                          "(.android.typedef)": "android.content.pm.ActivityInfo.ScreenOrientation"
+                          "(.android_common.typedef)": "android.content.pm.ActivityInfo.ScreenOrientation"
                         }
                       },
                       visible: {
@@ -1721,14 +1783,15 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                         id: 6
                       },
                       surfaceControl: {
-                        type: ".android.view.SurfaceControlProto",
+                        type: ".android_common.view.SurfaceControlProto",
                         id: 7
                       }
                     }
                   },
                   WindowContainerChildProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       windowContainer: {
@@ -1766,144 +1829,147 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                     }
                   },
                   ConfigurationContainerProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       overrideConfiguration: {
-                        type: ".android.content.ConfigurationProto",
+                        type: ".android_common.content.ConfigurationProto",
                         id: 1
                       },
                       fullConfiguration: {
-                        type: ".android.content.ConfigurationProto",
+                        type: ".android_common.content.ConfigurationProto",
                         id: 2
                       },
                       mergedOverrideConfiguration: {
-                        type: ".android.content.ConfigurationProto",
+                        type: ".android_common.content.ConfigurationProto",
                         id: 3
                       }
                     }
                   },
                   WindowFramesProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       containingFrame: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 1,
                         options: {
                           deprecated: true
                         }
                       },
                       contentFrame: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 2,
                         options: {
                           deprecated: true
                         }
                       },
                       decorFrame: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 3,
                         options: {
                           deprecated: true
                         }
                       },
                       displayFrame: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 4
                       },
                       frame: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 5
                       },
                       outsetFrame: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 6
                       },
                       overscanFrame: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 7,
                         options: {
                           deprecated: true
                         }
                       },
                       parentFrame: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 8
                       },
                       visibleFrame: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 9,
                         options: {
                           deprecated: true
                         }
                       },
                       cutout: {
-                        type: ".android.view.DisplayCutoutProto",
+                        type: ".android_common.view.DisplayCutoutProto",
                         id: 10,
                         options: {
                           deprecated: true
                         }
                       },
                       contentInsets: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 11,
                         options: {
                           deprecated: true
                         }
                       },
                       overscanInsets: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 12,
                         options: {
                           deprecated: true
                         }
                       },
                       visibleInsets: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 13,
                         options: {
                           deprecated: true
                         }
                       },
                       stableInsets: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 14,
                         options: {
                           deprecated: true
                         }
                       },
                       outsets: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 15
                       },
                       compatFrame: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 16
                       }
                     }
                   },
                   InsetsSourceProviderProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       source: {
-                        type: ".android.view.InsetsSourceProto",
+                        type: ".android_common.view.InsetsSourceProto",
                         id: 1
                       },
                       frame: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 2
                       },
                       fakeControl: {
-                        type: ".android.view.InsetsSourceControlProto",
+                        type: ".android_common.view.InsetsSourceControlProto",
                         id: 3
                       },
                       control: {
-                        type: ".android.view.InsetsSourceControlProto",
+                        type: ".android_common.view.InsetsSourceControlProto",
                         id: 4
                       },
                       controlTarget: {
@@ -1928,11 +1994,11 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                         }
                       },
                       capturedLeash: {
-                        type: ".android.view.SurfaceControlProto",
+                        type: ".android_common.view.SurfaceControlProto",
                         id: 8
                       },
                       imeOverriddenFrame: {
-                        type: ".android.graphics.RectProto",
+                        type: ".android_common.graphics.RectProto",
                         id: 9,
                         options: {
                           deprecated: true
@@ -1988,8 +2054,9 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                     }
                   },
                   ImeInsetsSourceProviderProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       insetsSourceProvider: {
@@ -2012,13 +2079,17 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                       },
                       imeTargetFromImeIdentifier: {
                         type: "IdentifierProto",
-                        id: 4
+                        id: 4,
+                        options: {
+                          deprecated: true
+                        }
                       }
                     }
                   },
                   BackNavigationProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       animationInProgress: {
@@ -2043,32 +2114,14 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                       }
                     }
                   },
-                  WindowContainerThumbnailProto: {
-                    options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
-                    },
-                    fields: {
-                      width: {
-                        type: "int32",
-                        id: 1
-                      },
-                      height: {
-                        type: "int32",
-                        id: 2
-                      },
-                      surfaceAnimator: {
-                        type: "SurfaceAnimatorProto",
-                        id: 3
-                      }
-                    }
-                  },
                   SurfaceAnimatorProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       leash: {
-                        type: ".android.view.SurfaceControlProto",
+                        type: ".android_common.view.SurfaceControlProto",
                         id: 1
                       },
                       animationStartDelayed: {
@@ -2082,8 +2135,9 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                     }
                   },
                   AnimationAdapterProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       local: {
@@ -2097,19 +2151,21 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                     }
                   },
                   RemoteAnimationAdapterWrapperProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       target: {
-                        type: ".android.view.RemoteAnimationTargetProto",
+                        type: ".android_common.view.RemoteAnimationTargetProto",
                         id: 1
                       }
                     }
                   },
                   LocalAnimationAdapterProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       animationSpec: {
@@ -2119,8 +2175,9 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                     }
                   },
                   AnimationSpecProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       window: {
@@ -2142,8 +2199,9 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                     }
                   },
                   WindowAnimationSpecProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       animation: {
@@ -2153,16 +2211,17 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                     }
                   },
                   MoveAnimationSpecProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       from: {
-                        type: ".android.graphics.PointProto",
+                        type: ".android_common.graphics.PointProto",
                         id: 1
                       },
                       to: {
-                        type: ".android.graphics.PointProto",
+                        type: ".android_common.graphics.PointProto",
                         id: 2
                       },
                       durationMs: {
@@ -2172,8 +2231,9 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                     }
                   },
                   AlphaAnimationSpecProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       from: {
@@ -2191,8 +2251,9 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                     }
                   },
                   RotationAnimationSpecProto: {
+                    edition: "proto2",
                     options: {
-                      "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
                     },
                     fields: {
                       startLuma: {
@@ -2208,6 +2269,26 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                         id: 3
                       }
                     }
+                  },
+                  WindowContainerThumbnailProto: {
+                    edition: "proto2",
+                    options: {
+                      "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
+                    },
+                    fields: {
+                      width: {
+                        type: "int32",
+                        id: 1
+                      },
+                      height: {
+                        type: "int32",
+                        id: 2
+                      },
+                      surfaceAnimator: {
+                        type: "SurfaceAnimatorProto",
+                        id: 3
+                      }
+                    }
                   }
                 }
               }
@@ -2217,9 +2298,9 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
       }
     }
   },
-  android: {
+  android_common: {
     options: {
-      java_package: "com.android.incident",
+      java_package: "com.android_common.incident",
       java_multiple_files: true
     },
     nested: {
@@ -2229,6 +2310,7 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
         },
         nested: {
           StatusBarManagerProto: {
+            edition: "proto2",
             fields: {},
             nested: {
               WindowState: {
@@ -2249,39 +2331,217 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
             }
           },
           WindowConfigurationProto: {
+            edition: "proto2",
             options: {
               "(android.msg_privacy).dest": "DEST_AUTOMATIC"
             },
             fields: {
               appBounds: {
-                type: ".android.graphics.RectProto",
+                type: ".android_common.graphics.RectProto",
                 id: 1
               },
               windowingMode: {
                 type: "int32",
                 id: 2,
                 options: {
-                  "(.android.typedef)": "android.app.WindowConfiguration.WindowingMode"
+                  "(.android_common.typedef)": "android.app.WindowConfiguration.WindowingMode"
                 }
               },
               activityType: {
                 type: "int32",
                 id: 3,
                 options: {
-                  "(.android.typedef)": "android.app.WindowConfiguration.ActivityType"
+                  "(.android_common.typedef)": "android.app.WindowConfiguration.ActivityType"
                 }
               },
               bounds: {
-                type: ".android.graphics.RectProto",
+                type: ".android_common.graphics.RectProto",
                 id: 4
               },
               maxBounds: {
-                type: ".android.graphics.RectProto",
+                type: ".android_common.graphics.RectProto",
                 id: 5
               }
             }
           }
         }
+      },
+      graphics: {
+        nested: {
+          RectProto: {
+            fields: {
+              left: {
+                type: "int32",
+                id: 1
+              },
+              top: {
+                type: "int32",
+                id: 2
+              },
+              right: {
+                type: "int32",
+                id: 3
+              },
+              bottom: {
+                type: "int32",
+                id: 4
+              }
+            }
+          },
+          PointProto: {
+            options: {
+              "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
+            },
+            oneofs: {
+              _x: {
+                oneof: [
+                  "x"
+                ]
+              },
+              _y: {
+                oneof: [
+                  "y"
+                ]
+              }
+            },
+            fields: {
+              x: {
+                type: "int32",
+                id: 1,
+                options: {
+                  proto3_optional: true
+                }
+              },
+              y: {
+                type: "int32",
+                id: 2,
+                options: {
+                  proto3_optional: true
+                }
+              }
+            }
+          },
+          InsetsProto: {
+            options: {
+              "(android.msg_privacy).dest": "DEST_AUTOMATIC"
+            },
+            oneofs: {
+              _left: {
+                oneof: [
+                  "left"
+                ]
+              },
+              _top: {
+                oneof: [
+                  "top"
+                ]
+              },
+              _right: {
+                oneof: [
+                  "right"
+                ]
+              },
+              _bottom: {
+                oneof: [
+                  "bottom"
+                ]
+              }
+            },
+            fields: {
+              left: {
+                type: "int32",
+                id: 1,
+                options: {
+                  proto3_optional: true
+                }
+              },
+              top: {
+                type: "int32",
+                id: 2,
+                options: {
+                  proto3_optional: true
+                }
+              },
+              right: {
+                type: "int32",
+                id: 3,
+                options: {
+                  proto3_optional: true
+                }
+              },
+              bottom: {
+                type: "int32",
+                id: 4,
+                options: {
+                  proto3_optional: true
+                }
+              }
+            }
+          },
+          PixelFormatProto: {
+            fields: {},
+            nested: {
+              Format: {
+                values: {
+                  UNKNOWN: 0,
+                  TRANSLUCENT: -3,
+                  TRANSPARENT: -2,
+                  OPAQUE: -1,
+                  RGBA_8888: 1,
+                  RGBX_8888: 2,
+                  RGB_888: 3,
+                  RGB_565: 4,
+                  RGBA_F16: 22,
+                  RGBA_1010102: 43
+                }
+              }
+            }
+          }
+        }
+      },
+      typedef: {
+        edition: "proto2",
+        type: "string",
+        id: 60001,
+        extend: "google.protobuf.FieldOptions"
+      },
+      Destination: {
+        edition: "proto2",
+        values: {
+          DEST_LOCAL: 0,
+          DEST_EXPLICIT: 100,
+          DEST_AUTOMATIC: 200,
+          DEST_UNSET: 255
+        }
+      },
+      PrivacyFlags: {
+        edition: "proto2",
+        fields: {
+          dest: {
+            type: "Destination",
+            id: 1,
+            options: {
+              "default": "DEST_UNSET"
+            }
+          },
+          patterns: {
+            rule: "repeated",
+            type: "string",
+            id: 2
+          }
+        }
+      },
+      privacy: {
+        edition: "proto2",
+        type: "PrivacyFlags",
+        id: 102672883,
+        extend: "google.protobuf.FieldOptions"
+      },
+      msgPrivacy: {
+        edition: "proto2",
+        type: "PrivacyFlags",
+        id: 102672883,
+        extend: "google.protobuf.MessageOptions"
       },
       content: {
         options: {
@@ -2289,6 +2549,7 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
         },
         nested: {
           ActivityInfoProto: {
+            edition: "proto2",
             fields: {},
             nested: {
               ScreenOrientation: {
@@ -2315,8 +2576,9 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
             }
           },
           ConfigurationProto: {
+            edition: "proto2",
             options: {
-              "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+              "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
             },
             fields: {
               fontScale: {
@@ -2331,7 +2593,7 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                 type: "uint32",
                 id: 3,
                 options: {
-                  "(.android.privacy).dest": "DEST_EXPLICIT"
+                  "(.android_common.privacy).dest": "DEST_EXPLICIT"
                 }
               },
               locales: {
@@ -2399,7 +2661,7 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                 id: 18
               },
               windowConfiguration: {
-                type: ".android.app.WindowConfigurationProto",
+                type: ".android_common.app.WindowConfigurationProto",
                 id: 19
               },
               localeList: {
@@ -2417,8 +2679,9 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
             }
           },
           ResourcesConfigurationProto: {
+            edition: "proto2",
             options: {
-              "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+              "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
             },
             fields: {
               configuration: {
@@ -2441,8 +2704,9 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
             }
           },
           DeviceConfigurationProto: {
+            edition: "proto2",
             options: {
-              "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+              "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
             },
             fields: {
               stableScreenWidthPx: {
@@ -2500,8 +2764,9 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
             }
           },
           GlobalConfigurationProto: {
+            edition: "proto2",
             options: {
-              "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+              "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
             },
             fields: {
               resources: {
@@ -2515,9 +2780,10 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
             }
           },
           LocaleProto: {
+            edition: "proto2",
             options: {
               deprecated: true,
-              "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+              "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
             },
             fields: {
               language: {
@@ -2540,236 +2806,125 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
           }
         }
       },
-      graphics: {
+      view: {
         options: {
+          java_outer_classname: "ViewProtoEnums",
           java_multiple_files: true
         },
         nested: {
-          RectProto: {
-            options: {
-              "(android.msg_privacy).dest": "DEST_AUTOMATIC"
-            },
-            fields: {
-              left: {
-                type: "int32",
-                id: 1
-              },
-              top: {
-                type: "int32",
-                id: 2
-              },
-              right: {
-                type: "int32",
-                id: 3
-              },
-              bottom: {
-                type: "int32",
-                id: 4
-              }
+          DisplayStateEnum: {
+            edition: "proto2",
+            values: {
+              DISPLAY_STATE_UNKNOWN: 0,
+              DISPLAY_STATE_OFF: 1,
+              DISPLAY_STATE_ON: 2,
+              DISPLAY_STATE_DOZE: 3,
+              DISPLAY_STATE_DOZE_SUSPEND: 4,
+              DISPLAY_STATE_VR: 5,
+              DISPLAY_STATE_ON_SUSPEND: 6
             }
           },
-          PointProto: {
-            options: {
-              "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
-            },
-            fields: {
-              x: {
-                type: "int32",
-                id: 1
-              },
-              y: {
-                type: "int32",
-                id: 2
-              }
+          DisplayStateReason: {
+            edition: "proto2",
+            values: {
+              DISPLAY_STATE_REASON_UNKNOWN: 0,
+              DISPLAY_STATE_REASON_DEFAULT_POLICY: 1,
+              DISPLAY_STATE_REASON_DRAW_WAKE_LOCK: 2,
+              DISPLAY_STATE_REASON_OFFLOAD: 3,
+              DISPLAY_STATE_REASON_TILT: 4,
+              DISPLAY_STATE_REASON_DREAM_MANAGER: 5,
+              DISPLAY_STATE_REASON_KEY: 6,
+              DISPLAY_STATE_REASON_MOTION: 7
             }
           },
-          PixelFormatProto: {
+          TransitionTypeEnum: {
+            edition: "proto2",
+            valuesOptions: {
+              TRANSIT_DOCK_TASK_FROM_RECENTS: {
+                deprecated: true
+              }
+            },
+            values: {
+              TRANSIT_NONE: 0,
+              TRANSIT_UNSET: -1,
+              TRANSIT_ACTIVITY_OPEN: 6,
+              TRANSIT_ACTIVITY_CLOSE: 7,
+              TRANSIT_TASK_OPEN: 8,
+              TRANSIT_TASK_CLOSE: 9,
+              TRANSIT_TASK_TO_FRONT: 10,
+              TRANSIT_TASK_TO_BACK: 11,
+              TRANSIT_WALLPAPER_CLOSE: 12,
+              TRANSIT_WALLPAPER_OPEN: 13,
+              TRANSIT_WALLPAPER_INTRA_OPEN: 14,
+              TRANSIT_WALLPAPER_INTRA_CLOSE: 15,
+              TRANSIT_TASK_OPEN_BEHIND: 16,
+              TRANSIT_TASK_IN_PLACE: 17,
+              TRANSIT_ACTIVITY_RELAUNCH: 18,
+              TRANSIT_DOCK_TASK_FROM_RECENTS: 19,
+              TRANSIT_KEYGUARD_GOING_AWAY: 20,
+              TRANSIT_KEYGUARD_GOING_AWAY_ON_WALLPAPER: 21,
+              TRANSIT_KEYGUARD_OCCLUDE: 22,
+              TRANSIT_KEYGUARD_UNOCCLUDE: 23,
+              TRANSIT_TRANSLUCENT_ACTIVITY_OPEN: 24,
+              TRANSIT_TRANSLUCENT_ACTIVITY_CLOSE: 25,
+              TRANSIT_CRASHING_ACTIVITY_CLOSE: 26
+            }
+          },
+          DisplayProto: {
+            edition: "proto2",
             fields: {},
             nested: {
-              Format: {
+              ColorMode: {
                 values: {
-                  UNKNOWN: 0,
-                  TRANSLUCENT: -3,
-                  TRANSPARENT: -2,
-                  OPAQUE: -1,
-                  RGBA_8888: 1,
-                  RGBX_8888: 2,
-                  RGB_888: 3,
-                  RGB_565: 4,
-                  RGBA_F16: 22,
-                  RGBA_1010102: 43
+                  COLOR_MODE_INVALID: -1,
+                  COLOR_MODE_DEFAULT: 0,
+                  COLOR_MODE_BT601_625: 1,
+                  COLOR_MODE_BT601_625_UNADJUSTED: 2,
+                  COLOR_MODE_BT601_525: 3,
+                  COLOR_MODE_BT601_525_UNADJUSTED: 4,
+                  COLOR_MODE_BT709: 5,
+                  COLOR_MODE_DCI_P3: 6,
+                  COLOR_MODE_SRGB: 7,
+                  COLOR_MODE_ADOBE_RGB: 8,
+                  COLOR_MODE_DISPLAY_P3: 9
                 }
-              }
-            }
-          }
-        }
-      },
-      Destination: {
-        values: {
-          DEST_LOCAL: 0,
-          DEST_EXPLICIT: 100,
-          DEST_AUTOMATIC: 200,
-          DEST_UNSET: 255
-        }
-      },
-      PrivacyFlags: {
-        fields: {
-          dest: {
-            type: "Destination",
-            id: 1,
-            options: {
-              "default": "DEST_UNSET"
-            }
-          },
-          patterns: {
-            rule: "repeated",
-            type: "string",
-            id: 2
-          }
-        }
-      },
-      privacy: {
-        type: "PrivacyFlags",
-        id: 102672883,
-        extend: "google.protobuf.FieldOptions"
-      },
-      msgPrivacy: {
-        type: "PrivacyFlags",
-        id: 102672883,
-        extend: "google.protobuf.MessageOptions"
-      },
-      typedef: {
-        type: "string",
-        id: 60001,
-        extend: "google.protobuf.FieldOptions"
-      },
-      view: {
-        options: {
-          java_multiple_files: true,
-          java_outer_classname: "ViewProtoEnums"
-        },
-        nested: {
-          RemoteAnimationTargetProto: {
-            options: {
-              "(android.msg_privacy).dest": "DEST_AUTOMATIC"
-            },
-            fields: {
-              taskId: {
-                type: "int32",
-                id: 1
-              },
-              mode: {
-                type: "int32",
-                id: 2
-              },
-              leash: {
-                type: ".android.view.SurfaceControlProto",
-                id: 3
-              },
-              isTranslucent: {
-                type: "bool",
-                id: 4
-              },
-              clipRect: {
-                type: ".android.graphics.RectProto",
-                id: 5
-              },
-              contentInsets: {
-                type: ".android.graphics.RectProto",
-                id: 6
-              },
-              prefixOrderIndex: {
-                type: "int32",
-                id: 7
-              },
-              position: {
-                type: ".android.graphics.PointProto",
-                id: 8
-              },
-              sourceContainerBounds: {
-                type: ".android.graphics.RectProto",
-                id: 9
-              },
-              windowConfiguration: {
-                type: ".android.app.WindowConfigurationProto",
-                id: 10
-              },
-              startLeash: {
-                type: ".android.view.SurfaceControlProto",
-                id: 11
-              },
-              startBounds: {
-                type: ".android.graphics.RectProto",
-                id: 12
-              },
-              localBounds: {
-                type: ".android.graphics.RectProto",
-                id: 13
-              },
-              screenSpaceBounds: {
-                type: ".android.graphics.RectProto",
-                id: 14
-              }
-            }
-          },
-          SurfaceControlProto: {
-            options: {
-              "(android.msg_privacy).dest": "DEST_AUTOMATIC"
-            },
-            fields: {
-              hashCode: {
-                type: "int32",
-                id: 1
-              },
-              name: {
-                type: "string",
-                id: 2,
-                options: {
-                  "(android.privacy).dest": "DEST_EXPLICIT"
-                }
-              },
-              layerId: {
-                type: "int32",
-                id: 3
               }
             }
           },
           DisplayCutoutProto: {
+            edition: "proto2",
             options: {
-              "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+              "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
             },
             fields: {
               insets: {
-                type: ".android.graphics.RectProto",
+                type: ".android_common.graphics.RectProto",
                 id: 1
               },
               boundLeft: {
-                type: ".android.graphics.RectProto",
+                type: ".android_common.graphics.RectProto",
                 id: 3
               },
               boundTop: {
-                type: ".android.graphics.RectProto",
+                type: ".android_common.graphics.RectProto",
                 id: 4
               },
               boundRight: {
-                type: ".android.graphics.RectProto",
+                type: ".android_common.graphics.RectProto",
                 id: 5
               },
               boundBottom: {
-                type: ".android.graphics.RectProto",
+                type: ".android_common.graphics.RectProto",
                 id: 6
               },
               waterfallInsets: {
-                type: ".android.graphics.RectProto",
+                type: ".android_common.graphics.RectProto",
                 id: 7
               },
               sideOverrides: {
                 rule: "repeated",
                 type: "int32",
-                id: 8,
-                options: {
-                  packed: false
-                }
+                id: 8
               }
             },
             reserved: [
@@ -2780,8 +2935,9 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
             ]
           },
           DisplayInfoProto: {
+            edition: "proto2",
             options: {
-              "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+              "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
             },
             fields: {
               logicalWidth: {
@@ -2818,7 +2974,236 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
               }
             }
           },
+          ImeFocusControllerProto: {
+            edition: "proto2",
+            fields: {
+              hasImeFocus: {
+                type: "bool",
+                id: 1
+              },
+              servedView: {
+                type: "string",
+                id: 2,
+                options: {
+                  deprecated: true
+                }
+              },
+              nextServedView: {
+                type: "string",
+                id: 3,
+                options: {
+                  deprecated: true
+                }
+              }
+            }
+          },
+          ImeInsetsSourceConsumerProto: {
+            edition: "proto2",
+            options: {
+              deprecated: true
+            },
+            fields: {
+              insetsSourceConsumer: {
+                type: "InsetsSourceConsumerProto",
+                id: 1
+              },
+              isRequestedVisibleAwaitingControl: {
+                type: "bool",
+                id: 3
+              },
+              isHideAnimationRunning: {
+                type: "bool",
+                id: 4,
+                options: {
+                  deprecated: true
+                }
+              },
+              isShowRequestedDuringHideAnimation: {
+                type: "bool",
+                id: 5,
+                options: {
+                  deprecated: true
+                }
+              },
+              hasPendingRequest: {
+                type: "bool",
+                id: 6
+              }
+            },
+            reserved: [
+              [
+                2,
+                2
+              ]
+            ]
+          },
+          InsetsAnimationControlImplProto: {
+            edition: "proto2",
+            fields: {
+              isCancelled: {
+                type: "bool",
+                id: 1
+              },
+              isFinished: {
+                type: "bool",
+                id: 2
+              },
+              tmpMatrix: {
+                type: "string",
+                id: 3
+              },
+              pendingInsets: {
+                type: "string",
+                id: 4
+              },
+              pendingFraction: {
+                type: "float",
+                id: 5
+              },
+              shownOnFinish: {
+                type: "bool",
+                id: 6
+              },
+              currentAlpha: {
+                type: "float",
+                id: 7
+              },
+              pendingAlpha: {
+                type: "float",
+                id: 8
+              }
+            }
+          },
+          InsetsControllerProto: {
+            edition: "proto2",
+            fields: {
+              state: {
+                type: "InsetsStateProto",
+                id: 1
+              },
+              control: {
+                rule: "repeated",
+                type: "InsetsAnimationControlImplProto",
+                id: 2
+              }
+            }
+          },
+          InsetsSourceProto: {
+            edition: "proto2",
+            fields: {
+              type: {
+                type: "string",
+                id: 1,
+                options: {
+                  deprecated: true
+                }
+              },
+              frame: {
+                type: ".android_common.graphics.RectProto",
+                id: 2
+              },
+              visibleFrame: {
+                type: ".android_common.graphics.RectProto",
+                id: 3
+              },
+              visible: {
+                type: "bool",
+                id: 4
+              },
+              typeNumber: {
+                type: "int32",
+                id: 5
+              },
+              attachedInsets: {
+                type: ".android_common.graphics.InsetsProto",
+                id: 6
+              }
+            }
+          },
+          InsetsSourceConsumerProto: {
+            edition: "proto2",
+            fields: {
+              internalInsetsType: {
+                type: "string",
+                id: 1,
+                options: {
+                  deprecated: true
+                }
+              },
+              hasWindowFocus: {
+                type: "bool",
+                id: 2
+              },
+              isRequestedVisible: {
+                type: "bool",
+                id: 3
+              },
+              sourceControl: {
+                type: "InsetsSourceControlProto",
+                id: 4
+              },
+              pendingFrame: {
+                type: ".android_common.graphics.RectProto",
+                id: 5
+              },
+              pendingVisibleFrame: {
+                type: ".android_common.graphics.RectProto",
+                id: 6
+              },
+              animationState: {
+                type: "int32",
+                id: 7
+              },
+              typeNumber: {
+                type: "int32",
+                id: 8
+              }
+            }
+          },
+          InsetsSourceControlProto: {
+            edition: "proto2",
+            fields: {
+              type: {
+                type: "string",
+                id: 1,
+                options: {
+                  deprecated: true
+                }
+              },
+              position: {
+                type: ".android_common.graphics.PointProto",
+                id: 2
+              },
+              leash: {
+                type: "SurfaceControlProto",
+                id: 3
+              },
+              typeNumber: {
+                type: "int32",
+                id: 4
+              }
+            }
+          },
+          InsetsStateProto: {
+            edition: "proto2",
+            fields: {
+              sources: {
+                rule: "repeated",
+                type: "InsetsSourceProto",
+                id: 1
+              },
+              displayFrame: {
+                type: ".android_common.graphics.RectProto",
+                id: 2
+              },
+              displayCutout: {
+                type: "DisplayCutoutProto",
+                id: 3
+              }
+            }
+          },
           SurfaceProto: {
+            edition: "proto2",
             fields: {},
             nested: {
               Rotation: {
@@ -2831,16 +3216,116 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
               }
             }
           },
-          WindowLayoutParamsProto: {
+          SurfaceControlProto: {
+            edition: "proto2",
             options: {
-              "(.android.msg_privacy).dest": "DEST_AUTOMATIC"
+              "(android.msg_privacy).dest": "DEST_AUTOMATIC"
+            },
+            fields: {
+              hashCode: {
+                type: "int32",
+                id: 1
+              },
+              name: {
+                type: "string",
+                id: 2,
+                options: {
+                  "(android.privacy).dest": "DEST_EXPLICIT"
+                }
+              },
+              layerId: {
+                type: "int32",
+                id: 3
+              }
+            }
+          },
+          ViewRootImplProto: {
+            edition: "proto2",
+            fields: {
+              view: {
+                type: "string",
+                id: 1
+              },
+              displayId: {
+                type: "int32",
+                id: 2
+              },
+              appVisible: {
+                type: "bool",
+                id: 3
+              },
+              width: {
+                type: "int32",
+                id: 4
+              },
+              height: {
+                type: "int32",
+                id: 5
+              },
+              isAnimating: {
+                type: "bool",
+                id: 6
+              },
+              visibleRect: {
+                type: ".android_common.graphics.RectProto",
+                id: 7
+              },
+              isDrawing: {
+                type: "bool",
+                id: 8
+              },
+              added: {
+                type: "bool",
+                id: 9
+              },
+              winFrame: {
+                type: ".android_common.graphics.RectProto",
+                id: 10
+              },
+              pendingDisplayCutout: {
+                type: "DisplayCutoutProto",
+                id: 11,
+                options: {
+                  deprecated: true
+                }
+              },
+              lastWindowInsets: {
+                type: "string",
+                id: 12
+              },
+              softInputMode: {
+                type: "string",
+                id: 13
+              },
+              scrollY: {
+                type: "int32",
+                id: 14
+              },
+              curScrollY: {
+                type: "int32",
+                id: 15
+              },
+              removed: {
+                type: "bool",
+                id: 16
+              },
+              windowAttributes: {
+                type: ".android_common.view.WindowLayoutParamsProto",
+                id: 17
+              }
+            }
+          },
+          WindowLayoutParamsProto: {
+            edition: "proto2",
+            options: {
+              "(.android_common.msg_privacy).dest": "DEST_AUTOMATIC"
             },
             fields: {
               type: {
                 type: "int32",
                 id: 1,
                 options: {
-                  "(.android.typedef)": "android.view.WindowManager.LayoutParams.WindowType"
+                  "(.android_common.typedef)": "android.view.WindowManager.LayoutParams.WindowType"
                 }
               },
               x: {
@@ -2871,18 +3356,18 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                 type: "int32",
                 id: 8,
                 options: {
-                  "(.android.typedef)": "android.view.Gravity.GravityFlags"
+                  "(.android_common.typedef)": "android.view.Gravity.GravityFlags"
                 }
               },
               softInputMode: {
                 type: "int32",
                 id: 9,
                 options: {
-                  "(.android.typedef)": "android.view.WindowManager.LayoutParams.SoftInputModeFlags"
+                  "(.android_common.typedef)": "android.view.WindowManager.LayoutParams.SoftInputModeFlags"
                 }
               },
               format: {
-                type: ".android.graphics.PixelFormatProto.Format",
+                type: ".android_common.graphics.PixelFormatProto.Format",
                 id: 10
               },
               windowAnimations: {
@@ -2921,7 +3406,7 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                 type: "uint32",
                 id: 19,
                 options: {
-                  "(.android.typedef)": "android.view.WindowManager.LayoutParams.InputFeatureFlags"
+                  "(.android_common.typedef)": "android.view.WindowManager.LayoutParams.InputFeatureFlags"
                 }
               },
               userActivityTimeout: {
@@ -2936,56 +3421,56 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                 type: "uint32",
                 id: 24,
                 options: {
-                  "(.android.typedef)": "android.view.WindowManager.LayoutParams.Flags"
+                  "(.android_common.typedef)": "android.view.WindowManager.LayoutParams.Flags"
                 }
               },
               privateFlags: {
                 type: "uint32",
                 id: 26,
                 options: {
-                  "(.android.typedef)": "android.view.WindowManager.LayoutParams.PrivateFlags"
+                  "(.android_common.typedef)": "android.view.WindowManager.LayoutParams.PrivateFlags"
                 }
               },
               systemUiVisibilityFlags: {
                 type: "uint32",
                 id: 27,
                 options: {
-                  "(.android.typedef)": "android.view.WindowManager.LayoutParams.SystemUiVisibilityFlags"
+                  "(.android_common.typedef)": "android.view.WindowManager.LayoutParams.SystemUiVisibilityFlags"
                 }
               },
               subtreeSystemUiVisibilityFlags: {
                 type: "uint32",
                 id: 28,
                 options: {
-                  "(.android.typedef)": "android.view.WindowManager.LayoutParams.SystemUiVisibilityFlags"
+                  "(.android_common.typedef)": "android.view.WindowManager.LayoutParams.SystemUiVisibilityFlags"
                 }
               },
               appearance: {
                 type: "uint32",
                 id: 29,
                 options: {
-                  "(.android.typedef)": "android.view.WindowInsetsController.Appearance"
+                  "(.android_common.typedef)": "android.view.WindowInsetsController.Appearance"
                 }
               },
               behavior: {
                 type: "uint32",
                 id: 30,
                 options: {
-                  "(.android.typedef)": "android.view.WindowInsetsController.Behavior"
+                  "(.android_common.typedef)": "android.view.WindowInsetsController.Behavior"
                 }
               },
               fitInsetsTypes: {
                 type: "uint32",
                 id: 31,
                 options: {
-                  "(.android.typedef)": "android.view.WindowInsets.Type.InsetsType"
+                  "(.android_common.typedef)": "android.view.WindowInsets.Type.InsetsType"
                 }
               },
               fitInsetsSides: {
                 type: "uint32",
                 id: 32,
                 options: {
-                  "(.android.typedef)": "android.view.WindowInsets.Side.InsetsSide"
+                  "(.android_common.typedef)": "android.view.WindowInsets.Side.InsetsSide"
                 }
               },
               fitIgnoreVisibility: {
@@ -3004,129 +3489,68 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
               }
             }
           },
-          DisplayProto: {
-            fields: {},
-            nested: {
-              ColorMode: {
-                values: {
-                  COLOR_MODE_INVALID: -1,
-                  COLOR_MODE_DEFAULT: 0,
-                  COLOR_MODE_BT601_625: 1,
-                  COLOR_MODE_BT601_625_UNADJUSTED: 2,
-                  COLOR_MODE_BT601_525: 3,
-                  COLOR_MODE_BT601_525_UNADJUSTED: 4,
-                  COLOR_MODE_BT709: 5,
-                  COLOR_MODE_DCI_P3: 6,
-                  COLOR_MODE_SRGB: 7,
-                  COLOR_MODE_ADOBE_RGB: 8,
-                  COLOR_MODE_DISPLAY_P3: 9
-                }
-              }
-            }
-          },
-          InsetsSourceProto: {
+          RemoteAnimationTargetProto: {
+            edition: "proto2",
+            options: {
+              "(android.msg_privacy).dest": "DEST_AUTOMATIC"
+            },
             fields: {
-              type: {
-                type: "string",
-                id: 1,
-                options: {
-                  deprecated: true
-                }
-              },
-              frame: {
-                type: ".android.graphics.RectProto",
-                id: 2
-              },
-              visibleFrame: {
-                type: ".android.graphics.RectProto",
-                id: 3
-              },
-              visible: {
-                type: "bool",
-                id: 4
-              },
-              typeNumber: {
+              taskId: {
                 type: "int32",
-                id: 5
-              }
-            }
-          },
-          InsetsSourceControlProto: {
-            fields: {
-              type: {
-                type: "string",
-                id: 1,
-                options: {
-                  deprecated: true
-                }
+                id: 1
               },
-              position: {
-                type: ".android.graphics.PointProto",
+              mode: {
+                type: "int32",
                 id: 2
               },
               leash: {
-                type: "SurfaceControlProto",
+                type: ".android_common.view.SurfaceControlProto",
                 id: 3
               },
-              typeNumber: {
-                type: "int32",
+              isTranslucent: {
+                type: "bool",
                 id: 4
+              },
+              clipRect: {
+                type: ".android_common.graphics.RectProto",
+                id: 5
+              },
+              contentInsets: {
+                type: ".android_common.graphics.RectProto",
+                id: 6
+              },
+              prefixOrderIndex: {
+                type: "int32",
+                id: 7
+              },
+              position: {
+                type: ".android_common.graphics.PointProto",
+                id: 8
+              },
+              sourceContainerBounds: {
+                type: ".android_common.graphics.RectProto",
+                id: 9
+              },
+              windowConfiguration: {
+                type: ".android_common.app.WindowConfigurationProto",
+                id: 10
+              },
+              startLeash: {
+                type: ".android_common.view.SurfaceControlProto",
+                id: 11
+              },
+              startBounds: {
+                type: ".android_common.graphics.RectProto",
+                id: 12
+              },
+              localBounds: {
+                type: ".android_common.graphics.RectProto",
+                id: 13
+              },
+              screenSpaceBounds: {
+                type: ".android_common.graphics.RectProto",
+                id: 14
               }
-            }
-          },
-          DisplayStateEnum: {
-            values: {
-              DISPLAY_STATE_UNKNOWN: 0,
-              DISPLAY_STATE_OFF: 1,
-              DISPLAY_STATE_ON: 2,
-              DISPLAY_STATE_DOZE: 3,
-              DISPLAY_STATE_DOZE_SUSPEND: 4,
-              DISPLAY_STATE_VR: 5,
-              DISPLAY_STATE_ON_SUSPEND: 6
-            }
-          },
-          DisplayStateReason: {
-            values: {
-              DISPLAY_STATE_REASON_UNKNOWN: 0,
-              DISPLAY_STATE_REASON_DEFAULT_POLICY: 1,
-              DISPLAY_STATE_REASON_DRAW_WAKE_LOCK: 2,
-              DISPLAY_STATE_REASON_OFFLOAD: 3,
-              DISPLAY_STATE_REASON_TILT: 4,
-              DISPLAY_STATE_REASON_DREAM_MANAGER: 5,
-              DISPLAY_STATE_REASON_KEY: 6,
-              DISPLAY_STATE_REASON_MOTION: 7
-            }
-          },
-          TransitionTypeEnum: {
-            valuesOptions: {
-              TRANSIT_DOCK_TASK_FROM_RECENTS: {
-                deprecated: true
-              }
-            },
-            values: {
-              TRANSIT_NONE: 0,
-              TRANSIT_UNSET: -1,
-              TRANSIT_ACTIVITY_OPEN: 6,
-              TRANSIT_ACTIVITY_CLOSE: 7,
-              TRANSIT_TASK_OPEN: 8,
-              TRANSIT_TASK_CLOSE: 9,
-              TRANSIT_TASK_TO_FRONT: 10,
-              TRANSIT_TASK_TO_BACK: 11,
-              TRANSIT_WALLPAPER_CLOSE: 12,
-              TRANSIT_WALLPAPER_OPEN: 13,
-              TRANSIT_WALLPAPER_INTRA_OPEN: 14,
-              TRANSIT_WALLPAPER_INTRA_CLOSE: 15,
-              TRANSIT_TASK_OPEN_BEHIND: 16,
-              TRANSIT_TASK_IN_PLACE: 17,
-              TRANSIT_ACTIVITY_RELAUNCH: 18,
-              TRANSIT_DOCK_TASK_FROM_RECENTS: 19,
-              TRANSIT_KEYGUARD_GOING_AWAY: 20,
-              TRANSIT_KEYGUARD_GOING_AWAY_ON_WALLPAPER: 21,
-              TRANSIT_KEYGUARD_OCCLUDE: 22,
-              TRANSIT_KEYGUARD_UNOCCLUDE: 23,
-              TRANSIT_TRANSLUCENT_ACTIVITY_OPEN: 24,
-              TRANSIT_TRANSLUCENT_ACTIVITY_CLOSE: 25,
-              TRANSIT_CRASHING_ACTIVITY_CLOSE: 26
             }
           }
         }
@@ -3136,17 +3560,51 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
   google: {
     nested: {
       protobuf: {
+        options: {
+          go_package: "google.golang.org/protobuf/types/descriptorpb",
+          java_package: "com.google.protobuf",
+          java_outer_classname: "DescriptorProtos",
+          csharp_namespace: "Google.Protobuf.Reflection",
+          objc_class_prefix: "GPB",
+          cc_enable_arenas: true,
+          optimize_for: "SPEED"
+        },
         nested: {
           FileDescriptorSet: {
+            edition: "proto2",
             fields: {
               file: {
                 rule: "repeated",
                 type: "FileDescriptorProto",
                 id: 1
               }
+            },
+            extensions: [
+              [
+                536000000,
+                536000000
+              ]
+            ]
+          },
+          Edition: {
+            edition: "proto2",
+            values: {
+              EDITION_UNKNOWN: 0,
+              EDITION_LEGACY: 900,
+              EDITION_PROTO2: 998,
+              EDITION_PROTO3: 999,
+              EDITION_2023: 1000,
+              EDITION_2024: 1001,
+              EDITION_1_TEST_ONLY: 1,
+              EDITION_2_TEST_ONLY: 2,
+              EDITION_99997_TEST_ONLY: 99997,
+              EDITION_99998_TEST_ONLY: 99998,
+              EDITION_99999_TEST_ONLY: 99999,
+              EDITION_MAX: 2147483647
             }
           },
           FileDescriptorProto: {
+            edition: "proto2",
             fields: {
               name: {
                 type: "string",
@@ -3164,18 +3622,17 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
               publicDependency: {
                 rule: "repeated",
                 type: "int32",
-                id: 10,
-                options: {
-                  packed: false
-                }
+                id: 10
               },
               weakDependency: {
                 rule: "repeated",
                 type: "int32",
-                id: 11,
-                options: {
-                  packed: false
-                }
+                id: 11
+              },
+              optionDependency: {
+                rule: "repeated",
+                type: "string",
+                id: 15
               },
               messageType: {
                 rule: "repeated",
@@ -3208,10 +3665,15 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
               syntax: {
                 type: "string",
                 id: 12
+              },
+              edition: {
+                type: "Edition",
+                id: 14
               }
             }
           },
           DescriptorProto: {
+            edition: "proto2",
             fields: {
               name: {
                 type: "string",
@@ -3260,6 +3722,10 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                 rule: "repeated",
                 type: "string",
                 id: 10
+              },
+              visibility: {
+                type: "SymbolVisibility",
+                id: 11
               }
             },
             nested: {
@@ -3272,6 +3738,10 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                   end: {
                     type: "int32",
                     id: 2
+                  },
+                  options: {
+                    type: "ExtensionRangeOptions",
+                    id: 3
                   }
                 }
               },
@@ -3289,7 +3759,82 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
               }
             }
           },
+          ExtensionRangeOptions: {
+            edition: "proto2",
+            fields: {
+              uninterpretedOption: {
+                rule: "repeated",
+                type: "UninterpretedOption",
+                id: 999
+              },
+              declaration: {
+                rule: "repeated",
+                type: "Declaration",
+                id: 2,
+                options: {
+                  retention: "RETENTION_SOURCE"
+                }
+              },
+              features: {
+                type: "FeatureSet",
+                id: 50
+              },
+              verification: {
+                type: "VerificationState",
+                id: 3,
+                options: {
+                  "default": "UNVERIFIED",
+                  retention: "RETENTION_SOURCE"
+                }
+              }
+            },
+            extensions: [
+              [
+                1000,
+                536870911
+              ]
+            ],
+            nested: {
+              Declaration: {
+                fields: {
+                  number: {
+                    type: "int32",
+                    id: 1
+                  },
+                  fullName: {
+                    type: "string",
+                    id: 2
+                  },
+                  type: {
+                    type: "string",
+                    id: 3
+                  },
+                  reserved: {
+                    type: "bool",
+                    id: 5
+                  },
+                  repeated: {
+                    type: "bool",
+                    id: 6
+                  }
+                },
+                reserved: [
+                  [
+                    4,
+                    4
+                  ]
+                ]
+              },
+              VerificationState: {
+                values: {
+                  DECLARATION: 0,
+                  UNVERIFIED: 1
+                }
+              }
+            }
+          },
           FieldDescriptorProto: {
+            edition: "proto2",
             fields: {
               name: {
                 type: "string",
@@ -3330,6 +3875,10 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
               options: {
                 type: "FieldOptions",
                 id: 8
+              },
+              proto3Optional: {
+                type: "bool",
+                id: 17
               }
             },
             nested: {
@@ -3358,13 +3907,14 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
               Label: {
                 values: {
                   LABEL_OPTIONAL: 1,
-                  LABEL_REQUIRED: 2,
-                  LABEL_REPEATED: 3
+                  LABEL_REPEATED: 3,
+                  LABEL_REQUIRED: 2
                 }
               }
             }
           },
           OneofDescriptorProto: {
+            edition: "proto2",
             fields: {
               name: {
                 type: "string",
@@ -3377,6 +3927,7 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
             }
           },
           EnumDescriptorProto: {
+            edition: "proto2",
             fields: {
               name: {
                 type: "string",
@@ -3390,10 +3941,39 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
               options: {
                 type: "EnumOptions",
                 id: 3
+              },
+              reservedRange: {
+                rule: "repeated",
+                type: "EnumReservedRange",
+                id: 4
+              },
+              reservedName: {
+                rule: "repeated",
+                type: "string",
+                id: 5
+              },
+              visibility: {
+                type: "SymbolVisibility",
+                id: 6
+              }
+            },
+            nested: {
+              EnumReservedRange: {
+                fields: {
+                  start: {
+                    type: "int32",
+                    id: 1
+                  },
+                  end: {
+                    type: "int32",
+                    id: 2
+                  }
+                }
               }
             }
           },
           EnumValueDescriptorProto: {
+            edition: "proto2",
             fields: {
               name: {
                 type: "string",
@@ -3410,6 +3990,7 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
             }
           },
           ServiceDescriptorProto: {
+            edition: "proto2",
             fields: {
               name: {
                 type: "string",
@@ -3427,6 +4008,7 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
             }
           },
           MethodDescriptorProto: {
+            edition: "proto2",
             fields: {
               name: {
                 type: "string",
@@ -3455,6 +4037,7 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
             }
           },
           FileOptions: {
+            edition: "proto2",
             fields: {
               javaPackage: {
                 type: "string",
@@ -3508,7 +4091,10 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
               },
               ccEnableArenas: {
                 type: "bool",
-                id: 31
+                id: 31,
+                options: {
+                  "default": true
+                }
               },
               objcClassPrefix: {
                 type: "string",
@@ -3517,6 +4103,30 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
               csharpNamespace: {
                 type: "string",
                 id: 37
+              },
+              swiftPrefix: {
+                type: "string",
+                id: 39
+              },
+              phpClassPrefix: {
+                type: "string",
+                id: 40
+              },
+              phpNamespace: {
+                type: "string",
+                id: 41
+              },
+              phpMetadataNamespace: {
+                type: "string",
+                id: 44
+              },
+              rubyPackage: {
+                type: "string",
+                id: 45
+              },
+              features: {
+                type: "FeatureSet",
+                id: 50
               },
               uninterpretedOption: {
                 rule: "repeated",
@@ -3532,9 +4142,14 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
             ],
             reserved: [
               [
+                42,
+                42
+              ],
+              [
                 38,
                 38
-              ]
+              ],
+              "php_generic_services"
             ],
             nested: {
               OptimizeMode: {
@@ -3547,6 +4162,7 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
             }
           },
           MessageOptions: {
+            edition: "proto2",
             fields: {
               messageSetWireFormat: {
                 type: "bool",
@@ -3564,6 +4180,17 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                 type: "bool",
                 id: 7
               },
+              deprecatedLegacyJsonFieldConflicts: {
+                type: "bool",
+                id: 11,
+                options: {
+                  deprecated: true
+                }
+              },
+              features: {
+                type: "FeatureSet",
+                id: 12
+              },
               uninterpretedOption: {
                 rule: "repeated",
                 type: "UninterpretedOption",
@@ -3578,12 +4205,29 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
             ],
             reserved: [
               [
+                4,
+                4
+              ],
+              [
+                5,
+                5
+              ],
+              [
+                6,
+                6
+              ],
+              [
                 8,
                 8
+              ],
+              [
+                9,
+                9
               ]
             ]
           },
           FieldOptions: {
+            edition: "proto2",
             fields: {
               ctype: {
                 type: "CType",
@@ -3607,13 +4251,46 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                 type: "bool",
                 id: 5
               },
+              unverifiedLazy: {
+                type: "bool",
+                id: 15
+              },
               deprecated: {
                 type: "bool",
                 id: 3
               },
               weak: {
                 type: "bool",
-                id: 10
+                id: 10,
+                options: {
+                  deprecated: true
+                }
+              },
+              debugRedact: {
+                type: "bool",
+                id: 16
+              },
+              retention: {
+                type: "OptionRetention",
+                id: 17
+              },
+              targets: {
+                rule: "repeated",
+                type: "OptionTargetType",
+                id: 19
+              },
+              editionDefaults: {
+                rule: "repeated",
+                type: "EditionDefault",
+                id: 20
+              },
+              features: {
+                type: "FeatureSet",
+                id: 21
+              },
+              featureSupport: {
+                type: "FeatureSupport",
+                id: 22
               },
               uninterpretedOption: {
                 rule: "repeated",
@@ -3631,6 +4308,10 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
               [
                 4,
                 4
+              ],
+              [
+                18,
+                18
               ]
             ],
             nested: {
@@ -3647,51 +4328,67 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                   JS_STRING: 1,
                   JS_NUMBER: 2
                 }
+              },
+              OptionRetention: {
+                values: {
+                  RETENTION_UNKNOWN: 0,
+                  RETENTION_RUNTIME: 1,
+                  RETENTION_SOURCE: 2
+                }
+              },
+              OptionTargetType: {
+                values: {
+                  TARGET_TYPE_UNKNOWN: 0,
+                  TARGET_TYPE_FILE: 1,
+                  TARGET_TYPE_EXTENSION_RANGE: 2,
+                  TARGET_TYPE_MESSAGE: 3,
+                  TARGET_TYPE_FIELD: 4,
+                  TARGET_TYPE_ONEOF: 5,
+                  TARGET_TYPE_ENUM: 6,
+                  TARGET_TYPE_ENUM_ENTRY: 7,
+                  TARGET_TYPE_SERVICE: 8,
+                  TARGET_TYPE_METHOD: 9
+                }
+              },
+              EditionDefault: {
+                fields: {
+                  edition: {
+                    type: "Edition",
+                    id: 3
+                  },
+                  value: {
+                    type: "string",
+                    id: 2
+                  }
+                }
+              },
+              FeatureSupport: {
+                fields: {
+                  editionIntroduced: {
+                    type: "Edition",
+                    id: 1
+                  },
+                  editionDeprecated: {
+                    type: "Edition",
+                    id: 2
+                  },
+                  deprecationWarning: {
+                    type: "string",
+                    id: 3
+                  },
+                  editionRemoved: {
+                    type: "Edition",
+                    id: 4
+                  }
+                }
               }
             }
           },
           OneofOptions: {
+            edition: "proto2",
             fields: {
-              uninterpretedOption: {
-                rule: "repeated",
-                type: "UninterpretedOption",
-                id: 999
-              }
-            },
-            extensions: [
-              [
-                1000,
-                536870911
-              ]
-            ]
-          },
-          EnumOptions: {
-            fields: {
-              allowAlias: {
-                type: "bool",
-                id: 2
-              },
-              deprecated: {
-                type: "bool",
-                id: 3
-              },
-              uninterpretedOption: {
-                rule: "repeated",
-                type: "UninterpretedOption",
-                id: 999
-              }
-            },
-            extensions: [
-              [
-                1000,
-                536870911
-              ]
-            ]
-          },
-          EnumValueOptions: {
-            fields: {
-              deprecated: {
-                type: "bool",
+              features: {
+                type: "FeatureSet",
                 id: 1
               },
               uninterpretedOption: {
@@ -3707,8 +4404,86 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
               ]
             ]
           },
-          ServiceOptions: {
+          EnumOptions: {
+            edition: "proto2",
             fields: {
+              allowAlias: {
+                type: "bool",
+                id: 2
+              },
+              deprecated: {
+                type: "bool",
+                id: 3
+              },
+              deprecatedLegacyJsonFieldConflicts: {
+                type: "bool",
+                id: 6,
+                options: {
+                  deprecated: true
+                }
+              },
+              features: {
+                type: "FeatureSet",
+                id: 7
+              },
+              uninterpretedOption: {
+                rule: "repeated",
+                type: "UninterpretedOption",
+                id: 999
+              }
+            },
+            extensions: [
+              [
+                1000,
+                536870911
+              ]
+            ],
+            reserved: [
+              [
+                5,
+                5
+              ]
+            ]
+          },
+          EnumValueOptions: {
+            edition: "proto2",
+            fields: {
+              deprecated: {
+                type: "bool",
+                id: 1
+              },
+              features: {
+                type: "FeatureSet",
+                id: 2
+              },
+              debugRedact: {
+                type: "bool",
+                id: 3
+              },
+              featureSupport: {
+                type: "FieldOptions.FeatureSupport",
+                id: 4
+              },
+              uninterpretedOption: {
+                rule: "repeated",
+                type: "UninterpretedOption",
+                id: 999
+              }
+            },
+            extensions: [
+              [
+                1000,
+                536870911
+              ]
+            ]
+          },
+          ServiceOptions: {
+            edition: "proto2",
+            fields: {
+              features: {
+                type: "FeatureSet",
+                id: 34
+              },
               deprecated: {
                 type: "bool",
                 id: 33
@@ -3727,10 +4502,22 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
             ]
           },
           MethodOptions: {
+            edition: "proto2",
             fields: {
               deprecated: {
                 type: "bool",
                 id: 33
+              },
+              idempotencyLevel: {
+                type: "IdempotencyLevel",
+                id: 34,
+                options: {
+                  "default": "IDEMPOTENCY_UNKNOWN"
+                }
+              },
+              features: {
+                type: "FeatureSet",
+                id: 35
               },
               uninterpretedOption: {
                 rule: "repeated",
@@ -3743,9 +4530,19 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                 1000,
                 536870911
               ]
-            ]
+            ],
+            nested: {
+              IdempotencyLevel: {
+                values: {
+                  IDEMPOTENCY_UNKNOWN: 0,
+                  NO_SIDE_EFFECTS: 1,
+                  IDEMPOTENT: 2
+                }
+              }
+            }
           },
           UninterpretedOption: {
+            edition: "proto2",
             fields: {
               name: {
                 rule: "repeated",
@@ -3794,7 +4591,240 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
               }
             }
           },
+          FeatureSet: {
+            edition: "proto2",
+            fields: {
+              fieldPresence: {
+                type: "FieldPresence",
+                id: 1,
+                options: {
+                  retention: "RETENTION_RUNTIME",
+                  targets: "TARGET_TYPE_FILE",
+                  "feature_support.edition_introduced": "EDITION_2023",
+                  "edition_defaults.edition": "EDITION_2023",
+                  "edition_defaults.value": "EXPLICIT"
+                }
+              },
+              enumType: {
+                type: "EnumType",
+                id: 2,
+                options: {
+                  retention: "RETENTION_RUNTIME",
+                  targets: "TARGET_TYPE_FILE",
+                  "feature_support.edition_introduced": "EDITION_2023",
+                  "edition_defaults.edition": "EDITION_PROTO3",
+                  "edition_defaults.value": "OPEN"
+                }
+              },
+              repeatedFieldEncoding: {
+                type: "RepeatedFieldEncoding",
+                id: 3,
+                options: {
+                  retention: "RETENTION_RUNTIME",
+                  targets: "TARGET_TYPE_FILE",
+                  "feature_support.edition_introduced": "EDITION_2023",
+                  "edition_defaults.edition": "EDITION_PROTO3",
+                  "edition_defaults.value": "PACKED"
+                }
+              },
+              utf8Validation: {
+                type: "Utf8Validation",
+                id: 4,
+                options: {
+                  retention: "RETENTION_RUNTIME",
+                  targets: "TARGET_TYPE_FILE",
+                  "feature_support.edition_introduced": "EDITION_2023",
+                  "edition_defaults.edition": "EDITION_PROTO3",
+                  "edition_defaults.value": "VERIFY"
+                }
+              },
+              messageEncoding: {
+                type: "MessageEncoding",
+                id: 5,
+                options: {
+                  retention: "RETENTION_RUNTIME",
+                  targets: "TARGET_TYPE_FILE",
+                  "feature_support.edition_introduced": "EDITION_2023",
+                  "edition_defaults.edition": "EDITION_LEGACY",
+                  "edition_defaults.value": "LENGTH_PREFIXED"
+                }
+              },
+              jsonFormat: {
+                type: "JsonFormat",
+                id: 6,
+                options: {
+                  retention: "RETENTION_RUNTIME",
+                  targets: "TARGET_TYPE_FILE",
+                  "feature_support.edition_introduced": "EDITION_2023",
+                  "edition_defaults.edition": "EDITION_PROTO3",
+                  "edition_defaults.value": "ALLOW"
+                }
+              },
+              enforceNamingStyle: {
+                type: "EnforceNamingStyle",
+                id: 7,
+                options: {
+                  retention: "RETENTION_SOURCE",
+                  targets: "TARGET_TYPE_METHOD",
+                  "feature_support.edition_introduced": "EDITION_2024",
+                  "edition_defaults.edition": "EDITION_2024",
+                  "edition_defaults.value": "STYLE2024"
+                }
+              },
+              defaultSymbolVisibility: {
+                type: "VisibilityFeature.DefaultSymbolVisibility",
+                id: 8,
+                options: {
+                  retention: "RETENTION_SOURCE",
+                  targets: "TARGET_TYPE_FILE",
+                  "feature_support.edition_introduced": "EDITION_2024",
+                  "edition_defaults.edition": "EDITION_2024",
+                  "edition_defaults.value": "EXPORT_TOP_LEVEL"
+                }
+              }
+            },
+            extensions: [
+              [
+                1000,
+                9994
+              ],
+              [
+                9995,
+                9999
+              ],
+              [
+                10000,
+                10000
+              ]
+            ],
+            reserved: [
+              [
+                999,
+                999
+              ]
+            ],
+            nested: {
+              FieldPresence: {
+                values: {
+                  FIELD_PRESENCE_UNKNOWN: 0,
+                  EXPLICIT: 1,
+                  IMPLICIT: 2,
+                  LEGACY_REQUIRED: 3
+                }
+              },
+              EnumType: {
+                values: {
+                  ENUM_TYPE_UNKNOWN: 0,
+                  OPEN: 1,
+                  CLOSED: 2
+                }
+              },
+              RepeatedFieldEncoding: {
+                values: {
+                  REPEATED_FIELD_ENCODING_UNKNOWN: 0,
+                  PACKED: 1,
+                  EXPANDED: 2
+                }
+              },
+              Utf8Validation: {
+                values: {
+                  UTF8_VALIDATION_UNKNOWN: 0,
+                  VERIFY: 2,
+                  NONE: 3
+                }
+              },
+              MessageEncoding: {
+                values: {
+                  MESSAGE_ENCODING_UNKNOWN: 0,
+                  LENGTH_PREFIXED: 1,
+                  DELIMITED: 2
+                }
+              },
+              JsonFormat: {
+                values: {
+                  JSON_FORMAT_UNKNOWN: 0,
+                  ALLOW: 1,
+                  LEGACY_BEST_EFFORT: 2
+                }
+              },
+              EnforceNamingStyle: {
+                values: {
+                  ENFORCE_NAMING_STYLE_UNKNOWN: 0,
+                  STYLE2024: 1,
+                  STYLE_LEGACY: 2
+                }
+              },
+              VisibilityFeature: {
+                fields: {},
+                reserved: [
+                  [
+                    1,
+                    536870911
+                  ]
+                ],
+                nested: {
+                  DefaultSymbolVisibility: {
+                    values: {
+                      DEFAULT_SYMBOL_VISIBILITY_UNKNOWN: 0,
+                      EXPORT_ALL: 1,
+                      EXPORT_TOP_LEVEL: 2,
+                      LOCAL_ALL: 3,
+                      STRICT: 4
+                    }
+                  }
+                }
+              }
+            }
+          },
+          FeatureSetDefaults: {
+            edition: "proto2",
+            fields: {
+              defaults: {
+                rule: "repeated",
+                type: "FeatureSetEditionDefault",
+                id: 1
+              },
+              minimumEdition: {
+                type: "Edition",
+                id: 4
+              },
+              maximumEdition: {
+                type: "Edition",
+                id: 5
+              }
+            },
+            nested: {
+              FeatureSetEditionDefault: {
+                fields: {
+                  edition: {
+                    type: "Edition",
+                    id: 3
+                  },
+                  overridableFeatures: {
+                    type: "FeatureSet",
+                    id: 4
+                  },
+                  fixedFeatures: {
+                    type: "FeatureSet",
+                    id: 5
+                  }
+                },
+                reserved: [
+                  [
+                    1,
+                    1
+                  ],
+                  [
+                    2,
+                    2
+                  ],
+                  "features"
+                ]
+              }
+            }
+          },
           SourceCodeInfo: {
+            edition: "proto2",
             fields: {
               location: {
                 rule: "repeated",
@@ -3802,18 +4832,30 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                 id: 1
               }
             },
+            extensions: [
+              [
+                536000000,
+                536000000
+              ]
+            ],
             nested: {
               Location: {
                 fields: {
                   path: {
                     rule: "repeated",
                     type: "int32",
-                    id: 1
+                    id: 1,
+                    options: {
+                      packed: true
+                    }
                   },
                   span: {
                     rule: "repeated",
                     type: "int32",
-                    id: 2
+                    id: 2,
+                    options: {
+                      packed: true
+                    }
                   },
                   leadingComments: {
                     type: "string",
@@ -3833,6 +4875,7 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
             }
           },
           GeneratedCodeInfo: {
+            edition: "proto2",
             fields: {
               annotation: {
                 rule: "repeated",
@@ -3846,7 +4889,10 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                   path: {
                     rule: "repeated",
                     type: "int32",
-                    id: 1
+                    id: 1,
+                    options: {
+                      packed: true
+                    }
                   },
                   sourceFile: {
                     type: "string",
@@ -3859,9 +4905,30 @@ const $root = ($protobuf.roots.windowmanager_udc || ($protobuf.roots.windowmanag
                   end: {
                     type: "int32",
                     id: 4
+                  },
+                  semantic: {
+                    type: "Semantic",
+                    id: 5
+                  }
+                },
+                nested: {
+                  Semantic: {
+                    values: {
+                      NONE: 0,
+                      SET: 1,
+                      ALIAS: 2
+                    }
                   }
                 }
               }
+            }
+          },
+          SymbolVisibility: {
+            edition: "proto2",
+            values: {
+              VISIBILITY_UNSET: 0,
+              VISIBILITY_LOCAL: 1,
+              VISIBILITY_EXPORT: 2
             }
           }
         }

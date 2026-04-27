@@ -25,6 +25,11 @@ const modal_1 = require("../../../widgets/modal");
 const gcs_uploader_1 = require("../../../base/gcs_uploader");
 const utils_1 = require("../../../base/utils");
 const config_sharing_1 = require("../config/config_sharing");
+const callout_1 = require("../../../widgets/callout");
+const common_1 = require("../../../widgets/common");
+const semantic_icons_1 = require("../../../base/semantic_icons");
+const stack_1 = require("../../../widgets/stack");
+const anchor_1 = require("../../../widgets/anchor");
 const DEFAULT_SUBPAGE = 'target';
 const PERSIST_EVERY_MS = 1000;
 class RecordPageV2 {
@@ -48,7 +53,11 @@ class RecordPageV2 {
             (0, utils_1.exists)(attrs.subpage) && attrs.subpage.length > 0
                 ? attrs.subpage.substring(1)
                 : DEFAULT_SUBPAGE;
-        return (0, mithril_1.default)('.record-page', (0, mithril_1.default)('.record-container', (0, mithril_1.default)('.record-container-content', this.renderMenu(), //
+        const cmdlineUrl = 'https://perfetto.dev/docs/quickstart/android-tracing#perfetto-cmdline';
+        return (0, mithril_1.default)('.pf-record-page', (0, mithril_1.default)(stack_1.Stack, { className: 'pf-record-page__container' }, this.recMgr.recordConfig.traceConfig.mode === 'LONG_TRACE' &&
+            (0, mithril_1.default)(callout_1.Callout, { intent: common_1.Intent.Warning, icon: semantic_icons_1.Icons.Warning }, `
+              Recording in long trace mode through the UI is not supported.
+              Please copy the command and `, (0, mithril_1.default)(anchor_1.Anchor, { href: cmdlineUrl, target: '_blank' }, `collect the trace using ADB.`)), (0, mithril_1.default)('.pf-record-page__container-content', this.renderMenu(), //
         this.renderSubPage())));
     }
     onremove() {
@@ -58,10 +67,10 @@ class RecordPageV2 {
     renderSubPage() {
         const page = this.recMgr.pages.get(this.subpage);
         if (page === undefined) {
-            return (0, mithril_1.default)('.record-section.active', (0, mithril_1.default)('header', `Invalid subpage /record/${this.subpage}`));
+            return (0, mithril_1.default)('.pf-record-page__section.active', (0, mithril_1.default)('header', `Invalid subpage /record/${this.subpage}`));
         }
         return [
-            (0, mithril_1.default)('.record-section.active', { id: page.id, key: page.id }, this.renderSubpage(page)),
+            (0, mithril_1.default)('.pf-record-page__section.active', { id: page.id, key: page.id }, this.renderSubpage(page)),
         ];
     }
     renderSubpage(page) {
@@ -77,7 +86,7 @@ class RecordPageV2 {
     }
     renderMenu() {
         const pages = Array.from(this.recMgr.pages.values());
-        return (0, mithril_1.default)('.record-menu', (0, mithril_1.default)(RecordingCtl, { recMgr: this.recMgr }), (0, mithril_1.default)('header', 'Record settings', (0, mithril_1.default)(button_1.Button, {
+        return (0, mithril_1.default)('.pf-record-page__menu', (0, mithril_1.default)(RecordingCtl, { recMgr: this.recMgr }), (0, mithril_1.default)('header', 'Record settings', (0, mithril_1.default)(button_1.Button, {
             icon: 'share',
             title: 'Share current config',
             onclick: () => (0, config_sharing_1.shareRecordConfig)(this.recMgr.serializeSession()),
@@ -166,7 +175,8 @@ class RecordingCtl {
             })
             : (0, mithril_1.default)(button_1.Button, {
                 icon: 'not_started',
-                disabled: target === undefined,
+                disabled: target === undefined ||
+                    this.recMgr.recordConfig.traceConfig.mode === 'LONG_TRACE',
                 iconFilled: true,
                 title: 'Start tracing',
                 className: 'rec',

@@ -1,4 +1,5 @@
-wasm/gen/protos/third_party/chromium/chrome_track_event.descriptor: ..//protos/perfetto/trace/track_event/debug_annotation.proto\
+wasm/gen/protos/third_party/chromium/chrome_track_event.descriptor: ..//protos/third_party/chromium/chrome_enums.proto\
+ ..//protos/perfetto/trace/track_event/debug_annotation.proto\
  ..//protos/perfetto/trace/track_event/log_message.proto\
  ..//protos/perfetto/trace/track_event/task_execution.proto\
  ..//protos/perfetto/trace/track_event/chrome_active_processes.proto\
@@ -18,4 +19,5 @@ wasm/gen/protos/third_party/chromium/chrome_track_event.descriptor: ..//protos/p
  ..//protos/perfetto/trace/track_event/chrome_window_handle_event_info.proto\
  ..//protos/perfetto/trace/track_event/screenshot.proto\
  ..//protos/perfetto/trace/track_event/track_event.proto\
- ..//protos/third_party/chromium/chrome_track_event.proto
+ ..//protos/third_party/chromium/chrome_track_event.proto\
+ ..//protos/third_party/chromium/chrome_track_event_import_wrapper.proto

@@ -14,25 +14,25 @@
  * limitations under the License.
  */
 
-import {assertDefined} from 'common/assert_utils';
+import {assertDefined} from 'common/assert';
+import {com} from 'protos/transitions/udc/static';
+import {LegacyParserProvider} from 'test/unit/fixture_utils';
 import {
-  TimestampConverterUtils,
+  makeZeroTimestamp,
   timestampEqualityTester,
-} from 'common/time/test_utils';
-import {UnitTestUtils} from 'test/unit/utils';
-import {CoarseVersion} from 'trace/coarse_version';
-import {Parser} from 'trace/parser';
-import {TraceType} from 'trace/trace_type';
-import {PropertyTreeNode} from 'trace/tree_node/property_tree_node';
+} from 'test/unit/time_test_helpers';
+import {CoarseVersion} from 'trace_api/coarse_version';
+import {Parser} from 'trace_api/parser';
+import {TraceType} from 'trace_api/trace_type';
 
 describe('ParserTransitionsWm', () => {
-  let parser: Parser<PropertyTreeNode>;
+  let parser: Parser<com.android.server.wm.shell.ITransition>;
 
   beforeAll(async () => {
     jasmine.addCustomEqualityTester(timestampEqualityTester);
-    parser = (await UnitTestUtils.getParser(
-      'traces/elapsed_and_real_timestamp/wm_transition_trace.pb',
-    )) as Parser<PropertyTreeNode>;
+    parser = await new LegacyParserProvider()
+      .addFile('traces/elapsed_and_real_timestamp/wm_transition_trace.pb')
+      .getParser<com.android.server.wm.shell.ITransition>();
   });
 
   it('has expected trace type', () => {
@@ -45,23 +45,15 @@ describe('ParserTransitionsWm', () => {
 
   it('provides timestamps', () => {
     const timestamps = assertDefined(parser.getTimestamps());
-    expect(timestamps.length).toEqual(8);
-    const expected = TimestampConverterUtils.makeZeroTimestamp();
+    expect(timestamps.length).toBe(8);
+    const expected = makeZeroTimestamp();
     timestamps.forEach((timestamp) => expect(timestamp).toEqual(expected));
   });
 
-  it('translates flags', async () => {
-    const entry = await parser.getEntry(4);
-    expect(
-      entry.getChildByName('wmData')?.getChildByName('flags')?.formattedValue(),
-    ).toEqual('TRANSIT_FLAG_IS_RECENTS');
-
-    const targets = entry.getChildByName('wmData')?.getChildByName('targets');
-    expect(
-      targets?.getChildByName('0')?.getChildByName('flags')?.formattedValue(),
-    ).toEqual('FLAG_MOVED_TO_TOP | FLAG_SHOW_WALLPAPER');
-    expect(
-      targets?.getChildByName('1')?.getChildByName('flags')?.formattedValue(),
-    ).toEqual('FLAG_NONE');
+  it('provides decoded proto', async () => {
+    const entry = await parser.getEntry(0);
+    expect(entry.id).toBe(6);
+    expect(entry.startTransactionId?.toString()).toBe('13086765351818');
+    expect(entry.sendTimeNs?.toString()).toBe('57649646973488');
   });
 });

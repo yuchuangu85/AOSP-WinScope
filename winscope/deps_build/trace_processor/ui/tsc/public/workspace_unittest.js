@@ -177,7 +177,7 @@ test('TrackNode::clone', () => {
     expect(cloned.id).not.toBe(root.id); // id should be different
     expect(cloned.uri).toBe(root.uri);
     expect(cloned.expanded).toBe(root.expanded);
-    expect(cloned.title).toBe(root.title);
+    expect(cloned.name).toBe(root.name);
     expect(cloned.headless).toBe(root.headless);
     expect(cloned.isSummary).toBe(root.isSummary);
     expect(cloned.removable).toBe(root.removable);
@@ -193,14 +193,14 @@ test('TrackNode::clone(deep)', () => {
     expect(cloned.id).not.toBe(root.id); // id should be different
     expect(cloned.uri).toBe(root.uri);
     expect(cloned.expanded).toBe(root.expanded);
-    expect(cloned.title).toBe(root.title);
+    expect(cloned.name).toBe(root.name);
     expect(cloned.headless).toBe(root.headless);
     expect(cloned.isSummary).toBe(root.isSummary);
     expect(cloned.removable).toBe(root.removable);
     expect(cloned.children).toHaveLength(2);
-    expect(cloned.children[0].title).toBe(childA.title);
+    expect(cloned.children[0].name).toBe(childA.name);
     expect(cloned.children[0].uri).toBe(childA.uri);
-    expect(cloned.children[1].title).toBe(childB.title);
+    expect(cloned.children[1].name).toBe(childB.name);
     expect(cloned.children[1].uri).toBe(childB.uri);
 });
 //# sourceMappingURL=workspace_unittest.js.map

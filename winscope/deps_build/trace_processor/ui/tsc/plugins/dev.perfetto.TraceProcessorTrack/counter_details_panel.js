@@ -24,9 +24,9 @@ const section_1 = require("../../widgets/section");
 const tree_1 = require("../../widgets/tree");
 const timestamp_1 = require("../../components/widgets/timestamp");
 const duration_1 = require("../../components/widgets/duration");
-const slice_args_1 = require("../../components/details/slice_args");
+const args_1 = require("../../components/details/args");
 const core_types_1 = require("../../components/sql_utils/core_types");
-const args_1 = require("../../components/sql_utils/args");
+const args_2 = require("../../components/sql_utils/args");
 class CounterDetailsPanel {
     trace;
     engine;
@@ -47,11 +47,11 @@ class CounterDetailsPanel {
     render() {
         const counterInfo = this.counterDetails;
         if (counterInfo) {
-            const args = (0, slice_args_1.hasArgs)(counterInfo.args) &&
-                (0, mithril_1.default)(section_1.Section, { title: 'Arguments' }, (0, mithril_1.default)(tree_1.Tree, (0, slice_args_1.renderArguments)(this.trace, counterInfo.args)));
+            const args = (0, args_1.hasArgs)(counterInfo.args) &&
+                (0, mithril_1.default)(section_1.Section, { title: 'Arguments' }, (0, mithril_1.default)(tree_1.Tree, (0, args_1.renderArguments)(this.trace, counterInfo.args)));
             return (0, mithril_1.default)(details_shell_1.DetailsShell, { title: 'Counter', description: `${this.trackName}` }, (0, mithril_1.default)(grid_layout_1.GridLayout, (0, mithril_1.default)(section_1.Section, { title: 'Properties' }, (0, mithril_1.default)(tree_1.Tree, (0, mithril_1.default)(tree_1.TreeNode, { left: 'Name', right: `${this.trackName}` }), (0, mithril_1.default)(tree_1.TreeNode, {
                 left: 'Start time',
-                right: (0, mithril_1.default)(timestamp_1.Timestamp, { ts: counterInfo.ts }),
+                right: (0, mithril_1.default)(timestamp_1.Timestamp, { trace: this.trace, ts: counterInfo.ts }),
             }), (0, mithril_1.default)(tree_1.TreeNode, {
                 left: 'Value',
                 right: `${counterInfo.value.toLocaleString()}`,
@@ -60,7 +60,10 @@ class CounterDetailsPanel {
                 right: `${counterInfo.delta.toLocaleString()}`,
             }), (0, mithril_1.default)(tree_1.TreeNode, {
                 left: 'Duration',
-                right: (0, mithril_1.default)(duration_1.DurationWidget, { dur: counterInfo.duration }),
+                right: (0, mithril_1.default)(duration_1.DurationWidget, {
+                    trace: this.trace,
+                    dur: counterInfo.duration,
+                }),
             }))), args));
         }
         else {
@@ -123,7 +126,7 @@ async function loadCounterDetails(engine, trackId, id, rootTable) {
     const delta = value - prevValue;
     const duration = rightTs - leftTs;
     const argSetId = row.argSetId;
-    const args = argSetId == null ? undefined : await (0, args_1.getArgs)(engine, (0, core_types_1.asArgSetId)(argSetId));
+    const args = argSetId == null ? undefined : await (0, args_2.getArgs)(engine, (0, core_types_1.asArgSetId)(argSetId));
     return { ts: leftTs, value, delta, duration, args };
 }
 //# sourceMappingURL=counter_details_panel.js.map

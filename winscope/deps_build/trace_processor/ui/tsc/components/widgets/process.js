@@ -28,18 +28,12 @@ const menu_1 = require("../../widgets/menu");
 const process_details_tab_1 = require("../details/process_details_tab");
 const sql_ref_renderer_registry_1 = require("../widgets/sql/details/sql_ref_renderer_registry");
 const core_types_1 = require("../sql_utils/core_types");
-const app_impl_1 = require("../../core/app_impl");
-function showProcessDetailsMenuItem(upid, pid) {
+function showProcessDetailsMenuItem(trace, upid, pid) {
     return (0, mithril_1.default)(menu_1.MenuItem, {
         icon: semantic_icons_1.Icons.ExternalLink,
         label: 'Show process details',
         onclick: () => {
-            // TODO(primiano): `trace` should be injected, but doing so would require
-            // an invasive refactoring of most classes in frontend/widgets/sql/*.
-            const trace = app_impl_1.AppImpl.instance.trace;
-            if (trace === undefined)
-                return;
-            (0, add_ephemeral_tab_1.addEphemeralTab)('processDetails', new process_details_tab_1.ProcessDetailsTab({
+            (0, add_ephemeral_tab_1.addEphemeralTab)(trace, 'processDetails', new process_details_tab_1.ProcessDetailsTab({
                 trace,
                 upid,
                 pid,
@@ -47,7 +41,7 @@ function showProcessDetailsMenuItem(upid, pid) {
         },
     });
 }
-function processRefMenuItems(info) {
+function processRefMenuItems(trace, info) {
     // We capture a copy to be able to pass it across async boundary to `onclick`.
     const name = info.name;
     return [
@@ -68,15 +62,15 @@ function processRefMenuItems(info) {
             label: 'Copy upid',
             onclick: () => (0, clipboard_1.copyToClipboard)(`${info.upid}`),
         }),
-        showProcessDetailsMenuItem(info.upid, info.pid),
+        showProcessDetailsMenuItem(trace, info.upid, info.pid),
     ];
 }
-function renderProcessRef(info) {
+function renderProcessRef(trace, info) {
     return (0, mithril_1.default)(menu_1.PopupMenu, {
         trigger: (0, mithril_1.default)(anchor_1.Anchor, (0, process_1.getProcessName)(info)),
-    }, processRefMenuItems(info));
+    }, processRefMenuItems(trace, info));
 }
-sql_ref_renderer_registry_1.sqlIdRegistry['process'] = (0, sql_ref_renderer_registry_1.createSqlIdRefRenderer)(async (engine, id) => await (0, process_1.getProcessInfo)(engine, (0, core_types_1.asUpid)(Number(id))), (data) => ({
-    value: renderProcessRef(data),
+sql_ref_renderer_registry_1.sqlIdRegistry['process'] = (0, sql_ref_renderer_registry_1.createSqlIdRefRenderer)(async (engine, id) => await (0, process_1.getProcessInfo)(engine, (0, core_types_1.asUpid)(Number(id))), (trace, data) => ({
+    value: renderProcessRef(trace, data),
 }));
 //# sourceMappingURL=process.js.map

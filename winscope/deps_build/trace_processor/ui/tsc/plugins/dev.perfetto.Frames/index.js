@@ -14,13 +14,13 @@
 // limitations under the License.
 Object.defineProperty(exports, "__esModule", { value: true });
 const tslib_1 = require("tslib");
+const aggregation_adapter_1 = require("../../components/aggregation_adapter");
 const workspace_1 = require("../../public/workspace");
 const query_result_1 = require("../../trace_processor/query_result");
+const dev_perfetto_ProcessThreadGroups_1 = tslib_1.__importDefault(require("../dev.perfetto.ProcessThreadGroups"));
 const actual_frames_track_1 = require("./actual_frames_track");
 const expected_frames_track_1 = require("./expected_frames_track");
 const frame_selection_aggregator_1 = require("./frame_selection_aggregator");
-const dev_perfetto_ProcessThreadGroups_1 = tslib_1.__importDefault(require("../dev.perfetto.ProcessThreadGroups"));
-const aggregation_adapter_1 = require("../../components/aggregation_adapter");
 // Build a standardized URI for a frames track
 function makeUri(upid, kind) {
     return `/process_${upid}/${kind}`;
@@ -31,7 +31,7 @@ class default_1 {
     async onTraceLoad(ctx) {
         this.addExpectedFrames(ctx);
         this.addActualFrames(ctx);
-        ctx.selection.registerAreaSelectionTab((0, aggregation_adapter_1.createAggregationToTabAdaptor)(ctx, new frame_selection_aggregator_1.FrameSelectionAggregator()));
+        ctx.selection.registerAreaSelectionTab((0, aggregation_adapter_1.createAggregationTab)(ctx, new frame_selection_aggregator_1.FrameSelectionAggregator(), 10));
     }
     async addExpectedFrames(ctx) {
         const { engine } = ctx;
@@ -62,12 +62,10 @@ class default_1 {
             const rawTrackIds = it.trackIds;
             const trackIds = rawTrackIds.split(',').map((v) => Number(v));
             const maxDepth = it.maxDepth;
-            const title = 'Expected Timeline';
             const uri = makeUri(upid, 'expected_frames');
             ctx.tracks.registerTrack({
                 uri,
-                title,
-                track: (0, expected_frames_track_1.createExpectedFramesTrack)(ctx, uri, maxDepth, trackIds),
+                renderer: (0, expected_frames_track_1.createExpectedFramesTrack)(ctx, uri, maxDepth, trackIds),
                 tags: {
                     trackIds,
                     upid,
@@ -76,7 +74,11 @@ class default_1 {
             const group = ctx.plugins
                 .getPlugin(dev_perfetto_ProcessThreadGroups_1.default)
                 .getGroupForProcess(upid);
-            const track = new workspace_1.TrackNode({ uri, title, sortOrder: -50 });
+            const track = new workspace_1.TrackNode({
+                uri,
+                name: 'Expected Timeline',
+                sortOrder: -50,
+            });
             group?.addChildInOrder(track);
         }
     }
@@ -109,12 +111,10 @@ class default_1 {
             const rawTrackIds = it.trackIds;
             const trackIds = rawTrackIds.split(',').map((v) => Number(v));
             const maxDepth = it.maxDepth;
-            const title = 'Actual Timeline';
             const uri = makeUri(upid, 'actual_frames');
             ctx.tracks.registerTrack({
                 uri,
-                title,
-                track: (0, actual_frames_track_1.createActualFramesTrack)(ctx, uri, maxDepth, trackIds),
+                renderer: (0, actual_frames_track_1.createActualFramesTrack)(ctx, uri, maxDepth, trackIds),
                 tags: {
                     upid,
                     trackIds,
@@ -124,7 +124,11 @@ class default_1 {
             const group = ctx.plugins
                 .getPlugin(dev_perfetto_ProcessThreadGroups_1.default)
                 .getGroupForProcess(upid);
-            const track = new workspace_1.TrackNode({ uri, title, sortOrder: -50 });
+            const track = new workspace_1.TrackNode({
+                uri,
+                name: 'Actual Timeline',
+                sortOrder: -50,
+            });
             group?.addChildInOrder(track);
         }
     }

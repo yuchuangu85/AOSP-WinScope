@@ -34,7 +34,6 @@ class InternedV8WasmScript;
 class LogMessageBody;
 class Mapping;
 class NetworkPacketContext;
-class ProfiledFrameSymbols;
 class SourceLocation;
 class UnsymbolizedSourceLocation;
 } // Namespace pbzero.
@@ -45,7 +44,7 @@ namespace perfetto {
 namespace protos {
 namespace pbzero {
 
-class InternedData_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/42, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
+class InternedData_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/43, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
  public:
   InternedData_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
   explicit InternedData_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
@@ -74,8 +73,6 @@ class InternedData_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_I
   ::protozero::RepeatedFieldIterator<::protozero::ConstBytes> source_paths() const { return GetRepeated<::protozero::ConstBytes>(18); }
   bool has_function_names() const { return at<5>().valid(); }
   ::protozero::RepeatedFieldIterator<::protozero::ConstBytes> function_names() const { return GetRepeated<::protozero::ConstBytes>(5); }
-  bool has_profiled_frame_symbols() const { return at<21>().valid(); }
-  ::protozero::RepeatedFieldIterator<::protozero::ConstBytes> profiled_frame_symbols() const { return GetRepeated<::protozero::ConstBytes>(21); }
   bool has_mappings() const { return at<19>().valid(); }
   ::protozero::RepeatedFieldIterator<::protozero::ConstBytes> mappings() const { return GetRepeated<::protozero::ConstBytes>(19); }
   bool has_frames() const { return at<6>().valid(); }
@@ -118,6 +115,8 @@ class InternedData_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_I
   ::protozero::RepeatedFieldIterator<::protozero::ConstBytes> viewcapture_class_name() const { return GetRepeated<::protozero::ConstBytes>(41); }
   bool has_app_wakelock_info() const { return at<42>().valid(); }
   ::protozero::RepeatedFieldIterator<::protozero::ConstBytes> app_wakelock_info() const { return GetRepeated<::protozero::ConstBytes>(42); }
+  bool has_correlation_id_str() const { return at<43>().valid(); }
+  ::protozero::RepeatedFieldIterator<::protozero::ConstBytes> correlation_id_str() const { return GetRepeated<::protozero::ConstBytes>(43); }
 };
 
 class InternedData : public ::protozero::Message {
@@ -136,7 +135,6 @@ class InternedData : public ::protozero::Message {
     kMappingPathsFieldNumber = 17,
     kSourcePathsFieldNumber = 18,
     kFunctionNamesFieldNumber = 5,
-    kProfiledFrameSymbolsFieldNumber = 21,
     kMappingsFieldNumber = 19,
     kFramesFieldNumber = 6,
     kCallstacksFieldNumber = 7,
@@ -158,6 +156,7 @@ class InternedData : public ::protozero::Message {
     kViewcaptureViewIdFieldNumber = 40,
     kViewcaptureClassNameFieldNumber = 41,
     kAppWakelockInfoFieldNumber = 42,
+    kCorrelationIdStrFieldNumber = 43,
   };
   static constexpr const char* GetName() { return ".perfetto.protos.InternedData"; }
 
@@ -327,20 +326,6 @@ class InternedData : public ::protozero::Message {
   static constexpr FieldMetadata_FunctionNames kFunctionNames{};
   template <typename T = InternedString> T* add_function_names() {
     return BeginNestedMessage<T>(5);
-  }
-
-
-  using FieldMetadata_ProfiledFrameSymbols =
-    ::protozero::proto_utils::FieldMetadata<
-      21,
-      ::protozero::proto_utils::RepetitionType::kRepeatedNotPacked,
-      ::protozero::proto_utils::ProtoSchemaType::kMessage,
-      ProfiledFrameSymbols,
-      InternedData>;
-
-  static constexpr FieldMetadata_ProfiledFrameSymbols kProfiledFrameSymbols{};
-  template <typename T = ProfiledFrameSymbols> T* add_profiled_frame_symbols() {
-    return BeginNestedMessage<T>(21);
   }
 
 
@@ -635,6 +620,20 @@ class InternedData : public ::protozero::Message {
   static constexpr FieldMetadata_AppWakelockInfo kAppWakelockInfo{};
   template <typename T = AppWakelockInfo> T* add_app_wakelock_info() {
     return BeginNestedMessage<T>(42);
+  }
+
+
+  using FieldMetadata_CorrelationIdStr =
+    ::protozero::proto_utils::FieldMetadata<
+      43,
+      ::protozero::proto_utils::RepetitionType::kRepeatedNotPacked,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      InternedString,
+      InternedData>;
+
+  static constexpr FieldMetadata_CorrelationIdStr kCorrelationIdStr{};
+  template <typename T = InternedString> T* add_correlation_id_str() {
+    return BeginNestedMessage<T>(43);
   }
 
 };

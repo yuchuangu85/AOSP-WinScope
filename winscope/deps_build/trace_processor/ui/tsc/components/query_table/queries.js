@@ -14,6 +14,8 @@
 // limitations under the License.
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.runQueryForQueryTable = runQueryForQueryTable;
+exports.formatAsDelimited = formatAsDelimited;
+exports.formatAsMarkdownTable = formatAsMarkdownTable;
 /**
  * Runs a query and pulls out all the columns into a list of 'row' objects,
  * where each row contains a dictionary of [columnName] -> value.
@@ -45,7 +47,7 @@ async function runQueryForQueryTable(sqlQuery, engine) {
             const row = {};
             for (const colName of columns) {
                 const value = iter.get(colName);
-                row[colName] = value === null ? 'NULL' : value;
+                row[colName] = value;
             }
             rows.push(row);
         }
@@ -79,5 +81,52 @@ async function runQueryForQueryTable(sqlQuery, engine) {
             lastStatementSql: '',
         };
     }
+}
+function formatAsDelimited(resp, separator = '\t') {
+    const lines = [];
+    lines.push(resp.columns);
+    for (const row of resp.rows) {
+        const line = [];
+        for (const col of resp.columns) {
+            const value = row[col];
+            line.push(value === null ? 'NULL' : `${value}`);
+        }
+        lines.push(line);
+    }
+    return lines.map((line) => line.join(separator)).join('\n');
+}
+function formatAsMarkdownTable(resp) {
+    if (resp.columns.length === 0)
+        return '';
+    // Convert all values to strings.
+    // rows = [header, separators, ...body]
+    const rows = [];
+    rows.push(resp.columns);
+    rows.push(resp.columns.map((_) => '---'));
+    for (const responseRow of resp.rows) {
+        rows.push(resp.columns.map((responseCol) => {
+            const value = responseRow[responseCol];
+            return value === null ? 'NULL' : `${value}`;
+        }));
+    }
+    // Find the maximum width of each column.
+    const maxWidths = Array(resp.columns.length).fill(0);
+    for (const row of rows) {
+        for (let i = 0; i < resp.columns.length; i++) {
+            if (row[i].length > maxWidths[i]) {
+                maxWidths[i] = row[i].length;
+            }
+        }
+    }
+    const text = rows
+        .map((row, rowIndex) => {
+        // Pad each column to the maximum width with hyphens (separator row) or
+        // spaces (all other rows).
+        const expansionChar = rowIndex === 1 ? '-' : ' ';
+        const line = row.map((str, colIndex) => str + expansionChar.repeat(maxWidths[colIndex] - str.length));
+        return `| ${line.join(' | ')} |`;
+    })
+        .join('\n');
+    return text;
 }
 //# sourceMappingURL=queries.js.map

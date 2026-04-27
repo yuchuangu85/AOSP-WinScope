@@ -27,7 +27,7 @@ const utils_1 = require("../../base/utils");
 //
 // If you want to convert args to a POJO, try convertArgsToObject().
 //
-// Key should be a path seperated by periods (.) or indexes specified using a
+// Key should be a path separated by periods (.) or indexes specified using a
 // number inside square brackets.
 // e.g. foo.bar[0].x
 //
@@ -74,7 +74,7 @@ function insert(args, keys, path, value) {
 // both number and string types) as nodes cannot be both an object and an array,
 // and will throw when this situation arises.
 //
-// Key should be a path seperated by periods (.) or indexes specified using a
+// Key should be a path separated by periods (.) or indexes specified using a
 // number inside square brackets.
 // e.g. foo.bar[0].x
 //

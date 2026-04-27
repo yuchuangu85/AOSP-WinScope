@@ -13,15 +13,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.KeycapGlyph = exports.HotkeyGlyphs = void 0;
+exports.Keycap = exports.KeycapGlyph = exports.HotkeyGlyphs = void 0;
 const tslib_1 = require("tslib");
 const mithril_1 = tslib_1.__importDefault(require("mithril"));
 const hotkeys_1 = require("../base/hotkeys");
 const icon_1 = require("./icon");
+const common_1 = require("./common");
+const classnames_1 = require("../base/classnames");
 // Renders a hotkey as a series of little keycaps.
 class HotkeyGlyphs {
     view({ attrs }) {
-        const { hotkey, spoof } = attrs;
+        const { hotkey, spoof, spacing } = attrs;
         const platform = spoof || (0, hotkeys_1.getPlatform)();
         const result = (0, hotkeys_1.parseHotkey)(hotkey);
         if (result) {
@@ -30,10 +32,10 @@ class HotkeyGlyphs {
             const hasCtrl = modifier.includes('Ctrl');
             const hasAlt = modifier.includes('Alt');
             const hasShift = modifier.includes('Shift');
-            return (0, mithril_1.default)('span.pf-hotkey', hasMod && (0, mithril_1.default)('span.pf-keycap', glyphForMod(platform)), hasCtrl && (0, mithril_1.default)('span.pf-keycap', glyphForCtrl(platform)), hasAlt && (0, mithril_1.default)('span.pf-keycap', glyphForAlt(platform)), hasShift && (0, mithril_1.default)('span.pf-keycap', glyphForShift()), (0, mithril_1.default)('span.pf-keycap', glyphForKey(key, platform)));
+            return (0, mithril_1.default)('span.pf-hotkey', hasMod && (0, mithril_1.default)(Keycap, { spacing }, glyphForMod(platform)), hasCtrl && (0, mithril_1.default)(Keycap, { spacing }, glyphForCtrl(platform)), hasAlt && (0, mithril_1.default)(Keycap, { spacing }, glyphForAlt(platform)), hasShift && (0, mithril_1.default)(Keycap, { spacing }, glyphForShift()), (0, mithril_1.default)(Keycap, { spacing }, glyphForKey(key, platform)));
         }
         else {
-            return (0, mithril_1.default)('span.pf-keycap', '???');
+            return (0, mithril_1.default)(Keycap, { spacing }, '???');
         }
     }
 }
@@ -41,12 +43,19 @@ exports.HotkeyGlyphs = HotkeyGlyphs;
 // Renders a single keycap.
 class KeycapGlyph {
     view({ attrs }) {
-        const { keyValue, spoof } = attrs;
+        const { keyValue, spoof, spacing } = attrs;
         const platform = spoof || (0, hotkeys_1.getPlatform)();
-        return (0, mithril_1.default)('span.pf-keycap', glyphForKey(keyValue, platform));
+        return (0, mithril_1.default)(Keycap, { spacing }, glyphForKey(keyValue, platform));
     }
 }
 exports.KeycapGlyph = KeycapGlyph;
+class Keycap {
+    view({ attrs, children }) {
+        const { spacing = 'medium' } = attrs;
+        return (0, mithril_1.default)('span.pf-keycap', { className: (0, classnames_1.classNames)((0, common_1.classForSpacing)(spacing)), ...attrs }, children);
+    }
+}
+exports.Keycap = Keycap;
 function glyphForKey(key, platform) {
     if (key === 'Enter') {
         return (0, mithril_1.default)(icon_1.Icon, { icon: 'keyboard_return' });

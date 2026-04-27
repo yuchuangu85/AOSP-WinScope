@@ -15,25 +15,25 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createTableColumnFromPerfettoSql = createTableColumnFromPerfettoSql;
 const columns_1 = require("../../components/widgets/sql/table/columns");
-function createTableColumnFromPerfettoSql(col, tableName) {
+function createTableColumnFromPerfettoSql(trace, col, tableName) {
     if (col.type.shortName === 'timestamp') {
-        return new columns_1.TimestampColumn(col.name);
+        return new columns_1.TimestampColumn(trace, col.name);
     }
     if (col.type.shortName === 'duration') {
-        return new columns_1.DurationColumn(col.name);
+        return new columns_1.DurationColumn(trace, col.name);
     }
     if (col.type.shortName === 'id') {
         switch (tableName.toLowerCase()) {
             case 'slice':
-                return new columns_1.SliceIdColumn(col.name, { type: 'id' });
+                return new columns_1.SliceIdColumn(trace, col.name, { type: 'id' });
             case 'thread':
-                return new columns_1.ThreadIdColumn(col.name, { type: 'id' });
+                return new columns_1.ThreadIdColumn(trace, col.name, { type: 'id' });
             case 'process':
-                return new columns_1.ProcessIdColumn(col.name, { type: 'id' });
+                return new columns_1.ProcessIdColumn(trace, col.name, { type: 'id' });
             case 'thread_state':
-                return new columns_1.ThreadStateIdColumn(col.name);
+                return new columns_1.ThreadStateIdColumn(trace, col.name);
             case 'sched':
-                return new columns_1.SchedIdColumn(col.name);
+                return new columns_1.SchedIdColumn(trace, col.name);
         }
         return new columns_1.StandardColumn(col.name);
     }
@@ -43,15 +43,15 @@ function createTableColumnFromPerfettoSql(col, tableName) {
         }
         switch (col.type.tableAndColumn.table.toLowerCase()) {
             case 'slice':
-                return new columns_1.SliceIdColumn(col.name);
+                return new columns_1.SliceIdColumn(trace, col.name);
             case 'thread':
-                return new columns_1.ThreadIdColumn(col.name);
+                return new columns_1.ThreadIdColumn(trace, col.name);
             case 'process':
-                return new columns_1.ProcessIdColumn(col.name);
+                return new columns_1.ProcessIdColumn(trace, col.name);
             case 'thread_state':
-                return new columns_1.ThreadStateIdColumn(col.name);
+                return new columns_1.ThreadStateIdColumn(trace, col.name);
             case 'sched':
-                return new columns_1.SchedIdColumn(col.name);
+                return new columns_1.SchedIdColumn(trace, col.name);
         }
     }
     return new columns_1.StandardColumn(col.name);

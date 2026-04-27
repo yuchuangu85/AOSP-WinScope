@@ -82,6 +82,11 @@ async function listProcesses(trace) {
 }
 class default_1 {
     static id = 'dev.perfetto.Thread';
+    static description = `
+    Extracts thread and process information from traces, making this information
+    available to other plugins. Also adds track filtering criteria to allow
+    track filtering by thread and process.
+  `;
     threads;
     async onTraceLoad(trace) {
         const threadMap = await listThreads(trace);

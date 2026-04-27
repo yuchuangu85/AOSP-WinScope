@@ -14,27 +14,26 @@
  * limitations under the License.
  */
 
-import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {TestBed} from '@angular/core/testing';
 import {MatButtonModule} from '@angular/material/button';
 import {MatIconModule} from '@angular/material/icon';
-import {assertDefined} from 'common/assert_utils';
-import {CollapsibleSections} from 'viewers/common/collapsible_sections';
+import {assertDefined} from 'common/assert';
+import {DOMTestHelper} from 'test/unit/dom_test_helpers';
 import {CollapsibleSectionType} from 'viewers/common/collapsible_section_type';
+import {CollapsibleSections} from 'viewers/common/collapsible_sections';
 import {CollapsedSectionsComponent} from './collapsed_sections_component';
 
 describe('CollapsedSectionsComponent', () => {
-  let fixture: ComponentFixture<CollapsedSectionsComponent>;
   let component: CollapsedSectionsComponent;
-  let htmlElement: HTMLElement;
+  let dom: DOMTestHelper<CollapsedSectionsComponent>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [MatButtonModule, MatIconModule],
-      declarations: [CollapsedSectionsComponent],
+      imports: [CollapsedSectionsComponent, MatButtonModule, MatIconModule],
     }).compileComponents();
-    fixture = TestBed.createComponent(CollapsedSectionsComponent);
+    const fixture = TestBed.createComponent(CollapsedSectionsComponent);
     component = fixture.componentInstance;
-    htmlElement = fixture.nativeElement;
+    dom = new DOMTestHelper(fixture, fixture.nativeElement);
     component.sections = new CollapsibleSections([
       {
         type: CollapsibleSectionType.RECTS,
@@ -52,7 +51,7 @@ describe('CollapsedSectionsComponent', () => {
         isCollapsed: false,
       },
     ]);
-    fixture.detectChanges();
+    dom.detectChanges();
   });
 
   it('can be created', () => {
@@ -60,31 +59,27 @@ describe('CollapsedSectionsComponent', () => {
   });
 
   it('displays only collapsed sections', () => {
-    let sections = htmlElement.querySelectorAll('.collapsed-section');
-    expect(sections.length).toEqual(1);
-    expect(sections.item(0).textContent).toContain('HIERARCHY');
-    assertDefined(sections.item(0).querySelector('button'));
+    let sections = dom.findAll('.collapsed-section');
+    expect(sections.length).toBe(1);
+    sections[0].checkText('HIERARCHY');
+    expect(sections[0].find('.mat-icon')).toBeDefined();
 
     assertDefined(component.sections).onCollapseStateChange(
       CollapsibleSectionType.RECTS,
       true,
     );
-    fixture.detectChanges();
-    sections = htmlElement.querySelectorAll('.collapsed-section');
-    expect(sections.length).toEqual(2);
-    expect(sections.item(0).textContent).toContain('RECTS');
-    assertDefined(sections.item(0).querySelector('button'));
-    expect(sections.item(1).textContent).toContain('HIERARCHY');
-    assertDefined(sections.item(1).querySelector('button'));
+    dom.detectChanges();
+    sections = dom.findAll('.collapsed-section');
+    expect(sections.length).toBe(2);
+    sections[0].checkText('RECTS');
+    expect(sections[0].find('.mat-icon')).toBeDefined();
+    sections[1].checkText('HIERARCHY');
+    expect(sections[1].find('.mat-icon')).toBeDefined();
   });
 
   it('emits sectionChange event', () => {
     const spy = spyOn(component.sectionChange, 'emit');
-    const expandButton = assertDefined(
-      htmlElement.querySelector('.collapsed-section button'),
-    ) as HTMLElement;
-    expandButton.click();
-    fixture.detectChanges();
+    dom.findAndClick('.collapsed-section');
     expect(spy).toHaveBeenCalledOnceWith(CollapsibleSectionType.HIERARCHY);
   });
 });

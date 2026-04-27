@@ -30,9 +30,10 @@ const common_1 = require("../../widgets/common");
 const details_shell_1 = require("../../widgets/details_shell");
 const icon_1 = require("../../widgets/icon");
 const modal_1 = require("../../widgets/modal");
-const popup_1 = require("../../widgets/popup");
 const flamegraph_1 = require("../../widgets/flamegraph");
 const columns_1 = require("../../components/widgets/sql/table/columns");
+const stack_1 = require("../../widgets/stack");
+const tooltip_1 = require("../../widgets/tooltip");
 var ProfileType;
 (function (ProfileType) {
     ProfileType["HEAP_PROFILE"] = "heap_profile";
@@ -77,25 +78,27 @@ class HeapProfileFlamegraphDetailsPanel {
     }
     render() {
         const { type, ts } = this.props;
-        return (0, mithril_1.default)('.flamegraph-profile', this.maybeShowModal(this.trace, type, this.heapGraphIncomplete), (0, mithril_1.default)(details_shell_1.DetailsShell, {
+        return (0, mithril_1.default)('.pf-flamegraph-profile', this.maybeShowModal(this.trace, type, this.heapGraphIncomplete), (0, mithril_1.default)(details_shell_1.DetailsShell, {
             fillParent: true,
-            title: (0, mithril_1.default)('.title', getFlamegraphTitle(type), type === ProfileType.MIXED_HEAP_PROFILE &&
-                (0, mithril_1.default)(popup_1.Popup, {
-                    trigger: (0, mithril_1.default)(icon_1.Icon, { icon: 'warning' }),
-                }, (0, mithril_1.default)('', { style: { width: '300px' } }, 'This is a mixed java/native heap profile, free()s are not visualized. To visualize free()s, remove "all_heaps: true" from the config.'))),
-            description: [],
-            buttons: [
-                (0, mithril_1.default)('.time', `Snapshot time: `, (0, mithril_1.default)(timestamp_1.Timestamp, { ts })),
+            title: (0, mithril_1.default)('span', getFlamegraphTitle(type), type === ProfileType.MIXED_HEAP_PROFILE && [
+                ' ', // Some space between title and icon
+                (0, mithril_1.default)(tooltip_1.Tooltip, {
+                    trigger: (0, mithril_1.default)(icon_1.Icon, { icon: 'warning', intent: common_1.Intent.Warning }),
+                }, (0, mithril_1.default)('', 'This is a mixed java/native heap profile, free()s are not visualized. To visualize free()s, remove "all_heaps: true" from the config.')),
+            ]),
+            buttons: (0, mithril_1.default)(stack_1.Stack, { orientation: 'horizontal', spacing: 'large' }, [
+                (0, mithril_1.default)('span', `Snapshot time: `, (0, mithril_1.default)(timestamp_1.Timestamp, { trace: this.trace, ts })),
                 (type === ProfileType.NATIVE_HEAP_PROFILE ||
                     type === ProfileType.JAVA_HEAP_SAMPLES) &&
                     (0, mithril_1.default)(button_1.Button, {
                         icon: 'file_download',
                         intent: common_1.Intent.Primary,
+                        variant: button_1.ButtonVariant.Filled,
                         onclick: () => {
                             downloadPprof(this.trace, this.upid, ts);
                         },
                     }),
-            ],
+            ]),
         }, (0, logging_1.assertExists)(this.flamegraph).render()));
     }
     maybeShowModal(trace, type, heapGraphIncomplete) {
@@ -355,8 +358,7 @@ function flamegraphMetricsForHeapProfile(ts, upid, metrics) {
           parent_id as parentId,
           name,
           mapping_name,
-          source_file,
-          cast(line_number AS text) as line_number,
+          source_file || ':' || line_number as source_location,
           self_size,
           self_count,
           self_alloc_size,
@@ -374,14 +376,9 @@ function flamegraphMetricsForHeapProfile(ts, upid, metrics) {
       )
     `, metrics, 'include perfetto module android.memory.heap_profile.callstacks', [{ name: 'mapping_name', displayName: 'Mapping' }], [
         {
-            name: 'source_file',
-            displayName: 'Source File',
-            mergeAggregation: 'ONE_OR_NULL',
-        },
-        {
-            name: 'line_number',
-            displayName: 'Line Number',
-            mergeAggregation: 'ONE_OR_NULL',
+            name: 'source_location',
+            displayName: 'Source Location',
+            mergeAggregation: 'ONE_OR_SUMMARY',
         },
     ]);
 }
@@ -412,6 +409,7 @@ async function downloadPprof(trace, upid, ts) {
             title: 'Download not supported',
             content: (0, mithril_1.default)('div', 'This trace file does not support downloads'),
         });
+        return;
     }
     const blob = await trace.getTraceFile();
     (0, trace_converter_1.convertTraceToPprofAndDownload)(blob, pid.firstRow({ pid: query_result_1.NUM }).pid, ts);
@@ -512,7 +510,11 @@ function getHeapGraphNodeOptionalActions(trace, isDominator) {
                 if (value !== undefined) {
                     const uuid = (0, uuid_1.uuidv4Sql)();
                     const pathHashTableName = `_heap_graph_filtered_path_hashes_${uuid}`;
-                    await (0, sql_utils_1.createPerfettoTable)(trace.engine, pathHashTableName, pathHashesToTableStatement(value));
+                    await (0, sql_utils_1.createPerfettoTable)({
+                        engine: trace.engine,
+                        name: pathHashTableName,
+                        as: pathHashesToTableStatement(value),
+                    });
                     const tableName = `_heap_graph${tableModifier(isDominator)}object_references`;
                     const macroArgs = `_heap_graph${tableModifier(isDominator)}path_hashes, ${pathHashTableName}`;
                     const macroExpr = `_heap_graph_object_references_agg!(${macroArgs})`;
@@ -537,7 +539,11 @@ function getHeapGraphNodeOptionalActions(trace, isDominator) {
                         if (value !== undefined) {
                             const uuid = (0, uuid_1.uuidv4Sql)();
                             const pathHashTableName = `_heap_graph_filtered_path_hashes_${uuid}`;
-                            await (0, sql_utils_1.createPerfettoTable)(trace.engine, pathHashTableName, pathHashesToTableStatement(value));
+                            await (0, sql_utils_1.createPerfettoTable)({
+                                engine: trace.engine,
+                                name: pathHashTableName,
+                                as: pathHashesToTableStatement(value),
+                            });
                             const tableName = `_heap_graph${tableModifier(isDominator)}incoming_references`;
                             const macroArgs = `_heap_graph${tableModifier(isDominator)}path_hashes, ${pathHashTableName}`;
                             const macroExpr = `_heap_graph_incoming_references_agg!(${macroArgs})`;
@@ -557,7 +563,11 @@ function getHeapGraphNodeOptionalActions(trace, isDominator) {
                         if (value !== undefined) {
                             const uuid = (0, uuid_1.uuidv4Sql)();
                             const pathHashTableName = `_heap_graph_filtered_path_hashes_${uuid}`;
-                            await (0, sql_utils_1.createPerfettoTable)(trace.engine, pathHashTableName, pathHashesToTableStatement(value));
+                            await (0, sql_utils_1.createPerfettoTable)({
+                                engine: trace.engine,
+                                name: pathHashTableName,
+                                as: pathHashesToTableStatement(value),
+                            });
                             const tableName = `_heap_graph${tableModifier(isDominator)}outgoing_references`;
                             const macroArgs = `_heap_graph${tableModifier(isDominator)}path_hashes, ${pathHashTableName}`;
                             const macroExpr = `_heap_graph_outgoing_references_agg!(${macroArgs})`;
@@ -584,7 +594,11 @@ function getHeapGraphNodeOptionalActions(trace, isDominator) {
                         if (value !== undefined) {
                             const uuid = (0, uuid_1.uuidv4Sql)();
                             const pathHashTableName = `_heap_graph_filtered_path_hashes_${uuid}`;
-                            await (0, sql_utils_1.createPerfettoTable)(trace.engine, pathHashTableName, pathHashesToTableStatement(value));
+                            await (0, sql_utils_1.createPerfettoTable)({
+                                engine: trace.engine,
+                                name: pathHashTableName,
+                                as: pathHashesToTableStatement(value),
+                            });
                             const tableName = `_heap_graph${tableModifier(isDominator)}retained_object_counts`;
                             const macroArgs = `_heap_graph${tableModifier(isDominator)}path_hashes, ${pathHashTableName}`;
                             const macroExpr = `_heap_graph_retained_object_count_agg!(${macroArgs})`;
@@ -604,7 +618,11 @@ function getHeapGraphNodeOptionalActions(trace, isDominator) {
                         if (value !== undefined) {
                             const uuid = (0, uuid_1.uuidv4Sql)();
                             const pathHashTableName = `_heap_graph_filtered_path_hashes_${uuid}`;
-                            await (0, sql_utils_1.createPerfettoTable)(trace.engine, pathHashTableName, pathHashesToTableStatement(value));
+                            await (0, sql_utils_1.createPerfettoTable)({
+                                engine: trace.engine,
+                                name: pathHashTableName,
+                                as: pathHashesToTableStatement(value),
+                            });
                             const tableName = `_heap_graph${tableModifier(isDominator)}retaining_object_counts`;
                             const macroArgs = `_heap_graph${tableModifier(isDominator)}path_hashes, ${pathHashTableName}`;
                             const macroExpr = `_heap_graph_retaining_object_count_agg!(${macroArgs})`;

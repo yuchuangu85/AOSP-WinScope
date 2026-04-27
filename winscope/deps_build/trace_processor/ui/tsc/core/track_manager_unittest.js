@@ -48,13 +48,22 @@ const dummyCtx = {
     visibleWindow,
     resolution: time_1.Duration.ZERO,
     timescale: new time_scale_1.TimeScale(visibleWindow, { left: 0, right: 0 }),
+    theme: {
+        COLOR_BORDER: 'hotpink',
+        COLOR_BORDER_SECONDARY: 'hotpink',
+        COLOR_BACKGROUND_SECONDARY: 'hotpink',
+        COLOR_ACCENT: 'hotpink',
+        COLOR_BACKGROUND: 'hotpink',
+        COLOR_TEXT: 'hotpink',
+        COLOR_TEXT_MUTED: 'hotpink',
+        COLOR_NEUTRAL: 'hotpink',
+    },
 };
 beforeEach(() => {
     mockTrack = makeMockTrack();
     td = {
         uri: 'test',
-        title: 'foo',
-        track: mockTrack,
+        renderer: mockTrack,
     };
     trackManager = new track_manager_1.TrackManagerImpl();
     trackManager.registerTrack(td);

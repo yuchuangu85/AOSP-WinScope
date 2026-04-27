@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import {CornerRadii} from 'common/geometry/corner_radii';
+import {Point} from 'common/geometry/point';
 import {Rect} from 'common/geometry/rect';
 import {Region} from 'common/geometry/region';
 import {TransformMatrix} from 'common/geometry/transform_matrix';
@@ -31,12 +33,14 @@ export class UiRect extends Rect {
     readonly id: string,
     readonly groupId: number,
     readonly isClickable: boolean,
-    readonly cornerRadius: number,
+    readonly cornerRadii: CornerRadii | undefined,
     readonly transform: TransformMatrix | undefined,
     readonly depth: number,
     readonly hasContent: boolean | undefined,
     readonly opacity: number | undefined,
     readonly fillRegion: Region | undefined,
+    readonly pointerLocationsInRect: Point[] = [],
+    readonly rayLocationsInDisplay: Point[] = [],
   ) {
     super(x, y, w, h);
   }

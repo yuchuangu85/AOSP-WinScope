@@ -23,6 +23,7 @@ var TimestampFormat;
     TimestampFormat["Milliseconds"] = "milliseconds";
     TimestampFormat["Microseconds"] = "microseconds";
     TimestampFormat["UTC"] = "utc";
+    TimestampFormat["CustomTimezone"] = "customTimezone";
     TimestampFormat["TraceTz"] = "traceTz";
 })(TimestampFormat || (exports.TimestampFormat = TimestampFormat = {}));
 var DurationPrecision;

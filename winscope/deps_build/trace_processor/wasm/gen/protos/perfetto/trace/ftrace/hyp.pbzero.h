@@ -17,6 +17,306 @@ namespace perfetto {
 namespace protos {
 namespace pbzero {
 
+class PsciMemProtectFtraceEvent_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/2, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
+ public:
+  PsciMemProtectFtraceEvent_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
+  explicit PsciMemProtectFtraceEvent_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
+  explicit PsciMemProtectFtraceEvent_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
+  bool has_count() const { return at<1>().valid(); }
+  uint64_t count() const { return at<1>().as_uint64(); }
+  bool has_was() const { return at<2>().valid(); }
+  uint64_t was() const { return at<2>().as_uint64(); }
+};
+
+class PsciMemProtectFtraceEvent : public ::protozero::Message {
+ public:
+  using Decoder = PsciMemProtectFtraceEvent_Decoder;
+  enum : int32_t {
+    kCountFieldNumber = 1,
+    kWasFieldNumber = 2,
+  };
+  static constexpr const char* GetName() { return ".perfetto.protos.PsciMemProtectFtraceEvent"; }
+
+
+  using FieldMetadata_Count =
+    ::protozero::proto_utils::FieldMetadata<
+      1,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kUint64,
+      uint64_t,
+      PsciMemProtectFtraceEvent>;
+
+  static constexpr FieldMetadata_Count kCount{};
+  void set_count(uint64_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_Count::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint64>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_Was =
+    ::protozero::proto_utils::FieldMetadata<
+      2,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kUint64,
+      uint64_t,
+      PsciMemProtectFtraceEvent>;
+
+  static constexpr FieldMetadata_Was kWas{};
+  void set_was(uint64_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_Was::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint64>
+        ::Append(*this, field_id, value);
+  }
+};
+
+class IommuIdmapFtraceEvent_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/3, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
+ public:
+  IommuIdmapFtraceEvent_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
+  explicit IommuIdmapFtraceEvent_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
+  explicit IommuIdmapFtraceEvent_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
+  bool has_from() const { return at<1>().valid(); }
+  uint64_t from() const { return at<1>().as_uint64(); }
+  bool has_to() const { return at<2>().valid(); }
+  uint64_t to() const { return at<2>().as_uint64(); }
+  bool has_prot() const { return at<3>().valid(); }
+  int32_t prot() const { return at<3>().as_int32(); }
+};
+
+class IommuIdmapFtraceEvent : public ::protozero::Message {
+ public:
+  using Decoder = IommuIdmapFtraceEvent_Decoder;
+  enum : int32_t {
+    kFromFieldNumber = 1,
+    kToFieldNumber = 2,
+    kProtFieldNumber = 3,
+  };
+  static constexpr const char* GetName() { return ".perfetto.protos.IommuIdmapFtraceEvent"; }
+
+
+  using FieldMetadata_From =
+    ::protozero::proto_utils::FieldMetadata<
+      1,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kUint64,
+      uint64_t,
+      IommuIdmapFtraceEvent>;
+
+  static constexpr FieldMetadata_From kFrom{};
+  void set_from(uint64_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_From::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint64>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_To =
+    ::protozero::proto_utils::FieldMetadata<
+      2,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kUint64,
+      uint64_t,
+      IommuIdmapFtraceEvent>;
+
+  static constexpr FieldMetadata_To kTo{};
+  void set_to(uint64_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_To::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint64>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_Prot =
+    ::protozero::proto_utils::FieldMetadata<
+      3,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kInt32,
+      int32_t,
+      IommuIdmapFtraceEvent>;
+
+  static constexpr FieldMetadata_Prot kProt{};
+  void set_prot(int32_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_Prot::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kInt32>
+        ::Append(*this, field_id, value);
+  }
+};
+
+class HostFfaCallFtraceEvent_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/7, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
+ public:
+  HostFfaCallFtraceEvent_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
+  explicit HostFfaCallFtraceEvent_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
+  explicit HostFfaCallFtraceEvent_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
+  bool has_func_id() const { return at<1>().valid(); }
+  uint64_t func_id() const { return at<1>().as_uint64(); }
+  bool has_res_a1() const { return at<2>().valid(); }
+  uint64_t res_a1() const { return at<2>().as_uint64(); }
+  bool has_res_a2() const { return at<3>().valid(); }
+  uint64_t res_a2() const { return at<3>().as_uint64(); }
+  bool has_res_a3() const { return at<4>().valid(); }
+  uint64_t res_a3() const { return at<4>().as_uint64(); }
+  bool has_res_a4() const { return at<5>().valid(); }
+  uint64_t res_a4() const { return at<5>().as_uint64(); }
+  bool has_handled() const { return at<6>().valid(); }
+  int32_t handled() const { return at<6>().as_int32(); }
+  bool has_err() const { return at<7>().valid(); }
+  int32_t err() const { return at<7>().as_int32(); }
+};
+
+class HostFfaCallFtraceEvent : public ::protozero::Message {
+ public:
+  using Decoder = HostFfaCallFtraceEvent_Decoder;
+  enum : int32_t {
+    kFuncIdFieldNumber = 1,
+    kResA1FieldNumber = 2,
+    kResA2FieldNumber = 3,
+    kResA3FieldNumber = 4,
+    kResA4FieldNumber = 5,
+    kHandledFieldNumber = 6,
+    kErrFieldNumber = 7,
+  };
+  static constexpr const char* GetName() { return ".perfetto.protos.HostFfaCallFtraceEvent"; }
+
+
+  using FieldMetadata_FuncId =
+    ::protozero::proto_utils::FieldMetadata<
+      1,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kUint64,
+      uint64_t,
+      HostFfaCallFtraceEvent>;
+
+  static constexpr FieldMetadata_FuncId kFuncId{};
+  void set_func_id(uint64_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_FuncId::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint64>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_ResA1 =
+    ::protozero::proto_utils::FieldMetadata<
+      2,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kUint64,
+      uint64_t,
+      HostFfaCallFtraceEvent>;
+
+  static constexpr FieldMetadata_ResA1 kResA1{};
+  void set_res_a1(uint64_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_ResA1::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint64>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_ResA2 =
+    ::protozero::proto_utils::FieldMetadata<
+      3,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kUint64,
+      uint64_t,
+      HostFfaCallFtraceEvent>;
+
+  static constexpr FieldMetadata_ResA2 kResA2{};
+  void set_res_a2(uint64_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_ResA2::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint64>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_ResA3 =
+    ::protozero::proto_utils::FieldMetadata<
+      4,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kUint64,
+      uint64_t,
+      HostFfaCallFtraceEvent>;
+
+  static constexpr FieldMetadata_ResA3 kResA3{};
+  void set_res_a3(uint64_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_ResA3::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint64>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_ResA4 =
+    ::protozero::proto_utils::FieldMetadata<
+      5,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kUint64,
+      uint64_t,
+      HostFfaCallFtraceEvent>;
+
+  static constexpr FieldMetadata_ResA4 kResA4{};
+  void set_res_a4(uint64_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_ResA4::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint64>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_Handled =
+    ::protozero::proto_utils::FieldMetadata<
+      6,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kInt32,
+      int32_t,
+      HostFfaCallFtraceEvent>;
+
+  static constexpr FieldMetadata_Handled kHandled{};
+  void set_handled(int32_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_Handled::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kInt32>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_Err =
+    ::protozero::proto_utils::FieldMetadata<
+      7,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kInt32,
+      int32_t,
+      HostFfaCallFtraceEvent>;
+
+  static constexpr FieldMetadata_Err kErr{};
+  void set_err(int32_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_Err::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kInt32>
+        ::Append(*this, field_id, value);
+  }
+};
+
 class HostMemAbortFtraceEvent_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/2, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
  public:
   HostMemAbortFtraceEvent_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}

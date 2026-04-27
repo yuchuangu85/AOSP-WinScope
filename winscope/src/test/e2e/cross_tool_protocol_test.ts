@@ -15,21 +15,27 @@
  */
 
 import {browser, by, element, ElementFinder} from 'protractor';
-import {E2eTestUtils} from './utils';
+import {
+  changeNsTimestampInWinscope,
+  checkServerIsUp,
+  checkWinscopeNsTimestamp,
+  clickViewTracesButton,
+  closeSnackBar,
+  getFixturePath,
+  REMOTE_TOOL_MOCK_URL,
+  setTimeouts,
+} from './utils';
 
 describe('Cross-Tool Protocol', () => {
-  const DEFAULT_TIMEOUT_MS = 50000;
+  const DEFAULT_TIMEOUT_MS = 40000;
 
   beforeEach(async () => {
     await browser.restart();
-    jasmine.DEFAULT_TIMEOUT_INTERVAL = DEFAULT_TIMEOUT_MS;
+    browser.waitForAngularEnabled(false);
     await browser.manage().timeouts().setScriptTimeout(DEFAULT_TIMEOUT_MS);
-    await E2eTestUtils.beforeEach(DEFAULT_TIMEOUT_MS);
-    await E2eTestUtils.checkServerIsUp(
-      'Remote tool mock',
-      E2eTestUtils.REMOTE_TOOL_MOCK_URL,
-    );
-    await browser.get(E2eTestUtils.REMOTE_TOOL_MOCK_URL);
+    await setTimeouts(DEFAULT_TIMEOUT_MS, DEFAULT_TIMEOUT_MS);
+    await checkServerIsUp('Remote tool mock', REMOTE_TOOL_MOCK_URL);
+    await browser.get(REMOTE_TOOL_MOCK_URL);
     await browser.wait(
       async () => {
         const handles = await browser.getAllWindowHandles();
@@ -53,7 +59,7 @@ describe('Cross-Tool Protocol', () => {
     await checkWinscopeRendersUploadView();
     await closeWinscopeSnackBar();
 
-    await clickWinscopeViewTracesButton();
+    await clickWinscopeViewTracesButton(true);
     await checkWinscopeRenderedSurfaceFlingerView();
     await checkWinscopeRenderedAllViewTabs();
     await checkWinscopeTimestamp(INITIAL_TRACE_TIMESTAMP);
@@ -79,7 +85,7 @@ describe('Cross-Tool Protocol', () => {
     await sendFilesToWinscope();
     await checkWinscopeRendersUploadView();
 
-    await clickWinscopeViewTracesButton();
+    await clickWinscopeViewTracesButton(false);
     await checkWinscopeRenderedSurfaceFlingerView();
     await checkWinscopeTimestamp(TIMESTAMP_IN_FILES_MESSAGE_REALTIME);
 
@@ -101,7 +107,7 @@ describe('Cross-Tool Protocol', () => {
     await sendFilesToWinscope();
     await checkWinscopeRendersUploadView();
 
-    await clickWinscopeViewTracesButton();
+    await clickWinscopeViewTracesButton(false);
     await checkWinscopeRenderedSurfaceFlingerView();
 
     await clickCrossToolSyncButton();
@@ -125,7 +131,7 @@ describe('Cross-Tool Protocol', () => {
     await browser.switchTo().window(await getWindowHandleRemoteToolMock());
     const inputFileElement = element(by.css('.button-send-bugreport'));
     await inputFileElement.sendKeys(
-      E2eTestUtils.getFixturePath('bugreports/bugreport_stripped.zip'),
+      getFixturePath('bugreports/bugreport_stripped.zip'),
     );
   }
 
@@ -133,9 +139,7 @@ describe('Cross-Tool Protocol', () => {
     await browser.switchTo().window(await getWindowHandleRemoteToolMock());
     const inputFileElement = element(by.css('.button-send-files'));
     await inputFileElement.sendKeys(
-      E2eTestUtils.getFixturePath(
-        'traces/perfetto/layers_trace.perfetto-trace',
-      ),
+      getFixturePath('traces/perfetto/layers_trace.perfetto-trace'),
     );
   }
 
@@ -145,14 +149,14 @@ describe('Cross-Tool Protocol', () => {
     expect(isPresent).toBeTruthy();
   }
 
-  async function clickWinscopeViewTracesButton() {
+  async function clickWinscopeViewTracesButton(forceKeepLegacy: boolean) {
     await browser.switchTo().window(await getWindowHandleWinscope());
-    await E2eTestUtils.clickViewTracesButton();
+    await clickViewTracesButton(forceKeepLegacy);
   }
 
   async function closeWinscopeSnackBar() {
     await browser.switchTo().window(await getWindowHandleWinscope());
-    await E2eTestUtils.closeSnackBar();
+    await closeSnackBar();
   }
 
   async function waitWinscopeTabIsOpen() {
@@ -178,7 +182,7 @@ describe('Cross-Tool Protocol', () => {
 
   async function checkWinscopeRenderedAllViewTabs() {
     const tabParagraphs = await element.all(
-      by.css('.tabs-navigation-bar a span'),
+      by.css('.tabs-navigation-bar .tab-title'),
     );
 
     const actualTabParagraphs = await Promise.all(
@@ -188,6 +192,7 @@ describe('Cross-Tool Protocol', () => {
     );
 
     const expectedTabParagraphs = [
+      'Search',
       'Surface Flinger',
       'Transactions',
       'Transitions',
@@ -215,12 +220,12 @@ describe('Cross-Tool Protocol', () => {
 
   async function sendTimestampToRemoteTool(value: string) {
     browser.switchTo().window(await getWindowHandleWinscope());
-    await E2eTestUtils.changeNsTimestampInWinscope(value);
+    await changeNsTimestampInWinscope(value);
   }
 
   async function checkWinscopeTimestamp(expectedValue: string) {
     await browser.switchTo().window(await getWindowHandleWinscope());
-    await E2eTestUtils.checkWinscopeNsTimestamp(expectedValue);
+    await checkWinscopeNsTimestamp(expectedValue);
   }
 
   async function checkRemoteToolRealtimeTimestamp(expectedValue: string) {
@@ -249,7 +254,7 @@ describe('Cross-Tool Protocol', () => {
 
   async function getWindowHandleWinscope(): Promise<string> {
     const handles = await browser.getAllWindowHandles();
-    expect(handles.length).toEqual(2);
+    expect(handles.length).toBe(2);
     return handles[1];
   }
 

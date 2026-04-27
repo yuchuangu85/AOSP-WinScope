@@ -48,10 +48,13 @@ class SuspendResumeDetailsPanel {
                 right: eventDetails.device_name,
             }), (0, mithril_1.default)(tree_1.TreeNode, {
                 left: 'Start time',
-                right: (0, mithril_1.default)(timestamp_1.Timestamp, { ts: eventDetails.ts }),
+                right: (0, mithril_1.default)(timestamp_1.Timestamp, { trace: this.trace, ts: eventDetails.ts }),
             }), (0, mithril_1.default)(tree_1.TreeNode, {
                 left: 'Duration',
-                right: (0, mithril_1.default)(duration_1.DurationWidget, { dur: eventDetails.dur }),
+                right: (0, mithril_1.default)(duration_1.DurationWidget, {
+                    trace: this.trace,
+                    dur: eventDetails.dur,
+                }),
             }), (0, mithril_1.default)(tree_1.TreeNode, {
                 left: 'Driver Name',
                 right: eventDetails.driver_name,

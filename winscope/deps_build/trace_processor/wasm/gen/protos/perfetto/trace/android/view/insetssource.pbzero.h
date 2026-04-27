@@ -15,6 +15,7 @@
 namespace perfetto {
 namespace protos {
 namespace pbzero {
+class InsetsProto;
 class RectProto;
 } // Namespace pbzero.
 } // Namespace protos.
@@ -24,7 +25,7 @@ namespace perfetto {
 namespace protos {
 namespace pbzero {
 
-class InsetsSourceProto_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/5, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
+class InsetsSourceProto_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/6, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
  public:
   InsetsSourceProto_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
   explicit InsetsSourceProto_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
@@ -39,6 +40,8 @@ class InsetsSourceProto_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FI
   bool visible() const { return at<4>().as_bool(); }
   bool has_type_number() const { return at<5>().valid(); }
   int32_t type_number() const { return at<5>().as_int32(); }
+  bool has_attached_insets() const { return at<6>().valid(); }
+  ::protozero::ConstBytes attached_insets() const { return at<6>().as_bytes(); }
 };
 
 class InsetsSourceProto : public ::protozero::Message {
@@ -50,6 +53,7 @@ class InsetsSourceProto : public ::protozero::Message {
     kVisibleFrameFieldNumber = 3,
     kVisibleFieldNumber = 4,
     kTypeNumberFieldNumber = 5,
+    kAttachedInsetsFieldNumber = 6,
   };
   static constexpr const char* GetName() { return ".perfetto.protos.InsetsSourceProto"; }
 
@@ -141,6 +145,20 @@ class InsetsSourceProto : public ::protozero::Message {
       ::protozero::proto_utils::ProtoSchemaType::kInt32>
         ::Append(*this, field_id, value);
   }
+
+  using FieldMetadata_AttachedInsets =
+    ::protozero::proto_utils::FieldMetadata<
+      6,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      InsetsProto,
+      InsetsSourceProto>;
+
+  static constexpr FieldMetadata_AttachedInsets kAttachedInsets{};
+  template <typename T = InsetsProto> T* set_attached_insets() {
+    return BeginNestedMessage<T>(6);
+  }
+
 };
 
 } // Namespace.

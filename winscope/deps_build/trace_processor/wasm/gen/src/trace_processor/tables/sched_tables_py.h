@@ -6,49 +6,69 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <tuple>
 #include <type_traits>
 #include <utility>
+#include <variant>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/ref_counted.h"
-#include "src/trace_processor/containers/bit_vector.h"
-#include "src/trace_processor/containers/row_map.h"
-#include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/db/column/arrangement_overlay.h"
-#include "src/trace_processor/db/column/data_layer.h"
-#include "src/trace_processor/db/column/dense_null_overlay.h"
-#include "src/trace_processor/db/column/numeric_storage.h"
-#include "src/trace_processor/db/column/id_storage.h"
-#include "src/trace_processor/db/column/null_overlay.h"
-#include "src/trace_processor/db/column/range_overlay.h"
-#include "src/trace_processor/db/column/selector_overlay.h"
-#include "src/trace_processor/db/column/set_id_storage.h"
-#include "src/trace_processor/db/column/string_storage.h"
-#include "src/trace_processor/db/column/types.h"
-#include "src/trace_processor/db/column_storage.h"
-#include "src/trace_processor/db/column.h"
-#include "src/trace_processor/db/table.h"
-#include "src/trace_processor/db/typed_column.h"
-#include "src/trace_processor/db/typed_column_internal.h"
+#include "src/trace_processor/dataframe/dataframe.h"
+#include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/dataframe/typed_cursor.h"
 #include "src/trace_processor/tables/macros_internal.h"
 
 #include "src/trace_processor/tables/metadata_tables_py.h"
 
 namespace perfetto::trace_processor::tables {
 
-class SchedSliceTable : public macros_internal::MacroTable {
+class SchedSliceTable {
  public:
-  static constexpr uint32_t kColumnCount = 7;
+  static constexpr auto kSpec = dataframe::CreateTypedDataframeSpec(
+    {"id","ts","dur","utid","end_state","priority","ucpu"},
+    dataframe::CreateTypedColumnSpec(dataframe::Id{}, dataframe::NonNull{}, dataframe::IdSorted{}, dataframe::NoDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Int64{}, dataframe::NonNull{}, dataframe::Sorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Int64{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::String{}, dataframe::DenseNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Int32{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}));
 
-  struct Id : public BaseId {
+  struct Id : BaseId {
     Id() = default;
-    explicit constexpr Id(uint32_t v) : BaseId(v) {}
+    explicit constexpr Id(uint32_t _value) : BaseId(_value) {}
+
+    bool operator==(const Id& other) const {
+      return value == other.value;
+    }
   };
-  static_assert(std::is_trivially_destructible_v<Id>,
-                "Inheritance used without trivial destruction");
-    
+  struct RowReference;
+  struct ConstRowReference;
+  struct RowNumber {
+   public:
+    explicit constexpr RowNumber(uint32_t value) : value_(value) {}
+    uint32_t row_number() const { return value_; }
+
+    RowReference ToRowReference(SchedSliceTable* table) const {
+      return RowReference(table, value_);
+    }
+    ConstRowReference ToRowReference(const SchedSliceTable& table) const {
+      return ConstRowReference(&table, value_);
+    }
+
+    bool operator==(const RowNumber& other) const {
+      return value_ == other.value_;
+    }
+    bool operator<(const RowNumber& other) const {
+      return value_ < other.value_;
+    }
+   private:
+    uint32_t value_;
+  };
   struct ColumnIndex {
     static constexpr uint32_t id = 0;
     static constexpr uint32_t ts = 1;
@@ -58,483 +78,409 @@ class SchedSliceTable : public macros_internal::MacroTable {
     static constexpr uint32_t priority = 5;
     static constexpr uint32_t ucpu = 6;
   };
-  struct ColumnType {
-    using id = IdColumn<SchedSliceTable::Id>;
-    using ts = TypedColumn<int64_t>;
-    using dur = TypedColumn<int64_t>;
-    using utid = TypedColumn<uint32_t>;
-    using end_state = TypedColumn<StringPool::Id>;
-    using priority = TypedColumn<int32_t>;
-    using ucpu = TypedColumn<CpuTable::Id>;
+  struct RowReference {
+   public:
+    explicit RowReference(SchedSliceTable* table, uint32_t row)
+        : table_(table), row_(row) {
+        base::ignore_result(table_);
+    }
+    SchedSliceTable::Id id() const {
+        
+        return SchedSliceTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+        int64_t ts() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::ts>(kSpec, row_);
+    }
+        int64_t dur() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::dur>(kSpec, row_);
+    }
+        uint32_t utid() const {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::utid>(kSpec, row_);
+    }
+          StringPool::Id end_state() const {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        auto res = table_->dataframe_.template GetCellUnchecked<ColumnIndex::end_state>(kSpec, row_);
+        return res && res != StringPool::Id::Null() ? StringPool::Id{*res} : StringPool::Id::Null();
+      }
+    void set_dur(int64_t res) {
+      
+      table_->dataframe_.SetCellUnchecked<ColumnIndex::dur>(kSpec, row_, res);
+    }
+          void set_end_state(StringPool::Id res) {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        auto res_value = res != StringPool::Id::Null() ? std::make_optional(res) : std::nullopt;
+        table_->dataframe_.SetCellUnchecked<ColumnIndex::end_state>(kSpec, row_, res_value);
+    }
+    RowNumber ToRowNumber() const {
+      return RowNumber{row_};
+    }
+
+   private:
+    friend struct ConstRowReference;
+    SchedSliceTable* table_;
+    uint32_t row_;
   };
-  struct Row : public macros_internal::RootParentTable::Row {
-    Row(int64_t in_ts = {},
-        int64_t in_dur = {},
-        uint32_t in_utid = {},
-        StringPool::Id in_end_state = {},
-        int32_t in_priority = {},
-        CpuTable::Id in_ucpu = {},
-        std::nullptr_t = nullptr)
-        : macros_internal::RootParentTable::Row(),
-          ts(in_ts),
-          dur(in_dur),
-          utid(in_utid),
-          end_state(in_end_state),
-          priority(in_priority),
-          ucpu(in_ucpu) {}
-    int64_t ts;
+  struct ConstRowReference {
+   public:
+    explicit ConstRowReference(const SchedSliceTable* table, uint32_t row)
+        : table_(table), row_(row) {
+        base::ignore_result(table_);
+    }
+    ConstRowReference(const RowReference& other)
+        : table_(other.table_), row_(other.row_) {}
+    SchedSliceTable::Id id() const {
+        
+        return SchedSliceTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+        int64_t ts() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::ts>(kSpec, row_);
+    }
+        int64_t dur() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::dur>(kSpec, row_);
+    }
+        uint32_t utid() const {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::utid>(kSpec, row_);
+    }
+          StringPool::Id end_state() const {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        auto res = table_->dataframe_.template GetCellUnchecked<ColumnIndex::end_state>(kSpec, row_);
+        return res && res != StringPool::Id::Null() ? StringPool::Id{*res} : StringPool::Id::Null();
+      }
+    RowNumber ToRowNumber() const {
+      return RowNumber{row_};
+    }
+   private:
+    const SchedSliceTable* table_;
+    uint32_t row_;
+  };
+  class ConstCursor {
+   public:
+    explicit ConstCursor(const dataframe::Dataframe& df,
+                         std::vector<dataframe::FilterSpec> filters,
+                         std::vector<dataframe::SortSpec> sorts)
+      : dataframe_(&df), cursor_(&df, std::move(filters), std::move(sorts)) {
+      base::ignore_result(dataframe_);
+    }
+
+    PERFETTO_ALWAYS_INLINE void Execute() { cursor_.ExecuteUnchecked(); }
+    PERFETTO_ALWAYS_INLINE bool Eof() const { return cursor_.Eof(); }
+    PERFETTO_ALWAYS_INLINE void Next() { cursor_.Next(); }
+    template <typename C>
+    PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index, C value) {
+      cursor_.SetFilterValueUnchecked(index, std::move(value));
+    }
+    RowNumber ToRowNumber() const {
+      return RowNumber{cursor_.RowIndex()};
+    }
+    void Reset() { cursor_.Reset(); }
+    SchedSliceTable::Id id() const {
+        
+        return SchedSliceTable::Id{cursor_.GetCellUnchecked<ColumnIndex::id>(kSpec)};
+      }
+    int64_t ts() const {
+      
+      return cursor_.GetCellUnchecked<ColumnIndex::ts>(kSpec);
+    }
+    int64_t dur() const {
+      
+      return cursor_.GetCellUnchecked<ColumnIndex::dur>(kSpec);
+    }
+    uint32_t utid() const {
+      PERFETTO_DCHECK(!dataframe_->finalized());
+      return cursor_.GetCellUnchecked<ColumnIndex::utid>(kSpec);
+    }
+      StringPool::Id end_state() const {
+        PERFETTO_DCHECK(!dataframe_->finalized());
+        auto res = cursor_.GetCellUnchecked<ColumnIndex::end_state>(kSpec);
+        return res && res != StringPool::Id::Null() ? *res : StringPool::Id::Null();
+      }
+
+   private:
+    const dataframe::Dataframe* dataframe_;
+    dataframe::TypedCursor cursor_;
+  };
+  class Cursor {
+   public:
+    explicit Cursor(dataframe::Dataframe& df,
+                    std::vector<dataframe::FilterSpec> filters,
+                    std::vector<dataframe::SortSpec> sorts)
+      : dataframe_(&df), cursor_(&df, std::move(filters), std::move(sorts)) {
+      base::ignore_result(dataframe_);
+    }
+
+    PERFETTO_ALWAYS_INLINE void Execute() { cursor_.ExecuteUnchecked(); }
+    PERFETTO_ALWAYS_INLINE bool Eof() const { return cursor_.Eof(); }
+    PERFETTO_ALWAYS_INLINE void Next() { cursor_.Next(); }
+    template <typename C>
+    PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index, C value) {
+      cursor_.SetFilterValueUnchecked(index, std::move(value));
+    }
+    RowNumber ToRowNumber() const {
+      return RowNumber{cursor_.RowIndex()};
+    }
+    void Reset() { cursor_.Reset(); }
+
+    SchedSliceTable::Id id() const {
+        
+        return SchedSliceTable::Id{cursor_.GetCellUnchecked<ColumnIndex::id>(kSpec)};
+      }
+    int64_t ts() const {
+      
+      return cursor_.GetCellUnchecked<ColumnIndex::ts>(kSpec);
+    }
+    int64_t dur() const {
+      
+      return cursor_.GetCellUnchecked<ColumnIndex::dur>(kSpec);
+    }
+    uint32_t utid() const {
+      PERFETTO_DCHECK(!dataframe_->finalized());
+      return cursor_.GetCellUnchecked<ColumnIndex::utid>(kSpec);
+    }
+      StringPool::Id end_state() const {
+        PERFETTO_DCHECK(!dataframe_->finalized());
+        auto res = cursor_.GetCellUnchecked<ColumnIndex::end_state>(kSpec);
+        return res && res != StringPool::Id::Null() ? *res : StringPool::Id::Null();
+      }
+    void set_dur(int64_t res) {
+        
+      cursor_.SetCellUnchecked<ColumnIndex::dur>(kSpec, res);
+    }
+      void set_end_state(StringPool::Id res) {
+        PERFETTO_DCHECK(!dataframe_->finalized());
+        auto res_value = res != StringPool::Id::Null() ? std::make_optional(res) : std::nullopt;
+        cursor_.SetCellUnchecked<ColumnIndex::end_state>(kSpec, res_value);
+    }
+
+   private:
+    dataframe::Dataframe* dataframe_;
+    dataframe::TypedCursor cursor_;
+  };
+  class Iterator {
+    public:
+      explicit Iterator(SchedSliceTable* table) : table_(table) {
+        base::ignore_result(table_);
+      }
+      explicit operator bool() const { return row_ < table_->row_count(); }
+      Iterator& operator++() {
+        ++row_;
+        return *this;
+      }
+      RowNumber row_number() const {
+        return RowNumber{row_};
+      }
+      RowReference ToRowReference() const {
+        return RowReference(table_, row_);
+      }
+      SchedSliceTable::Id id() const {
+        
+        return SchedSliceTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+        int64_t ts() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::ts>(kSpec, row_);
+    }
+        int64_t dur() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::dur>(kSpec, row_);
+    }
+        uint32_t utid() const {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::utid>(kSpec, row_);
+    }
+          StringPool::Id end_state() const {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        auto res = table_->dataframe_.template GetCellUnchecked<ColumnIndex::end_state>(kSpec, row_);
+        return res && res != StringPool::Id::Null() ? StringPool::Id{*res} : StringPool::Id::Null();
+      }
+      void set_dur(int64_t res) {
+      
+      table_->dataframe_.SetCellUnchecked<ColumnIndex::dur>(kSpec, row_, res);
+    }
+          void set_end_state(StringPool::Id res) {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        auto res_value = res != StringPool::Id::Null() ? std::make_optional(res) : std::nullopt;
+        table_->dataframe_.SetCellUnchecked<ColumnIndex::end_state>(kSpec, row_, res_value);
+    }
+
+    private:
+      SchedSliceTable* table_;
+      uint32_t row_ = 0;
+  };
+  class ConstIterator {
+    public:
+      explicit ConstIterator(const SchedSliceTable* table) : table_(table) {
+        base::ignore_result(table_);
+      }
+      explicit operator bool() const { return row_ < table_->row_count(); }
+      ConstIterator& operator++() {
+        ++row_;
+        return *this;
+      }
+      RowNumber row_number() const {
+        return RowNumber{row_};
+      }
+      ConstRowReference ToRowReference() const {
+        return ConstRowReference(table_, row_);
+      }
+      SchedSliceTable::Id id() const {
+        
+        return SchedSliceTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+        int64_t ts() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::ts>(kSpec, row_);
+    }
+        int64_t dur() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::dur>(kSpec, row_);
+    }
+        uint32_t utid() const {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::utid>(kSpec, row_);
+    }
+          StringPool::Id end_state() const {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        auto res = table_->dataframe_.template GetCellUnchecked<ColumnIndex::end_state>(kSpec, row_);
+        return res && res != StringPool::Id::Null() ? StringPool::Id{*res} : StringPool::Id::Null();
+      }
+
+    private:
+      const SchedSliceTable* table_;
+      uint32_t row_ = 0;
+  };
+  struct IdAndRow {
+    Id id;
+    RowNumber row_number;
+    uint32_t row;
+    RowReference row_reference;
+  };
+  
+  struct Row {
+    Row(int64_t _ts = {}, int64_t _dur = {}, uint32_t _utid = {}, StringPool::Id _end_state = {}, int32_t _priority = {}, CpuTable::Id _ucpu = {}) : ts(std::move(_ts)), dur(std::move(_dur)), utid(std::move(_utid)), end_state(std::move(_end_state)), priority(std::move(_priority)), ucpu(std::move(_ucpu)) {}
+
+    bool operator==(const Row& other) const {
+      return std::tie(ts, dur, utid, end_state, priority, ucpu) ==
+             std::tie(other.ts, other.dur, other.utid, other.end_state, other.priority, other.ucpu);
+    }
+
+        int64_t ts;
     int64_t dur;
     uint32_t utid;
     StringPool::Id end_state;
     int32_t priority;
     CpuTable::Id ucpu;
-
-    bool operator==(const SchedSliceTable::Row& other) const {
-      return ColumnType::ts::Equals(ts, other.ts) &&
-       ColumnType::dur::Equals(dur, other.dur) &&
-       ColumnType::utid::Equals(utid, other.utid) &&
-       ColumnType::end_state::Equals(end_state, other.end_state) &&
-       ColumnType::priority::Equals(priority, other.priority) &&
-       ColumnType::ucpu::Equals(ucpu, other.ucpu);
-    }
-  };
-  struct ColumnFlag {
-    static constexpr uint32_t ts = static_cast<uint32_t>(ColumnLegacy::Flag::kSorted) | ColumnType::ts::default_flags();
-    static constexpr uint32_t dur = ColumnType::dur::default_flags();
-    static constexpr uint32_t utid = ColumnType::utid::default_flags();
-    static constexpr uint32_t end_state = ColumnType::end_state::default_flags();
-    static constexpr uint32_t priority = ColumnType::priority::default_flags();
-    static constexpr uint32_t ucpu = ColumnType::ucpu::default_flags();
   };
 
-  class RowNumber;
-  class ConstRowReference;
-  class RowReference;
-
-  class RowNumber : public macros_internal::AbstractRowNumber<
-      SchedSliceTable, ConstRowReference, RowReference> {
-   public:
-    explicit RowNumber(uint32_t row_number)
-        : AbstractRowNumber(row_number) {}
-  };
-  static_assert(std::is_trivially_destructible_v<RowNumber>,
-                "Inheritance used without trivial destruction");
-
-  class ConstRowReference : public macros_internal::AbstractConstRowReference<
-    SchedSliceTable, RowNumber> {
-   public:
-    ConstRowReference(const SchedSliceTable* table, uint32_t row_number)
-        : AbstractConstRowReference(table, row_number) {}
-
-    ColumnType::id::type id() const {
-      return table()->id()[row_number_];
-    }
-    ColumnType::ts::type ts() const {
-      return table()->ts()[row_number_];
-    }
-    ColumnType::dur::type dur() const {
-      return table()->dur()[row_number_];
-    }
-    ColumnType::utid::type utid() const {
-      return table()->utid()[row_number_];
-    }
-    ColumnType::end_state::type end_state() const {
-      return table()->end_state()[row_number_];
-    }
-    ColumnType::priority::type priority() const {
-      return table()->priority()[row_number_];
-    }
-    ColumnType::ucpu::type ucpu() const {
-      return table()->ucpu()[row_number_];
-    }
-  };
-  static_assert(std::is_trivially_destructible_v<ConstRowReference>,
-                "Inheritance used without trivial destruction");
-  class RowReference : public ConstRowReference {
-   public:
-    RowReference(const SchedSliceTable* table, uint32_t row_number)
-        : ConstRowReference(table, row_number) {}
-
-    void set_ts(
-        ColumnType::ts::non_optional_type v) {
-      return mutable_table()->mutable_ts()->Set(row_number_, v);
-    }
-    void set_dur(
-        ColumnType::dur::non_optional_type v) {
-      return mutable_table()->mutable_dur()->Set(row_number_, v);
-    }
-    void set_utid(
-        ColumnType::utid::non_optional_type v) {
-      return mutable_table()->mutable_utid()->Set(row_number_, v);
-    }
-    void set_end_state(
-        ColumnType::end_state::non_optional_type v) {
-      return mutable_table()->mutable_end_state()->Set(row_number_, v);
-    }
-    void set_priority(
-        ColumnType::priority::non_optional_type v) {
-      return mutable_table()->mutable_priority()->Set(row_number_, v);
-    }
-    void set_ucpu(
-        ColumnType::ucpu::non_optional_type v) {
-      return mutable_table()->mutable_ucpu()->Set(row_number_, v);
-    }
-
-   private:
-    SchedSliceTable* mutable_table() const {
-      return const_cast<SchedSliceTable*>(table());
-    }
-  };
-  static_assert(std::is_trivially_destructible_v<RowReference>,
-                "Inheritance used without trivial destruction");
-
-  class ConstIterator;
-  class ConstIterator : public macros_internal::AbstractConstIterator<
-    ConstIterator, SchedSliceTable, RowNumber, ConstRowReference> {
-   public:
-    ColumnType::id::type id() const {
-      const auto& col = table()->id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::ts::type ts() const {
-      const auto& col = table()->ts();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::dur::type dur() const {
-      const auto& col = table()->dur();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::utid::type utid() const {
-      const auto& col = table()->utid();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::end_state::type end_state() const {
-      const auto& col = table()->end_state();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::priority::type priority() const {
-      const auto& col = table()->priority();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::ucpu::type ucpu() const {
-      const auto& col = table()->ucpu();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-
-   protected:
-    explicit ConstIterator(const SchedSliceTable* table,
-                           Table::Iterator iterator)
-        : AbstractConstIterator(table, std::move(iterator)) {}
-
-    uint32_t CurrentRowNumber() const {
-      return iterator_.StorageIndexForLastOverlay();
-    }
-
-   private:
-    friend class SchedSliceTable;
-    friend class macros_internal::AbstractConstIterator<
-      ConstIterator, SchedSliceTable, RowNumber, ConstRowReference>;
-  };
-  class Iterator : public ConstIterator {
-    public:
-     RowReference row_reference() const {
-       return {const_cast<SchedSliceTable*>(table()), CurrentRowNumber()};
-     }
-
-    private:
-     friend class SchedSliceTable;
-
-     explicit Iterator(SchedSliceTable* table, Table::Iterator iterator)
-        : ConstIterator(table, std::move(iterator)) {}
-  };
-
-  struct IdAndRow {
-    Id id;
-    uint32_t row;
-    RowReference row_reference;
-    RowNumber row_number;
-  };
-
-  static std::vector<ColumnLegacy> GetColumns(
-      SchedSliceTable* self,
-      const macros_internal::MacroTable* parent) {
-    std::vector<ColumnLegacy> columns =
-        CopyColumnsFromParentOrAddRootColumns(parent);
-    uint32_t olay_idx = OverlayCount(parent);
-    AddColumnToVector(columns, "ts", &self->ts_, ColumnFlag::ts,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "dur", &self->dur_, ColumnFlag::dur,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "utid", &self->utid_, ColumnFlag::utid,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "end_state", &self->end_state_, ColumnFlag::end_state,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "priority", &self->priority_, ColumnFlag::priority,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "ucpu", &self->ucpu_, ColumnFlag::ucpu,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    base::ignore_result(self);
-    return columns;
-  }
-
-  PERFETTO_NO_INLINE explicit SchedSliceTable(StringPool* pool)
-      : macros_internal::MacroTable(
-          pool,
-          GetColumns(this, nullptr),
-          nullptr),
-        ts_(ColumnStorage<ColumnType::ts::stored_type>::Create<false>()),
-        dur_(ColumnStorage<ColumnType::dur::stored_type>::Create<false>()),
-        utid_(ColumnStorage<ColumnType::utid::stored_type>::Create<false>()),
-        end_state_(ColumnStorage<ColumnType::end_state::stored_type>::Create<false>()),
-        priority_(ColumnStorage<ColumnType::priority::stored_type>::Create<false>()),
-        ucpu_(ColumnStorage<ColumnType::ucpu::stored_type>::Create<false>())
-,
-        id_storage_layer_(new column::IdStorage()),
-        ts_storage_layer_(
-        new column::NumericStorage<ColumnType::ts::non_optional_stored_type>(
-          &ts_.vector(),
-          ColumnTypeHelper<ColumnType::ts::stored_type>::ToColumnType(),
-          true)),
-        dur_storage_layer_(
-        new column::NumericStorage<ColumnType::dur::non_optional_stored_type>(
-          &dur_.vector(),
-          ColumnTypeHelper<ColumnType::dur::stored_type>::ToColumnType(),
-          false)),
-        utid_storage_layer_(
-        new column::NumericStorage<ColumnType::utid::non_optional_stored_type>(
-          &utid_.vector(),
-          ColumnTypeHelper<ColumnType::utid::stored_type>::ToColumnType(),
-          false)),
-        end_state_storage_layer_(
-          new column::StringStorage(string_pool(), &end_state_.vector())),
-        priority_storage_layer_(
-        new column::NumericStorage<ColumnType::priority::non_optional_stored_type>(
-          &priority_.vector(),
-          ColumnTypeHelper<ColumnType::priority::stored_type>::ToColumnType(),
-          false)),
-        ucpu_storage_layer_(
-        new column::NumericStorage<ColumnType::ucpu::non_optional_stored_type>(
-          &ucpu_.vector(),
-          ColumnTypeHelper<ColumnType::ucpu::stored_type>::ToColumnType(),
-          false))
-         {
-    static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::ts::stored_type>(
-          ColumnFlag::ts),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::dur::stored_type>(
-          ColumnFlag::dur),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::utid::stored_type>(
-          ColumnFlag::utid),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::end_state::stored_type>(
-          ColumnFlag::end_state),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::priority::stored_type>(
-          ColumnFlag::priority),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::ucpu::stored_type>(
-          ColumnFlag::ucpu),
-        "Column type and flag combination is not valid");
-    OnConstructionCompletedRegularConstructor(
-      {id_storage_layer_,ts_storage_layer_,dur_storage_layer_,utid_storage_layer_,end_state_storage_layer_,priority_storage_layer_,ucpu_storage_layer_},
-      {{},{},{},{},{},{},{}});
-  }
-  ~SchedSliceTable() override;
-
-  static const char* Name() { return "__intrinsic_sched_slice"; }
-
-  static Table::Schema ComputeStaticSchema() {
-    Table::Schema schema;
-    schema.columns.emplace_back(Table::Schema::Column{
-        "id", SqlValue::Type::kLong, true, true, false, false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "ts", ColumnType::ts::SqlValueType(), false,
-        true,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "dur", ColumnType::dur::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "utid", ColumnType::utid::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "end_state", ColumnType::end_state::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "priority", ColumnType::priority::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "ucpu", ColumnType::ucpu::SqlValueType(), false,
-        false,
-        false,
-        false});
-    return schema;
-  }
-
-  ConstIterator IterateRows() const {
-    return ConstIterator(this, Table::IterateRows());
-  }
-
-  Iterator IterateRows() { return Iterator(this, Table::IterateRows()); }
-
-  ConstIterator FilterToIterator(const Query& q) const {
-    return ConstIterator(this, QueryToIterator(q));
-  }
-
-  Iterator FilterToIterator(const Query& q) {
-    return Iterator(this, QueryToIterator(q));
-  }
-
-  void ShrinkToFit() {
-    ts_.ShrinkToFit();
-    dur_.ShrinkToFit();
-    utid_.ShrinkToFit();
-    end_state_.ShrinkToFit();
-    priority_.ShrinkToFit();
-    ucpu_.ShrinkToFit();
-  }
-
-  ConstRowReference operator[](uint32_t r) const {
-    return ConstRowReference(this, r);
-  }
-  RowReference operator[](uint32_t r) { return RowReference(this, r); }
-  ConstRowReference operator[](RowNumber r) const {
-    return ConstRowReference(this, r.row_number());
-  }
-  RowReference operator[](RowNumber r) {
-    return RowReference(this, r.row_number());
-  }
-
-  std::optional<ConstRowReference> FindById(Id find_id) const {
-    std::optional<uint32_t> row = id().IndexOf(find_id);
-    return row ? std::make_optional(ConstRowReference(this, *row))
-               : std::nullopt;
-  }
-
-  std::optional<RowReference> FindById(Id find_id) {
-    std::optional<uint32_t> row = id().IndexOf(find_id);
-    return row ? std::make_optional(RowReference(this, *row)) : std::nullopt;
-  }
+  explicit SchedSliceTable(StringPool* pool)
+      : dataframe_(dataframe::Dataframe::CreateFromTypedSpec(kSpec, pool)) {}
 
   IdAndRow Insert(const Row& row) {
-    uint32_t row_number = row_count();
-    Id id = Id{row_number};
-    mutable_ts()->Append(row.ts);
-    mutable_dur()->Append(row.dur);
-    mutable_utid()->Append(row.utid);
-    mutable_end_state()->Append(row.end_state);
-    mutable_priority()->Append(row.priority);
-    mutable_ucpu()->Append(row.ucpu);
-    UpdateSelfOverlayAfterInsert();
-    return IdAndRow{id, row_number, RowReference(this, row_number),
-                     RowNumber(row_number)};
+    uint32_t row_count = dataframe_.row_count();
+    dataframe_.InsertUnchecked(kSpec, std::monostate(), row.ts, row.dur, row.utid, row.end_state != StringPool::Id::Null() ? std::make_optional(row.end_state) : std::nullopt, row.priority, row.ucpu.value);
+    return IdAndRow{Id{row_count}, RowNumber{row_count}, row_count, RowReference(this, row_count)};
   }
 
-  
-
-  const IdColumn<SchedSliceTable::Id>& id() const {
-    return static_cast<const ColumnType::id&>(columns()[ColumnIndex::id]);
-  }
-  const TypedColumn<int64_t>& ts() const {
-    return static_cast<const ColumnType::ts&>(columns()[ColumnIndex::ts]);
-  }
-  const TypedColumn<int64_t>& dur() const {
-    return static_cast<const ColumnType::dur&>(columns()[ColumnIndex::dur]);
-  }
-  const TypedColumn<uint32_t>& utid() const {
-    return static_cast<const ColumnType::utid&>(columns()[ColumnIndex::utid]);
-  }
-  const TypedColumn<StringPool::Id>& end_state() const {
-    return static_cast<const ColumnType::end_state&>(columns()[ColumnIndex::end_state]);
-  }
-  const TypedColumn<int32_t>& priority() const {
-    return static_cast<const ColumnType::priority&>(columns()[ColumnIndex::priority]);
-  }
-  const TypedColumn<CpuTable::Id>& ucpu() const {
-    return static_cast<const ColumnType::ucpu&>(columns()[ColumnIndex::ucpu]);
+  uint32_t row_count() const {
+    return dataframe_.row_count();
   }
 
-  TypedColumn<int64_t>* mutable_ts() {
-    return static_cast<ColumnType::ts*>(
-        GetColumn(ColumnIndex::ts));
+  std::optional<ConstRowReference> FindById(Id id) const {
+    return ConstRowReference(this, id.value);
   }
-  TypedColumn<int64_t>* mutable_dur() {
-    return static_cast<ColumnType::dur*>(
-        GetColumn(ColumnIndex::dur));
+  ConstRowReference operator[](uint32_t row) const {
+    return ConstRowReference(this, row);
   }
-  TypedColumn<uint32_t>* mutable_utid() {
-    return static_cast<ColumnType::utid*>(
-        GetColumn(ColumnIndex::utid));
+
+  std::optional<RowReference> FindById(Id id) {
+    return RowReference(this, id.value);
   }
-  TypedColumn<StringPool::Id>* mutable_end_state() {
-    return static_cast<ColumnType::end_state*>(
-        GetColumn(ColumnIndex::end_state));
+  RowReference operator[](uint32_t row) {
+    return RowReference(this, row);
   }
-  TypedColumn<int32_t>* mutable_priority() {
-    return static_cast<ColumnType::priority*>(
-        GetColumn(ColumnIndex::priority));
+
+  ConstCursor CreateCursor(
+      std::vector<dataframe::FilterSpec> filters = {},
+      std::vector<dataframe::SortSpec> sorts = {}) const {
+    return ConstCursor(dataframe_, std::move(filters), std::move(sorts));
   }
-  TypedColumn<CpuTable::Id>* mutable_ucpu() {
-    return static_cast<ColumnType::ucpu*>(
-        GetColumn(ColumnIndex::ucpu));
+  Cursor CreateCursor(
+      std::vector<dataframe::FilterSpec> filters = {},
+      std::vector<dataframe::SortSpec> sorts = {}) {
+    return Cursor(dataframe_, std::move(filters), std::move(sorts));
+  }
+
+  Iterator IterateRows() { return Iterator(this); }
+  ConstIterator IterateRows() const { return ConstIterator(this); }
+
+  void Finalize() { dataframe_.Finalize(); }
+
+  void Clear() { dataframe_.Clear(); }
+
+  static const char* Name() {
+    return "__intrinsic_sched_slice";
+  }
+
+  dataframe::Dataframe& dataframe() {
+    return dataframe_;
+  }
+  const dataframe::Dataframe& dataframe() const {
+    return dataframe_;
   }
 
  private:
-  
-  
-  ColumnStorage<ColumnType::ts::stored_type> ts_;
-  ColumnStorage<ColumnType::dur::stored_type> dur_;
-  ColumnStorage<ColumnType::utid::stored_type> utid_;
-  ColumnStorage<ColumnType::end_state::stored_type> end_state_;
-  ColumnStorage<ColumnType::priority::stored_type> priority_;
-  ColumnStorage<ColumnType::ucpu::stored_type> ucpu_;
-
-  RefPtr<column::StorageLayer> id_storage_layer_;
-  RefPtr<column::StorageLayer> ts_storage_layer_;
-  RefPtr<column::StorageLayer> dur_storage_layer_;
-  RefPtr<column::StorageLayer> utid_storage_layer_;
-  RefPtr<column::StorageLayer> end_state_storage_layer_;
-  RefPtr<column::StorageLayer> priority_storage_layer_;
-  RefPtr<column::StorageLayer> ucpu_storage_layer_;
-
-  
+  dataframe::Dataframe dataframe_;
 };
-  
 
-class SpuriousSchedWakeupTable : public macros_internal::MacroTable {
+
+
+class SpuriousSchedWakeupTable {
  public:
-  static constexpr uint32_t kColumnCount = 6;
+  static constexpr auto kSpec = dataframe::CreateTypedDataframeSpec(
+    {"id","ts","thread_state_id","irq_context","utid","waker_utid"},
+    dataframe::CreateTypedColumnSpec(dataframe::Id{}, dataframe::NonNull{}, dataframe::IdSorted{}, dataframe::NoDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Int64{}, dataframe::NonNull{}, dataframe::Sorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Int64{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::SparseNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}));
 
-  struct Id : public BaseId {
+  struct Id : BaseId {
     Id() = default;
-    explicit constexpr Id(uint32_t v) : BaseId(v) {}
+    explicit constexpr Id(uint32_t _value) : BaseId(_value) {}
+
+    bool operator==(const Id& other) const {
+      return value == other.value;
+    }
   };
-  static_assert(std::is_trivially_destructible_v<Id>,
-                "Inheritance used without trivial destruction");
-    
+  struct RowReference;
+  struct ConstRowReference;
+  struct RowNumber {
+   public:
+    explicit constexpr RowNumber(uint32_t value) : value_(value) {}
+    uint32_t row_number() const { return value_; }
+
+    RowReference ToRowReference(SpuriousSchedWakeupTable* table) const {
+      return RowReference(table, value_);
+    }
+    ConstRowReference ToRowReference(const SpuriousSchedWakeupTable& table) const {
+      return ConstRowReference(&table, value_);
+    }
+
+    bool operator==(const RowNumber& other) const {
+      return value_ == other.value_;
+    }
+    bool operator<(const RowNumber& other) const {
+      return value_ < other.value_;
+    }
+   private:
+    uint32_t value_;
+  };
   struct ColumnIndex {
     static constexpr uint32_t id = 0;
     static constexpr uint32_t ts = 1;
@@ -543,441 +489,287 @@ class SpuriousSchedWakeupTable : public macros_internal::MacroTable {
     static constexpr uint32_t utid = 4;
     static constexpr uint32_t waker_utid = 5;
   };
-  struct ColumnType {
-    using id = IdColumn<SpuriousSchedWakeupTable::Id>;
-    using ts = TypedColumn<int64_t>;
-    using thread_state_id = TypedColumn<int64_t>;
-    using irq_context = TypedColumn<std::optional<uint32_t>>;
-    using utid = TypedColumn<uint32_t>;
-    using waker_utid = TypedColumn<uint32_t>;
+  struct RowReference {
+   public:
+    explicit RowReference(SpuriousSchedWakeupTable* table, uint32_t row)
+        : table_(table), row_(row) {
+        base::ignore_result(table_);
+    }
+    SpuriousSchedWakeupTable::Id id() const {
+        
+        return SpuriousSchedWakeupTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+    
+    RowNumber ToRowNumber() const {
+      return RowNumber{row_};
+    }
+
+   private:
+    friend struct ConstRowReference;
+    SpuriousSchedWakeupTable* table_;
+    uint32_t row_;
   };
-  struct Row : public macros_internal::RootParentTable::Row {
-    Row(int64_t in_ts = {},
-        int64_t in_thread_state_id = {},
-        std::optional<uint32_t> in_irq_context = {},
-        uint32_t in_utid = {},
-        uint32_t in_waker_utid = {},
-        std::nullptr_t = nullptr)
-        : macros_internal::RootParentTable::Row(),
-          ts(in_ts),
-          thread_state_id(in_thread_state_id),
-          irq_context(in_irq_context),
-          utid(in_utid),
-          waker_utid(in_waker_utid) {}
-    int64_t ts;
+  struct ConstRowReference {
+   public:
+    explicit ConstRowReference(const SpuriousSchedWakeupTable* table, uint32_t row)
+        : table_(table), row_(row) {
+        base::ignore_result(table_);
+    }
+    ConstRowReference(const RowReference& other)
+        : table_(other.table_), row_(other.row_) {}
+    SpuriousSchedWakeupTable::Id id() const {
+        
+        return SpuriousSchedWakeupTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+    RowNumber ToRowNumber() const {
+      return RowNumber{row_};
+    }
+   private:
+    const SpuriousSchedWakeupTable* table_;
+    uint32_t row_;
+  };
+  class ConstCursor {
+   public:
+    explicit ConstCursor(const dataframe::Dataframe& df,
+                         std::vector<dataframe::FilterSpec> filters,
+                         std::vector<dataframe::SortSpec> sorts)
+      : dataframe_(&df), cursor_(&df, std::move(filters), std::move(sorts)) {
+      base::ignore_result(dataframe_);
+    }
+
+    PERFETTO_ALWAYS_INLINE void Execute() { cursor_.ExecuteUnchecked(); }
+    PERFETTO_ALWAYS_INLINE bool Eof() const { return cursor_.Eof(); }
+    PERFETTO_ALWAYS_INLINE void Next() { cursor_.Next(); }
+    template <typename C>
+    PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index, C value) {
+      cursor_.SetFilterValueUnchecked(index, std::move(value));
+    }
+    RowNumber ToRowNumber() const {
+      return RowNumber{cursor_.RowIndex()};
+    }
+    void Reset() { cursor_.Reset(); }
+    SpuriousSchedWakeupTable::Id id() const {
+        
+        return SpuriousSchedWakeupTable::Id{cursor_.GetCellUnchecked<ColumnIndex::id>(kSpec)};
+      }
+
+   private:
+    const dataframe::Dataframe* dataframe_;
+    dataframe::TypedCursor cursor_;
+  };
+  class Cursor {
+   public:
+    explicit Cursor(dataframe::Dataframe& df,
+                    std::vector<dataframe::FilterSpec> filters,
+                    std::vector<dataframe::SortSpec> sorts)
+      : dataframe_(&df), cursor_(&df, std::move(filters), std::move(sorts)) {
+      base::ignore_result(dataframe_);
+    }
+
+    PERFETTO_ALWAYS_INLINE void Execute() { cursor_.ExecuteUnchecked(); }
+    PERFETTO_ALWAYS_INLINE bool Eof() const { return cursor_.Eof(); }
+    PERFETTO_ALWAYS_INLINE void Next() { cursor_.Next(); }
+    template <typename C>
+    PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index, C value) {
+      cursor_.SetFilterValueUnchecked(index, std::move(value));
+    }
+    RowNumber ToRowNumber() const {
+      return RowNumber{cursor_.RowIndex()};
+    }
+    void Reset() { cursor_.Reset(); }
+
+    SpuriousSchedWakeupTable::Id id() const {
+        
+        return SpuriousSchedWakeupTable::Id{cursor_.GetCellUnchecked<ColumnIndex::id>(kSpec)};
+      }
+    
+
+   private:
+    dataframe::Dataframe* dataframe_;
+    dataframe::TypedCursor cursor_;
+  };
+  class Iterator {
+    public:
+      explicit Iterator(SpuriousSchedWakeupTable* table) : table_(table) {
+        base::ignore_result(table_);
+      }
+      explicit operator bool() const { return row_ < table_->row_count(); }
+      Iterator& operator++() {
+        ++row_;
+        return *this;
+      }
+      RowNumber row_number() const {
+        return RowNumber{row_};
+      }
+      RowReference ToRowReference() const {
+        return RowReference(table_, row_);
+      }
+      SpuriousSchedWakeupTable::Id id() const {
+        
+        return SpuriousSchedWakeupTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+      
+
+    private:
+      SpuriousSchedWakeupTable* table_;
+      uint32_t row_ = 0;
+  };
+  class ConstIterator {
+    public:
+      explicit ConstIterator(const SpuriousSchedWakeupTable* table) : table_(table) {
+        base::ignore_result(table_);
+      }
+      explicit operator bool() const { return row_ < table_->row_count(); }
+      ConstIterator& operator++() {
+        ++row_;
+        return *this;
+      }
+      RowNumber row_number() const {
+        return RowNumber{row_};
+      }
+      ConstRowReference ToRowReference() const {
+        return ConstRowReference(table_, row_);
+      }
+      SpuriousSchedWakeupTable::Id id() const {
+        
+        return SpuriousSchedWakeupTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+
+    private:
+      const SpuriousSchedWakeupTable* table_;
+      uint32_t row_ = 0;
+  };
+  struct IdAndRow {
+    Id id;
+    RowNumber row_number;
+    uint32_t row;
+    RowReference row_reference;
+  };
+  
+  struct Row {
+    Row(int64_t _ts = {}, int64_t _thread_state_id = {}, std::optional<uint32_t> _irq_context = {}, uint32_t _utid = {}, uint32_t _waker_utid = {}) : ts(std::move(_ts)), thread_state_id(std::move(_thread_state_id)), irq_context(std::move(_irq_context)), utid(std::move(_utid)), waker_utid(std::move(_waker_utid)) {}
+
+    bool operator==(const Row& other) const {
+      return std::tie(ts, thread_state_id, irq_context, utid, waker_utid) ==
+             std::tie(other.ts, other.thread_state_id, other.irq_context, other.utid, other.waker_utid);
+    }
+
+        int64_t ts;
     int64_t thread_state_id;
     std::optional<uint32_t> irq_context;
     uint32_t utid;
     uint32_t waker_utid;
-
-    bool operator==(const SpuriousSchedWakeupTable::Row& other) const {
-      return ColumnType::ts::Equals(ts, other.ts) &&
-       ColumnType::thread_state_id::Equals(thread_state_id, other.thread_state_id) &&
-       ColumnType::irq_context::Equals(irq_context, other.irq_context) &&
-       ColumnType::utid::Equals(utid, other.utid) &&
-       ColumnType::waker_utid::Equals(waker_utid, other.waker_utid);
-    }
-  };
-  struct ColumnFlag {
-    static constexpr uint32_t ts = static_cast<uint32_t>(ColumnLegacy::Flag::kSorted) | ColumnType::ts::default_flags();
-    static constexpr uint32_t thread_state_id = ColumnType::thread_state_id::default_flags();
-    static constexpr uint32_t irq_context = ColumnType::irq_context::default_flags();
-    static constexpr uint32_t utid = ColumnType::utid::default_flags();
-    static constexpr uint32_t waker_utid = ColumnType::waker_utid::default_flags();
   };
 
-  class RowNumber;
-  class ConstRowReference;
-  class RowReference;
-
-  class RowNumber : public macros_internal::AbstractRowNumber<
-      SpuriousSchedWakeupTable, ConstRowReference, RowReference> {
-   public:
-    explicit RowNumber(uint32_t row_number)
-        : AbstractRowNumber(row_number) {}
-  };
-  static_assert(std::is_trivially_destructible_v<RowNumber>,
-                "Inheritance used without trivial destruction");
-
-  class ConstRowReference : public macros_internal::AbstractConstRowReference<
-    SpuriousSchedWakeupTable, RowNumber> {
-   public:
-    ConstRowReference(const SpuriousSchedWakeupTable* table, uint32_t row_number)
-        : AbstractConstRowReference(table, row_number) {}
-
-    ColumnType::id::type id() const {
-      return table()->id()[row_number_];
-    }
-    ColumnType::ts::type ts() const {
-      return table()->ts()[row_number_];
-    }
-    ColumnType::thread_state_id::type thread_state_id() const {
-      return table()->thread_state_id()[row_number_];
-    }
-    ColumnType::irq_context::type irq_context() const {
-      return table()->irq_context()[row_number_];
-    }
-    ColumnType::utid::type utid() const {
-      return table()->utid()[row_number_];
-    }
-    ColumnType::waker_utid::type waker_utid() const {
-      return table()->waker_utid()[row_number_];
-    }
-  };
-  static_assert(std::is_trivially_destructible_v<ConstRowReference>,
-                "Inheritance used without trivial destruction");
-  class RowReference : public ConstRowReference {
-   public:
-    RowReference(const SpuriousSchedWakeupTable* table, uint32_t row_number)
-        : ConstRowReference(table, row_number) {}
-
-    void set_ts(
-        ColumnType::ts::non_optional_type v) {
-      return mutable_table()->mutable_ts()->Set(row_number_, v);
-    }
-    void set_thread_state_id(
-        ColumnType::thread_state_id::non_optional_type v) {
-      return mutable_table()->mutable_thread_state_id()->Set(row_number_, v);
-    }
-    void set_irq_context(
-        ColumnType::irq_context::non_optional_type v) {
-      return mutable_table()->mutable_irq_context()->Set(row_number_, v);
-    }
-    void set_utid(
-        ColumnType::utid::non_optional_type v) {
-      return mutable_table()->mutable_utid()->Set(row_number_, v);
-    }
-    void set_waker_utid(
-        ColumnType::waker_utid::non_optional_type v) {
-      return mutable_table()->mutable_waker_utid()->Set(row_number_, v);
-    }
-
-   private:
-    SpuriousSchedWakeupTable* mutable_table() const {
-      return const_cast<SpuriousSchedWakeupTable*>(table());
-    }
-  };
-  static_assert(std::is_trivially_destructible_v<RowReference>,
-                "Inheritance used without trivial destruction");
-
-  class ConstIterator;
-  class ConstIterator : public macros_internal::AbstractConstIterator<
-    ConstIterator, SpuriousSchedWakeupTable, RowNumber, ConstRowReference> {
-   public:
-    ColumnType::id::type id() const {
-      const auto& col = table()->id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::ts::type ts() const {
-      const auto& col = table()->ts();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::thread_state_id::type thread_state_id() const {
-      const auto& col = table()->thread_state_id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::irq_context::type irq_context() const {
-      const auto& col = table()->irq_context();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::utid::type utid() const {
-      const auto& col = table()->utid();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::waker_utid::type waker_utid() const {
-      const auto& col = table()->waker_utid();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-
-   protected:
-    explicit ConstIterator(const SpuriousSchedWakeupTable* table,
-                           Table::Iterator iterator)
-        : AbstractConstIterator(table, std::move(iterator)) {}
-
-    uint32_t CurrentRowNumber() const {
-      return iterator_.StorageIndexForLastOverlay();
-    }
-
-   private:
-    friend class SpuriousSchedWakeupTable;
-    friend class macros_internal::AbstractConstIterator<
-      ConstIterator, SpuriousSchedWakeupTable, RowNumber, ConstRowReference>;
-  };
-  class Iterator : public ConstIterator {
-    public:
-     RowReference row_reference() const {
-       return {const_cast<SpuriousSchedWakeupTable*>(table()), CurrentRowNumber()};
-     }
-
-    private:
-     friend class SpuriousSchedWakeupTable;
-
-     explicit Iterator(SpuriousSchedWakeupTable* table, Table::Iterator iterator)
-        : ConstIterator(table, std::move(iterator)) {}
-  };
-
-  struct IdAndRow {
-    Id id;
-    uint32_t row;
-    RowReference row_reference;
-    RowNumber row_number;
-  };
-
-  static std::vector<ColumnLegacy> GetColumns(
-      SpuriousSchedWakeupTable* self,
-      const macros_internal::MacroTable* parent) {
-    std::vector<ColumnLegacy> columns =
-        CopyColumnsFromParentOrAddRootColumns(parent);
-    uint32_t olay_idx = OverlayCount(parent);
-    AddColumnToVector(columns, "ts", &self->ts_, ColumnFlag::ts,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "thread_state_id", &self->thread_state_id_, ColumnFlag::thread_state_id,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "irq_context", &self->irq_context_, ColumnFlag::irq_context,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "utid", &self->utid_, ColumnFlag::utid,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "waker_utid", &self->waker_utid_, ColumnFlag::waker_utid,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    base::ignore_result(self);
-    return columns;
-  }
-
-  PERFETTO_NO_INLINE explicit SpuriousSchedWakeupTable(StringPool* pool)
-      : macros_internal::MacroTable(
-          pool,
-          GetColumns(this, nullptr),
-          nullptr),
-        ts_(ColumnStorage<ColumnType::ts::stored_type>::Create<false>()),
-        thread_state_id_(ColumnStorage<ColumnType::thread_state_id::stored_type>::Create<false>()),
-        irq_context_(ColumnStorage<ColumnType::irq_context::stored_type>::Create<false>()),
-        utid_(ColumnStorage<ColumnType::utid::stored_type>::Create<false>()),
-        waker_utid_(ColumnStorage<ColumnType::waker_utid::stored_type>::Create<false>())
-,
-        id_storage_layer_(new column::IdStorage()),
-        ts_storage_layer_(
-        new column::NumericStorage<ColumnType::ts::non_optional_stored_type>(
-          &ts_.vector(),
-          ColumnTypeHelper<ColumnType::ts::stored_type>::ToColumnType(),
-          true)),
-        thread_state_id_storage_layer_(
-        new column::NumericStorage<ColumnType::thread_state_id::non_optional_stored_type>(
-          &thread_state_id_.vector(),
-          ColumnTypeHelper<ColumnType::thread_state_id::stored_type>::ToColumnType(),
-          false)),
-        irq_context_storage_layer_(
-          new column::NumericStorage<ColumnType::irq_context::non_optional_stored_type>(
-            &irq_context_.non_null_vector(),
-            ColumnTypeHelper<ColumnType::irq_context::stored_type>::ToColumnType(),
-            false)),
-        utid_storage_layer_(
-        new column::NumericStorage<ColumnType::utid::non_optional_stored_type>(
-          &utid_.vector(),
-          ColumnTypeHelper<ColumnType::utid::stored_type>::ToColumnType(),
-          false)),
-        waker_utid_storage_layer_(
-        new column::NumericStorage<ColumnType::waker_utid::non_optional_stored_type>(
-          &waker_utid_.vector(),
-          ColumnTypeHelper<ColumnType::waker_utid::stored_type>::ToColumnType(),
-          false))
-,
-        irq_context_null_layer_(new column::NullOverlay(irq_context_.bv())) {
-    static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::ts::stored_type>(
-          ColumnFlag::ts),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::thread_state_id::stored_type>(
-          ColumnFlag::thread_state_id),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::irq_context::stored_type>(
-          ColumnFlag::irq_context),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::utid::stored_type>(
-          ColumnFlag::utid),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::waker_utid::stored_type>(
-          ColumnFlag::waker_utid),
-        "Column type and flag combination is not valid");
-    OnConstructionCompletedRegularConstructor(
-      {id_storage_layer_,ts_storage_layer_,thread_state_id_storage_layer_,irq_context_storage_layer_,utid_storage_layer_,waker_utid_storage_layer_},
-      {{},{},{},irq_context_null_layer_,{},{}});
-  }
-  ~SpuriousSchedWakeupTable() override;
-
-  static const char* Name() { return "spurious_sched_wakeup"; }
-
-  static Table::Schema ComputeStaticSchema() {
-    Table::Schema schema;
-    schema.columns.emplace_back(Table::Schema::Column{
-        "id", SqlValue::Type::kLong, true, true, false, false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "ts", ColumnType::ts::SqlValueType(), false,
-        true,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "thread_state_id", ColumnType::thread_state_id::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "irq_context", ColumnType::irq_context::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "utid", ColumnType::utid::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "waker_utid", ColumnType::waker_utid::SqlValueType(), false,
-        false,
-        false,
-        false});
-    return schema;
-  }
-
-  ConstIterator IterateRows() const {
-    return ConstIterator(this, Table::IterateRows());
-  }
-
-  Iterator IterateRows() { return Iterator(this, Table::IterateRows()); }
-
-  ConstIterator FilterToIterator(const Query& q) const {
-    return ConstIterator(this, QueryToIterator(q));
-  }
-
-  Iterator FilterToIterator(const Query& q) {
-    return Iterator(this, QueryToIterator(q));
-  }
-
-  void ShrinkToFit() {
-    ts_.ShrinkToFit();
-    thread_state_id_.ShrinkToFit();
-    irq_context_.ShrinkToFit();
-    utid_.ShrinkToFit();
-    waker_utid_.ShrinkToFit();
-  }
-
-  ConstRowReference operator[](uint32_t r) const {
-    return ConstRowReference(this, r);
-  }
-  RowReference operator[](uint32_t r) { return RowReference(this, r); }
-  ConstRowReference operator[](RowNumber r) const {
-    return ConstRowReference(this, r.row_number());
-  }
-  RowReference operator[](RowNumber r) {
-    return RowReference(this, r.row_number());
-  }
-
-  std::optional<ConstRowReference> FindById(Id find_id) const {
-    std::optional<uint32_t> row = id().IndexOf(find_id);
-    return row ? std::make_optional(ConstRowReference(this, *row))
-               : std::nullopt;
-  }
-
-  std::optional<RowReference> FindById(Id find_id) {
-    std::optional<uint32_t> row = id().IndexOf(find_id);
-    return row ? std::make_optional(RowReference(this, *row)) : std::nullopt;
-  }
+  explicit SpuriousSchedWakeupTable(StringPool* pool)
+      : dataframe_(dataframe::Dataframe::CreateFromTypedSpec(kSpec, pool)) {}
 
   IdAndRow Insert(const Row& row) {
-    uint32_t row_number = row_count();
-    Id id = Id{row_number};
-    mutable_ts()->Append(row.ts);
-    mutable_thread_state_id()->Append(row.thread_state_id);
-    mutable_irq_context()->Append(row.irq_context);
-    mutable_utid()->Append(row.utid);
-    mutable_waker_utid()->Append(row.waker_utid);
-    UpdateSelfOverlayAfterInsert();
-    return IdAndRow{id, row_number, RowReference(this, row_number),
-                     RowNumber(row_number)};
+    uint32_t row_count = dataframe_.row_count();
+    dataframe_.InsertUnchecked(kSpec, std::monostate(), row.ts, row.thread_state_id, row.irq_context, row.utid, row.waker_utid);
+    return IdAndRow{Id{row_count}, RowNumber{row_count}, row_count, RowReference(this, row_count)};
   }
 
-  
-
-  const IdColumn<SpuriousSchedWakeupTable::Id>& id() const {
-    return static_cast<const ColumnType::id&>(columns()[ColumnIndex::id]);
-  }
-  const TypedColumn<int64_t>& ts() const {
-    return static_cast<const ColumnType::ts&>(columns()[ColumnIndex::ts]);
-  }
-  const TypedColumn<int64_t>& thread_state_id() const {
-    return static_cast<const ColumnType::thread_state_id&>(columns()[ColumnIndex::thread_state_id]);
-  }
-  const TypedColumn<std::optional<uint32_t>>& irq_context() const {
-    return static_cast<const ColumnType::irq_context&>(columns()[ColumnIndex::irq_context]);
-  }
-  const TypedColumn<uint32_t>& utid() const {
-    return static_cast<const ColumnType::utid&>(columns()[ColumnIndex::utid]);
-  }
-  const TypedColumn<uint32_t>& waker_utid() const {
-    return static_cast<const ColumnType::waker_utid&>(columns()[ColumnIndex::waker_utid]);
+  uint32_t row_count() const {
+    return dataframe_.row_count();
   }
 
-  TypedColumn<int64_t>* mutable_ts() {
-    return static_cast<ColumnType::ts*>(
-        GetColumn(ColumnIndex::ts));
+  std::optional<ConstRowReference> FindById(Id id) const {
+    return ConstRowReference(this, id.value);
   }
-  TypedColumn<int64_t>* mutable_thread_state_id() {
-    return static_cast<ColumnType::thread_state_id*>(
-        GetColumn(ColumnIndex::thread_state_id));
+  ConstRowReference operator[](uint32_t row) const {
+    return ConstRowReference(this, row);
   }
-  TypedColumn<std::optional<uint32_t>>* mutable_irq_context() {
-    return static_cast<ColumnType::irq_context*>(
-        GetColumn(ColumnIndex::irq_context));
+
+  std::optional<RowReference> FindById(Id id) {
+    return RowReference(this, id.value);
   }
-  TypedColumn<uint32_t>* mutable_utid() {
-    return static_cast<ColumnType::utid*>(
-        GetColumn(ColumnIndex::utid));
+  RowReference operator[](uint32_t row) {
+    return RowReference(this, row);
   }
-  TypedColumn<uint32_t>* mutable_waker_utid() {
-    return static_cast<ColumnType::waker_utid*>(
-        GetColumn(ColumnIndex::waker_utid));
+
+  ConstCursor CreateCursor(
+      std::vector<dataframe::FilterSpec> filters = {},
+      std::vector<dataframe::SortSpec> sorts = {}) const {
+    return ConstCursor(dataframe_, std::move(filters), std::move(sorts));
+  }
+  Cursor CreateCursor(
+      std::vector<dataframe::FilterSpec> filters = {},
+      std::vector<dataframe::SortSpec> sorts = {}) {
+    return Cursor(dataframe_, std::move(filters), std::move(sorts));
+  }
+
+  Iterator IterateRows() { return Iterator(this); }
+  ConstIterator IterateRows() const { return ConstIterator(this); }
+
+  void Finalize() { dataframe_.Finalize(); }
+
+  void Clear() { dataframe_.Clear(); }
+
+  static const char* Name() {
+    return "spurious_sched_wakeup";
+  }
+
+  dataframe::Dataframe& dataframe() {
+    return dataframe_;
+  }
+  const dataframe::Dataframe& dataframe() const {
+    return dataframe_;
   }
 
  private:
-  
-  
-  ColumnStorage<ColumnType::ts::stored_type> ts_;
-  ColumnStorage<ColumnType::thread_state_id::stored_type> thread_state_id_;
-  ColumnStorage<ColumnType::irq_context::stored_type> irq_context_;
-  ColumnStorage<ColumnType::utid::stored_type> utid_;
-  ColumnStorage<ColumnType::waker_utid::stored_type> waker_utid_;
-
-  RefPtr<column::StorageLayer> id_storage_layer_;
-  RefPtr<column::StorageLayer> ts_storage_layer_;
-  RefPtr<column::StorageLayer> thread_state_id_storage_layer_;
-  RefPtr<column::StorageLayer> irq_context_storage_layer_;
-  RefPtr<column::StorageLayer> utid_storage_layer_;
-  RefPtr<column::StorageLayer> waker_utid_storage_layer_;
-
-  RefPtr<column::OverlayLayer> irq_context_null_layer_;
+  dataframe::Dataframe dataframe_;
 };
-  
 
-class ThreadStateTable : public macros_internal::MacroTable {
+
+
+class ThreadStateTable {
  public:
-  static constexpr uint32_t kColumnCount = 11;
+  static constexpr auto kSpec = dataframe::CreateTypedDataframeSpec(
+    {"id","ts","dur","utid","state","io_wait","blocked_function","waker_utid","waker_id","irq_context","ucpu"},
+    dataframe::CreateTypedColumnSpec(dataframe::Id{}, dataframe::NonNull{}, dataframe::IdSorted{}, dataframe::NoDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Int64{}, dataframe::NonNull{}, dataframe::Sorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Int64{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::String{}, dataframe::DenseNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::SparseNullWithPopcountUntilFinalization{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::String{}, dataframe::DenseNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::SparseNullWithPopcountUntilFinalization{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::SparseNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::SparseNullWithPopcountUntilFinalization{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::SparseNullWithPopcountUntilFinalization{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}));
 
-  struct Id : public BaseId {
+  struct Id : BaseId {
     Id() = default;
-    explicit constexpr Id(uint32_t v) : BaseId(v) {}
+    explicit constexpr Id(uint32_t _value) : BaseId(_value) {}
+
+    bool operator==(const Id& other) const {
+      return value == other.value;
+    }
   };
-  static_assert(std::is_trivially_destructible_v<Id>,
-                "Inheritance used without trivial destruction");
-    
+  struct RowReference;
+  struct ConstRowReference;
+  struct RowNumber {
+   public:
+    explicit constexpr RowNumber(uint32_t value) : value_(value) {}
+    uint32_t row_number() const { return value_; }
+
+    RowReference ToRowReference(ThreadStateTable* table) const {
+      return RowReference(table, value_);
+    }
+    ConstRowReference ToRowReference(const ThreadStateTable& table) const {
+      return ConstRowReference(&table, value_);
+    }
+
+    bool operator==(const RowNumber& other) const {
+      return value_ == other.value_;
+    }
+    bool operator<(const RowNumber& other) const {
+      return value_ < other.value_;
+    }
+   private:
+    uint32_t value_;
+  };
   struct ColumnIndex {
     static constexpr uint32_t id = 0;
     static constexpr uint32_t ts = 1;
@@ -991,43 +783,496 @@ class ThreadStateTable : public macros_internal::MacroTable {
     static constexpr uint32_t irq_context = 9;
     static constexpr uint32_t ucpu = 10;
   };
-  struct ColumnType {
-    using id = IdColumn<ThreadStateTable::Id>;
-    using ts = TypedColumn<int64_t>;
-    using dur = TypedColumn<int64_t>;
-    using utid = TypedColumn<uint32_t>;
-    using state = TypedColumn<StringPool::Id>;
-    using io_wait = TypedColumn<std::optional<uint32_t>>;
-    using blocked_function = TypedColumn<std::optional<StringPool::Id>>;
-    using waker_utid = TypedColumn<std::optional<uint32_t>>;
-    using waker_id = TypedColumn<std::optional<ThreadStateTable::Id>>;
-    using irq_context = TypedColumn<std::optional<uint32_t>>;
-    using ucpu = TypedColumn<std::optional<CpuTable::Id>>;
+  struct RowReference {
+   public:
+    explicit RowReference(ThreadStateTable* table, uint32_t row)
+        : table_(table), row_(row) {
+        base::ignore_result(table_);
+    }
+    ThreadStateTable::Id id() const {
+        
+        return ThreadStateTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+        int64_t ts() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::ts>(kSpec, row_);
+    }
+        int64_t dur() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::dur>(kSpec, row_);
+    }
+        uint32_t utid() const {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::utid>(kSpec, row_);
+    }
+          StringPool::Id state() const {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        auto res = table_->dataframe_.template GetCellUnchecked<ColumnIndex::state>(kSpec, row_);
+        return res && res != StringPool::Id::Null() ? StringPool::Id{*res} : StringPool::Id::Null();
+      }
+        std::optional<uint32_t> io_wait() const {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::io_wait>(kSpec, row_);
+    }
+          std::optional<StringPool::Id> blocked_function() const {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        auto res = table_->dataframe_.template GetCellUnchecked<ColumnIndex::blocked_function>(kSpec, row_);
+        return res && res != StringPool::Id::Null() ? std::make_optional(StringPool::Id{*res}) : std::nullopt;
+      }
+        std::optional<uint32_t> waker_utid() const {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::waker_utid>(kSpec, row_);
+    }
+        std::optional<uint32_t> irq_context() const {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::irq_context>(kSpec, row_);
+    }
+          std::optional<CpuTable::Id> ucpu() const {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        auto res = table_->dataframe_.template GetCellUnchecked<ColumnIndex::ucpu>(kSpec, row_);
+        return res ? std::make_optional(CpuTable::Id{*res}) : std::nullopt;
+      }
+    void set_dur(int64_t res) {
+      
+      table_->dataframe_.SetCellUnchecked<ColumnIndex::dur>(kSpec, row_, res);
+    }
+          void set_state(StringPool::Id res) {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        auto res_value = res != StringPool::Id::Null() ? std::make_optional(res) : std::nullopt;
+        table_->dataframe_.SetCellUnchecked<ColumnIndex::state>(kSpec, row_, res_value);
+    }
+        void set_io_wait(std::optional<uint32_t> res) {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      table_->dataframe_.SetCellUnchecked<ColumnIndex::io_wait>(kSpec, row_, res);
+    }
+          void set_blocked_function(std::optional<StringPool::Id> res) {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        auto res_value = res && res != StringPool::Id::Null() ? std::make_optional(*res) : std::nullopt;
+        table_->dataframe_.SetCellUnchecked<ColumnIndex::blocked_function>(kSpec, row_, res_value);
+    }
+        void set_waker_utid(std::optional<uint32_t> res) {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      table_->dataframe_.SetCellUnchecked<ColumnIndex::waker_utid>(kSpec, row_, res);
+    }
+        void set_irq_context(std::optional<uint32_t> res) {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      table_->dataframe_.SetCellUnchecked<ColumnIndex::irq_context>(kSpec, row_, res);
+    }
+          void set_ucpu(std::optional<CpuTable::Id> res) {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        auto res_value = res ? std::make_optional(res->value) : std::nullopt;
+        table_->dataframe_.SetCellUnchecked<ColumnIndex::ucpu>(kSpec, row_, res_value);
+      }
+    RowNumber ToRowNumber() const {
+      return RowNumber{row_};
+    }
+
+   private:
+    friend struct ConstRowReference;
+    ThreadStateTable* table_;
+    uint32_t row_;
   };
-  struct Row : public macros_internal::RootParentTable::Row {
-    Row(int64_t in_ts = {},
-        int64_t in_dur = {},
-        uint32_t in_utid = {},
-        StringPool::Id in_state = {},
-        std::optional<uint32_t> in_io_wait = {},
-        std::optional<StringPool::Id> in_blocked_function = {},
-        std::optional<uint32_t> in_waker_utid = {},
-        std::optional<ThreadStateTable::Id> in_waker_id = {},
-        std::optional<uint32_t> in_irq_context = {},
-        std::optional<CpuTable::Id> in_ucpu = {},
-        std::nullptr_t = nullptr)
-        : macros_internal::RootParentTable::Row(),
-          ts(in_ts),
-          dur(in_dur),
-          utid(in_utid),
-          state(in_state),
-          io_wait(in_io_wait),
-          blocked_function(in_blocked_function),
-          waker_utid(in_waker_utid),
-          waker_id(in_waker_id),
-          irq_context(in_irq_context),
-          ucpu(in_ucpu) {}
-    int64_t ts;
+  struct ConstRowReference {
+   public:
+    explicit ConstRowReference(const ThreadStateTable* table, uint32_t row)
+        : table_(table), row_(row) {
+        base::ignore_result(table_);
+    }
+    ConstRowReference(const RowReference& other)
+        : table_(other.table_), row_(other.row_) {}
+    ThreadStateTable::Id id() const {
+        
+        return ThreadStateTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+        int64_t ts() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::ts>(kSpec, row_);
+    }
+        int64_t dur() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::dur>(kSpec, row_);
+    }
+        uint32_t utid() const {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::utid>(kSpec, row_);
+    }
+          StringPool::Id state() const {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        auto res = table_->dataframe_.template GetCellUnchecked<ColumnIndex::state>(kSpec, row_);
+        return res && res != StringPool::Id::Null() ? StringPool::Id{*res} : StringPool::Id::Null();
+      }
+        std::optional<uint32_t> io_wait() const {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::io_wait>(kSpec, row_);
+    }
+          std::optional<StringPool::Id> blocked_function() const {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        auto res = table_->dataframe_.template GetCellUnchecked<ColumnIndex::blocked_function>(kSpec, row_);
+        return res && res != StringPool::Id::Null() ? std::make_optional(StringPool::Id{*res}) : std::nullopt;
+      }
+        std::optional<uint32_t> waker_utid() const {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::waker_utid>(kSpec, row_);
+    }
+        std::optional<uint32_t> irq_context() const {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::irq_context>(kSpec, row_);
+    }
+          std::optional<CpuTable::Id> ucpu() const {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        auto res = table_->dataframe_.template GetCellUnchecked<ColumnIndex::ucpu>(kSpec, row_);
+        return res ? std::make_optional(CpuTable::Id{*res}) : std::nullopt;
+      }
+    RowNumber ToRowNumber() const {
+      return RowNumber{row_};
+    }
+   private:
+    const ThreadStateTable* table_;
+    uint32_t row_;
+  };
+  class ConstCursor {
+   public:
+    explicit ConstCursor(const dataframe::Dataframe& df,
+                         std::vector<dataframe::FilterSpec> filters,
+                         std::vector<dataframe::SortSpec> sorts)
+      : dataframe_(&df), cursor_(&df, std::move(filters), std::move(sorts)) {
+      base::ignore_result(dataframe_);
+    }
+
+    PERFETTO_ALWAYS_INLINE void Execute() { cursor_.ExecuteUnchecked(); }
+    PERFETTO_ALWAYS_INLINE bool Eof() const { return cursor_.Eof(); }
+    PERFETTO_ALWAYS_INLINE void Next() { cursor_.Next(); }
+    template <typename C>
+    PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index, C value) {
+      cursor_.SetFilterValueUnchecked(index, std::move(value));
+    }
+    RowNumber ToRowNumber() const {
+      return RowNumber{cursor_.RowIndex()};
+    }
+    void Reset() { cursor_.Reset(); }
+    ThreadStateTable::Id id() const {
+        
+        return ThreadStateTable::Id{cursor_.GetCellUnchecked<ColumnIndex::id>(kSpec)};
+      }
+    int64_t ts() const {
+      
+      return cursor_.GetCellUnchecked<ColumnIndex::ts>(kSpec);
+    }
+    int64_t dur() const {
+      
+      return cursor_.GetCellUnchecked<ColumnIndex::dur>(kSpec);
+    }
+    uint32_t utid() const {
+      PERFETTO_DCHECK(!dataframe_->finalized());
+      return cursor_.GetCellUnchecked<ColumnIndex::utid>(kSpec);
+    }
+      StringPool::Id state() const {
+        PERFETTO_DCHECK(!dataframe_->finalized());
+        auto res = cursor_.GetCellUnchecked<ColumnIndex::state>(kSpec);
+        return res && res != StringPool::Id::Null() ? *res : StringPool::Id::Null();
+      }
+    std::optional<uint32_t> io_wait() const {
+      PERFETTO_DCHECK(!dataframe_->finalized());
+      return cursor_.GetCellUnchecked<ColumnIndex::io_wait>(kSpec);
+    }
+      std::optional<StringPool::Id> blocked_function() const {
+        PERFETTO_DCHECK(!dataframe_->finalized());
+        auto res = cursor_.GetCellUnchecked<ColumnIndex::blocked_function>(kSpec);
+        return res && res != StringPool::Id::Null() ? std::make_optional(StringPool::Id{*res}) : std::nullopt;
+      }
+    std::optional<uint32_t> waker_utid() const {
+      PERFETTO_DCHECK(!dataframe_->finalized());
+      return cursor_.GetCellUnchecked<ColumnIndex::waker_utid>(kSpec);
+    }
+    std::optional<uint32_t> irq_context() const {
+      PERFETTO_DCHECK(!dataframe_->finalized());
+      return cursor_.GetCellUnchecked<ColumnIndex::irq_context>(kSpec);
+    }
+      std::optional<CpuTable::Id> ucpu() const {
+        PERFETTO_DCHECK(!dataframe_->finalized());
+        auto res = cursor_.GetCellUnchecked<ColumnIndex::ucpu>(kSpec);
+        return res ? std::make_optional(CpuTable::Id{*res}) : std::nullopt;
+      }
+
+   private:
+    const dataframe::Dataframe* dataframe_;
+    dataframe::TypedCursor cursor_;
+  };
+  class Cursor {
+   public:
+    explicit Cursor(dataframe::Dataframe& df,
+                    std::vector<dataframe::FilterSpec> filters,
+                    std::vector<dataframe::SortSpec> sorts)
+      : dataframe_(&df), cursor_(&df, std::move(filters), std::move(sorts)) {
+      base::ignore_result(dataframe_);
+    }
+
+    PERFETTO_ALWAYS_INLINE void Execute() { cursor_.ExecuteUnchecked(); }
+    PERFETTO_ALWAYS_INLINE bool Eof() const { return cursor_.Eof(); }
+    PERFETTO_ALWAYS_INLINE void Next() { cursor_.Next(); }
+    template <typename C>
+    PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index, C value) {
+      cursor_.SetFilterValueUnchecked(index, std::move(value));
+    }
+    RowNumber ToRowNumber() const {
+      return RowNumber{cursor_.RowIndex()};
+    }
+    void Reset() { cursor_.Reset(); }
+
+    ThreadStateTable::Id id() const {
+        
+        return ThreadStateTable::Id{cursor_.GetCellUnchecked<ColumnIndex::id>(kSpec)};
+      }
+    int64_t ts() const {
+      
+      return cursor_.GetCellUnchecked<ColumnIndex::ts>(kSpec);
+    }
+    int64_t dur() const {
+      
+      return cursor_.GetCellUnchecked<ColumnIndex::dur>(kSpec);
+    }
+    uint32_t utid() const {
+      PERFETTO_DCHECK(!dataframe_->finalized());
+      return cursor_.GetCellUnchecked<ColumnIndex::utid>(kSpec);
+    }
+      StringPool::Id state() const {
+        PERFETTO_DCHECK(!dataframe_->finalized());
+        auto res = cursor_.GetCellUnchecked<ColumnIndex::state>(kSpec);
+        return res && res != StringPool::Id::Null() ? *res : StringPool::Id::Null();
+      }
+    std::optional<uint32_t> io_wait() const {
+      PERFETTO_DCHECK(!dataframe_->finalized());
+      return cursor_.GetCellUnchecked<ColumnIndex::io_wait>(kSpec);
+    }
+      std::optional<StringPool::Id> blocked_function() const {
+        PERFETTO_DCHECK(!dataframe_->finalized());
+        auto res = cursor_.GetCellUnchecked<ColumnIndex::blocked_function>(kSpec);
+        return res && res != StringPool::Id::Null() ? std::make_optional(StringPool::Id{*res}) : std::nullopt;
+      }
+    std::optional<uint32_t> waker_utid() const {
+      PERFETTO_DCHECK(!dataframe_->finalized());
+      return cursor_.GetCellUnchecked<ColumnIndex::waker_utid>(kSpec);
+    }
+    std::optional<uint32_t> irq_context() const {
+      PERFETTO_DCHECK(!dataframe_->finalized());
+      return cursor_.GetCellUnchecked<ColumnIndex::irq_context>(kSpec);
+    }
+      std::optional<CpuTable::Id> ucpu() const {
+        PERFETTO_DCHECK(!dataframe_->finalized());
+        auto res = cursor_.GetCellUnchecked<ColumnIndex::ucpu>(kSpec);
+        return res ? std::make_optional(CpuTable::Id{*res}) : std::nullopt;
+      }
+    void set_dur(int64_t res) {
+        
+      cursor_.SetCellUnchecked<ColumnIndex::dur>(kSpec, res);
+    }
+      void set_state(StringPool::Id res) {
+        PERFETTO_DCHECK(!dataframe_->finalized());
+        auto res_value = res != StringPool::Id::Null() ? std::make_optional(res) : std::nullopt;
+        cursor_.SetCellUnchecked<ColumnIndex::state>(kSpec, res_value);
+    }
+    void set_io_wait(std::optional<uint32_t> res) {
+        PERFETTO_DCHECK(!dataframe_->finalized());
+      cursor_.SetCellUnchecked<ColumnIndex::io_wait>(kSpec, res);
+    }
+      void set_blocked_function(std::optional<StringPool::Id> res) {
+        PERFETTO_DCHECK(!dataframe_->finalized());
+        auto res_value = res && res != StringPool::Id::Null() ? std::make_optional(*res) : std::nullopt;
+        cursor_.SetCellUnchecked<ColumnIndex::blocked_function>(kSpec, res_value);
+    }
+    void set_waker_utid(std::optional<uint32_t> res) {
+        PERFETTO_DCHECK(!dataframe_->finalized());
+      cursor_.SetCellUnchecked<ColumnIndex::waker_utid>(kSpec, res);
+    }
+    void set_irq_context(std::optional<uint32_t> res) {
+        PERFETTO_DCHECK(!dataframe_->finalized());
+      cursor_.SetCellUnchecked<ColumnIndex::irq_context>(kSpec, res);
+    }
+      void set_ucpu(std::optional<CpuTable::Id> res) {
+        PERFETTO_DCHECK(!dataframe_->finalized());
+        auto res_value = res ? std::make_optional(res->value) : std::nullopt;
+        cursor_.SetCellUnchecked<ColumnIndex::ucpu>(kSpec, res_value);
+      }
+
+   private:
+    dataframe::Dataframe* dataframe_;
+    dataframe::TypedCursor cursor_;
+  };
+  class Iterator {
+    public:
+      explicit Iterator(ThreadStateTable* table) : table_(table) {
+        base::ignore_result(table_);
+      }
+      explicit operator bool() const { return row_ < table_->row_count(); }
+      Iterator& operator++() {
+        ++row_;
+        return *this;
+      }
+      RowNumber row_number() const {
+        return RowNumber{row_};
+      }
+      RowReference ToRowReference() const {
+        return RowReference(table_, row_);
+      }
+      ThreadStateTable::Id id() const {
+        
+        return ThreadStateTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+        int64_t ts() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::ts>(kSpec, row_);
+    }
+        int64_t dur() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::dur>(kSpec, row_);
+    }
+        uint32_t utid() const {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::utid>(kSpec, row_);
+    }
+          StringPool::Id state() const {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        auto res = table_->dataframe_.template GetCellUnchecked<ColumnIndex::state>(kSpec, row_);
+        return res && res != StringPool::Id::Null() ? StringPool::Id{*res} : StringPool::Id::Null();
+      }
+        std::optional<uint32_t> io_wait() const {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::io_wait>(kSpec, row_);
+    }
+          std::optional<StringPool::Id> blocked_function() const {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        auto res = table_->dataframe_.template GetCellUnchecked<ColumnIndex::blocked_function>(kSpec, row_);
+        return res && res != StringPool::Id::Null() ? std::make_optional(StringPool::Id{*res}) : std::nullopt;
+      }
+        std::optional<uint32_t> waker_utid() const {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::waker_utid>(kSpec, row_);
+    }
+        std::optional<uint32_t> irq_context() const {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::irq_context>(kSpec, row_);
+    }
+          std::optional<CpuTable::Id> ucpu() const {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        auto res = table_->dataframe_.template GetCellUnchecked<ColumnIndex::ucpu>(kSpec, row_);
+        return res ? std::make_optional(CpuTable::Id{*res}) : std::nullopt;
+      }
+      void set_dur(int64_t res) {
+      
+      table_->dataframe_.SetCellUnchecked<ColumnIndex::dur>(kSpec, row_, res);
+    }
+          void set_state(StringPool::Id res) {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        auto res_value = res != StringPool::Id::Null() ? std::make_optional(res) : std::nullopt;
+        table_->dataframe_.SetCellUnchecked<ColumnIndex::state>(kSpec, row_, res_value);
+    }
+        void set_io_wait(std::optional<uint32_t> res) {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      table_->dataframe_.SetCellUnchecked<ColumnIndex::io_wait>(kSpec, row_, res);
+    }
+          void set_blocked_function(std::optional<StringPool::Id> res) {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        auto res_value = res && res != StringPool::Id::Null() ? std::make_optional(*res) : std::nullopt;
+        table_->dataframe_.SetCellUnchecked<ColumnIndex::blocked_function>(kSpec, row_, res_value);
+    }
+        void set_waker_utid(std::optional<uint32_t> res) {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      table_->dataframe_.SetCellUnchecked<ColumnIndex::waker_utid>(kSpec, row_, res);
+    }
+        void set_irq_context(std::optional<uint32_t> res) {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      table_->dataframe_.SetCellUnchecked<ColumnIndex::irq_context>(kSpec, row_, res);
+    }
+          void set_ucpu(std::optional<CpuTable::Id> res) {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        auto res_value = res ? std::make_optional(res->value) : std::nullopt;
+        table_->dataframe_.SetCellUnchecked<ColumnIndex::ucpu>(kSpec, row_, res_value);
+      }
+
+    private:
+      ThreadStateTable* table_;
+      uint32_t row_ = 0;
+  };
+  class ConstIterator {
+    public:
+      explicit ConstIterator(const ThreadStateTable* table) : table_(table) {
+        base::ignore_result(table_);
+      }
+      explicit operator bool() const { return row_ < table_->row_count(); }
+      ConstIterator& operator++() {
+        ++row_;
+        return *this;
+      }
+      RowNumber row_number() const {
+        return RowNumber{row_};
+      }
+      ConstRowReference ToRowReference() const {
+        return ConstRowReference(table_, row_);
+      }
+      ThreadStateTable::Id id() const {
+        
+        return ThreadStateTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+        int64_t ts() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::ts>(kSpec, row_);
+    }
+        int64_t dur() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::dur>(kSpec, row_);
+    }
+        uint32_t utid() const {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::utid>(kSpec, row_);
+    }
+          StringPool::Id state() const {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        auto res = table_->dataframe_.template GetCellUnchecked<ColumnIndex::state>(kSpec, row_);
+        return res && res != StringPool::Id::Null() ? StringPool::Id{*res} : StringPool::Id::Null();
+      }
+        std::optional<uint32_t> io_wait() const {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::io_wait>(kSpec, row_);
+    }
+          std::optional<StringPool::Id> blocked_function() const {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        auto res = table_->dataframe_.template GetCellUnchecked<ColumnIndex::blocked_function>(kSpec, row_);
+        return res && res != StringPool::Id::Null() ? std::make_optional(StringPool::Id{*res}) : std::nullopt;
+      }
+        std::optional<uint32_t> waker_utid() const {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::waker_utid>(kSpec, row_);
+    }
+        std::optional<uint32_t> irq_context() const {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::irq_context>(kSpec, row_);
+    }
+          std::optional<CpuTable::Id> ucpu() const {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        auto res = table_->dataframe_.template GetCellUnchecked<ColumnIndex::ucpu>(kSpec, row_);
+        return res ? std::make_optional(CpuTable::Id{*res}) : std::nullopt;
+      }
+
+    private:
+      const ThreadStateTable* table_;
+      uint32_t row_ = 0;
+  };
+  struct IdAndRow {
+    Id id;
+    RowNumber row_number;
+    uint32_t row;
+    RowReference row_reference;
+  };
+  
+  struct Row {
+    Row(int64_t _ts = {}, int64_t _dur = {}, uint32_t _utid = {}, StringPool::Id _state = {}, std::optional<uint32_t> _io_wait = {}, std::optional<StringPool::Id> _blocked_function = {}, std::optional<uint32_t> _waker_utid = {}, std::optional<ThreadStateTable::Id> _waker_id = {}, std::optional<uint32_t> _irq_context = {}, std::optional<CpuTable::Id> _ucpu = {}) : ts(std::move(_ts)), dur(std::move(_dur)), utid(std::move(_utid)), state(std::move(_state)), io_wait(std::move(_io_wait)), blocked_function(std::move(_blocked_function)), waker_utid(std::move(_waker_utid)), waker_id(std::move(_waker_id)), irq_context(std::move(_irq_context)), ucpu(std::move(_ucpu)) {}
+
+    bool operator==(const Row& other) const {
+      return std::tie(ts, dur, utid, state, io_wait, blocked_function, waker_utid, waker_id, irq_context, ucpu) ==
+             std::tie(other.ts, other.dur, other.utid, other.state, other.io_wait, other.blocked_function, other.waker_utid, other.waker_id, other.irq_context, other.ucpu);
+    }
+
+        int64_t ts;
     int64_t dur;
     uint32_t utid;
     StringPool::Id state;
@@ -1037,613 +1282,66 @@ class ThreadStateTable : public macros_internal::MacroTable {
     std::optional<ThreadStateTable::Id> waker_id;
     std::optional<uint32_t> irq_context;
     std::optional<CpuTable::Id> ucpu;
-
-    bool operator==(const ThreadStateTable::Row& other) const {
-      return ColumnType::ts::Equals(ts, other.ts) &&
-       ColumnType::dur::Equals(dur, other.dur) &&
-       ColumnType::utid::Equals(utid, other.utid) &&
-       ColumnType::state::Equals(state, other.state) &&
-       ColumnType::io_wait::Equals(io_wait, other.io_wait) &&
-       ColumnType::blocked_function::Equals(blocked_function, other.blocked_function) &&
-       ColumnType::waker_utid::Equals(waker_utid, other.waker_utid) &&
-       ColumnType::waker_id::Equals(waker_id, other.waker_id) &&
-       ColumnType::irq_context::Equals(irq_context, other.irq_context) &&
-       ColumnType::ucpu::Equals(ucpu, other.ucpu);
-    }
-  };
-  struct ColumnFlag {
-    static constexpr uint32_t ts = static_cast<uint32_t>(ColumnLegacy::Flag::kSorted) | ColumnType::ts::default_flags();
-    static constexpr uint32_t dur = ColumnType::dur::default_flags();
-    static constexpr uint32_t utid = ColumnType::utid::default_flags();
-    static constexpr uint32_t state = ColumnType::state::default_flags();
-    static constexpr uint32_t io_wait = ColumnType::io_wait::default_flags();
-    static constexpr uint32_t blocked_function = ColumnType::blocked_function::default_flags();
-    static constexpr uint32_t waker_utid = ColumnType::waker_utid::default_flags();
-    static constexpr uint32_t waker_id = ColumnType::waker_id::default_flags();
-    static constexpr uint32_t irq_context = ColumnType::irq_context::default_flags();
-    static constexpr uint32_t ucpu = ColumnType::ucpu::default_flags();
   };
 
-  class RowNumber;
-  class ConstRowReference;
-  class RowReference;
-
-  class RowNumber : public macros_internal::AbstractRowNumber<
-      ThreadStateTable, ConstRowReference, RowReference> {
-   public:
-    explicit RowNumber(uint32_t row_number)
-        : AbstractRowNumber(row_number) {}
-  };
-  static_assert(std::is_trivially_destructible_v<RowNumber>,
-                "Inheritance used without trivial destruction");
-
-  class ConstRowReference : public macros_internal::AbstractConstRowReference<
-    ThreadStateTable, RowNumber> {
-   public:
-    ConstRowReference(const ThreadStateTable* table, uint32_t row_number)
-        : AbstractConstRowReference(table, row_number) {}
-
-    ColumnType::id::type id() const {
-      return table()->id()[row_number_];
-    }
-    ColumnType::ts::type ts() const {
-      return table()->ts()[row_number_];
-    }
-    ColumnType::dur::type dur() const {
-      return table()->dur()[row_number_];
-    }
-    ColumnType::utid::type utid() const {
-      return table()->utid()[row_number_];
-    }
-    ColumnType::state::type state() const {
-      return table()->state()[row_number_];
-    }
-    ColumnType::io_wait::type io_wait() const {
-      return table()->io_wait()[row_number_];
-    }
-    ColumnType::blocked_function::type blocked_function() const {
-      return table()->blocked_function()[row_number_];
-    }
-    ColumnType::waker_utid::type waker_utid() const {
-      return table()->waker_utid()[row_number_];
-    }
-    ColumnType::waker_id::type waker_id() const {
-      return table()->waker_id()[row_number_];
-    }
-    ColumnType::irq_context::type irq_context() const {
-      return table()->irq_context()[row_number_];
-    }
-    ColumnType::ucpu::type ucpu() const {
-      return table()->ucpu()[row_number_];
-    }
-  };
-  static_assert(std::is_trivially_destructible_v<ConstRowReference>,
-                "Inheritance used without trivial destruction");
-  class RowReference : public ConstRowReference {
-   public:
-    RowReference(const ThreadStateTable* table, uint32_t row_number)
-        : ConstRowReference(table, row_number) {}
-
-    void set_ts(
-        ColumnType::ts::non_optional_type v) {
-      return mutable_table()->mutable_ts()->Set(row_number_, v);
-    }
-    void set_dur(
-        ColumnType::dur::non_optional_type v) {
-      return mutable_table()->mutable_dur()->Set(row_number_, v);
-    }
-    void set_utid(
-        ColumnType::utid::non_optional_type v) {
-      return mutable_table()->mutable_utid()->Set(row_number_, v);
-    }
-    void set_state(
-        ColumnType::state::non_optional_type v) {
-      return mutable_table()->mutable_state()->Set(row_number_, v);
-    }
-    void set_io_wait(
-        ColumnType::io_wait::non_optional_type v) {
-      return mutable_table()->mutable_io_wait()->Set(row_number_, v);
-    }
-    void set_blocked_function(
-        ColumnType::blocked_function::non_optional_type v) {
-      return mutable_table()->mutable_blocked_function()->Set(row_number_, v);
-    }
-    void set_waker_utid(
-        ColumnType::waker_utid::non_optional_type v) {
-      return mutable_table()->mutable_waker_utid()->Set(row_number_, v);
-    }
-    void set_waker_id(
-        ColumnType::waker_id::non_optional_type v) {
-      return mutable_table()->mutable_waker_id()->Set(row_number_, v);
-    }
-    void set_irq_context(
-        ColumnType::irq_context::non_optional_type v) {
-      return mutable_table()->mutable_irq_context()->Set(row_number_, v);
-    }
-    void set_ucpu(
-        ColumnType::ucpu::non_optional_type v) {
-      return mutable_table()->mutable_ucpu()->Set(row_number_, v);
-    }
-
-   private:
-    ThreadStateTable* mutable_table() const {
-      return const_cast<ThreadStateTable*>(table());
-    }
-  };
-  static_assert(std::is_trivially_destructible_v<RowReference>,
-                "Inheritance used without trivial destruction");
-
-  class ConstIterator;
-  class ConstIterator : public macros_internal::AbstractConstIterator<
-    ConstIterator, ThreadStateTable, RowNumber, ConstRowReference> {
-   public:
-    ColumnType::id::type id() const {
-      const auto& col = table()->id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::ts::type ts() const {
-      const auto& col = table()->ts();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::dur::type dur() const {
-      const auto& col = table()->dur();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::utid::type utid() const {
-      const auto& col = table()->utid();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::state::type state() const {
-      const auto& col = table()->state();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::io_wait::type io_wait() const {
-      const auto& col = table()->io_wait();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::blocked_function::type blocked_function() const {
-      const auto& col = table()->blocked_function();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::waker_utid::type waker_utid() const {
-      const auto& col = table()->waker_utid();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::waker_id::type waker_id() const {
-      const auto& col = table()->waker_id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::irq_context::type irq_context() const {
-      const auto& col = table()->irq_context();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::ucpu::type ucpu() const {
-      const auto& col = table()->ucpu();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-
-   protected:
-    explicit ConstIterator(const ThreadStateTable* table,
-                           Table::Iterator iterator)
-        : AbstractConstIterator(table, std::move(iterator)) {}
-
-    uint32_t CurrentRowNumber() const {
-      return iterator_.StorageIndexForLastOverlay();
-    }
-
-   private:
-    friend class ThreadStateTable;
-    friend class macros_internal::AbstractConstIterator<
-      ConstIterator, ThreadStateTable, RowNumber, ConstRowReference>;
-  };
-  class Iterator : public ConstIterator {
-    public:
-     RowReference row_reference() const {
-       return {const_cast<ThreadStateTable*>(table()), CurrentRowNumber()};
-     }
-
-    private:
-     friend class ThreadStateTable;
-
-     explicit Iterator(ThreadStateTable* table, Table::Iterator iterator)
-        : ConstIterator(table, std::move(iterator)) {}
-  };
-
-  struct IdAndRow {
-    Id id;
-    uint32_t row;
-    RowReference row_reference;
-    RowNumber row_number;
-  };
-
-  static std::vector<ColumnLegacy> GetColumns(
-      ThreadStateTable* self,
-      const macros_internal::MacroTable* parent) {
-    std::vector<ColumnLegacy> columns =
-        CopyColumnsFromParentOrAddRootColumns(parent);
-    uint32_t olay_idx = OverlayCount(parent);
-    AddColumnToVector(columns, "ts", &self->ts_, ColumnFlag::ts,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "dur", &self->dur_, ColumnFlag::dur,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "utid", &self->utid_, ColumnFlag::utid,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "state", &self->state_, ColumnFlag::state,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "io_wait", &self->io_wait_, ColumnFlag::io_wait,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "blocked_function", &self->blocked_function_, ColumnFlag::blocked_function,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "waker_utid", &self->waker_utid_, ColumnFlag::waker_utid,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "waker_id", &self->waker_id_, ColumnFlag::waker_id,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "irq_context", &self->irq_context_, ColumnFlag::irq_context,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "ucpu", &self->ucpu_, ColumnFlag::ucpu,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    base::ignore_result(self);
-    return columns;
-  }
-
-  PERFETTO_NO_INLINE explicit ThreadStateTable(StringPool* pool)
-      : macros_internal::MacroTable(
-          pool,
-          GetColumns(this, nullptr),
-          nullptr),
-        ts_(ColumnStorage<ColumnType::ts::stored_type>::Create<false>()),
-        dur_(ColumnStorage<ColumnType::dur::stored_type>::Create<false>()),
-        utid_(ColumnStorage<ColumnType::utid::stored_type>::Create<false>()),
-        state_(ColumnStorage<ColumnType::state::stored_type>::Create<false>()),
-        io_wait_(ColumnStorage<ColumnType::io_wait::stored_type>::Create<false>()),
-        blocked_function_(ColumnStorage<ColumnType::blocked_function::stored_type>::Create<false>()),
-        waker_utid_(ColumnStorage<ColumnType::waker_utid::stored_type>::Create<false>()),
-        waker_id_(ColumnStorage<ColumnType::waker_id::stored_type>::Create<false>()),
-        irq_context_(ColumnStorage<ColumnType::irq_context::stored_type>::Create<false>()),
-        ucpu_(ColumnStorage<ColumnType::ucpu::stored_type>::Create<false>())
-,
-        id_storage_layer_(new column::IdStorage()),
-        ts_storage_layer_(
-        new column::NumericStorage<ColumnType::ts::non_optional_stored_type>(
-          &ts_.vector(),
-          ColumnTypeHelper<ColumnType::ts::stored_type>::ToColumnType(),
-          true)),
-        dur_storage_layer_(
-        new column::NumericStorage<ColumnType::dur::non_optional_stored_type>(
-          &dur_.vector(),
-          ColumnTypeHelper<ColumnType::dur::stored_type>::ToColumnType(),
-          false)),
-        utid_storage_layer_(
-        new column::NumericStorage<ColumnType::utid::non_optional_stored_type>(
-          &utid_.vector(),
-          ColumnTypeHelper<ColumnType::utid::stored_type>::ToColumnType(),
-          false)),
-        state_storage_layer_(
-          new column::StringStorage(string_pool(), &state_.vector())),
-        io_wait_storage_layer_(
-          new column::NumericStorage<ColumnType::io_wait::non_optional_stored_type>(
-            &io_wait_.non_null_vector(),
-            ColumnTypeHelper<ColumnType::io_wait::stored_type>::ToColumnType(),
-            false)),
-        blocked_function_storage_layer_(
-          new column::StringStorage(string_pool(), &blocked_function_.vector())),
-        waker_utid_storage_layer_(
-          new column::NumericStorage<ColumnType::waker_utid::non_optional_stored_type>(
-            &waker_utid_.non_null_vector(),
-            ColumnTypeHelper<ColumnType::waker_utid::stored_type>::ToColumnType(),
-            false)),
-        waker_id_storage_layer_(
-          new column::NumericStorage<ColumnType::waker_id::non_optional_stored_type>(
-            &waker_id_.non_null_vector(),
-            ColumnTypeHelper<ColumnType::waker_id::stored_type>::ToColumnType(),
-            false)),
-        irq_context_storage_layer_(
-          new column::NumericStorage<ColumnType::irq_context::non_optional_stored_type>(
-            &irq_context_.non_null_vector(),
-            ColumnTypeHelper<ColumnType::irq_context::stored_type>::ToColumnType(),
-            false)),
-        ucpu_storage_layer_(
-          new column::NumericStorage<ColumnType::ucpu::non_optional_stored_type>(
-            &ucpu_.non_null_vector(),
-            ColumnTypeHelper<ColumnType::ucpu::stored_type>::ToColumnType(),
-            false))
-,
-        io_wait_null_layer_(new column::NullOverlay(io_wait_.bv())),
-        waker_utid_null_layer_(new column::NullOverlay(waker_utid_.bv())),
-        waker_id_null_layer_(new column::NullOverlay(waker_id_.bv())),
-        irq_context_null_layer_(new column::NullOverlay(irq_context_.bv())),
-        ucpu_null_layer_(new column::NullOverlay(ucpu_.bv())) {
-    static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::ts::stored_type>(
-          ColumnFlag::ts),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::dur::stored_type>(
-          ColumnFlag::dur),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::utid::stored_type>(
-          ColumnFlag::utid),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::state::stored_type>(
-          ColumnFlag::state),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::io_wait::stored_type>(
-          ColumnFlag::io_wait),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::blocked_function::stored_type>(
-          ColumnFlag::blocked_function),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::waker_utid::stored_type>(
-          ColumnFlag::waker_utid),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::waker_id::stored_type>(
-          ColumnFlag::waker_id),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::irq_context::stored_type>(
-          ColumnFlag::irq_context),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::ucpu::stored_type>(
-          ColumnFlag::ucpu),
-        "Column type and flag combination is not valid");
-    OnConstructionCompletedRegularConstructor(
-      {id_storage_layer_,ts_storage_layer_,dur_storage_layer_,utid_storage_layer_,state_storage_layer_,io_wait_storage_layer_,blocked_function_storage_layer_,waker_utid_storage_layer_,waker_id_storage_layer_,irq_context_storage_layer_,ucpu_storage_layer_},
-      {{},{},{},{},{},io_wait_null_layer_,{},waker_utid_null_layer_,waker_id_null_layer_,irq_context_null_layer_,ucpu_null_layer_});
-  }
-  ~ThreadStateTable() override;
-
-  static const char* Name() { return "__intrinsic_thread_state"; }
-
-  static Table::Schema ComputeStaticSchema() {
-    Table::Schema schema;
-    schema.columns.emplace_back(Table::Schema::Column{
-        "id", SqlValue::Type::kLong, true, true, false, false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "ts", ColumnType::ts::SqlValueType(), false,
-        true,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "dur", ColumnType::dur::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "utid", ColumnType::utid::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "state", ColumnType::state::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "io_wait", ColumnType::io_wait::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "blocked_function", ColumnType::blocked_function::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "waker_utid", ColumnType::waker_utid::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "waker_id", ColumnType::waker_id::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "irq_context", ColumnType::irq_context::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "ucpu", ColumnType::ucpu::SqlValueType(), false,
-        false,
-        false,
-        false});
-    return schema;
-  }
-
-  ConstIterator IterateRows() const {
-    return ConstIterator(this, Table::IterateRows());
-  }
-
-  Iterator IterateRows() { return Iterator(this, Table::IterateRows()); }
-
-  ConstIterator FilterToIterator(const Query& q) const {
-    return ConstIterator(this, QueryToIterator(q));
-  }
-
-  Iterator FilterToIterator(const Query& q) {
-    return Iterator(this, QueryToIterator(q));
-  }
-
-  void ShrinkToFit() {
-    ts_.ShrinkToFit();
-    dur_.ShrinkToFit();
-    utid_.ShrinkToFit();
-    state_.ShrinkToFit();
-    io_wait_.ShrinkToFit();
-    blocked_function_.ShrinkToFit();
-    waker_utid_.ShrinkToFit();
-    waker_id_.ShrinkToFit();
-    irq_context_.ShrinkToFit();
-    ucpu_.ShrinkToFit();
-  }
-
-  ConstRowReference operator[](uint32_t r) const {
-    return ConstRowReference(this, r);
-  }
-  RowReference operator[](uint32_t r) { return RowReference(this, r); }
-  ConstRowReference operator[](RowNumber r) const {
-    return ConstRowReference(this, r.row_number());
-  }
-  RowReference operator[](RowNumber r) {
-    return RowReference(this, r.row_number());
-  }
-
-  std::optional<ConstRowReference> FindById(Id find_id) const {
-    std::optional<uint32_t> row = id().IndexOf(find_id);
-    return row ? std::make_optional(ConstRowReference(this, *row))
-               : std::nullopt;
-  }
-
-  std::optional<RowReference> FindById(Id find_id) {
-    std::optional<uint32_t> row = id().IndexOf(find_id);
-    return row ? std::make_optional(RowReference(this, *row)) : std::nullopt;
-  }
+  explicit ThreadStateTable(StringPool* pool)
+      : dataframe_(dataframe::Dataframe::CreateFromTypedSpec(kSpec, pool)) {}
 
   IdAndRow Insert(const Row& row) {
-    uint32_t row_number = row_count();
-    Id id = Id{row_number};
-    mutable_ts()->Append(row.ts);
-    mutable_dur()->Append(row.dur);
-    mutable_utid()->Append(row.utid);
-    mutable_state()->Append(row.state);
-    mutable_io_wait()->Append(row.io_wait);
-    mutable_blocked_function()->Append(row.blocked_function);
-    mutable_waker_utid()->Append(row.waker_utid);
-    mutable_waker_id()->Append(row.waker_id);
-    mutable_irq_context()->Append(row.irq_context);
-    mutable_ucpu()->Append(row.ucpu);
-    UpdateSelfOverlayAfterInsert();
-    return IdAndRow{id, row_number, RowReference(this, row_number),
-                     RowNumber(row_number)};
+    uint32_t row_count = dataframe_.row_count();
+    dataframe_.InsertUnchecked(kSpec, std::monostate(), row.ts, row.dur, row.utid, row.state != StringPool::Id::Null() ? std::make_optional(row.state) : std::nullopt, row.io_wait, row.blocked_function && row.blocked_function != StringPool::Id::Null() ? std::make_optional(*row.blocked_function) : std::nullopt, row.waker_utid, row.waker_id ? std::make_optional(row.waker_id->value) : std::nullopt, row.irq_context, row.ucpu ? std::make_optional(row.ucpu->value) : std::nullopt);
+    return IdAndRow{Id{row_count}, RowNumber{row_count}, row_count, RowReference(this, row_count)};
   }
 
-  
-
-  const IdColumn<ThreadStateTable::Id>& id() const {
-    return static_cast<const ColumnType::id&>(columns()[ColumnIndex::id]);
-  }
-  const TypedColumn<int64_t>& ts() const {
-    return static_cast<const ColumnType::ts&>(columns()[ColumnIndex::ts]);
-  }
-  const TypedColumn<int64_t>& dur() const {
-    return static_cast<const ColumnType::dur&>(columns()[ColumnIndex::dur]);
-  }
-  const TypedColumn<uint32_t>& utid() const {
-    return static_cast<const ColumnType::utid&>(columns()[ColumnIndex::utid]);
-  }
-  const TypedColumn<StringPool::Id>& state() const {
-    return static_cast<const ColumnType::state&>(columns()[ColumnIndex::state]);
-  }
-  const TypedColumn<std::optional<uint32_t>>& io_wait() const {
-    return static_cast<const ColumnType::io_wait&>(columns()[ColumnIndex::io_wait]);
-  }
-  const TypedColumn<std::optional<StringPool::Id>>& blocked_function() const {
-    return static_cast<const ColumnType::blocked_function&>(columns()[ColumnIndex::blocked_function]);
-  }
-  const TypedColumn<std::optional<uint32_t>>& waker_utid() const {
-    return static_cast<const ColumnType::waker_utid&>(columns()[ColumnIndex::waker_utid]);
-  }
-  const TypedColumn<std::optional<ThreadStateTable::Id>>& waker_id() const {
-    return static_cast<const ColumnType::waker_id&>(columns()[ColumnIndex::waker_id]);
-  }
-  const TypedColumn<std::optional<uint32_t>>& irq_context() const {
-    return static_cast<const ColumnType::irq_context&>(columns()[ColumnIndex::irq_context]);
-  }
-  const TypedColumn<std::optional<CpuTable::Id>>& ucpu() const {
-    return static_cast<const ColumnType::ucpu&>(columns()[ColumnIndex::ucpu]);
+  uint32_t row_count() const {
+    return dataframe_.row_count();
   }
 
-  TypedColumn<int64_t>* mutable_ts() {
-    return static_cast<ColumnType::ts*>(
-        GetColumn(ColumnIndex::ts));
+  std::optional<ConstRowReference> FindById(Id id) const {
+    return ConstRowReference(this, id.value);
   }
-  TypedColumn<int64_t>* mutable_dur() {
-    return static_cast<ColumnType::dur*>(
-        GetColumn(ColumnIndex::dur));
+  ConstRowReference operator[](uint32_t row) const {
+    return ConstRowReference(this, row);
   }
-  TypedColumn<uint32_t>* mutable_utid() {
-    return static_cast<ColumnType::utid*>(
-        GetColumn(ColumnIndex::utid));
+
+  std::optional<RowReference> FindById(Id id) {
+    return RowReference(this, id.value);
   }
-  TypedColumn<StringPool::Id>* mutable_state() {
-    return static_cast<ColumnType::state*>(
-        GetColumn(ColumnIndex::state));
+  RowReference operator[](uint32_t row) {
+    return RowReference(this, row);
   }
-  TypedColumn<std::optional<uint32_t>>* mutable_io_wait() {
-    return static_cast<ColumnType::io_wait*>(
-        GetColumn(ColumnIndex::io_wait));
+
+  ConstCursor CreateCursor(
+      std::vector<dataframe::FilterSpec> filters = {},
+      std::vector<dataframe::SortSpec> sorts = {}) const {
+    return ConstCursor(dataframe_, std::move(filters), std::move(sorts));
   }
-  TypedColumn<std::optional<StringPool::Id>>* mutable_blocked_function() {
-    return static_cast<ColumnType::blocked_function*>(
-        GetColumn(ColumnIndex::blocked_function));
+  Cursor CreateCursor(
+      std::vector<dataframe::FilterSpec> filters = {},
+      std::vector<dataframe::SortSpec> sorts = {}) {
+    return Cursor(dataframe_, std::move(filters), std::move(sorts));
   }
-  TypedColumn<std::optional<uint32_t>>* mutable_waker_utid() {
-    return static_cast<ColumnType::waker_utid*>(
-        GetColumn(ColumnIndex::waker_utid));
+
+  Iterator IterateRows() { return Iterator(this); }
+  ConstIterator IterateRows() const { return ConstIterator(this); }
+
+  void Finalize() { dataframe_.Finalize(); }
+
+  void Clear() { dataframe_.Clear(); }
+
+  static const char* Name() {
+    return "__intrinsic_thread_state";
   }
-  TypedColumn<std::optional<ThreadStateTable::Id>>* mutable_waker_id() {
-    return static_cast<ColumnType::waker_id*>(
-        GetColumn(ColumnIndex::waker_id));
+
+  dataframe::Dataframe& dataframe() {
+    return dataframe_;
   }
-  TypedColumn<std::optional<uint32_t>>* mutable_irq_context() {
-    return static_cast<ColumnType::irq_context*>(
-        GetColumn(ColumnIndex::irq_context));
-  }
-  TypedColumn<std::optional<CpuTable::Id>>* mutable_ucpu() {
-    return static_cast<ColumnType::ucpu*>(
-        GetColumn(ColumnIndex::ucpu));
+  const dataframe::Dataframe& dataframe() const {
+    return dataframe_;
   }
 
  private:
-  
-  
-  ColumnStorage<ColumnType::ts::stored_type> ts_;
-  ColumnStorage<ColumnType::dur::stored_type> dur_;
-  ColumnStorage<ColumnType::utid::stored_type> utid_;
-  ColumnStorage<ColumnType::state::stored_type> state_;
-  ColumnStorage<ColumnType::io_wait::stored_type> io_wait_;
-  ColumnStorage<ColumnType::blocked_function::stored_type> blocked_function_;
-  ColumnStorage<ColumnType::waker_utid::stored_type> waker_utid_;
-  ColumnStorage<ColumnType::waker_id::stored_type> waker_id_;
-  ColumnStorage<ColumnType::irq_context::stored_type> irq_context_;
-  ColumnStorage<ColumnType::ucpu::stored_type> ucpu_;
-
-  RefPtr<column::StorageLayer> id_storage_layer_;
-  RefPtr<column::StorageLayer> ts_storage_layer_;
-  RefPtr<column::StorageLayer> dur_storage_layer_;
-  RefPtr<column::StorageLayer> utid_storage_layer_;
-  RefPtr<column::StorageLayer> state_storage_layer_;
-  RefPtr<column::StorageLayer> io_wait_storage_layer_;
-  RefPtr<column::StorageLayer> blocked_function_storage_layer_;
-  RefPtr<column::StorageLayer> waker_utid_storage_layer_;
-  RefPtr<column::StorageLayer> waker_id_storage_layer_;
-  RefPtr<column::StorageLayer> irq_context_storage_layer_;
-  RefPtr<column::StorageLayer> ucpu_storage_layer_;
-
-  RefPtr<column::OverlayLayer> io_wait_null_layer_;
-  RefPtr<column::OverlayLayer> waker_utid_null_layer_;
-  RefPtr<column::OverlayLayer> waker_id_null_layer_;
-  RefPtr<column::OverlayLayer> irq_context_null_layer_;
-  RefPtr<column::OverlayLayer> ucpu_null_layer_;
+  dataframe::Dataframe dataframe_;
 };
 
 }  // namespace perfetto

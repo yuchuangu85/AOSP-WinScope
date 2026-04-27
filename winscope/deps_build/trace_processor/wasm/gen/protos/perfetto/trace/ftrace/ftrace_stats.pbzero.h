@@ -144,7 +144,7 @@ const char* FtraceStats_Phase_Name(::perfetto::protos::pbzero::FtraceStats_Phase
   return "PBZERO_UNKNOWN_ENUM_VALUE";
 }
 
-class FtraceStats_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/10, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
+class FtraceStats_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/13, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
  public:
   FtraceStats_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
   explicit FtraceStats_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
@@ -159,6 +159,8 @@ class FtraceStats_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID
   uint32_t kernel_symbols_mem_kb() const { return at<4>().as_uint32(); }
   bool has_atrace_errors() const { return at<5>().valid(); }
   ::protozero::ConstChars atrace_errors() const { return at<5>().as_string(); }
+  bool has_exclusive_feature_error() const { return at<13>().valid(); }
+  ::protozero::ConstChars exclusive_feature_error() const { return at<13>().as_string(); }
   bool has_unknown_ftrace_events() const { return at<6>().valid(); }
   ::protozero::RepeatedFieldIterator<::protozero::ConstChars> unknown_ftrace_events() const { return GetRepeated<::protozero::ConstChars>(6); }
   bool has_failed_ftrace_events() const { return at<7>().valid(); }
@@ -169,6 +171,10 @@ class FtraceStats_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID
   ::protozero::RepeatedFieldIterator<int32_t> ftrace_parse_errors() const { return GetRepeated<int32_t>(9); }
   bool has_kprobe_stats() const { return at<10>().valid(); }
   ::protozero::ConstBytes kprobe_stats() const { return at<10>().as_bytes(); }
+  bool has_cpu_buffer_size_pages() const { return at<11>().valid(); }
+  uint32_t cpu_buffer_size_pages() const { return at<11>().as_uint32(); }
+  bool has_cached_cpu_buffer_size_pages() const { return at<12>().valid(); }
+  uint32_t cached_cpu_buffer_size_pages() const { return at<12>().as_uint32(); }
 };
 
 class FtraceStats : public ::protozero::Message {
@@ -180,11 +186,14 @@ class FtraceStats : public ::protozero::Message {
     kKernelSymbolsParsedFieldNumber = 3,
     kKernelSymbolsMemKbFieldNumber = 4,
     kAtraceErrorsFieldNumber = 5,
+    kExclusiveFeatureErrorFieldNumber = 13,
     kUnknownFtraceEventsFieldNumber = 6,
     kFailedFtraceEventsFieldNumber = 7,
     kPreserveFtraceBufferFieldNumber = 8,
     kFtraceParseErrorsFieldNumber = 9,
     kKprobeStatsFieldNumber = 10,
+    kCpuBufferSizePagesFieldNumber = 11,
+    kCachedCpuBufferSizePagesFieldNumber = 12,
   };
   static constexpr const char* GetName() { return ".perfetto.protos.FtraceStats"; }
 
@@ -289,6 +298,30 @@ class FtraceStats : public ::protozero::Message {
         ::Append(*this, field_id, value);
   }
 
+  using FieldMetadata_ExclusiveFeatureError =
+    ::protozero::proto_utils::FieldMetadata<
+      13,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kString,
+      std::string,
+      FtraceStats>;
+
+  static constexpr FieldMetadata_ExclusiveFeatureError kExclusiveFeatureError{};
+  void set_exclusive_feature_error(const char* data, size_t size) {
+    AppendBytes(FieldMetadata_ExclusiveFeatureError::kFieldId, data, size);
+  }
+  void set_exclusive_feature_error(::protozero::ConstChars chars) {
+    AppendBytes(FieldMetadata_ExclusiveFeatureError::kFieldId, chars.data, chars.size);
+  }
+  void set_exclusive_feature_error(std::string value) {
+    static constexpr uint32_t field_id = FieldMetadata_ExclusiveFeatureError::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kString>
+        ::Append(*this, field_id, value);
+  }
+
   using FieldMetadata_UnknownFtraceEvents =
     ::protozero::proto_utils::FieldMetadata<
       6,
@@ -386,6 +419,42 @@ class FtraceStats : public ::protozero::Message {
     return BeginNestedMessage<T>(10);
   }
 
+
+  using FieldMetadata_CpuBufferSizePages =
+    ::protozero::proto_utils::FieldMetadata<
+      11,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kUint32,
+      uint32_t,
+      FtraceStats>;
+
+  static constexpr FieldMetadata_CpuBufferSizePages kCpuBufferSizePages{};
+  void set_cpu_buffer_size_pages(uint32_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_CpuBufferSizePages::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint32>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_CachedCpuBufferSizePages =
+    ::protozero::proto_utils::FieldMetadata<
+      12,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kUint32,
+      uint32_t,
+      FtraceStats>;
+
+  static constexpr FieldMetadata_CachedCpuBufferSizePages kCachedCpuBufferSizePages{};
+  void set_cached_cpu_buffer_size_pages(uint32_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_CachedCpuBufferSizePages::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint32>
+        ::Append(*this, field_id, value);
+  }
 };
 
 class FtraceKprobeStats_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/2, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {

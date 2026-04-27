@@ -14,15 +14,17 @@
  * limitations under the License.
  */
 
-import {ArrayBufferBuilder, stringToByteArray} from 'common/buffer_utils';
-import {FunctionUtils} from 'common/function_utils';
-import {WindowUtils} from 'common/window_utils';
+import {ArrayBufferBuilder} from 'common/buffer';
+import {binaryEncode} from 'common/string_helpers';
 import {
   ProxyTracingErrors,
   ProxyTracingWarnings,
 } from 'messaging/user_warnings';
 import {UserNotifierChecker} from 'test/unit/user_notifier_checker';
-import {UnitTestUtils} from 'test/unit/utils';
+import {
+  makeFakeWebSocket,
+  makeFakeWebSocketMessage,
+} from 'test/unit/web_socket_utils';
 import {
   AdbDeviceConnectionListener,
   AdbDeviceState,
@@ -32,8 +34,10 @@ import {AdbWebSocketStream} from './adb_websocket_stream';
 import {ShellStream} from './shell_stream';
 import {StreamProvider} from './stream_provider';
 import {SyncStream} from './sync_stream';
-import {WdpDeviceConnection} from './wdp_device_connection';
-import {WdpDeviceConnectionResponse} from './wdp_host_connection';
+import {
+  WdpDeviceConnection,
+  WdpDeviceConnectionResponse,
+} from './wdp_device_connection';
 
 describe('WdpDeviceConnection', () => {
   const listener = jasmine.createSpyObj<AdbDeviceConnectionListener>(
@@ -43,13 +47,13 @@ describe('WdpDeviceConnection', () => {
   const testId = 'test id';
   const testApproveUrl = 'test_approve_url';
   let connection: WdpDeviceConnection;
-  const emptyResp = stringToByteArray('').buffer;
+  const emptyResp = binaryEncode('').buffer;
   let popupSpy: jasmine.Spy;
   let openStream: ShellStream | undefined;
 
   beforeEach(() => {
-    popupSpy = spyOn(WindowUtils, 'showPopupWindow');
-    connection = new WdpDeviceConnection(testId, listener);
+    popupSpy = jasmine.createSpy('showWindow');
+    connection = new WdpDeviceConnection(testId, listener, undefined, popupSpy);
     resetListener();
   });
 
@@ -65,14 +69,24 @@ describe('WdpDeviceConnection', () => {
     });
 
     it('shows popup on tryAuthorize', async () => {
-      connection = new WdpDeviceConnection(testId, listener, testApproveUrl);
+      connection = new WdpDeviceConnection(
+        testId,
+        listener,
+        testApproveUrl,
+        popupSpy,
+      );
       popupSpy.and.returnValue(true);
       await connection.tryAuthorize();
       expect(popupSpy).toHaveBeenCalledOnceWith(testApproveUrl);
     });
 
     it('calls listener if popup fails to show', async () => {
-      connection = new WdpDeviceConnection(testId, listener, testApproveUrl);
+      connection = new WdpDeviceConnection(
+        testId,
+        listener,
+        testApproveUrl,
+        popupSpy,
+      );
       popupSpy.and.returnValue(false);
       await connection.tryAuthorize();
       expect(popupSpy).toHaveBeenCalledOnceWith(testApproveUrl);
@@ -83,8 +97,8 @@ describe('WdpDeviceConnection', () => {
     });
 
     it('closes active trace stream onDestroy', async () => {
-      spyOn(AdbWebSocketStream.prototype, 'write').and.callFake(
-        FunctionUtils.DO_NOTHING_ASYNC,
+      spyOn(AdbWebSocketStream.prototype, 'write').and.callFake(() =>
+        Promise.resolve(),
       );
       await connection.startTrace(new TraceTarget('', [], '', '', [], true));
       const closeSpy = spyOn(AdbWebSocketStream.prototype, 'close');
@@ -189,7 +203,8 @@ describe('WdpDeviceConnection', () => {
         [
           'service check Wayland',
           'screenrecord --version',
-          'su root dumpsys SurfaceFlinger --display-id',
+          'dumpsys SurfaceFlinger --display-id',
+          'cmd protolog_configuration groups list',
         ],
         [],
       );
@@ -203,7 +218,7 @@ describe('WdpDeviceConnection', () => {
         [{command: 'test cmd', resps: ['cmd complete']}],
       );
       const output = await connection.runShellCommand('test cmd');
-      expect(output).toEqual('cmd complete');
+      expect(output).toBe('cmd complete');
       expect(listener.onConnectionStateChange).not.toHaveBeenCalled();
     });
 
@@ -213,7 +228,7 @@ describe('WdpDeviceConnection', () => {
         [{command: 'test cmd', resps: ['cmd ', 'complete']}],
       );
       const output = await connection.runShellCommand('test cmd');
-      expect(output).toEqual('cmd complete');
+      expect(output).toBe('cmd complete');
     });
 
     it('calls listener on shell command error', async () => {
@@ -224,7 +239,7 @@ describe('WdpDeviceConnection', () => {
         [{command: 'test cmd', resps: ['test error']}],
       );
       const output = await connection.runShellCommand('test cmd');
-      expect(output).toEqual('');
+      expect(output).toBe('');
       expect(listener.onError).toHaveBeenCalledTimes(1);
       listener.onError.calls.reset();
     });
@@ -299,7 +314,7 @@ describe('WdpDeviceConnection', () => {
           resps: [''],
         },
         {
-          command: stringToByteArray(startCmd),
+          command: binaryEncode(startCmd),
           resps: [''],
         },
       ];
@@ -330,7 +345,7 @@ describe('WdpDeviceConnection', () => {
           resps: [''],
         },
         {
-          command: stringToByteArray(startCmd),
+          command: binaryEncode(startCmd),
           resps: [''],
         },
         {
@@ -352,7 +367,7 @@ describe('WdpDeviceConnection', () => {
           resps: [''],
         },
         {
-          command: stringToByteArray(startCmd),
+          command: binaryEncode(startCmd),
           resps: ['ERROR: please check your display state'],
         },
         {
@@ -376,7 +391,7 @@ describe('WdpDeviceConnection', () => {
   });
 
   describe('fetching file:', () => {
-    const fileData = stringToByteArray('4');
+    const fileData = binaryEncode('4');
     const encodedData = new ArrayBufferBuilder()
       .append([
         'DATA',
@@ -428,7 +443,7 @@ Error: Expected message data to be ArrayBuffer or Blob.`,
   ) {
     const shellStreamSpy = spyOn(StreamProvider.prototype, 'createShellStream');
     shellStreamSpy.and.callFake((device, sock, datalistener, errorlistener) => {
-      const fakeAdbSocket = UnitTestUtils.makeFakeWebSocket();
+      const fakeAdbSocket = makeFakeWebSocket();
       const shellStream = new ShellStream(
         fakeAdbSocket,
         device,
@@ -437,7 +452,7 @@ Error: Expected message data to be ArrayBuffer or Blob.`,
       );
 
       fakeAdbSocket.close.and.callFake(() => {
-        fakeAdbSocket.onclose!(new CloseEvent(''));
+        fakeAdbSocket.onclose!(new CloseEvent('close'));
         spyOn(shellStream, 'isOpen').and.returnValue(false);
       });
 
@@ -445,9 +460,9 @@ Error: Expected message data to be ArrayBuffer or Blob.`,
         fakeAdbSocket.send
           .withArgs(makeServiceCommandJson(command))
           .and.callFake(async () => {
-            const message = UnitTestUtils.makeFakeWebSocketMessage(emptyResp);
+            const message = makeFakeWebSocketMessage(emptyResp);
             fakeAdbSocket.onmessage!(message);
-            fakeAdbSocket.onclose!(new CloseEvent(''));
+            fakeAdbSocket.onclose!(new CloseEvent('close'));
           });
       });
       commandsWithResponse.forEach(({command, resps}) => {
@@ -455,11 +470,11 @@ Error: Expected message data to be ArrayBuffer or Blob.`,
           .withArgs(makeServiceCommandJson(command))
           .and.callFake(async () => {
             resps.forEach((resp) => {
-              const data = stringToByteArray(resp).buffer;
-              const message = UnitTestUtils.makeFakeWebSocketMessage(data);
+              const data = binaryEncode(resp).buffer;
+              const message = makeFakeWebSocketMessage(data);
               fakeAdbSocket.onmessage!(message);
             });
-            fakeAdbSocket.onclose!(new CloseEvent(''));
+            fakeAdbSocket.onclose!(new CloseEvent('close'));
           });
       });
       commandsWithOpenStream.forEach(({command, resps}) => {
@@ -472,8 +487,8 @@ Error: Expected message data to be ArrayBuffer or Blob.`,
         fakeAdbSocket.send.withArgs(data).and.callFake(async () => {
           resps.forEach((resp) => {
             openStream = shellStream;
-            const data = stringToByteArray(resp).buffer;
-            const message = UnitTestUtils.makeFakeWebSocketMessage(data);
+            const data = binaryEncode(resp).buffer;
+            const message = makeFakeWebSocketMessage(data);
             fakeAdbSocket.onmessage!(message);
           });
         });
@@ -483,10 +498,10 @@ Error: Expected message data to be ArrayBuffer or Blob.`,
           .withArgs(makeServiceCommandJson(command))
           .and.callFake(async () => {
             resps.forEach((resp) => {
-              const message = UnitTestUtils.makeFakeWebSocketMessage(resp);
+              const message = makeFakeWebSocketMessage(resp);
               fakeAdbSocket.onmessage!(message);
             });
-            fakeAdbSocket.onclose!(new CloseEvent(''));
+            fakeAdbSocket.onclose!(new CloseEvent('close'));
           });
       });
       return shellStream;
@@ -494,22 +509,22 @@ Error: Expected message data to be ArrayBuffer or Blob.`,
   }
 
   function setSyncStreamResponses(
-    responses: Array<{filepath: string; data: ArrayBuffer}>,
+    responses: Array<{filepath: string; data: ArrayBufferLike | Uint8Array}>,
   ) {
     const syncStreamSpy = spyOn(StreamProvider.prototype, 'createSyncStream');
     syncStreamSpy.and.callFake((device, sock, errorlistener) => {
-      const fakeAdbSocket = UnitTestUtils.makeFakeWebSocket();
+      const fakeAdbSocket = makeFakeWebSocket();
       const syncStream = new SyncStream(fakeAdbSocket, device, errorlistener);
 
       fakeAdbSocket.close.and.callFake(() => {
-        fakeAdbSocket.onclose!(new CloseEvent(''));
+        fakeAdbSocket.onclose!(new CloseEvent('close'));
         spyOn(syncStream, 'isOpen').and.returnValue(false);
       });
 
       fakeAdbSocket.send
         .withArgs(makeServiceCommandJson('', 'sync'))
         .and.callFake(async () => {
-          const message = UnitTestUtils.makeFakeWebSocketMessage(emptyResp);
+          const message = makeFakeWebSocketMessage(emptyResp);
           fakeAdbSocket.onmessage!(message);
         });
 
@@ -520,10 +535,10 @@ Error: Expected message data to be ArrayBuffer or Blob.`,
         fakeAdbSocket.send
           .withArgs(new Uint8Array(tokens))
           .and.callFake(async () => {
-            const message = UnitTestUtils.makeFakeWebSocketMessage(data);
+            const message = makeFakeWebSocketMessage(data);
             setTimeout(() => {
               fakeAdbSocket.onmessage!(message);
-              fakeAdbSocket.onclose!(new CloseEvent(''));
+              fakeAdbSocket.onclose!(new CloseEvent('close'));
             }, 50);
           });
       });

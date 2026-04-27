@@ -14,9 +14,12 @@
  * limitations under the License.
  */
 
-import {assertDefined} from 'common/assert_utils';
-import {TraceRect} from 'trace/trace_rect';
-import {HierarchyTreeNode} from 'trace/tree_node/hierarchy_tree_node';
+import {assertDefined} from 'common/assert';
+import {Point} from 'common/geometry/point';
+import {DispatchedPointerAxis} from 'trace/input/dispatched_pointer_axis';
+import {HierarchyTreeNode} from 'tree_node/hierarchy_tree_node';
+import {PropertyTreeNode} from 'tree_node/property_tree_node';
+import {TraceRect} from 'tree_node/trace_rect';
 import {UiRect} from 'viewers/components/rects/ui_rect';
 import {UiRectBuilder} from 'viewers/components/rects/ui_rect_builder';
 
@@ -40,7 +43,7 @@ class UiRectFactory {
         .setId(traceRect.id)
         .setGroupId(traceRect.groupId)
         .setIsClickable(!traceRect.isDisplay)
-        .setCornerRadius(traceRect.cornerRadius)
+        .setCornerRadii(traceRect.cornerRadii)
         .setHasContent(
           viewCapturePackageNames.includes(
             traceRect.name.substring(0, traceRect.name.indexOf('/')),
@@ -70,7 +73,6 @@ class UiRectFactory {
         .setId(traceRect.id)
         .setGroupId(groupId)
         .setIsClickable(true)
-        .setCornerRadius(traceRect.cornerRadius)
         .setHasContent(traceRect.isVisible)
         .setDepth(assertDefined(traceRect.depth))
         .setOpacity(traceRect.opacity)
@@ -81,6 +83,7 @@ class UiRectFactory {
   makeInputRects(
     hierarchyRoot: HierarchyTreeNode,
     hasContent: (id: string) => boolean,
+    dispatchProperties?: PropertyTreeNode,
   ): UiRect[] {
     const traceRects = this.extractRects(hierarchyRoot, (node) =>
       // The root node contains the display rects, so use the primary rects for the displays.
@@ -88,7 +91,13 @@ class UiRectFactory {
       node.isRoot() ? node.getRects() : node.getSecondaryRects(),
     );
     return traceRects.map((traceRect) => {
+      const {pointers, rays} = this.extractPointersAndRays(
+        traceRect,
+        dispatchProperties,
+      );
+
       const opacity = traceRect.isDisplay ? 1 : traceRect.isSpy ? 0.25 : 0.9;
+
       return new UiRectBuilder()
         .setX(traceRect.x)
         .setY(traceRect.y)
@@ -102,11 +111,12 @@ class UiRectFactory {
         .setId(traceRect.id)
         .setGroupId(traceRect.groupId)
         .setIsClickable(true)
-        .setCornerRadius(traceRect.cornerRadius)
         .setHasContent(hasContent(traceRect.id))
         .setDepth(traceRect.depth)
         .setOpacity(opacity)
         .setFillRegion(traceRect.fillRegion)
+        .setPointerLocationsInRect(pointers)
+        .setRayLocationsInDisplay(rays)
         .build();
     });
   }
@@ -125,6 +135,54 @@ class UiRectFactory {
     });
 
     return rects;
+  }
+
+  private extractPointersAndRays(
+    traceRect: TraceRect,
+    dispatchProperties: PropertyTreeNode | undefined,
+  ): {pointers: Point[]; rays: Point[]} {
+    const pointers: Point[] = [];
+    const rays: Point[] = [];
+    if (!traceRect.isDisplay && dispatchProperties) {
+      const targetWindow = dispatchProperties?.getAllChildren().find((c) => {
+        const id = c.getChildByName('windowId');
+        return (
+          id !== undefined &&
+          traceRect.id.split(' ')[0] === id.getValue<number>()?.toString()
+        );
+      });
+
+      targetWindow
+        ?.getChildByName('dispatchedPointer')
+        ?.getAllChildren()
+        .forEach((pointer) => {
+          const rawX = pointer.getChildByName('xInDisplay')?.getValue<number>();
+          const rawY = pointer.getChildByName('yInDisplay')?.getValue<number>();
+          if (rawX !== undefined && rawY !== undefined) {
+            rays.push({x: rawX, y: rawY});
+          }
+
+          const axes = pointer
+            .getChildByName('axisValueInWindow')
+            ?.getAllChildren();
+          let pointerX: number | undefined;
+          let pointerY: number | undefined;
+          axes?.forEach((axisValue) => {
+            const axis = Number(
+              axisValue.getChildByName('axis')?.getValue<number>(),
+            );
+            if (axis === DispatchedPointerAxis.X) {
+              pointerX = axisValue.getChildByName('value')?.getValue<number>();
+            } else if (axis === DispatchedPointerAxis.Y) {
+              pointerY = axisValue.getChildByName('value')?.getValue<number>();
+            }
+          });
+          if (pointerX !== undefined && pointerY !== undefined) {
+            pointers.push({x: pointerX, y: pointerY});
+          }
+        });
+    }
+    return {pointers, rays};
   }
 }
 

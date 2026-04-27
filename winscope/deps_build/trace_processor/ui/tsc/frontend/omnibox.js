@@ -23,6 +23,7 @@ const raf_scheduler_1 = require("../core/raf_scheduler");
 const empty_state_1 = require("../widgets/empty_state");
 const hotkey_glyphs_1 = require("../widgets/hotkey_glyphs");
 const popup_1 = require("../widgets/popup");
+const chip_1 = require("../widgets/chip");
 class OmniboxOptionRow {
     highlightedBefore = false;
     view({ attrs }) {
@@ -30,7 +31,7 @@ class OmniboxOptionRow {
         return (0, mithril_1.default)('li', {
             class: (0, classnames_1.classNames)(highlighted && 'pf-highlighted'),
             ...htmlAttrs,
-        }, (0, mithril_1.default)('span.pf-title', this.renderTitle(displayName)), label && (0, mithril_1.default)('span.pf-tag', label), rightContent);
+        }, (0, mithril_1.default)('span.pf-title', this.renderTitle(displayName)), label && (0, mithril_1.default)(chip_1.Chip, { className: 'pf-omnibox__tag', label, rounded: true }), rightContent);
     }
     renderTitle(title) {
         if ((0, object_utils_1.isString)(title)) {
@@ -64,9 +65,10 @@ class Omnibox {
             showArrow: false,
             matchWidth: true,
             offset: 2,
-            trigger: (0, mithril_1.default)('.omnibox', {
+            trigger: (0, mithril_1.default)('.pf-omnibox', {
                 class: extraClasses,
             }, (0, mithril_1.default)('input', {
+                spellcheck: false,
                 ref: inputRef,
                 value,
                 placeholder,

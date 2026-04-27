@@ -36,7 +36,7 @@ class ScreenshotDetailsPanel {
             return (0, mithril_1.default)('h2', 'Loading Screenshot');
         }
         (0, logging_1.assertTrue)(this.sliceDetails.args[0].key == 'screenshot.jpg_image');
-        return (0, mithril_1.default)('.screenshot-panel', (0, mithril_1.default)('img', {
+        return (0, mithril_1.default)('.pf-screenshot-panel', (0, mithril_1.default)('img', {
             src: 'data:image/png;base64, ' + this.sliceDetails.args[0].displayValue,
         }));
     }

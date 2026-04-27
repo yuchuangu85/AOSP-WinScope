@@ -14,18 +14,30 @@
 // limitations under the License.
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.NodeType = void 0;
+exports.nextNodeId = nextNodeId;
 exports.createSelectColumnsProto = createSelectColumnsProto;
 exports.createFinalColumns = createFinalColumns;
+exports.queryToRun = queryToRun;
+exports.analyzeNode = analyzeNode;
+exports.setOperationChanged = setOperationChanged;
+exports.isAQuery = isAQuery;
 const tslib_1 = require("tslib");
 const protos_1 = tslib_1.__importDefault(require("../../protos"));
-const column_controller_1 = require("./query_builder/column_controller");
-const groupy_by_1 = require("./query_builder/operations/groupy_by");
+const column_info_1 = require("./query_builder/column_info");
+let nodeCounter = 0;
+function nextNodeId() {
+    return (nodeCounter++).toString();
+}
 var NodeType;
 (function (NodeType) {
     // Sources
-    NodeType[NodeType["kStdlibTable"] = 0] = "kStdlibTable";
+    NodeType[NodeType["kTable"] = 0] = "kTable";
     NodeType[NodeType["kSimpleSlices"] = 1] = "kSimpleSlices";
     NodeType[NodeType["kSqlSource"] = 2] = "kSqlSource";
+    // Single node operations
+    NodeType[NodeType["kSubQuery"] = 3] = "kSubQuery";
+    NodeType[NodeType["kAggregation"] = 4] = "kAggregation";
+    NodeType[NodeType["kIntervalIntersect"] = 5] = "kIntervalIntersect";
 })(NodeType || (exports.NodeType = NodeType = {}));
 function createSelectColumnsProto(node) {
     if (node.finalCols.every((c) => c.checked))
@@ -44,13 +56,109 @@ function createSelectColumnsProto(node) {
     return selectedColumns;
 }
 function createFinalColumns(node) {
-    if (node.state.groupByColumns.find((c) => c.checked)) {
-        const selected = node.state.groupByColumns.filter((c) => c.checked);
-        for (const agg of node.state.aggregations) {
-            selected.push((0, column_controller_1.columnControllerRowFromName)(agg.newColumnName ?? (0, groupy_by_1.placeholderNewColumnName)(agg)));
-        }
-        return (0, column_controller_1.newColumnControllerRows)(selected, true);
+    return (0, column_info_1.newColumnInfoList)(node.sourceCols, true);
+}
+function getStructuredQueries(finalNode) {
+    if (finalNode.finalCols === undefined) {
+        return;
     }
-    return (0, column_controller_1.newColumnControllerRows)(node.sourceCols, true);
+    const revStructuredQueries = [];
+    let curNode = finalNode;
+    while (curNode) {
+        const curSq = curNode.getStructuredQuery();
+        if (curSq === undefined) {
+            return;
+        }
+        revStructuredQueries.push(curSq);
+        if (curNode.prevNodes?.[0]) {
+            if (!curNode.prevNodes[0].validate()) {
+                return;
+            }
+            curNode = curNode.prevNodes[0];
+        }
+        else {
+            curNode = undefined;
+        }
+    }
+    return revStructuredQueries.reverse();
+}
+function queryToRun(query) {
+    if (query === undefined)
+        return 'N/A';
+    const includes = query.modules.map((c) => `INCLUDE PERFETTO MODULE ${c};`);
+    return includes.join('\n') + query.preambles.join('\n') + query.sql;
+}
+async function analyzeNode(node, engine) {
+    if (node.state.isExecuted &&
+        !node.state.hasOperationChanged &&
+        node.type !== NodeType.kSqlSource) {
+        const sql = {
+            sql: `SELECT * FROM ${node.meterialisedAs ?? ''}`,
+            textproto: '',
+            modules: [],
+            preambles: [],
+            columns: [],
+        };
+        return sql;
+    }
+    const structuredQueries = getStructuredQueries(node);
+    if (structuredQueries === undefined)
+        return;
+    const res = await engine.analyzeStructuredQuery(structuredQueries);
+    if (res.error)
+        return Error(res.error);
+    if (res.results.length === 0)
+        return Error('No structured query results');
+    if (res.results.length !== structuredQueries.length) {
+        return Error(`Wrong structured query results. Asked for ${structuredQueries.length}, received ${res.results.length}`);
+    }
+    const lastRes = res.results[res.results.length - 1];
+    if (lastRes.sql === null || lastRes.sql === undefined) {
+        return;
+    }
+    if (!lastRes.textproto) {
+        return Error('No textproto in structured query results');
+    }
+    let finalSql = lastRes.sql;
+    if (materialise(node)) {
+        if (!node.meterialisedAs) {
+            node.meterialisedAs = `exp_${node.nodeId}`;
+        }
+        const createTableSql = `CREATE OR REPLACE PERFETTO TABLE ${node.meterialisedAs ?? `exp_${node.nodeId}`} AS \n${lastRes.sql}`;
+        const selectSql = `SELECT * FROM ${node.meterialisedAs ?? `exp_${node.nodeId}`}`;
+        finalSql = `${createTableSql};\n${selectSql}`;
+    }
+    const sql = {
+        sql: finalSql,
+        textproto: lastRes.textproto ?? '',
+        modules: lastRes.modules ?? [],
+        preambles: lastRes.preambles ?? [],
+        columns: lastRes.columns ?? [],
+    };
+    return sql;
+}
+function setOperationChanged(node) {
+    let curr = node;
+    while (curr) {
+        if (curr.state.hasOperationChanged) {
+            // Already marked as changed, and so are the children.
+            break;
+        }
+        curr.state.hasOperationChanged = true;
+        const queue = [];
+        curr.nextNodes.forEach((child) => {
+            queue.push(child);
+        });
+        curr = queue.shift();
+    }
+}
+function isAQuery(maybeQuery) {
+    return (maybeQuery !== undefined &&
+        !(maybeQuery instanceof Error) &&
+        maybeQuery.sql !== undefined);
+}
+function materialise(node) {
+    return (node.type !== NodeType.kSqlSource &&
+        node.type != NodeType.kIntervalIntersect);
 }
 //# sourceMappingURL=query_node.js.map

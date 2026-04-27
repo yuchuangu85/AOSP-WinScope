@@ -23,7 +23,6 @@ const workspace_1 = require("../../public/workspace");
 const query_result_1 = require("../../trace_processor/query_result");
 const flamegraph_1 = require("../../widgets/flamegraph");
 const dev_perfetto_ProcessThreadGroups_1 = tslib_1.__importDefault(require("../dev.perfetto.ProcessThreadGroups"));
-const dev_perfetto_StandardGroups_1 = tslib_1.__importDefault(require("../dev.perfetto.StandardGroups"));
 const dev_perfetto_TraceProcessorTrack_1 = tslib_1.__importDefault(require("../dev.perfetto.TraceProcessorTrack"));
 const trace_processor_counter_track_1 = require("../dev.perfetto.TraceProcessorTrack/trace_processor_counter_track");
 const perf_samples_profile_track_1 = require("./perf_samples_profile_track");
@@ -34,7 +33,6 @@ class default_1 {
     static id = 'dev.perfetto.LinuxPerf';
     static dependencies = [
         dev_perfetto_ProcessThreadGroups_1.default,
-        dev_perfetto_StandardGroups_1.default,
         dev_perfetto_TraceProcessorTrack_1.default,
     ];
     async onTraceLoad(trace) {
@@ -47,30 +45,50 @@ class default_1 {
     }
     async addProcessPerfSamplesTracks(trace) {
         const pResult = await trace.engine.query(`
-      select distinct upid
-      from perf_sample
-      join thread using (utid)
-      where callsite_id is not null and upid is not null
+      SELECT DISTINCT upid
+      FROM perf_sample
+      JOIN thread USING (utid)
+      WHERE
+        callsite_id IS NOT NULL AND
+        upid IS NOT NULL
     `);
+        // Remember all the track URIs so we can use them in the command.
+        const trackUris = [];
         for (const it = pResult.iter({ upid: query_result_1.NUM }); it.valid(); it.next()) {
             const upid = it.upid;
             const uri = makeUriForProc(upid);
-            const title = `Process Callstacks`;
+            trackUris.push(uri);
             trace.tracks.registerTrack({
                 uri,
-                title,
                 tags: {
                     kind: track_kinds_1.PERF_SAMPLES_PROFILE_TRACK_KIND,
                     upid,
                 },
-                track: (0, perf_samples_profile_track_1.createProcessPerfSamplesProfileTrack)(trace, uri, upid),
+                renderer: (0, perf_samples_profile_track_1.createProcessPerfSamplesProfileTrack)(trace, uri, upid),
             });
             const group = trace.plugins
                 .getPlugin(dev_perfetto_ProcessThreadGroups_1.default)
                 .getGroupForProcess(upid);
-            const track = new workspace_1.TrackNode({ uri, title, sortOrder: -40 });
+            const track = new workspace_1.TrackNode({
+                uri,
+                name: 'Process Callstacks',
+                sortOrder: -40,
+            });
             group?.addChildInOrder(track);
         }
+        // Add a command to select all the perf samples in the trace - it selects
+        // the entirety of each process scoped perf sample track.
+        trace.commands.registerCommand({
+            id: 'dev.perfetto.SelectAllPerfSamples',
+            name: 'Select all perf samples',
+            callback: () => {
+                trace.selection.selectArea({
+                    start: trace.traceInfo.start,
+                    end: trace.traceInfo.end,
+                    trackUris,
+                });
+            },
+        });
     }
     async addThreadPerfSamplesTracks(trace) {
         const tResult = await trace.engine.query(`
@@ -96,24 +114,23 @@ class default_1 {
             const uri = `${(0, utils_1.getThreadUriPrefix)(upid, utid)}_perf_samples_profile`;
             trace.tracks.registerTrack({
                 uri,
-                title,
                 tags: {
                     kind: track_kinds_1.PERF_SAMPLES_PROFILE_TRACK_KIND,
                     utid,
                     upid: upid ?? undefined,
                 },
-                track: (0, perf_samples_profile_track_1.createThreadPerfSamplesProfileTrack)(trace, uri, utid),
+                renderer: (0, perf_samples_profile_track_1.createThreadPerfSamplesProfileTrack)(trace, uri, utid),
             });
             const group = trace.plugins
                 .getPlugin(dev_perfetto_ProcessThreadGroups_1.default)
                 .getGroupForThread(utid);
-            const track = new workspace_1.TrackNode({ uri, title, sortOrder: -50 });
+            const track = new workspace_1.TrackNode({ uri, name: title, sortOrder: -50 });
             group?.addChildInOrder(track);
         }
     }
     async addPerfCounterTracks(trace) {
         const perfCountersGroup = new workspace_1.TrackNode({
-            title: 'Perf Counters',
+            name: 'Perf Counters',
             isSummary: true,
         });
         const result = await trace.engine.query(`
@@ -121,45 +138,40 @@ class default_1 {
         id,
         name,
         unit,
-        extract_arg(dimension_arg_set_id, 'cpu') as cpu
-      from counter_track
-      where type = 'perf_counter'
+        cpu
+      from perf_counter_track
       order by name, cpu
     `);
         const it = result.iter({
             id: query_result_1.NUM,
             name: query_result_1.STR_NULL,
             unit: query_result_1.STR_NULL,
-            cpu: query_result_1.NUM, // Perf counters always have a cpu dimension
+            cpu: query_result_1.NUM_NULL,
         });
         for (; it.valid(); it.next()) {
             const { id: trackId, name, unit, cpu } = it;
             const uri = `/counter_${trackId}`;
-            const title = `Cpu ${cpu} ${name}`;
+            const title = cpu === null ? `${name}` : `Cpu ${cpu} ${name}`;
             trace.tracks.registerTrack({
                 uri,
-                title,
                 tags: {
                     kind: track_kinds_1.COUNTER_TRACK_KIND,
                     trackIds: [trackId],
-                    cpu,
+                    cpu: cpu ?? undefined,
                 },
-                track: new trace_processor_counter_track_1.TraceProcessorCounterTrack(trace, uri, {
+                renderer: new trace_processor_counter_track_1.TraceProcessorCounterTrack(trace, uri, {
                     yMode: 'rate', // Default to rate mode
                     unit: unit ?? undefined,
                 }, trackId, title),
             });
             const trackNode = new workspace_1.TrackNode({
                 uri,
-                title,
+                name: title,
             });
             perfCountersGroup.addChildLast(trackNode);
         }
         if (perfCountersGroup.hasChildren) {
-            const hardwareGroup = trace.plugins
-                .getPlugin(dev_perfetto_StandardGroups_1.default)
-                .getOrCreateStandardGroup(trace.workspace, 'HARDWARE');
-            hardwareGroup.addChildInOrder(perfCountersGroup);
+            trace.workspace.addChildInOrder(perfCountersGroup);
         }
         trace.selection.registerAreaSelectionTab(createAreaSelectionTab(trace));
     }
@@ -233,7 +245,13 @@ function computePerfSampleFlamegraph(trace, currentSelection) {
     }
     const metrics = (0, query_flamegraph_1.metricsFromTableOrSubquery)(`
       (
-        select id, parent_id as parentId, name, self_count
+        select
+          id,
+          parent_id as parentId,
+          name,
+          mapping_name,
+          source_file || ':' || line_number as source_location,
+          self_count
         from _callstacks_for_callsites!((
           select p.callsite_id
           from perf_sample p
@@ -252,7 +270,13 @@ function computePerfSampleFlamegraph(trace, currentSelection) {
             unit: '',
             columnName: 'self_count',
         },
-    ], 'include perfetto module linux.perf.samples');
+    ], 'include perfetto module linux.perf.samples', [{ name: 'mapping_name', displayName: 'Mapping' }], [
+        {
+            name: 'source_location',
+            displayName: 'Source Location',
+            mergeAggregation: 'ONE_OR_SUMMARY',
+        },
+    ]);
     return new query_flamegraph_1.QueryFlamegraph(trace, metrics, {
         state: flamegraph_1.Flamegraph.createDefaultState(metrics),
     });

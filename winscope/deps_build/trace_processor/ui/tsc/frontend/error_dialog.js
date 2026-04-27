@@ -20,9 +20,13 @@ const gcs_uploader_1 = require("../base/gcs_uploader");
 const raf_scheduler_1 = require("../core/raf_scheduler");
 const perfetto_version_1 = require("../gen/perfetto_version");
 const modal_1 = require("../widgets/modal");
-const globals_1 = require("./globals");
 const app_impl_1 = require("../core/app_impl");
 const router_1 = require("../core/router");
+const button_1 = require("../widgets/button");
+const common_1 = require("../widgets/common");
+const checkbox_1 = require("../widgets/checkbox");
+const anchor_1 = require("../widgets/anchor");
+const semantic_icons_1 = require("../base/semantic_icons");
 const MODAL_KEY = 'crash_modal';
 // Never show more than one dialog per 10s.
 const MIN_REPORT_PERIOD_MS = 10000;
@@ -114,7 +118,7 @@ class ErrorDialogComponent {
             return;
         }
         // If the user is not a googler, don't even offer the option to upload it.
-        if (!globals_1.globals.isInternalUser)
+        if (!app_impl_1.AppImpl.instance.isInternalUser)
             return;
         if (traceSource.type === 'FILE') {
             this.traceState = 'NOT_UPLOADED';
@@ -154,22 +158,22 @@ class ErrorDialogComponent {
         this.errorMessage = msg;
         let shareTraceSection = null;
         if (this.traceState !== 'NOT_AVAILABLE') {
-            shareTraceSection = (0, mithril_1.default)('div', (0, mithril_1.default)('label', (0, mithril_1.default)(`input[type=checkbox]`, {
+            shareTraceSection = (0, mithril_1.default)('div', (0, mithril_1.default)(checkbox_1.Checkbox, {
                 checked: this.attachTrace,
                 oninput: (ev) => {
                     const checked = ev.target.checked;
                     this.onUploadCheckboxChange(checked);
                 },
-            }), this.traceState === 'UPLOADING'
-                ? `Uploading trace... ${this.uploadStatus}`
-                : 'Tick to share the current trace and help debugging'), // m('label')
-            (0, mithril_1.default)('div.modal-small', `This will upload the trace and attach a link to the bug.
+                label: this.traceState === 'UPLOADING'
+                    ? `Uploading trace... ${this.uploadStatus}`
+                    : 'Tick to share the current trace and help debugging',
+            }), (0, mithril_1.default)('div.pf-modal-small', `This will upload the trace and attach a link to the bug.
           You may leave it unchecked and attach the trace manually to the bug
           if preferred.`));
         } // if (this.traceState !== 'NOT_AVAILABLE')
         return [
-            (0, mithril_1.default)('div', (0, mithril_1.default)('.modal-logs', msg), (0, mithril_1.default)('span', `Please provide any additional details describing
-        how the crash occurred:`), (0, mithril_1.default)('textarea.modal-textarea', {
+            (0, mithril_1.default)('div', (0, mithril_1.default)('.pf-modal-logs', msg), (0, mithril_1.default)('span', `Please provide any additional details describing
+        how the crash occurred:`), (0, mithril_1.default)('textarea.pf-modal-textarea', {
                 rows: 3,
                 maxlength: 1000,
                 oninput: (ev) => {
@@ -178,7 +182,12 @@ class ErrorDialogComponent {
                 onkeydown: (e) => e.stopPropagation(),
                 onkeyup: (e) => e.stopPropagation(),
             }), shareTraceSection),
-            (0, mithril_1.default)('footer', (0, mithril_1.default)('button.modal-btn.modal-btn-primary', { onclick: () => this.fileBug(err) }, 'File a bug (Googlers only)')),
+            (0, mithril_1.default)('footer', (0, mithril_1.default)(button_1.Button, {
+                onclick: () => this.fileBug(err),
+                intent: common_1.Intent.Primary,
+                variant: button_1.ButtonVariant.Filled,
+                label: 'File a bug (Googlers only)',
+            })),
         ];
     }
     onUploadCheckboxChange(checked) {
@@ -226,13 +235,13 @@ function showOutOfMemoryDialog() {
     const url = 'https://perfetto.dev/docs/quickstart/trace-analysis#get-trace-processor';
     const tpCmd = 'curl -LO https://get.perfetto.dev/trace_processor\n' +
         'chmod +x ./trace_processor\n' +
-        'trace_processor --httpd /path/to/trace.pftrace\n' +
+        './trace_processor --httpd /path/to/trace.pftrace\n' +
         '# Reload the UI, it will prompt to use the HTTP+RPC interface';
     (0, modal_1.showModal)({
         title: 'Oops! Your WASM trace processor ran out of memory',
         content: (0, mithril_1.default)('div', (0, mithril_1.default)('span', 'The in-memory representation of the trace is too big ' +
-            'for the browser memory limits (typically 2GB per tab).'), (0, mithril_1.default)('br'), (0, mithril_1.default)('span', 'You can work around this problem by using the trace_processor ' +
-            'native binary as an accelerator for the UI as follows:'), (0, mithril_1.default)('br'), (0, mithril_1.default)('br'), (0, mithril_1.default)('.modal-bash', tpCmd), (0, mithril_1.default)('br'), (0, mithril_1.default)('span', 'For details see '), (0, mithril_1.default)('a', { href: url, target: '_blank' }, url)),
+            'for the browser memory limits.'), (0, mithril_1.default)('br'), (0, mithril_1.default)('span', 'You can work around this problem by using the trace_processor ' +
+            'native binary as an accelerator for the UI as follows:'), (0, mithril_1.default)('br'), (0, mithril_1.default)('br'), (0, mithril_1.default)('.pf-modal-bash', tpCmd), (0, mithril_1.default)('br'), (0, mithril_1.default)('span', 'For details see '), (0, mithril_1.default)(anchor_1.Anchor, { href: url, target: '_blank', icon: semantic_icons_1.Icons.ExternalLink }, url)),
     });
 }
 function showUnknownFileError() {
@@ -246,7 +255,11 @@ function showWebUSBError() {
     (0, modal_1.showModal)({
         title: 'A WebUSB error occurred',
         content: (0, mithril_1.default)('div', (0, mithril_1.default)('span', `Is adb already running on the host? Run this command and
-      try again.`), (0, mithril_1.default)('br'), (0, mithril_1.default)('.modal-bash', '> adb kill-server'), (0, mithril_1.default)('br'), (0, mithril_1.default)('span', 'For details see '), (0, mithril_1.default)('a', { href: 'http://b/159048331', target: '_blank' }, 'b/159048331')),
+      try again.`), (0, mithril_1.default)('br'), (0, mithril_1.default)('.pf-modal-bash', '> adb kill-server'), (0, mithril_1.default)('br'), (0, mithril_1.default)('span', 'For details see '), (0, mithril_1.default)(anchor_1.Anchor, {
+            href: 'http://b/159048331',
+            target: '_blank',
+            icon: semantic_icons_1.Icons.ExternalLink,
+        }, 'b/159048331')),
     });
 }
 function showRpcSequencingError() {

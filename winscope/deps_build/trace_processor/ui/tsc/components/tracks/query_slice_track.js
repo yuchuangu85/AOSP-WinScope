@@ -75,7 +75,7 @@ async function createPerfettoTableForTrack(engine, tableName, data, columns = {}
         ifnull(cast(${dur} as int), -1) as dur,
         printf('%s', ${name}) as name
         ${argColumns.length > 0 ? ',' : ''}
-        ${argColumns.map((c) => `${c} as ${debug_slice_track_details_panel_1.ARG_PREFIX}${c}`).join(',\n')}
+        ${argColumns.map((c) => `${c} as ${debug_slice_track_details_panel_1.RAW_PREFIX}${c}`).join(',\n')}
       from data
     )
     select
@@ -84,6 +84,6 @@ async function createPerfettoTableForTrack(engine, tableName, data, columns = {}
     from prepared_data
     order by ts
   `;
-    return await (0, sql_utils_1.createPerfettoTable)(engine, tableName, query);
+    return await (0, sql_utils_1.createPerfettoTable)({ engine, name: tableName, as: query });
 }
 //# sourceMappingURL=query_slice_track.js.map

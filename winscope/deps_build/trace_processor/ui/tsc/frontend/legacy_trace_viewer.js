@@ -25,6 +25,8 @@ const modal_1 = require("../widgets/modal");
 const string_utils_1 = require("../base/string_utils");
 const trace_converter_1 = require("./trace_converter");
 const assets_1 = require("../base/assets");
+const anchor_1 = require("../widgets/anchor");
+const semantic_icons_1 = require("../base/semantic_icons");
 const CTRACE_HEADER = 'TRACE:\n';
 async function isCtrace(file) {
     const fileName = file.name.toLowerCase();
@@ -160,9 +162,10 @@ async function openInOldUIWithSizeCheck(trace) {
     const setNextPromise = (p) => (nextPromise = p);
     await (0, modal_1.showModal)({
         title: 'Legacy UI may fail to open this trace',
-        content: (0, mithril_1.default)('div', (0, mithril_1.default)('p', `This trace is ${size}mb, opening it in the legacy UI ` + `may fail.`), (0, mithril_1.default)('p', 'More options can be found at ', (0, mithril_1.default)('a', {
+        content: (0, mithril_1.default)('div', (0, mithril_1.default)('p', `This trace is ${size}mb, opening it in the legacy UI ` + `may fail.`), (0, mithril_1.default)('p', 'More options can be found at ', (0, mithril_1.default)(anchor_1.Anchor, {
             href: 'https://goto.google.com/opening-large-traces',
             target: '_blank',
+            icon: semantic_icons_1.Icons.ExternalLink,
         }, 'go/opening-large-traces'), '.')),
         buttons: [
             {

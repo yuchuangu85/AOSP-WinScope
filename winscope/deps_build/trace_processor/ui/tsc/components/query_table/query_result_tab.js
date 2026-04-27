@@ -83,10 +83,8 @@ class QueryResultTab {
                         popupPosition: popup_1.PopupPosition.Top,
                     }, (0, mithril_1.default)(add_debug_track_menu_1.AddDebugTrackMenu, {
                         trace: this.trace,
-                        dataSource: {
-                            sqlSource: `select * from ${this.sqlViewName}`,
-                            columns: (0, logging_1.assertExists)(this.queryResponse).columns,
-                        },
+                        query: `select * from ${this.sqlViewName}`,
+                        availableColumns: (0, logging_1.assertExists)(this.queryResponse).columns,
                     })),
             ],
         });

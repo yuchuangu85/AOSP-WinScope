@@ -21,12 +21,12 @@ class default_1 {
         await ctx.engine.query('include perfetto module chrome.interactions;');
         const uri = `/critical_user_interactions`;
         ctx.commands.registerCommand({
-            id: 'perfetto.CriticalUserInteraction.AddInteractionTrack',
+            id: 'org.chromium.CriticalUserInteraction.AddInteractionTrack',
             name: 'Add track: Chrome interactions',
             callback: () => {
                 const track = new workspace_1.TrackNode({
                     uri,
-                    title: 'Chrome Interactions',
+                    name: 'Chrome Interactions',
                 });
                 ctx.workspace.addChildInOrder(track);
                 track.pin();
@@ -34,8 +34,7 @@ class default_1 {
         });
         ctx.tracks.registerTrack({
             uri,
-            title: 'Chrome Interactions',
-            track: (0, critical_user_interaction_track_1.createCriticalUserInteractionTrack)(ctx, uri),
+            renderer: (0, critical_user_interaction_track_1.createCriticalUserInteractionTrack)(ctx, uri),
         });
     }
 }

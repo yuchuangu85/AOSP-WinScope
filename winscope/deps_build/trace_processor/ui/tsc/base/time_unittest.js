@@ -21,25 +21,25 @@ test('Duration.format', () => {
     expect(time_1.Duration.format(60000000000n)).toEqual('1m');
     expect(time_1.Duration.format(63000000000n)).toEqual('1m 3s');
     expect(time_1.Duration.format(63200000000n)).toEqual('1m 3s 200ms');
-    expect(time_1.Duration.format(63222100000n)).toEqual('1m 3s 222ms 100us');
-    expect(time_1.Duration.format(63222111100n)).toEqual('1m 3s 222ms 111us 100ns');
-    expect(time_1.Duration.format(222111100n)).toEqual('222ms 111us 100ns');
-    expect(time_1.Duration.format(1000n)).toEqual('1us');
-    expect(time_1.Duration.format(3000n)).toEqual('3us');
-    expect(time_1.Duration.format(1000001000n)).toEqual('1s 1us');
+    expect(time_1.Duration.format(63222100000n)).toEqual('1m 3s 222ms 100µs');
+    expect(time_1.Duration.format(63222111100n)).toEqual('1m 3s 222ms 111µs 100ns');
+    expect(time_1.Duration.format(222111100n)).toEqual('222ms 111µs 100ns');
+    expect(time_1.Duration.format(1000n)).toEqual('1µs');
+    expect(time_1.Duration.format(3000n)).toEqual('3µs');
+    expect(time_1.Duration.format(1000001000n)).toEqual('1s 1µs');
     expect(time_1.Duration.format(200000000030n)).toEqual('3m 20s 30ns');
     expect(time_1.Duration.format(3600000000000n)).toEqual('1h');
     expect(time_1.Duration.format(3600000000001n)).toEqual('1h 1ns');
-    expect(time_1.Duration.format(86400000000000n)).toEqual('24h');
-    expect(time_1.Duration.format(86400000000001n)).toEqual('24h 1ns');
-    expect(time_1.Duration.format(31536000000000000n)).toEqual('8,760h');
-    expect(time_1.Duration.format(31536000000000001n)).toEqual('8,760h 1ns');
+    expect(time_1.Duration.format(86400000000000n)).toEqual('1d');
+    expect(time_1.Duration.format(86400000000001n)).toEqual('1d 1ns');
+    expect(time_1.Duration.format(31536000000000000n)).toEqual('1y');
+    expect(time_1.Duration.format(31536000000000001n)).toEqual('1y 1ns');
 });
 test('Duration.humanise', () => {
     expect(time_1.Duration.humanise(0n)).toEqual('0s');
     expect(time_1.Duration.humanise(123n)).toEqual('123ns');
-    expect(time_1.Duration.humanise(1234n)).toEqual('1.234us');
-    expect(time_1.Duration.humanise(12345n)).toEqual('12.35us');
+    expect(time_1.Duration.humanise(1234n)).toEqual('1.234µs');
+    expect(time_1.Duration.humanise(12345n)).toEqual('12.35µs');
     expect(time_1.Duration.humanise(3000000000n)).toEqual('3s');
     expect(time_1.Duration.humanise(60000000000n)).toEqual('60s');
     expect(time_1.Duration.humanise(63000000000n)).toEqual('63s');
@@ -47,8 +47,8 @@ test('Duration.humanise', () => {
     expect(time_1.Duration.humanise(63222100000n)).toEqual('63.22s');
     expect(time_1.Duration.humanise(63222111100n)).toEqual('63.22s');
     expect(time_1.Duration.humanise(222111100n)).toEqual('222.1ms');
-    expect(time_1.Duration.humanise(1000n)).toEqual('1us');
-    expect(time_1.Duration.humanise(3000n)).toEqual('3us');
+    expect(time_1.Duration.humanise(1000n)).toEqual('1µs');
+    expect(time_1.Duration.humanise(3000n)).toEqual('3µs');
     expect(time_1.Duration.humanise(1000001000n)).toEqual('1.000s');
     expect(time_1.Duration.humanise(200000000030n)).toEqual('200.0s');
     expect(time_1.Duration.humanise(3600000000000n)).toEqual('3600s');
@@ -124,5 +124,30 @@ describe('TimeSpan', () => {
         const x = mkSpan(10n, 20n);
         expect(x.pad(5n)).toEqual(mkSpan(5n, 25n));
     });
+});
+test('formatTimezone', () => {
+    expect((0, time_1.formatTimezone)(0)).toEqual('UTC+00:00');
+    expect((0, time_1.formatTimezone)(60)).toEqual('UTC+01:00');
+    expect((0, time_1.formatTimezone)(-60)).toEqual('UTC-01:00');
+    expect((0, time_1.formatTimezone)(330)).toEqual('UTC+05:30');
+    expect((0, time_1.formatTimezone)(-420)).toEqual('UTC-07:00');
+    expect((0, time_1.formatTimezone)(14 * 60)).toEqual('UTC+14:00');
+    expect((0, time_1.formatTimezone)(-12 * 60)).toEqual('UTC-12:00');
+});
+test('formatDate', () => {
+    const date = new Date('2025-06-15T00:00:00.000Z');
+    // Formatting
+    expect((0, time_1.formatDate)(date)).toBe('2025-06-15 00:00:00.000 UTC+00:00');
+    expect((0, time_1.formatDate)(date, { printDate: false })).toBe('00:00:00.000 UTC+00:00');
+    expect((0, time_1.formatDate)(date, { printTime: false })).toBe('2025-06-15 UTC+00:00');
+    expect((0, time_1.formatDate)(date, { printTimezone: false })).toBe('2025-06-15 00:00:00.000');
+    // Specific timezone: UTC+5:30 (IST)
+    expect((0, time_1.formatDate)(date, {
+        tzOffsetMins: 330,
+    })).toBe('2025-06-15 05:30:00.000 UTC+05:30');
+    // Specific timezone: UTC-7 (PDT)
+    expect((0, time_1.formatDate)(date, {
+        tzOffsetMins: -420,
+    })).toEqual('2025-06-14 17:00:00.000 UTC-07:00');
 });
 //# sourceMappingURL=time_unittest.js.map

@@ -39,7 +39,9 @@ class BarChart {
                 },
                 {
                     name: vega_view_1.VegaLiteSelectionTypes.POINT,
-                    select: { type: vega_view_1.VegaLiteSelectionTypes.POINT },
+                    select: {
+                        type: vega_view_1.VegaLiteSelectionTypes.POINT,
+                    },
                 },
             ],
             encoding: {
@@ -80,8 +82,26 @@ class BarChart {
         }, (0, mithril_1.default)(vega_view_1.VegaView, {
             spec: (0, json_utils_1.stringifyJsonWithBigints)(this.getVegaSpec(attrs)),
             data: {},
-            onPointSelection: attrs.onPointSelection,
-            onIntervalSelection: attrs.onIntervalSelection,
+            eventHandlers: [
+                {
+                    name: 'click',
+                    handler: ({ item }) => {
+                        if (item && attrs.onPointSelection !== undefined) {
+                            attrs.onPointSelection(item);
+                        }
+                    },
+                },
+            ],
+            signalHandlers: [
+                {
+                    name: vega_view_1.VegaLiteSelectionTypes.INTERVAL,
+                    handler: ({ value }) => {
+                        if (attrs.onIntervalSelection !== undefined) {
+                            attrs.onIntervalSelection(value);
+                        }
+                    },
+                },
+            ],
         }));
     }
     isLoading(data) {

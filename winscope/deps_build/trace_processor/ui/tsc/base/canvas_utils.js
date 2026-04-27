@@ -15,10 +15,8 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.drawDoubleHeadedArrow = drawDoubleHeadedArrow;
 exports.drawIncompleteSlice = drawIncompleteSlice;
-exports.drawTrackHoverTooltip = drawTrackHoverTooltip;
 exports.canvasClip = canvasClip;
 exports.canvasSave = canvasSave;
-const object_utils_1 = require("./object_utils");
 function drawDoubleHeadedArrow(ctx, x, y, length, showArrowHeads, width = 2, color = 'black') {
     ctx.beginPath();
     ctx.lineWidth = width;
@@ -44,7 +42,7 @@ function drawDoubleHeadedArrow(ctx, x, y, length, showArrowHeads, width = 2, col
         ctx.closePath();
     }
 }
-function drawIncompleteSlice(ctx, x, y, width, height, showGradient = true) {
+function drawIncompleteSlice(ctx, x, y, width, height, color, showGradient = true) {
     if (width <= 0 || height <= 0) {
         return;
     }
@@ -61,69 +59,15 @@ function drawIncompleteSlice(ctx, x, y, width, height, showGradient = true) {
     ctx.lineTo(x + width - 3, y + triangleSize * 3.5);
     ctx.lineTo(x + width, y + 4 * triangleSize);
     ctx.lineTo(x, y + height);
-    const fillStyle = ctx.fillStyle;
-    if ((0, object_utils_1.isString)(fillStyle)) {
-        if (showGradient) {
-            const gradient = ctx.createLinearGradient(x, y, x + width, y + height);
-            gradient.addColorStop(0.66, fillStyle);
-            gradient.addColorStop(1, '#FFFFFF');
-            ctx.fillStyle = gradient;
-        }
-    }
-    else {
-        throw new Error(`drawIncompleteSlice() expects fillStyle to be a simple color not ${fillStyle}`);
+    const originalFillStyle = ctx.fillStyle;
+    if (showGradient) {
+        const gradient = ctx.createLinearGradient(x, y, x + width, y + height);
+        gradient.addColorStop(0.66, color.cssString);
+        gradient.addColorStop(1, color.setAlpha(0).cssString);
+        ctx.fillStyle = gradient;
     }
     ctx.fill();
-    ctx.fillStyle = fillStyle;
-}
-function drawTrackHoverTooltip(ctx, pos, trackSize, text, text2) {
-    ctx.font = '10px Roboto Condensed';
-    ctx.textBaseline = 'middle';
-    ctx.textAlign = 'left';
-    // TODO(hjd): Avoid measuring text all the time (just use monospace?)
-    const textMetrics = ctx.measureText(text);
-    const text2Metrics = ctx.measureText(text2 ?? '');
-    // Padding on each side of the box containing the tooltip:
-    const paddingPx = 4;
-    // Figure out the width of the tool tip box:
-    let width = Math.max(textMetrics.width, text2Metrics.width);
-    width += paddingPx * 2;
-    // and the height:
-    let height = 0;
-    height += textMetrics.fontBoundingBoxAscent;
-    height += textMetrics.fontBoundingBoxDescent;
-    if (text2 !== undefined) {
-        height += text2Metrics.fontBoundingBoxAscent;
-        height += text2Metrics.fontBoundingBoxDescent;
-    }
-    height += paddingPx * 2;
-    let x = pos.x;
-    let y = pos.y;
-    // Move box to the top right of the mouse:
-    x += 10;
-    y -= 10;
-    // Ensure the box is on screen:
-    const endPx = trackSize.width;
-    if (x + width > endPx) {
-        x -= x + width - endPx;
-    }
-    if (y < 0) {
-        y = 0;
-    }
-    if (y + height > trackSize.height) {
-        y -= y + height - trackSize.height;
-    }
-    // Draw everything:
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-    ctx.fillRect(x, y, width, height);
-    ctx.fillStyle = 'hsl(200, 50%, 40%)';
-    ctx.fillText(text, x + paddingPx, y + paddingPx + textMetrics.fontBoundingBoxAscent);
-    if (text2 !== undefined) {
-        const yOffsetPx = textMetrics.fontBoundingBoxAscent +
-            textMetrics.fontBoundingBoxDescent +
-            text2Metrics.fontBoundingBoxAscent;
-        ctx.fillText(text2, x + paddingPx, y + paddingPx + yOffsetPx);
-    }
+    ctx.fillStyle = originalFillStyle;
 }
 // This function can either take individual x, y, w, h parameters to define the
 // rect, or x can be a rect-like object.

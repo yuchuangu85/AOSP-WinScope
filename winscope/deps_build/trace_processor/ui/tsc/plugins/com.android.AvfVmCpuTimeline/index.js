@@ -30,14 +30,14 @@ class default_1 {
             const defaultTargetId = this.validTargets.keys().next().value;
             await this.createTargetVmTrack(ctx, defaultTargetId);
             ctx.commands.registerCommand({
-                id: `${ctx.pluginId}#SelectAvfVmUtid`,
+                id: `com.android.SelectAvfVmUtid`,
                 name: 'Select Avf VM utid to add track',
                 callback: async () => {
                     if (this.validTargets.size === 0) {
                         alert('Available ValidTargets set exhausted! Do Refresh...');
                     }
                     else {
-                        const utid = await this.selectValidTarget();
+                        const utid = await this.selectValidTarget(ctx);
                         await this.createTargetVmTrack(ctx, utid);
                     }
                 },
@@ -46,7 +46,7 @@ class default_1 {
         }
     }
     async createTargetVmTrack(ctx, targetUtid) {
-        const title = `Avf VM CPU Timeline utid:${targetUtid}`;
+        const name = `Avf VM CPU Timeline utid:${targetUtid}`;
         const uri = `com.android.AvfVmCpuTimeline#AvfVmCpuTimeline${targetUtid}`;
         this.validTargets.delete(targetUtid);
         const query = `
@@ -67,8 +67,7 @@ class default_1 {
     `;
         ctx.tracks.registerTrack({
             uri,
-            title,
-            track: new dataset_slice_track_1.DatasetSliceTrack({
+            renderer: new dataset_slice_track_1.DatasetSliceTrack({
                 trace: ctx,
                 uri,
                 dataset: new dataset_1.SourceDataset({
@@ -93,7 +92,7 @@ class default_1 {
                 },
             }),
         });
-        const trackNode = new workspace_1.TrackNode({ uri, title, sortOrder: -90 });
+        const trackNode = new workspace_1.TrackNode({ uri, name, sortOrder: -90 });
         ctx.workspace.addChildInOrder(trackNode);
     }
     async findValidTargets(engine) {
@@ -120,9 +119,9 @@ class default_1 {
             qRow.next();
         }
     }
-    async selectValidTarget() {
-        const input = prompt(this.prepareSelectMessage());
-        if (input !== null) {
+    async selectValidTarget(ctx) {
+        const input = await ctx.omnibox.prompt(this.prepareSelectMessage());
+        if (input !== undefined) {
             const checkId = Number(input);
             if (!isNaN(checkId) && this.validTargets.has(checkId)) {
                 return checkId;

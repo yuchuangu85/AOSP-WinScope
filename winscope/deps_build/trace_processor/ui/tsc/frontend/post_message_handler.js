@@ -21,8 +21,9 @@ const time_1 = require("../base/time");
 const modal_1 = require("../widgets/modal");
 const css_constants_1 = require("./css_constants");
 const help_modal_1 = require("./help_modal");
-const scroll_helper_1 = require("../public/scroll_helper");
 const app_impl_1 = require("../core/app_impl");
+const state_serialization_1 = require("../core/state_serialization");
+const gcs_uploader_1 = require("../base/gcs_uploader");
 const TRUSTED_ORIGINS_KEY = 'trustedOrigins';
 // Returns whether incoming traces should be opened automatically or should
 // instead require a user interaction.
@@ -44,6 +45,8 @@ function isTrustedOrigin(origin) {
     if (hostname.endsWith('.corp.google.com'))
         return true;
     if (hostname.endsWith('.c.googlers.com'))
+        return true;
+    if (hostname.endsWith('.proxy.googlers.com'))
         return true;
     if (hostname === 'localhost' ||
         hostname === '127.0.0.1' ||
@@ -180,11 +183,23 @@ function postMessageHandler(messageEvent) {
          */
         window.removeEventListener('message', postMessageHandler);
     }
-    const openTrace = () => {
-        // For external traces, we need to disable other features such as
-        // downloading and sharing a trace.
-        postedTrace.localOnly = true;
-        app_impl_1.AppImpl.instance.openTraceFromBuffer(postedTrace);
+    const openTrace = async () => {
+        // Maybe load the app state from the URL.
+        let appState;
+        if (postedTrace.appStateHash) {
+            const url = `https://storage.googleapis.com/${gcs_uploader_1.BUCKET_NAME}/${postedTrace.appStateHash}`;
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch app state from ${url}: ` +
+                    `${response.status} ${response.statusText}`);
+            }
+            const json = (await response.json()).appState;
+            const parsedState = (0, state_serialization_1.parseAppState)(json);
+            if (parsedState.ok) {
+                appState = parsedState.value;
+            }
+        }
+        app_impl_1.AppImpl.instance.openTraceFromBuffer(postedTrace, appState);
     };
     const trustAndOpenTrace = () => {
         saveUserTrustedOrigin(messageEvent.origin);
@@ -207,7 +222,13 @@ function postMessageHandler(messageEvent) {
         content: (0, mithril_1.default)('div', (0, mithril_1.default)('div', `${originTxt} is trying to open a trace file.`), (0, mithril_1.default)('div', 'Do you trust the origin and want to proceed?')),
         buttons: [
             { text: 'No', primary: true },
-            { text: 'Yes', primary: false, action: openTrace },
+            {
+                text: 'Yes',
+                primary: false,
+                action: () => {
+                    openTrace();
+                },
+            },
         ].concat(originUnknown
             ? []
             : { text: 'Always trust', primary: false, action: trustAndOpenTrace }),
@@ -218,11 +239,15 @@ function sanitizePostedTrace(postedTrace) {
         title: sanitizeString(postedTrace.title),
         buffer: postedTrace.buffer,
         keepApiOpen: postedTrace.keepApiOpen,
+        // For external traces, we need to disable other features such as
+        // downloading and sharing a trace, unless the caller allows it.
+        localOnly: postedTrace.localOnly ?? true,
+        appStateHash: postedTrace.appStateHash,
+        pluginArgs: postedTrace.pluginArgs,
     };
     if (postedTrace.url !== undefined) {
         result.url = sanitizeString(postedTrace.url);
     }
-    result.pluginArgs = postedTrace.pluginArgs;
     return result;
 }
 function sanitizeString(str) {
@@ -230,8 +255,16 @@ function sanitizeString(str) {
 }
 const _maxScrollToRangeAttempts = 20;
 async function scrollToTimeRange(postedScrollToRange, maxAttempts) {
-    const ready = app_impl_1.AppImpl.instance.trace && !app_impl_1.AppImpl.instance.isLoadingTrace;
-    if (!ready) {
+    const app = app_impl_1.AppImpl.instance;
+    const trace = app.trace;
+    if (trace && !app.isLoadingTrace) {
+        const start = time_1.Time.fromSeconds(postedScrollToRange.timeStart);
+        const end = time_1.Time.fromSeconds(postedScrollToRange.timeEnd);
+        trace.scrollTo({
+            time: { start, end, viewPercentage: postedScrollToRange.viewPercentage },
+        });
+    }
+    else {
         if (maxAttempts === undefined) {
             maxAttempts = 0;
         }
@@ -240,13 +273,6 @@ async function scrollToTimeRange(postedScrollToRange, maxAttempts) {
             return;
         }
         setTimeout(scrollToTimeRange, 200, postedScrollToRange, maxAttempts + 1);
-    }
-    else {
-        const start = time_1.Time.fromSeconds(postedScrollToRange.timeStart);
-        const end = time_1.Time.fromSeconds(postedScrollToRange.timeEnd);
-        (0, scroll_helper_1.scrollTo)({
-            time: { start, end, viewPercentage: postedScrollToRange.viewPercentage },
-        });
     }
 }
 function isPostedScrollToRange(obj) {

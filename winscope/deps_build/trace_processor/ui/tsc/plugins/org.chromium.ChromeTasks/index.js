@@ -72,17 +72,16 @@ class default_1 {
             tid: query_result_1.NUM_NULL,
             utid: query_result_1.NUM,
         });
-        const group = new workspace_1.TrackNode({ title: 'Chrome Tasks', isSummary: true });
+        const group = new workspace_1.TrackNode({ name: 'Chrome Tasks', isSummary: true });
         for (; it.valid(); it.next()) {
             const utid = it.utid;
             const uri = `org.chromium.ChromeTasks#thread.${utid}`;
-            const title = `${it.threadName} ${it.tid}`;
+            const name = `${it.threadName} ${it.tid}`;
             ctx.tracks.registerTrack({
                 uri,
-                track: (0, track_1.createChromeTasksThreadTrack)(ctx, uri, (0, core_types_1.asUtid)(utid)),
-                title,
+                renderer: (0, track_1.createChromeTasksThreadTrack)(ctx, uri, (0, core_types_1.asUtid)(utid)),
             });
-            const track = new workspace_1.TrackNode({ uri, title });
+            const track = new workspace_1.TrackNode({ uri, name });
             group.addChildInOrder(track);
             ctx.workspace.addChildInOrder(group);
         }

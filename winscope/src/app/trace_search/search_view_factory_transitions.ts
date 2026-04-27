@@ -14,15 +14,19 @@
  * limitations under the License.
  */
 
-import {TraceType} from 'trace/trace_type';
+import {TraceType} from 'trace_api/trace_type';
 import {AbstractSearchViewFactory} from './abstract_search_view_factory';
-import {SearchView} from './trace_search_initializer';
+import {SearchView} from './search_view';
 
+/**
+ * A factory for creating search views for Transitions traces.
+ */
 export class SearchViewFactoryTransitions extends AbstractSearchViewFactory {
   override readonly traceType = TraceType.TRANSITION;
   static readonly VIEW: SearchView = {
     name: 'transitions_search',
     dataType: 'Transitions',
+    docsUrl: AbstractSearchViewFactory.BASE_DOCS_URL + 'transitions-sql-view',
     columns: [
       {
         name: 'ts',
@@ -74,7 +78,7 @@ ORDER BY PROPS.transition_id, PROPS.property`,
           PROTOS.transition_id,
           PROTOS.base64_proto_id
         FROM __intrinsic_window_manager_shell_transition_protos PROTOS
-        LEFT JOIN transitions_with_updated_ts TRANS
+        LEFT JOIN window_manager_shell_transitions TRANS
           ON TRANS.transition_id = PROTOS.transition_id;
     `;
     await this.traceProcessor.query(sqlCreateTableWithTimestamps);

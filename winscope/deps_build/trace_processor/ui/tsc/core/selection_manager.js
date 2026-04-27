@@ -24,6 +24,7 @@ const mithril_1 = tslib_1.__importDefault(require("mithril"));
 const modal_1 = require("../widgets/modal");
 const query_result_1 = require("../trace_processor/query_result");
 const dataset_1 = require("../trace_processor/dataset");
+const high_precision_time_1 = require("../base/high_precision_time");
 // There are two selection-related states in this class.
 // 1. _selection: This is the "input" / locator of the selection, what other
 //    parts of the codebase specify (e.g., a tuple of trackUri + eventId) to say
@@ -34,6 +35,7 @@ const dataset_1 = require("../trace_processor/dataset");
 //    requires querying the SQL engine, which is an async operation.
 class SelectionManagerImpl {
     engine;
+    timeline;
     trackManager;
     noteManager;
     scrollHelper;
@@ -42,21 +44,22 @@ class SelectionManagerImpl {
     _selection = { kind: 'empty' };
     detailsPanels = new WeakMap();
     areaSelectionTabs = [];
-    constructor(engine, trackManager, noteManager, scrollHelper, onSelectionChange) {
+    constructor(engine, timeline, trackManager, noteManager, scrollHelper, onSelectionChange) {
         this.engine = engine;
+        this.timeline = timeline;
         this.trackManager = trackManager;
         this.noteManager = noteManager;
         this.scrollHelper = scrollHelper;
         this.onSelectionChange = onSelectionChange;
     }
-    clear() {
+    clearSelection() {
         this.setSelection({ kind: 'empty' });
     }
     async selectTrackEvent(trackUri, eventId, opts) {
         this.selectTrackEventInternal(trackUri, eventId, opts);
     }
-    selectTrack(trackUri, opts) {
-        this.setSelection({ kind: 'track', trackUri }, opts);
+    selectTrack(uri, opts) {
+        this.setSelection({ kind: 'track', trackUri: uri }, opts);
     }
     selectNote(args, opts) {
         this.setSelection({
@@ -178,9 +181,9 @@ class SelectionManagerImpl {
         const tracksWithNoFilter = [];
         this.trackManager
             .getAllTracks()
-            .filter((track) => track.track.rootTableName === sqlTableName)
+            .filter((track) => track.renderer.rootTableName === sqlTableName)
             .map((track) => {
-            const dataset = track.track.getDataset?.();
+            const dataset = track.renderer.getDataset?.();
             if (!dataset)
                 return undefined;
             return [dataset, track];
@@ -224,7 +227,7 @@ class SelectionManagerImpl {
             const schema = { ...union.schema, [colName]: query_result_1.UNKNOWN };
             const query = `select * from (${union.query(schema)}) where id = ${id}`;
             const result = await this.engine.query(query);
-            const row = result.iter(union.schema);
+            const row = result.iter(schema);
             const value = row.get(colName);
             let trackUri = map.get(value);
             // If that didn't work, try converting the value to a number if it's a
@@ -249,7 +252,7 @@ class SelectionManagerImpl {
         this._selection = selection;
         this.onSelectionChange(selection, opts ?? {});
         if (opts?.scrollToSelection) {
-            this.scrollToCurrentSelection();
+            this.scrollToSelection();
         }
     }
     selectSearchResult(searchResult) {
@@ -298,7 +301,7 @@ class SelectionManagerImpl {
                 (0, logging_1.assertUnreachable)(source);
         }
     }
-    scrollToCurrentSelection() {
+    scrollToSelection() {
         const uri = (() => {
             switch (this.selection.kind) {
                 case 'track_event':
@@ -309,18 +312,54 @@ class SelectionManagerImpl {
                     return undefined;
             }
         })();
-        const range = this.findTimeRangeOfSelection();
+        const range = this.getTimeSpanOfSelection();
         this.scrollHelper.scrollTo({
             time: range ? { ...range } : undefined,
-            track: uri ? { uri: uri, expandGroup: true } : undefined,
+            track: uri ? { uri, expandGroup: true } : undefined,
+        });
+    }
+    zoomOnSelection() {
+        const uri = (() => {
+            switch (this.selection.kind) {
+                case 'track_event':
+                case 'track':
+                    return this.selection.trackUri;
+                // TODO(stevegolton): Handle scrolling to area and note selections.
+                default:
+                    return undefined;
+            }
+        })();
+        const range = this.getTimeSpanOfSelection();
+        if (!range) {
+            // If there is no range, we cannot zoom to selection.
+            // This can happen if the selection is empty or if it is a note without
+            // a time span.
+            return;
+        }
+        const newDuration = this.timeline.visibleWindow.duration / 100;
+        const halfDuration = newDuration / 2;
+        const midEvent = time_1.Time.fromRaw(range.start + range.duration / 2n);
+        const newStart = new high_precision_time_1.HighPrecisionTime(midEvent).subNumber(halfDuration);
+        this.scrollHelper.scrollTo({
+            time: {
+                start: newStart.toTime(),
+                end: newStart.addNumber(newDuration).toTime(),
+            },
+            track: uri ? { uri, expandGroup: true } : undefined,
         });
     }
     async selectTrackEventInternal(trackUri, eventId, opts, serializedDetailsPanel) {
-        const details = await this.trackManager
-            .getTrack(trackUri)
-            ?.track.getSelectionDetails?.(eventId);
+        const track = this.trackManager.getTrack(trackUri);
+        if (!track) {
+            throw new Error(`Unable to resolve selection details: Track ${trackUri} not found`);
+        }
+        const trackRenderer = track.renderer;
+        if (!trackRenderer.getSelectionDetails) {
+            throw new Error(`Unable to resolve selection details: Track ${trackUri} does not support selection details`);
+        }
+        const details = await trackRenderer.getSelectionDetails(eventId);
         if (!(0, utils_1.exists)(details)) {
-            throw new Error('Unable to resolve selection details');
+            throw new Error(`Unable to resolve selection details: Track ${trackUri} returned no details for event ${eventId}`);
         }
         const selection = {
             ...details,
@@ -336,7 +375,7 @@ class SelectionManagerImpl {
         if (!td) {
             return;
         }
-        const panel = td.track.detailsPanel?.(selection);
+        const panel = td.renderer.detailsPanel?.(selection);
         if (!panel) {
             return;
         }
@@ -359,7 +398,7 @@ class SelectionManagerImpl {
             raf_scheduler_1.raf.scheduleFullRedraw();
         });
     }
-    findTimeRangeOfSelection() {
+    getTimeSpanOfSelection() {
         const sel = this.selection;
         if (sel.kind === 'area') {
             return new time_1.TimeSpan(sel.start, sel.end);

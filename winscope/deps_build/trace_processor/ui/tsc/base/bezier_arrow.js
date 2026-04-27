@@ -53,8 +53,8 @@ function drawBezierArrow(ctx, start, end, controlPointOffset = 30, startStyle = 
     const cp1 = startVec.add(startOffset);
     const cp2 = endVec.add(endOffset);
     ctx.beginPath();
-    ctx.moveTo(start.x, start.y);
-    ctx.bezierCurveTo(cp1.x, cp1.y, cp2.x, cp2.y, end.x, end.y);
+    ctx.moveTo(startVec.x, startVec.y);
+    ctx.bezierCurveTo(cp1.x, cp1.y, cp2.x, cp2.y, endVec.x, endVec.y);
     ctx.stroke();
 }
 function getOri(pos, other, ori) {

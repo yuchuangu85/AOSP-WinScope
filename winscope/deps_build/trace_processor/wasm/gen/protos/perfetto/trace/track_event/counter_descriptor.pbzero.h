@@ -93,7 +93,7 @@ const char* CounterDescriptor_Unit_Name(::perfetto::protos::pbzero::CounterDescr
   return "PBZERO_UNKNOWN_ENUM_VALUE";
 }
 
-class CounterDescriptor_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/6, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
+class CounterDescriptor_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/7, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
  public:
   CounterDescriptor_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
   explicit CounterDescriptor_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
@@ -110,6 +110,8 @@ class CounterDescriptor_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FI
   int64_t unit_multiplier() const { return at<4>().as_int64(); }
   bool has_is_incremental() const { return at<5>().valid(); }
   bool is_incremental() const { return at<5>().as_bool(); }
+  bool has_y_axis_share_key() const { return at<7>().valid(); }
+  ::protozero::ConstChars y_axis_share_key() const { return at<7>().as_string(); }
 };
 
 class CounterDescriptor : public ::protozero::Message {
@@ -122,6 +124,7 @@ class CounterDescriptor : public ::protozero::Message {
     kUnitNameFieldNumber = 6,
     kUnitMultiplierFieldNumber = 4,
     kIsIncrementalFieldNumber = 5,
+    kYAxisShareKeyFieldNumber = 7,
   };
   static constexpr const char* GetName() { return ".perfetto.protos.CounterDescriptor"; }
 
@@ -260,6 +263,30 @@ class CounterDescriptor : public ::protozero::Message {
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
       ::protozero::proto_utils::ProtoSchemaType::kBool>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_YAxisShareKey =
+    ::protozero::proto_utils::FieldMetadata<
+      7,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kString,
+      std::string,
+      CounterDescriptor>;
+
+  static constexpr FieldMetadata_YAxisShareKey kYAxisShareKey{};
+  void set_y_axis_share_key(const char* data, size_t size) {
+    AppendBytes(FieldMetadata_YAxisShareKey::kFieldId, data, size);
+  }
+  void set_y_axis_share_key(::protozero::ConstChars chars) {
+    AppendBytes(FieldMetadata_YAxisShareKey::kFieldId, chars.data, chars.size);
+  }
+  void set_y_axis_share_key(std::string value) {
+    static constexpr uint32_t field_id = FieldMetadata_YAxisShareKey::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kString>
         ::Append(*this, field_id, value);
   }
 };

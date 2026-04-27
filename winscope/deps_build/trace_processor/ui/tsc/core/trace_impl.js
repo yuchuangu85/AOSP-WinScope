@@ -17,7 +17,7 @@ exports.TraceImpl = exports.TraceContext = void 0;
 const disposable_stack_1 = require("../base/disposable_stack");
 const store_1 = require("../base/store");
 const timeline_1 = require("./timeline");
-const scroll_helper_1 = require("../public/scroll_helper");
+const command_manager_1 = require("./command_manager");
 const note_manager_1 = require("./note_manager");
 const omnibox_manager_1 = require("./omnibox_manager");
 const search_manager_1 = require("./search_manager");
@@ -25,7 +25,7 @@ const selection_manager_1 = require("./selection_manager");
 const tab_manager_1 = require("./tab_manager");
 const track_manager_1 = require("./track_manager");
 const workspace_manager_1 = require("./workspace_manager");
-const scroll_helper_2 = require("./scroll_helper");
+const scroll_helper_1 = require("./scroll_helper");
 const flow_manager_1 = require("./flow_manager");
 const plugin_manager_1 = require("./plugin_manager");
 const utils_1 = require("../base/utils");
@@ -33,6 +33,9 @@ const http_utils_1 = require("../base/http_utils");
 const utils_2 = require("../base/utils");
 const feature_flags_1 = require("./feature_flags");
 const events_1 = require("../base/events");
+const statusbar_manager_1 = require("./statusbar_manager");
+const minimap_manager_1 = require("./minimap_manager");
+const startup_command_allowlist_1 = require("./startup_command_allowlist");
 /**
  * Handles the per-trace state of the UI
  * There is an instance of this class per each trace loaded, and typically
@@ -59,6 +62,8 @@ class TraceContext {
     scrollHelper;
     trash = new disposable_stack_1.DisposableStack();
     onTraceReady = new events_1.EvtSource();
+    statusbarMgr = new statusbar_manager_1.StatusbarManagerImpl();
+    minimapManager = new minimap_manager_1.MinimapManagerImpl();
     // List of errors that were encountered while loading the trace by the TS
     // code. These are on top of traceInfo.importErrors, which is a summary of
     // what TraceProcessor reports on the stats table at import time.
@@ -68,13 +73,13 @@ class TraceContext {
         this.engine = engine;
         this.trash.use(engine);
         this.traceInfo = traceInfo;
-        this.timeline = new timeline_1.TimelineImpl(traceInfo);
-        this.scrollHelper = new scroll_helper_2.ScrollHelper(this.traceInfo, this.timeline, this.workspaceMgr.currentWorkspace, this.trackMgr);
-        this.selectionMgr = new selection_manager_1.SelectionManagerImpl(this.engine, this.trackMgr, this.noteMgr, this.scrollHelper, this.onSelectionChange.bind(this));
+        this.timeline = new timeline_1.TimelineImpl(traceInfo, this.appCtx.timestampFormat, this.appCtx.durationPrecision, this.appCtx.timezoneOverride);
+        this.scrollHelper = new scroll_helper_1.ScrollHelper(this.traceInfo, this.timeline, this.workspaceMgr.currentWorkspace, this.trackMgr);
+        this.selectionMgr = new selection_manager_1.SelectionManagerImpl(this.engine, this.timeline, this.trackMgr, this.noteMgr, this.scrollHelper, this.onSelectionChange.bind(this));
         this.noteMgr.onNoteDeleted = (noteId) => {
             if (this.selectionMgr.selection.kind === 'note' &&
                 this.selectionMgr.selection.id === noteId) {
-                this.selectionMgr.clear();
+                this.selectionMgr.clearSelection();
             }
         };
         this.flowMgr = new flow_manager_1.FlowManager(engine.getProxy('FlowManager'), this.trackMgr, this.selectionMgr);
@@ -132,6 +137,7 @@ class TraceImpl {
     commandMgrProxy;
     sidebarProxy;
     pageMgrProxy;
+    settingsProxy;
     // This is called by TraceController when loading a new trace, soon after the
     // engine has been set up. It obtains a new TraceImpl for the core. From that
     // we can fork sibling instances (i.e. bound to the same TraceContext) for
@@ -155,6 +161,27 @@ class TraceImpl {
                 return ctx.trackMgr.registerTrack({ ...trackDesc, pluginId });
             },
         });
+        // CRITICAL ORDER: URL commands MUST execute before settings commands!
+        // This ordering has subtle but important implications:
+        // - URL commands are trace-specific and should establish initial state
+        // - Settings commands are user preferences that should override URL defaults
+        // - Changing this order could break trace sharing and user customization
+        // DO NOT REORDER without understanding the full impact!
+        const urlCommands = (0, command_manager_1.parseUrlCommands)(ctx.appCtx.initialRouteArgs.startupCommands) ?? [];
+        const settingsCommands = ctx.appCtx.startupCommandsSetting.get();
+        // Filter commands through the allowlist if enforcement is enabled
+        const unfilteredCommands = [...urlCommands, ...settingsCommands];
+        const enforceAllowlist = ctx.appCtx.enforceStartupCommandAllowlistSetting.get();
+        const allStartupCommands = enforceAllowlist
+            ? unfilteredCommands.filter((cmd) => (0, startup_command_allowlist_1.isStartupCommandAllowed)(cmd.id))
+            : unfilteredCommands;
+        // Log any filtered commands for debugging when enforcement is enabled
+        if (enforceAllowlist) {
+            const filteredOut = unfilteredCommands.filter((cmd) => !(0, startup_command_allowlist_1.isStartupCommandAllowed)(cmd.id));
+            if (filteredOut.length > 0) {
+                console.warn('The following startup commands were filtered out (not in allowlist):', filteredOut.map((cmd) => `${cmd.id}(${cmd.args.join(', ')})`));
+            }
+        }
         // CommandManager is global. Here we intercept the registerCommand() because
         // we want any commands registered via the Trace interface to be
         // unregistered when the trace unloads (before a new trace is loaded) to
@@ -164,6 +191,32 @@ class TraceImpl {
                 const disposable = appImpl.commands.registerCommand(cmd);
                 traceUnloadTrash.use(disposable);
                 return disposable;
+            },
+            hasStartupCommands() {
+                return allStartupCommands.length > 0;
+            },
+            async runStartupCommands() {
+                // Execute startup commands in trace context after everything is ready.
+                // This simulates user actions taken after trace load is complete,
+                // including any saved app state restoration. At this point:
+                // - All plugins have loaded and registered their commands
+                // - Trace data is fully accessible
+                // - UI state has been restored from any saved workspace
+                // - Commands can safely query trace data and modify UI state
+                for (const command of allStartupCommands) {
+                    try {
+                        // Execute through proxy to access both global and trace-specific
+                        // commands.
+                        await ctx.appCtx.commandMgr.runCommand(command.id, ...command.args);
+                    }
+                    catch (error) {
+                        // TODO(stevegolton): Add a mechanism to notify users of startup
+                        // command errors. This will involve creating a notification UX
+                        // similar to VSCode where there are popups on the bottom right
+                        // of the UI.
+                        console.warn(`Startup command ${command.id} failed:`, error);
+                    }
+                }
             },
         });
         // Likewise, remove all trace-scoped sidebar entries when the trace unloads.
@@ -184,8 +237,13 @@ class TraceImpl {
                 return disposable;
             },
         });
-        // TODO(primiano): remove this injection once we plumb Trace everywhere.
-        (0, scroll_helper_1.setScrollToFunction)((x) => ctx.scrollHelper.scrollTo(x));
+        this.settingsProxy = (0, utils_2.createProxy)(ctx.appCtx.settingsManager, {
+            register(setting) {
+                const settingInstance = ctx.appCtx.settingsManager.register(setting);
+                traceUnloadTrash.use(settingInstance);
+                return settingInstance;
+            },
+        });
     }
     scrollTo(where) {
         this.traceCtx.scrollHelper.scrollTo(where);
@@ -235,6 +293,9 @@ class TraceImpl {
     get trace() {
         return this;
     }
+    get minimap() {
+        return this.traceCtx.minimapManager;
+    }
     get engine() {
         return this.engineProxy;
     }
@@ -261,6 +322,9 @@ class TraceImpl {
     }
     get traceInfo() {
         return this.traceCtx.traceInfo;
+    }
+    get statusbar() {
+        return this.traceCtx.statusbarMgr;
     }
     get notes() {
         return this.traceCtx.noteMgr;
@@ -299,6 +363,9 @@ class TraceImpl {
     get initialRouteArgs() {
         return this.appImpl.initialRouteArgs;
     }
+    get initialPluginRouteArgs() {
+        return this.appImpl.initialPluginRouteArgs;
+    }
     get featureFlags() {
         return {
             register: (settings) => feature_flags_1.featureFlags.register(settings),
@@ -316,8 +383,11 @@ class TraceImpl {
     openTraceFromUrl(url, serializedAppState) {
         this.appImpl.openTraceFromUrl(url, serializedAppState);
     }
-    openTraceFromBuffer(args) {
-        this.appImpl.openTraceFromBuffer(args);
+    openTraceFromBuffer(args, serializedAppState) {
+        this.appImpl.openTraceFromBuffer(args, serializedAppState);
+    }
+    closeCurrentTrace() {
+        this.appImpl.closeCurrentTrace();
     }
     get onTraceReady() {
         return this.traceCtx.onTraceReady;
@@ -331,6 +401,12 @@ class TraceImpl {
     // Nothing other than AppImpl should ever refer to this, hence the __ name.
     get __traceCtxForApp() {
         return this.traceCtx;
+    }
+    get settings() {
+        return this.settingsProxy;
+    }
+    get isInternalUser() {
+        return this.appImpl.isInternalUser;
     }
 }
 exports.TraceImpl = TraceImpl;

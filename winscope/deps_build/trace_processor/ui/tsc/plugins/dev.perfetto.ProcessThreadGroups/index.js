@@ -113,7 +113,7 @@ class default_1 {
         // but creating a dedicated track type is out of scope at the time of
         // writing.
         const kernelThreadsGroup = new workspace_1.TrackNode({
-            title: 'Kernel threads',
+            name: 'Kernel threads',
             uri: '/kernel',
             sortOrder: 50,
             isSummary: true,
@@ -124,7 +124,7 @@ class default_1 {
             const { utid } = it;
             const threadGroup = new workspace_1.TrackNode({
                 uri: `thread${utid}`,
-                title: `Thread ${utid}`,
+                name: `Thread ${utid}`,
                 isSummary: true,
                 headless: true,
             });
@@ -244,7 +244,7 @@ class default_1 {
                 const displayName = getProcessDisplayName(name ?? undefined, id);
                 const group = new workspace_1.TrackNode({
                     uri: `/process_${uid}`,
-                    title: displayName,
+                    name: displayName,
                     isSummary: true,
                     sortOrder: 50,
                 });
@@ -260,7 +260,7 @@ class default_1 {
                 const displayName = getThreadDisplayName(name ?? undefined, id);
                 const group = new workspace_1.TrackNode({
                     uri: `/thread_${uid}`,
-                    title: displayName,
+                    name: displayName,
                     isSummary: true,
                     sortOrder: 50,
                 });
@@ -324,7 +324,7 @@ class default_1 {
             }
             const group = new workspace_1.TrackNode({
                 uri: `/thread_${utid}`,
-                title: getThreadDisplayName(threadName ?? undefined, tid),
+                name: getThreadDisplayName(threadName ?? undefined, tid),
                 isSummary: true,
                 headless: true,
             });

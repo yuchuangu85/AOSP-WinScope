@@ -16,10 +16,10 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.instructionsPage = instructionsPage;
 const tslib_1 = require("tslib");
 const mithril_1 = tslib_1.__importDefault(require("mithril"));
-const clipboard_1 = require("../../../base/clipboard");
 const trace_config_utils_wasm_1 = require("../config/trace_config_utils_wasm");
 const protos_1 = tslib_1.__importDefault(require("../../../protos"));
 const anchor_1 = require("../../../widgets/anchor");
+const code_snippet_1 = require("../../../widgets/code_snippet");
 function instructionsPage(recMgr) {
     return {
         kind: 'GLOBAL_PAGE',
@@ -70,12 +70,16 @@ class InstructionsPage {
         return [
             this.docsLink &&
                 (0, mithril_1.default)('p', 'See the documentation on ', (0, mithril_1.default)(anchor_1.Anchor, { href: this.docsLink, target: '_blank' }, this.docsLink.replace('https://', ''))),
-            this.cmdline && (0, mithril_1.default)('.code-snippet', (0, mithril_1.default)('code', this.cmdline)),
+            this.cmdline &&
+                (0, mithril_1.default)('', (0, mithril_1.default)(code_snippet_1.CodeSnippet, {
+                    language: 'Shell',
+                    text: this.cmdline,
+                })),
             (0, mithril_1.default)('p', 'Save the file below as: config.pbtx'),
-            (0, mithril_1.default)('.code-snippet', (0, mithril_1.default)('button', {
-                title: 'Copy to clipboard',
-                onclick: () => (0, clipboard_1.copyToClipboard)(this.configTxt),
-            }, (0, mithril_1.default)('i.material-icons', 'assignment')), (0, mithril_1.default)('code', this.configTxt)),
+            (0, mithril_1.default)('', (0, mithril_1.default)(code_snippet_1.CodeSnippet, {
+                language: 'textproto',
+                text: this.configTxt,
+            })),
         ];
     }
 }

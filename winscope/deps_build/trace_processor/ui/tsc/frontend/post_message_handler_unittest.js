@@ -39,6 +39,8 @@ describe('postMessageHandler', () => {
         expect((0, post_message_handler_1.isTrustedOrigin)('http://broccoliman.c.googlers.com')).toBeTruthy();
         expect((0, post_message_handler_1.isTrustedOrigin)('https://broccolimancorp.google.com')).toBeFalsy();
         expect((0, post_message_handler_1.isTrustedOrigin)('https://broccolimanc.googlers.com')).toBeFalsy();
+        expect((0, post_message_handler_1.isTrustedOrigin)('https://b1234567890abcdef.proxy.googlers.com')).toBeTruthy();
+        expect((0, post_message_handler_1.isTrustedOrigin)('https://b1234567890abcdefproxy.googlers.com')).toBeFalsy();
         expect((0, post_message_handler_1.isTrustedOrigin)('https://localhost')).toBeTruthy();
         expect((0, post_message_handler_1.isTrustedOrigin)('http://localhost')).toBeTruthy();
         expect((0, post_message_handler_1.isTrustedOrigin)('https://127.0.0.1')).toBeTruthy();

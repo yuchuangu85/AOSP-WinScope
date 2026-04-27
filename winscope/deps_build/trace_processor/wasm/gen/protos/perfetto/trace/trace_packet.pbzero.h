@@ -30,13 +30,19 @@ class ChromeMetadataPacket;
 class ChromeTrigger;
 class ClockSnapshot;
 class CpuInfo;
+class CpuPerUidData;
 class DeobfuscationMapping;
 class EntityStateResidency;
 class EtwTraceEventBundle;
+class EvdevEvent;
 class ExtensionDescriptor;
 class FrameTimelineEvent;
 class FtraceEventBundle;
 class FtraceStats;
+class GenericKernelCpuFrequencyEvent;
+class GenericKernelProcessTree;
+class GenericKernelTaskRenameEvent;
+class GenericKernelTaskStateEvent;
 class GpuCounterEvent;
 class GpuLog;
 class GpuMemTotalEvent;
@@ -62,7 +68,6 @@ class ProcessDescriptor;
 class ProcessStats;
 class ProcessTree;
 class ProfilePacket;
-class ProfiledFrameSymbols;
 class ProtoLogMessage;
 class ProtoLogViewerConfig;
 class RemoteClockSync;
@@ -241,8 +246,6 @@ class TracePacket_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID
   ::protozero::ConstBytes android_system_property() const { return at<86>().as_bytes(); }
   bool has_entity_state_residency() const { return at<91>().valid(); }
   ::protozero::ConstBytes entity_state_residency() const { return at<91>().as_bytes(); }
-  bool has_profiled_frame_symbols() const { return at<55>().valid(); }
-  ::protozero::ConstBytes profiled_frame_symbols() const { return at<55>().as_bytes(); }
   bool has_module_symbols() const { return at<61>().valid(); }
   ::protozero::ConstBytes module_symbols() const { return at<61>().as_bytes(); }
   bool has_deobfuscation_mapping() const { return at<64>().valid(); }
@@ -307,6 +310,18 @@ class TracePacket_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID
   ::protozero::ConstBytes kernel_wakelock_data() const { return at<115>().as_bytes(); }
   bool has_app_wakelock_bundle() const { return at<116>().valid(); }
   ::protozero::ConstBytes app_wakelock_bundle() const { return at<116>().as_bytes(); }
+  bool has_generic_kernel_task_state_event() const { return at<117>().valid(); }
+  ::protozero::ConstBytes generic_kernel_task_state_event() const { return at<117>().as_bytes(); }
+  bool has_generic_kernel_cpu_freq_event() const { return at<118>().valid(); }
+  ::protozero::ConstBytes generic_kernel_cpu_freq_event() const { return at<118>().as_bytes(); }
+  bool has_generic_kernel_task_rename_event() const { return at<120>().valid(); }
+  ::protozero::ConstBytes generic_kernel_task_rename_event() const { return at<120>().as_bytes(); }
+  bool has_generic_kernel_process_tree() const { return at<122>().valid(); }
+  ::protozero::ConstBytes generic_kernel_process_tree() const { return at<122>().as_bytes(); }
+  bool has_cpu_per_uid_data() const { return at<119>().valid(); }
+  ::protozero::ConstBytes cpu_per_uid_data() const { return at<119>().as_bytes(); }
+  bool has_evdev_event() const { return at<121>().valid(); }
+  ::protozero::ConstBytes evdev_event() const { return at<121>().as_bytes(); }
   bool has_for_testing() const { return at<900>().valid(); }
   ::protozero::ConstBytes for_testing() const { return at<900>().as_bytes(); }
   bool has_trusted_uid() const { return at<3>().valid(); }
@@ -386,7 +401,6 @@ class TracePacket : public ::protozero::Message {
     kStatsdAtomFieldNumber = 84,
     kAndroidSystemPropertyFieldNumber = 86,
     kEntityStateResidencyFieldNumber = 91,
-    kProfiledFrameSymbolsFieldNumber = 55,
     kModuleSymbolsFieldNumber = 61,
     kDeobfuscationMappingFieldNumber = 64,
     kTrackDescriptorFieldNumber = 60,
@@ -419,6 +433,12 @@ class TracePacket : public ::protozero::Message {
     kBluetoothTraceEventFieldNumber = 114,
     kKernelWakelockDataFieldNumber = 115,
     kAppWakelockBundleFieldNumber = 116,
+    kGenericKernelTaskStateEventFieldNumber = 117,
+    kGenericKernelCpuFreqEventFieldNumber = 118,
+    kGenericKernelTaskRenameEventFieldNumber = 120,
+    kGenericKernelProcessTreeFieldNumber = 122,
+    kCpuPerUidDataFieldNumber = 119,
+    kEvdevEventFieldNumber = 121,
     kForTestingFieldNumber = 900,
     kTrustedUidFieldNumber = 3,
     kTrustedPacketSequenceIdFieldNumber = 10,
@@ -1164,20 +1184,6 @@ class TracePacket : public ::protozero::Message {
   }
 
 
-  using FieldMetadata_ProfiledFrameSymbols =
-    ::protozero::proto_utils::FieldMetadata<
-      55,
-      ::protozero::proto_utils::RepetitionType::kNotRepeated,
-      ::protozero::proto_utils::ProtoSchemaType::kMessage,
-      ProfiledFrameSymbols,
-      TracePacket>;
-
-  static constexpr FieldMetadata_ProfiledFrameSymbols kProfiledFrameSymbols{};
-  template <typename T = ProfiledFrameSymbols> T* set_profiled_frame_symbols() {
-    return BeginNestedMessage<T>(55);
-  }
-
-
   using FieldMetadata_ModuleSymbols =
     ::protozero::proto_utils::FieldMetadata<
       61,
@@ -1643,6 +1649,90 @@ class TracePacket : public ::protozero::Message {
   static constexpr FieldMetadata_AppWakelockBundle kAppWakelockBundle{};
   template <typename T = AppWakelockBundle> T* set_app_wakelock_bundle() {
     return BeginNestedMessage<T>(116);
+  }
+
+
+  using FieldMetadata_GenericKernelTaskStateEvent =
+    ::protozero::proto_utils::FieldMetadata<
+      117,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      GenericKernelTaskStateEvent,
+      TracePacket>;
+
+  static constexpr FieldMetadata_GenericKernelTaskStateEvent kGenericKernelTaskStateEvent{};
+  template <typename T = GenericKernelTaskStateEvent> T* set_generic_kernel_task_state_event() {
+    return BeginNestedMessage<T>(117);
+  }
+
+
+  using FieldMetadata_GenericKernelCpuFreqEvent =
+    ::protozero::proto_utils::FieldMetadata<
+      118,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      GenericKernelCpuFrequencyEvent,
+      TracePacket>;
+
+  static constexpr FieldMetadata_GenericKernelCpuFreqEvent kGenericKernelCpuFreqEvent{};
+  template <typename T = GenericKernelCpuFrequencyEvent> T* set_generic_kernel_cpu_freq_event() {
+    return BeginNestedMessage<T>(118);
+  }
+
+
+  using FieldMetadata_GenericKernelTaskRenameEvent =
+    ::protozero::proto_utils::FieldMetadata<
+      120,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      GenericKernelTaskRenameEvent,
+      TracePacket>;
+
+  static constexpr FieldMetadata_GenericKernelTaskRenameEvent kGenericKernelTaskRenameEvent{};
+  template <typename T = GenericKernelTaskRenameEvent> T* set_generic_kernel_task_rename_event() {
+    return BeginNestedMessage<T>(120);
+  }
+
+
+  using FieldMetadata_GenericKernelProcessTree =
+    ::protozero::proto_utils::FieldMetadata<
+      122,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      GenericKernelProcessTree,
+      TracePacket>;
+
+  static constexpr FieldMetadata_GenericKernelProcessTree kGenericKernelProcessTree{};
+  template <typename T = GenericKernelProcessTree> T* set_generic_kernel_process_tree() {
+    return BeginNestedMessage<T>(122);
+  }
+
+
+  using FieldMetadata_CpuPerUidData =
+    ::protozero::proto_utils::FieldMetadata<
+      119,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      CpuPerUidData,
+      TracePacket>;
+
+  static constexpr FieldMetadata_CpuPerUidData kCpuPerUidData{};
+  template <typename T = CpuPerUidData> T* set_cpu_per_uid_data() {
+    return BeginNestedMessage<T>(119);
+  }
+
+
+  using FieldMetadata_EvdevEvent =
+    ::protozero::proto_utils::FieldMetadata<
+      121,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      EvdevEvent,
+      TracePacket>;
+
+  static constexpr FieldMetadata_EvdevEvent kEvdevEvent{};
+  template <typename T = EvdevEvent> T* set_evdev_event() {
+    return BeginNestedMessage<T>(121);
   }
 
 

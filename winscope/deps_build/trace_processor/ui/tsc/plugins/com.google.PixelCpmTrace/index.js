@@ -21,7 +21,7 @@ class default_1 {
     static id = 'com.google.PixelCpmTrace';
     async onTraceLoad(ctx) {
         const group = new workspace_1.TrackNode({
-            title: 'Central Power Manager',
+            name: 'Central Power Manager',
             isSummary: true,
         });
         const { engine } = ctx;
@@ -52,14 +52,13 @@ class default_1 {
             });
             ctx.tracks.registerTrack({
                 uri,
-                title: trackName,
                 tags: {
                     kind: track_kinds_1.COUNTER_TRACK_KIND,
                     trackIds: [trackId],
                 },
-                track,
+                renderer: track,
             });
-            group.addChildInOrder(new workspace_1.TrackNode({ uri, title: trackName }));
+            group.addChildInOrder(new workspace_1.TrackNode({ uri, name: trackName }));
             if (!groupAdded) {
                 ctx.workspace.addChildInOrder(group);
                 groupAdded = true;

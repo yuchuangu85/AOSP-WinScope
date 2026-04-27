@@ -154,7 +154,7 @@ class BreakdownTracks {
         for (const iter = res.iter({}); iter.valid(); iter.next()) {
             const colRaw = iter.get(currColName);
             const colValue = colRaw === null ? 'NULL' : colRaw.toString();
-            const title = colValue;
+            const name = colValue;
             const newFilters = [
                 ...filters,
                 {
@@ -168,7 +168,7 @@ class BreakdownTracks {
             let nextSqlInfo = sqlInfo;
             switch (trackType) {
                 case BreakdownTrackType.AGGREGATION:
-                    currNode = await this.createCounterTrackNode(title, newFilters);
+                    currNode = await this.createCounterTrackNode(name, newFilters);
                     if (this.props.slice && colIndex === columns.length - 1) {
                         nextTrackType = BreakdownTrackType.SLICE;
                         nextColIndex = 0;
@@ -176,7 +176,7 @@ class BreakdownTracks {
                     }
                     break;
                 case BreakdownTrackType.SLICE:
-                    currNode = await this.createSliceTrackNode(title, newFilters, colIndex, sqlInfo, trackType);
+                    currNode = await this.createSliceTrackNode(name, newFilters, colIndex, sqlInfo, trackType);
                     if (this.props.pivots && colIndex === columns.length - 1) {
                         nextTrackType = BreakdownTrackType.PIVOT;
                         nextColIndex = 0;
@@ -184,7 +184,7 @@ class BreakdownTracks {
                     }
                     break;
                 default:
-                    currNode = await this.createSliceTrackNode(title, newFilters, colIndex, sqlInfo, trackType);
+                    currNode = await this.createSliceTrackNode(name, newFilters, colIndex, sqlInfo, trackType);
             }
             parent.addChildInOrder(currNode);
             this.createBreakdownHierarchy(newFilters, currNode, nextSqlInfo, nextColIndex, nextTrackType);
@@ -234,8 +234,8 @@ class BreakdownTracks {
         const maxValue = result.firstRow({ max_value: query_result_1.NUM_NULL }).max_value;
         return maxValue === null ? 0 : maxValue;
     }
-    async createCounterTrackNode(title, newFilters) {
-        return await this.createTrackNode(title, newFilters, (uri, filtersClause) => {
+    async createCounterTrackNode(name, newFilters) {
+        return await this.createTrackNode(name, newFilters, (uri, filtersClause) => {
             return (0, query_counter_track_1.createQueryCounterTrack)({
                 trace: this.props.trace,
                 uri,
@@ -252,18 +252,17 @@ class BreakdownTracks {
             });
         }, (filterClause) => this.getCounterTrackSortOrder(filterClause));
     }
-    async createTrackNode(title, filters, createTrack, getSortOrder) {
+    async createTrackNode(name, filters, createTrack, getSortOrder) {
         const filtersClause = filters.length > 0 ? `\nWHERE ${buildFilterSqlClause(filters)}` : '';
         const uri = `${this.uri}_${(0, uuid_1.uuidv4)()}`;
-        const track = await createTrack(uri, filtersClause);
+        const renderer = await createTrack(uri, filtersClause);
         this.props.trace.tracks.registerTrack({
             uri,
-            title,
-            track,
+            renderer,
         });
         const sortOrder = await getSortOrder?.(filtersClause);
         return new workspace_1.TrackNode({
-            title,
+            name,
             uri,
             sortOrder: sortOrder !== undefined ? -sortOrder : undefined,
         });

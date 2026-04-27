@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-import {byteArrayToString} from 'common/buffer_utils';
-import {FunctionUtils} from 'common/function_utils';
+import {NOT_IMPLEMENTED_ERROR} from 'common/errors';
 import {HttpRequestHeaderType, HttpResponse} from 'common/http_request';
-import {UserNotifier} from 'common/user_notifier';
+import {utf8Decode} from 'common/string_helpers';
 import {ProxyTracingErrors} from 'messaging/user_warnings';
+import {UserNotifier} from 'services/user_notifier';
 import {
   AdbDeviceConnection,
   AdbDeviceConnectionListener,
@@ -29,9 +29,14 @@ import {TraceTarget} from 'trace_collection/trace_target';
 import {Endpoint} from './endpoint';
 import {getFromProxy, postToProxy} from './utils';
 
+interface TraceWorker {
+  name: string;
+  worker: number;
+}
+
 export class WinscopeProxyDeviceConnection extends AdbDeviceConnection {
   private isTracing = true;
-  private keepTraceAliveWorkers: Array<{name: string; worker: number}> = [];
+  private keepTraceAliveWorkers: TraceWorker[] = [];
 
   constructor(
     id: string,
@@ -43,21 +48,21 @@ export class WinscopeProxyDeviceConnection extends AdbDeviceConnection {
 
   override onDestroy() {
     this.isTracing = false;
-    this.keepTraceAliveWorkers.forEach(({name, worker}) => {
-      window.clearInterval(worker);
+    this.keepTraceAliveWorkers.forEach((it) => {
+      window.clearInterval(it.worker);
     });
     this.keepTraceAliveWorkers = [];
   }
 
   override async tryAuthorize() {
-    throw new Error('not implemented');
+    throw NOT_IMPLEMENTED_ERROR;
   }
 
   override async runShellCommand(cmd: string): Promise<string> {
     return await postToProxy(
       `${Endpoint.RUN_ADB_CMD}${this.id}/`,
       this.securityHeader,
-      FunctionUtils.DO_NOTHING,
+      () => {}, // onSuccess - no-op
       (newState, errorText) => this.setState(newState, errorText),
       {cmd: 'shell ' + cmd},
     );
@@ -93,7 +98,7 @@ export class WinscopeProxyDeviceConnection extends AdbDeviceConnection {
     filepath: string,
   ) => {
     try {
-      const resp = byteArrayToString(httpResponse.body);
+      const resp = utf8Decode(httpResponse.body);
       const fileToPath = JSON.parse(resp);
       const encodedFileBuffer = fileToPath[filepath];
       return Uint8Array.from(window.atob(encodedFileBuffer), (c) =>

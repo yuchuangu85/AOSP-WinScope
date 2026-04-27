@@ -16,6 +16,7 @@ namespace perfetto {
 namespace protos {
 namespace pbzero {
 class DataSourceConfig;
+class PriorityBoostConfig;
 class TraceConfig_AndroidReportConfig;
 class TraceConfig_BufferConfig;
 class TraceConfig_BuiltinDataSource;
@@ -251,7 +252,7 @@ const char* TraceConfig_BufferConfig_FillPolicy_Name(::perfetto::protos::pbzero:
   return "PBZERO_UNKNOWN_ENUM_VALUE";
 }
 
-class TraceConfig_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/39, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
+class TraceConfig_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/41, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
  public:
   TraceConfig_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
   explicit TraceConfig_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
@@ -326,6 +327,10 @@ class TraceConfig_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID
   ::protozero::ConstBytes cmd_trace_start_delay() const { return at<35>().as_bytes(); }
   bool has_session_semaphores() const { return at<39>().valid(); }
   ::protozero::RepeatedFieldIterator<::protozero::ConstBytes> session_semaphores() const { return GetRepeated<::protozero::ConstBytes>(39); }
+  bool has_priority_boost() const { return at<40>().valid(); }
+  ::protozero::ConstBytes priority_boost() const { return at<40>().as_bytes(); }
+  bool has_exclusive_prio() const { return at<41>().valid(); }
+  uint32_t exclusive_prio() const { return at<41>().as_uint32(); }
 };
 
 class TraceConfig : public ::protozero::Message {
@@ -367,6 +372,8 @@ class TraceConfig : public ::protozero::Message {
     kAndroidReportConfigFieldNumber = 34,
     kCmdTraceStartDelayFieldNumber = 35,
     kSessionSemaphoresFieldNumber = 39,
+    kPriorityBoostFieldNumber = 40,
+    kExclusivePrioFieldNumber = 41,
   };
   static constexpr const char* GetName() { return ".perfetto.protos.TraceConfig"; }
 
@@ -1008,6 +1015,38 @@ class TraceConfig : public ::protozero::Message {
     return BeginNestedMessage<T>(39);
   }
 
+
+  using FieldMetadata_PriorityBoost =
+    ::protozero::proto_utils::FieldMetadata<
+      40,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      PriorityBoostConfig,
+      TraceConfig>;
+
+  static constexpr FieldMetadata_PriorityBoost kPriorityBoost{};
+  template <typename T = PriorityBoostConfig> T* set_priority_boost() {
+    return BeginNestedMessage<T>(40);
+  }
+
+
+  using FieldMetadata_ExclusivePrio =
+    ::protozero::proto_utils::FieldMetadata<
+      41,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kUint32,
+      uint32_t,
+      TraceConfig>;
+
+  static constexpr FieldMetadata_ExclusivePrio kExclusivePrio{};
+  void set_exclusive_prio(uint32_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_ExclusivePrio::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint32>
+        ::Append(*this, field_id, value);
+  }
 };
 
 class TraceConfig_SessionSemaphore_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/2, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
@@ -2304,7 +2343,7 @@ class TraceConfig_BuiltinDataSource : public ::protozero::Message {
   }
 };
 
-class TraceConfig_DataSource_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/3, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
+class TraceConfig_DataSource_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/4, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
  public:
   TraceConfig_DataSource_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
   explicit TraceConfig_DataSource_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
@@ -2315,6 +2354,8 @@ class TraceConfig_DataSource_Decoder : public ::protozero::TypedProtoDecoder</*M
   ::protozero::RepeatedFieldIterator<::protozero::ConstChars> producer_name_filter() const { return GetRepeated<::protozero::ConstChars>(2); }
   bool has_producer_name_regex_filter() const { return at<3>().valid(); }
   ::protozero::RepeatedFieldIterator<::protozero::ConstChars> producer_name_regex_filter() const { return GetRepeated<::protozero::ConstChars>(3); }
+  bool has_machine_name_filter() const { return at<4>().valid(); }
+  ::protozero::RepeatedFieldIterator<::protozero::ConstChars> machine_name_filter() const { return GetRepeated<::protozero::ConstChars>(4); }
 };
 
 class TraceConfig_DataSource : public ::protozero::Message {
@@ -2324,6 +2365,7 @@ class TraceConfig_DataSource : public ::protozero::Message {
     kConfigFieldNumber = 1,
     kProducerNameFilterFieldNumber = 2,
     kProducerNameRegexFilterFieldNumber = 3,
+    kMachineNameFilterFieldNumber = 4,
   };
   static constexpr const char* GetName() { return ".perfetto.protos.TraceConfig.DataSource"; }
 
@@ -2383,6 +2425,30 @@ class TraceConfig_DataSource : public ::protozero::Message {
   }
   void add_producer_name_regex_filter(std::string value) {
     static constexpr uint32_t field_id = FieldMetadata_ProducerNameRegexFilter::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kString>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_MachineNameFilter =
+    ::protozero::proto_utils::FieldMetadata<
+      4,
+      ::protozero::proto_utils::RepetitionType::kRepeatedNotPacked,
+      ::protozero::proto_utils::ProtoSchemaType::kString,
+      std::string,
+      TraceConfig_DataSource>;
+
+  static constexpr FieldMetadata_MachineNameFilter kMachineNameFilter{};
+  void add_machine_name_filter(const char* data, size_t size) {
+    AppendBytes(FieldMetadata_MachineNameFilter::kFieldId, data, size);
+  }
+  void add_machine_name_filter(::protozero::ConstChars chars) {
+    AppendBytes(FieldMetadata_MachineNameFilter::kFieldId, chars.data, chars.size);
+  }
+  void add_machine_name_filter(std::string value) {
+    static constexpr uint32_t field_id = FieldMetadata_MachineNameFilter::kFieldId;
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<

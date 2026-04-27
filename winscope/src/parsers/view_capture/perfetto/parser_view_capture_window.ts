@@ -14,41 +14,49 @@
  * limitations under the License.
  */
 
-import {assertDefined} from 'common/assert_utils';
+import {
+  assertBigInt,
+  assertBigIntOrUndefined,
+  assertDefined,
+  assertNumberOrUndefined,
+  assertString,
+  assertStringOrUndefined,
+} from 'common/assert';
 import {ParserTimestampConverter} from 'common/time/timestamp_converter';
 import {AddDefaults} from 'parsers/operations/add_defaults';
-import {SetFormatters} from 'parsers/operations/set_formatters';
 import {AbstractParser} from 'parsers/perfetto/abstract_parser';
 import {FakeProto, FakeProtoBuilder} from 'parsers/perfetto/fake_proto_builder';
 import {FakeProtoTransformer} from 'parsers/perfetto/fake_proto_transformer';
-import {Utils} from 'parsers/perfetto/utils';
-import {TamperedMessageType} from 'parsers/tampered_message_type';
+import {PropertyTreeBuilderFromProto} from 'parsers/property_tree_builder_from_proto';
 import {RectsComputation} from 'parsers/view_capture/computations/rects_computation';
 import {VisibilityComputation} from 'parsers/view_capture/computations/visibility_computation';
-import root from 'protos/viewcapture/latest/json';
-import {perfetto} from 'protos/viewcapture/latest/static';
+import {perfetto} from 'protos/perfetto/trace/static';
+import {TAMPERED_WINSCOPE_EXTENSIONS} from 'trace/proto_utils/tampered_message_type';
+import {TraceFile} from 'trace/trace_file';
 import {
   CustomQueryParserResultTypeMap,
   CustomQueryType,
   VisitableParserCustomQuery,
-} from 'trace/custom_query';
-import {EntriesRange} from 'trace/index_types';
-import {TraceFile} from 'trace/trace_file';
-import {TraceType} from 'trace/trace_type';
-import {HierarchyTreeNode} from 'trace/tree_node/hierarchy_tree_node';
-import {PropertiesProvider} from 'trace/tree_node/properties_provider';
-import {PropertiesProviderBuilder} from 'trace/tree_node/properties_provider_builder';
-import {PropertyTreeBuilderFromProto} from 'trace/tree_node/property_tree_builder_from_proto';
-import {PropertyTreeNode} from 'trace/tree_node/property_tree_node';
+} from 'trace_api/custom_query';
+import {EntriesRange} from 'trace_api/index_types';
+import {TraceType} from 'trace_api/trace_type';
 import {TraceProcessor} from 'trace_processor/trace_processor';
+import {HierarchyTreeNode} from 'tree_node/hierarchy_tree_node';
+import {PropertiesProvider} from 'tree_node/properties_provider';
+import {PropertiesProviderBuilder} from 'tree_node/properties_provider_builder';
+import {PropertyTreeNode} from 'tree_node/property_tree_node';
+import {SetFormatters} from 'viewers/operations/set_formatters';
 import {HierarchyTreeBuilderVc} from './hierarchy_tree_builder_vc';
 
+/**
+ * A parser for a single window in a Perfetto ViewCapture trace.
+ */
 export class ParserViewCaptureWindow extends AbstractParser<HierarchyTreeNode> {
-  private static readonly PROTO_WRAPPER_MESSAGE = TamperedMessageType.tamper(
-    root.lookupType('perfetto.protos.Wrapper'),
+  private static readonly PROTO_VIEWCAPTURE_FIELD = assertDefined(
+    TAMPERED_WINSCOPE_EXTENSIONS.fields[
+      '.perfetto.protos.WinscopeExtensionsImpl.viewcapture'
+    ],
   );
-  private static readonly PROTO_VIEWCAPTURE_FIELD =
-    ParserViewCaptureWindow.PROTO_WRAPPER_MESSAGE.fields['viewcapture'];
   private static readonly PROTO_VIEW_FIELD = assertDefined(
     ParserViewCaptureWindow.PROTO_VIEWCAPTURE_FIELD.tamperedMessageType?.fields[
       'views'
@@ -96,14 +104,6 @@ export class ParserViewCaptureWindow extends AbstractParser<HierarchyTreeNode> {
   }
 
   override async getEntry(index: number): Promise<HierarchyTreeNode> {
-    let snapshotProto = (await Utils.queryEntry(
-      this.traceProcessor,
-      this.getTableName(),
-      this.entryIndexToRowIdMap,
-      index,
-    )) as perfetto.protos.IViewCapture;
-    snapshotProto = this.snapshotProtoTransformer.transform(snapshotProto);
-
     const viewProtos = (await this.queryViews(index)).map((viewProto) =>
       this.viewProtoTransformer.transform(viewProto),
     );
@@ -113,7 +113,7 @@ export class ParserViewCaptureWindow extends AbstractParser<HierarchyTreeNode> {
       views.find((view) => {
         const parentId = assertDefined(
           view.getEagerProperties().getChildByName('parentId'),
-        ).getValue() as number;
+        ).getValue();
         return parentId === -1;
       }),
     );
@@ -159,10 +159,10 @@ export class ParserViewCaptureWindow extends AbstractParser<HierarchyTreeNode> {
           args.string_value = '${this.windowName}'
         ORDER BY vc.ts;
     `;
-    const result = await this.traceProcessor.queryAllRows(sqlRowIdAndTimestamp);
+    const result = await this.traceProcessor.query(sqlRowIdAndTimestamp);
     const entryIndexToRowId: number[] = [];
     for (const it = result.iter({}); it.valid(); it.next()) {
-      const rowId = Number(it.get('id') as bigint);
+      const rowId = Number(it.get('id'));
       entryIndexToRowId.push(rowId);
     }
     return entryIndexToRowId;
@@ -193,16 +193,16 @@ export class ParserViewCaptureWindow extends AbstractParser<HierarchyTreeNode> {
           INNER JOIN args ON vcv.arg_set_id = args.arg_set_id
       WHERE snapshot_id = ${this.entryIndexToRowIdMap[index]};
     `;
-    const result = await this.traceProcessor.queryAllRows(sql);
+    const result = await this.traceProcessor.query(sql);
 
     for (const it = result.iter({}); it.valid(); it.next()) {
-      const builder = getBuilder(it.get('node_id') as number);
+      const builder = getBuilder(Number(assertBigInt(it.get('node_id'))));
       builder.addArg(
-        it.get('key') as string,
-        it.get('value_type') as string,
-        it.get('int_value') as bigint | undefined,
-        it.get('real_value') as number | undefined,
-        it.get('string_value') as string | undefined,
+        assertString(it.get('key')),
+        assertString(it.get('value_type')),
+        assertBigIntOrUndefined(it.get('int_value')),
+        assertNumberOrUndefined(it.get('real_value')),
+        assertStringOrUndefined(it.get('string_value')),
       );
     }
 
@@ -233,13 +233,11 @@ export class ParserViewCaptureWindow extends AbstractParser<HierarchyTreeNode> {
     view: perfetto.protos.ViewCapture.IView,
   ): PropertyTreeNode {
     const rootName = `${(view as FakeProto).className}@${view.hashcode}`;
-
     const nodeProperties = new PropertyTreeBuilderFromProto()
       .setData(view)
-      .setRootId('root-view')
+      .setRootId('ViewNode' + (view.id ?? 0))
       .setRootName(rootName)
       .build();
-
     return nodeProperties;
   }
 }

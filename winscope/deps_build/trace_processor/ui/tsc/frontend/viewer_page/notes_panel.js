@@ -19,19 +19,12 @@ const mithril_1 = tslib_1.__importDefault(require("mithril"));
 const canvas_utils_1 = require("../../base/canvas_utils");
 const dom_utils_1 = require("../../base/dom_utils");
 const logging_1 = require("../../base/logging");
-const semantic_icons_1 = require("../../base/semantic_icons");
 const time_scale_1 = require("../../base/time_scale");
 const colorizer_1 = require("../../components/colorizer");
 const raf_scheduler_1 = require("../../core/raf_scheduler");
-const button_1 = require("../../widgets/button");
-const menu_1 = require("../../widgets/menu");
-const select_1 = require("../../widgets/select");
 const css_constants_1 = require("../css_constants");
 const gridline_helper_1 = require("./gridline_helper");
-const text_input_1 = require("../../widgets/text_input");
-const popup_1 = require("../../widgets/popup");
-const workspace_1 = require("../../public/workspace");
-const multiselect_1 = require("../../widgets/multiselect");
+const timeline_toolbar_1 = require("./timeline_toolbar");
 const FLAG_WIDTH = 16;
 const AREA_TRIANGLE_WIDTH = 10;
 const FLAG = `\uE153`;
@@ -50,7 +43,6 @@ function getStartTimestamp(note) {
             (0, logging_1.assertUnreachable)(noteType);
     }
 }
-const FILTER_TEXT_BOX_REF = 'filter-text-box';
 class NotesPanel {
     trace;
     timescale; // The timescale from the last render()
@@ -61,9 +53,6 @@ class NotesPanel {
         this.trace = trace;
     }
     render() {
-        const allCollapsed = this.trace.workspace.flatTracks.every((n) => n.collapsed);
-        const workspaces = this.trace.workspaces;
-        const selection = this.trace.selection.selection;
         return (0, mithril_1.default)('', {
             style: { height: `${this.height}px` },
             onmousedown: () => {
@@ -93,241 +82,10 @@ class NotesPanel {
                 this.hoveredX = null;
                 this.trace.timeline.hoveredNoteTimestamp = undefined;
             },
-        }, (0, mithril_1.default)(button_1.ButtonBar, { className: 'pf-timeline-toolbar' }, (0, mithril_1.default)(button_1.Button, {
-            onclick: (e) => {
-                e.preventDefault();
-                if (allCollapsed) {
-                    this.trace.commands.runCommand('perfetto.CoreCommands#ExpandAllGroups');
-                }
-                else {
-                    this.trace.commands.runCommand('perfetto.CoreCommands#CollapseAllGroups');
-                }
-            },
-            title: allCollapsed ? 'Expand all' : 'Collapse all',
-            icon: allCollapsed ? 'unfold_more' : 'unfold_less',
-            compact: true,
-        }), (0, mithril_1.default)(button_1.Button, {
-            onclick: (e) => {
-                e.preventDefault();
-                this.trace.workspace.pinnedTracks.forEach((t) => this.trace.workspace.unpinTrack(t));
-            },
-            title: 'Clear all pinned tracks',
-            icon: 'clear_all',
-            compact: true,
-        }), this.renderTrackFilter(), (0, mithril_1.default)(select_1.Select, {
-            className: 'pf-timeline-toolbar__workspace-selector',
-            onchange: async (e) => {
-                const value = e.target.value;
-                if (value === 'new-workspace') {
-                    const ws = workspaces.createEmptyWorkspace('Untitled Workspace');
-                    workspaces.switchWorkspace(ws);
-                }
-                else {
-                    const ws = workspaces.all.find(({ id }) => id === value);
-                    ws && this.trace?.workspaces.switchWorkspace(ws);
-                }
-            },
-        }, workspaces.all
-            .map((ws) => {
-            return (0, mithril_1.default)('option', {
-                value: `${ws.id}`,
-                label: ws.title,
-                selected: ws === this.trace?.workspace,
-            });
-        })
-            .concat([
-            (0, mithril_1.default)('option', {
-                value: 'new-workspace',
-                label: 'New workspace...',
-            }),
-        ])), (0, mithril_1.default)(menu_1.PopupMenu, {
-            trigger: (0, mithril_1.default)(button_1.Button, {
-                icon: 'more_vert',
-                title: 'Workspace options',
-                compact: true,
-            }),
-        }, this.renderCopySelectedTracksToWorkspace(selection), (0, mithril_1.default)(menu_1.MenuDivider), this.renderNewGroupButton(), (0, mithril_1.default)(menu_1.MenuDivider), (0, mithril_1.default)(menu_1.MenuItem, {
-            icon: 'edit',
-            label: 'Rename current workspace',
-            disabled: !this.trace.workspace.userEditable,
-            title: this.trace.workspace.userEditable
-                ? 'Create new group'
-                : 'This workspace is not editable - please create a new workspace if you wish to modify it',
-            onclick: async () => {
-                const newName = await this.trace.omnibox.prompt('Enter a new name...');
-                if (newName) {
-                    workspaces.currentWorkspace.title = newName;
-                }
-            },
-        }), (0, mithril_1.default)(menu_1.MenuItem, {
-            icon: semantic_icons_1.Icons.Delete,
-            label: 'Delete current workspace',
-            disabled: !this.trace.workspace.userEditable,
-            title: this.trace.workspace.userEditable
-                ? 'Create new group'
-                : 'This workspace is not editable - please create a new workspace if you wish to modify it',
-            onclick: () => {
-                workspaces.removeWorkspace(workspaces.currentWorkspace);
-            },
-        }))));
-    }
-    renderTrackFilter() {
-        const trackFilters = this.trace.tracks.filters;
-        return (0, mithril_1.default)(popup_1.Popup, {
-            trigger: (0, mithril_1.default)(button_1.Button, {
-                icon: 'filter_alt',
-                title: 'Track filter',
-                compact: true,
-                iconFilled: trackFilters.areFiltersSet(),
-            }),
-        }, (0, mithril_1.default)('form.pf-track-filter', {
-            oncreate({ dom }) {
-                // Focus & select text box when the popup opens.
-                const input = (0, dom_utils_1.findRef)(dom, FILTER_TEXT_BOX_REF);
-                input.focus();
-                input.select();
-            },
-        }, (0, mithril_1.default)('.pf-track-filter__row', (0, mithril_1.default)('label', { for: 'filter-name' }, 'Filter by name'), (0, mithril_1.default)(text_input_1.TextInput, {
-            ref: FILTER_TEXT_BOX_REF,
-            id: 'filter-name',
-            placeholder: 'Filter by name...',
-            title: 'Filter by name (comma separated terms)',
-            value: trackFilters.nameFilter,
-            oninput: (e) => {
-                const value = e.target.value;
-                trackFilters.nameFilter = value;
-            },
-        })), this.trace.tracks.trackFilterCriteria.map((filter) => {
-            return (0, mithril_1.default)('.pf-track-filter__row', (0, mithril_1.default)('label', 'Filter by ', filter.name), (0, mithril_1.default)(multiselect_1.PopupMultiSelect, {
-                label: filter.name,
-                showNumSelected: true,
-                // It usually doesn't make sense to select all filters - if users
-                // want to pass all they should just remove the filters instead.
-                showSelectAllButton: false,
-                onChange: (diff) => {
-                    for (const { id, checked } of diff) {
-                        if (checked) {
-                            // Add the filter option to the criteria.
-                            const criteriaFilters = trackFilters.criteriaFilters.get(filter.name);
-                            if (criteriaFilters) {
-                                criteriaFilters.push(id);
-                            }
-                            else {
-                                trackFilters.criteriaFilters.set(filter.name, [id]);
-                            }
-                        }
-                        else {
-                            // Remove the filter option from the criteria.
-                            const filterOptions = trackFilters.criteriaFilters.get(filter.name);
-                            if (!filterOptions)
-                                continue;
-                            const newOptions = filterOptions.filter((f) => f !== id);
-                            if (newOptions.length === 0) {
-                                trackFilters.criteriaFilters.delete(filter.name);
-                            }
-                            else {
-                                trackFilters.criteriaFilters.set(filter.name, newOptions);
-                            }
-                        }
-                    }
-                },
-                options: filter.options
-                    .map((o) => {
-                    const filterOptions = trackFilters.criteriaFilters.get(filter.name);
-                    const checked = Boolean(filterOptions && filterOptions.includes(o.key));
-                    return { id: o.key, name: o.label, checked };
-                })
-                    .filter((f) => f.name !== ''),
-            }));
-        }), (0, mithril_1.default)(button_1.Button, {
-            type: 'reset',
-            label: 'Clear All Filters',
-            icon: 'filter_alt_off',
-            onclick: () => {
-                trackFilters.clearAll();
-            },
-        })));
-    }
-    renderNewGroupButton() {
-        return (0, mithril_1.default)(menu_1.MenuItem, {
-            icon: 'create_new_folder',
-            label: 'Create new group track',
-            disabled: !this.trace.workspace.userEditable,
-            title: this.trace.workspace.userEditable
-                ? 'Create new group'
-                : 'This workspace is not editable - please create a new workspace if you wish to modify it',
-            onclick: async () => {
-                const result = await this.trace.omnibox.prompt('Group name...');
-                if (result) {
-                    const group = new workspace_1.TrackNode({ title: result, isSummary: true });
-                    this.trace.workspace.addChildLast(group);
-                }
-            },
-        });
-    }
-    renderCopySelectedTracksToWorkspace(selection) {
-        const isArea = selection.kind === 'area';
-        return [
-            (0, mithril_1.default)(menu_1.MenuItem, {
-                label: 'Copy selected tracks to workspace',
-                disabled: !isArea,
-                title: isArea
-                    ? 'Copy selected tracks to workspace'
-                    : 'Please create an area selection to copy tracks',
-            }, this.trace.workspaces.all.map((ws) => (0, mithril_1.default)(menu_1.MenuItem, {
-                label: ws.title,
-                disabled: !ws.userEditable,
-                onclick: isArea
-                    ? () => this.copySelectedToWorkspace(ws, selection)
-                    : undefined,
-            })), (0, mithril_1.default)(menu_1.MenuDivider), (0, mithril_1.default)(menu_1.MenuItem, {
-                label: 'New workspace...',
-                onclick: isArea
-                    ? () => this.copySelectedToWorkspace(undefined, selection)
-                    : undefined,
-            })),
-            (0, mithril_1.default)(menu_1.MenuItem, {
-                label: 'Copy selected tracks & switch to workspace',
-                disabled: !isArea,
-                title: isArea
-                    ? 'Copy selected tracks to workspace and switch to that workspace'
-                    : 'Please create an area selection to copy tracks',
-            }, this.trace.workspaces.all.map((ws) => (0, mithril_1.default)(menu_1.MenuItem, {
-                label: ws.title,
-                disabled: !ws.userEditable,
-                onclick: isArea
-                    ? async () => {
-                        this.copySelectedToWorkspace(ws, selection);
-                        this.trace.workspaces.switchWorkspace(ws);
-                    }
-                    : undefined,
-            })), (0, mithril_1.default)(menu_1.MenuDivider), (0, mithril_1.default)(menu_1.MenuItem, {
-                label: 'New workspace...',
-                onclick: isArea
-                    ? async () => {
-                        const ws = this.copySelectedToWorkspace(undefined, selection);
-                        this.trace.workspaces.switchWorkspace(ws);
-                    }
-                    : undefined,
-            })),
-        ];
-    }
-    copySelectedToWorkspace(ws, selection) {
-        // If no workspace provided, create a new one.
-        if (!ws) {
-            ws = this.trace.workspaces.createEmptyWorkspace('Untitled Workspace');
-        }
-        for (const track of selection.tracks) {
-            const node = this.trace.workspace.getTrackByUri(track.uri);
-            if (!node)
-                continue;
-            const newNode = node.clone();
-            ws.addChildLast(newNode);
-        }
-        return ws;
+        }, (0, mithril_1.default)(timeline_toolbar_1.TimelineToolbar, { trace: this.trace }));
     }
     renderCanvas(ctx, size) {
-        ctx.fillStyle = '#999';
+        ctx.fillStyle = css_constants_1.COLOR_BORDER;
         ctx.fillRect(css_constants_1.TRACK_SHELL_WIDTH - 1, 0, 1, size.height);
         const trackSize = { ...size, width: size.width - css_constants_1.TRACK_SHELL_WIDTH };
         ctx.save();
@@ -347,7 +105,7 @@ class NotesPanel {
         this.timescale = timescale;
         if (size.width > 0 && timespan.duration > 0n) {
             const maxMajorTicks = (0, gridline_helper_1.getMaxMajorTicks)(size.width);
-            const offset = this.trace.timeline.timestampOffset();
+            const offset = this.trace.timeline.getTimeAxisOrigin();
             const tickGen = (0, gridline_helper_1.generateTicks)(timespan, maxMajorTicks, offset);
             for (const { type, time } of tickGen) {
                 const px = Math.floor(timescale.timeToPx(time));

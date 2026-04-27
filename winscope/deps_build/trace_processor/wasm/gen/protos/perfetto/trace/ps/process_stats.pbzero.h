@@ -83,7 +83,7 @@ class ProcessStats : public ::protozero::Message {
   }
 };
 
-class ProcessStats_Process_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/23, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
+class ProcessStats_Process_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/24, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
  public:
   ProcessStats_Process_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
   explicit ProcessStats_Process_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
@@ -134,6 +134,8 @@ class ProcessStats_Process_Decoder : public ::protozero::TypedProtoDecoder</*MAX
   uint64_t runtime_user_mode() const { return at<21>().as_uint64(); }
   bool has_runtime_kernel_mode() const { return at<22>().valid(); }
   uint64_t runtime_kernel_mode() const { return at<22>().as_uint64(); }
+  bool has_dmabuf_rss_kb() const { return at<24>().valid(); }
+  uint64_t dmabuf_rss_kb() const { return at<24>().as_uint64(); }
 };
 
 class ProcessStats_Process : public ::protozero::Message {
@@ -163,6 +165,7 @@ class ProcessStats_Process : public ::protozero::Message {
     kSmrSwapPssKbFieldNumber = 23,
     kRuntimeUserModeFieldNumber = 21,
     kRuntimeKernelModeFieldNumber = 22,
+    kDmabufRssKbFieldNumber = 24,
   };
   static constexpr const char* GetName() { return ".perfetto.protos.ProcessStats.Process"; }
 
@@ -566,6 +569,24 @@ class ProcessStats_Process : public ::protozero::Message {
   static constexpr FieldMetadata_RuntimeKernelMode kRuntimeKernelMode{};
   void set_runtime_kernel_mode(uint64_t value) {
     static constexpr uint32_t field_id = FieldMetadata_RuntimeKernelMode::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint64>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_DmabufRssKb =
+    ::protozero::proto_utils::FieldMetadata<
+      24,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kUint64,
+      uint64_t,
+      ProcessStats_Process>;
+
+  static constexpr FieldMetadata_DmabufRssKb kDmabufRssKb{};
+  void set_dmabuf_rss_kb(uint64_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_DmabufRssKb::kFieldId;
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<

@@ -14,27 +14,30 @@
  * limitations under the License.
  */
 import {CommonModule} from '@angular/common';
-import {NO_ERRORS_SCHEMA} from '@angular/core';
-import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {TestBed} from '@angular/core/testing';
 import {FormsModule} from '@angular/forms';
 import {MatButtonModule} from '@angular/material/button';
 import {MatFormFieldModule} from '@angular/material/form-field';
 import {MatIconModule} from '@angular/material/icon';
 import {MatInputModule} from '@angular/material/input';
-import {BrowserAnimationsModule} from '@angular/platform-browser/animations';
-import {assertDefined} from 'common/assert_utils';
-import {Download} from 'common/download';
+import {
+  BrowserAnimationsModule,
+  NoopAnimationsModule,
+} from '@angular/platform-browser/animations';
+import {assertDefined} from 'common/assert';
+import {DOMTestHelper} from 'test/unit/dom_test_helpers';
 import {ConnectionState} from 'trace_collection/connection_state';
 import {WinscopeProxySetupComponent} from './winscope_proxy_setup_component';
+import {DownloadRequest} from 'common/download';
 
 describe('WinscopeProxySetupComponent', () => {
-  let fixture: ComponentFixture<WinscopeProxySetupComponent>;
   let component: WinscopeProxySetupComponent;
-  let htmlElement: HTMLElement;
+  let dom: DOMTestHelper<WinscopeProxySetupComponent>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [
+        NoopAnimationsModule,
         CommonModule,
         MatIconModule,
         MatFormFieldModule,
@@ -42,13 +45,13 @@ describe('WinscopeProxySetupComponent', () => {
         BrowserAnimationsModule,
         MatButtonModule,
         FormsModule,
+        WinscopeProxySetupComponent,
       ],
-      declarations: [WinscopeProxySetupComponent],
-      schemas: [NO_ERRORS_SCHEMA],
+      schemas: [],
     }).compileComponents();
-    fixture = TestBed.createComponent(WinscopeProxySetupComponent);
+    const fixture = TestBed.createComponent(WinscopeProxySetupComponent);
     component = fixture.componentInstance;
-    htmlElement = fixture.nativeElement;
+    dom = new DOMTestHelper(fixture, fixture.nativeElement);
     component.state = ConnectionState.CONNECTING;
   });
 
@@ -57,51 +60,44 @@ describe('WinscopeProxySetupComponent', () => {
   });
 
   it('correct connecting message', () => {
-    fixture.detectChanges();
-    expect(
-      htmlElement.querySelector('.connecting-message')?.textContent,
-    ).toContain('Connecting...');
+    dom.detectChanges();
+    dom.get('.connecting-message').checkText('Connecting...');
   });
 
   it('correct icon and message displays if no proxy', () => {
     component.state = ConnectionState.NOT_FOUND;
-    fixture.detectChanges();
-    expect(
-      htmlElement.querySelector('.further-adb-info-text')?.textContent,
-    ).toContain('Launch the Winscope ADB Connect proxy');
+    dom.detectChanges();
+    dom
+      .get('.further-adb-info-text')
+      .checkText('Launch the Winscope ADB Connect proxy');
   });
 
   it('correct icon and message displays if invalid proxy', () => {
     component.state = ConnectionState.INVALID_VERSION;
-    fixture.detectChanges();
-    expect(
-      htmlElement.querySelector('.further-adb-info-text')?.textContent,
-    ).toContain(
-      `Your local proxy version is incompatible with Winscope. Please update the proxy to version ${component.proxyVersion}.`,
-    );
-    expect(htmlElement.querySelector('.adb-icon')?.textContent).toEqual(
-      'update',
-    );
+    dom.detectChanges();
+    dom
+      .get('.further-adb-info-text')
+      .checkText(
+        `Your local proxy version is incompatible with Winscope. Please update the proxy to version ${component.proxyVersion}.`,
+      );
+    dom.get('.adb-icon').checkTextExact('update');
   });
 
   it('correct icon and message displays if unauthorized proxy', () => {
     component.state = ConnectionState.UNAUTH;
-    fixture.detectChanges();
-    expect(htmlElement.querySelector('.adb-info')?.textContent).toEqual(
-      'Proxy authorization required.',
-    );
-    expect(htmlElement.querySelector('.adb-icon')?.textContent).toEqual('lock');
+    dom.detectChanges();
+    dom.get('.adb-info').checkText('Proxy authorization required.');
+    dom.get('.adb-icon').checkTextExact('lock');
   });
 
   it('download proxy button downloads proxy', () => {
     component.state = ConnectionState.NOT_FOUND;
-    fixture.detectChanges();
-    const spy = spyOn(Download, 'fromUrl');
-    const button = assertDefined(
-      htmlElement.querySelector<HTMLButtonElement>('.download-proxy-btn'),
-    );
-    button.click();
-    fixture.detectChanges();
+    const spy: DownloadRequest = jasmine.createSpy('fromUrl');
+    component.downloadRequest = (url: string, fileName: string) => {
+      spy(url, fileName);
+    };
+    dom.detectChanges();
+    dom.findAndClick('.download-proxy-btn');
     expect(spy).toHaveBeenCalledWith(
       component.downloadProxyUrl,
       'winscope_proxy.py',
@@ -110,63 +106,37 @@ describe('WinscopeProxySetupComponent', () => {
 
   it('retry button emits event', () => {
     component.state = ConnectionState.NOT_FOUND;
-    fixture.detectChanges();
+    dom.detectChanges();
 
     const spy = spyOn(assertDefined(component.retryConnection), 'emit');
-    const button = assertDefined(
-      htmlElement.querySelector<HTMLButtonElement>('.retry'),
-    );
-    button.click();
-    fixture.detectChanges();
+    dom.findAndClick('.retry');
     expect(spy).toHaveBeenCalledWith('');
   });
 
   it('input proxy token saved as expected', () => {
     const spy = spyOn(assertDefined(component.retryConnection), 'emit');
     component.state = ConnectionState.UNAUTH;
-    fixture.detectChanges();
+    dom.detectChanges();
 
-    const button = assertDefined(
-      htmlElement.querySelector<HTMLButtonElement>('.retry'),
-    );
-    button.click();
-    fixture.detectChanges();
+    dom.findAndClick('.retry');
     expect(spy).not.toHaveBeenCalled();
 
-    const proxyTokenInput = assertDefined(
-      htmlElement.querySelector<HTMLInputElement>(
-        '.proxy-token-input-field input',
-      ),
-    );
-    proxyTokenInput.value = '12345';
-    proxyTokenInput.dispatchEvent(new Event('input'));
-    fixture.detectChanges();
+    dom.findAndDispatchInput('.proxy-token-input-field', '12345');
+    expect(spy).not.toHaveBeenCalled();
 
-    assertDefined(
-      htmlElement.querySelector<HTMLButtonElement>('.retry'),
-    ).click();
-    fixture.detectChanges();
+    dom.findAndClick('.retry');
     expect(spy).toHaveBeenCalledWith('12345');
   });
 
   it('emits event on enter key', () => {
     const spy = spyOn(assertDefined(component.retryConnection), 'emit');
     component.state = ConnectionState.UNAUTH;
-    fixture.detectChanges();
+    dom.detectChanges();
 
-    const proxyTokenInputField = assertDefined(
-      htmlElement.querySelector('.proxy-token-input-field'),
-    );
-    const proxyTokenInput = assertDefined(
-      proxyTokenInputField.querySelector<HTMLInputElement>('input'),
-    );
+    dom.findAndDispatchInput('.proxy-token-input-field', '12345');
+    expect(spy).not.toHaveBeenCalled();
 
-    proxyTokenInput.value = '12345';
-    proxyTokenInput.dispatchEvent(new Event('input'));
-    proxyTokenInputField.dispatchEvent(
-      new KeyboardEvent('keydown', {key: 'Enter'}),
-    );
-    fixture.detectChanges();
+    dom.get('.proxy-token-input-field').keydownEnter();
     expect(spy).toHaveBeenCalledWith('12345');
   });
 });

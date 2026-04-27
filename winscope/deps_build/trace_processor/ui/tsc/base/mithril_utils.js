@@ -15,8 +15,6 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Gate = exports.Passthrough = void 0;
 exports.hasChildren = hasChildren;
-exports.bindMithrilAttrs = bindMithrilAttrs;
-exports.linkify = linkify;
 const tslib_1 = require("tslib");
 const mithril_1 = tslib_1.__importDefault(require("mithril"));
 // Check if a mithril component vnode has children
@@ -35,68 +33,35 @@ exports.Passthrough = {
 };
 // The gate component is a wrapper which can either be open or closed.
 // - When open, children are rendered inside a div where display = contents.
-// - When closed, children are rendered inside a div where display = none
-// Use this component when we want to conditionally render certain children,
-// but we want to maintain their state.
-exports.Gate = {
+// - When closed, children are rendered inside a div where display = none, and
+//   children's view functions are not called.
+//
+// Use this component when we want to conditionally render certain children, but
+// we want to retain their state, such as page and tab views.
+class Gate {
+    previousChildren;
+    wasOpen;
     view({ attrs, children }) {
         return (0, mithril_1.default)('', {
             style: { display: attrs.open ? 'contents' : 'none' },
-        }, children);
-    },
-};
-/**
- * Utility function to pre-bind some mithril attrs of a component, and leave
- * the others unbound and passed at run-time.
- * Example use case: the Page API Passes to the registered page a PageAttrs,
- * which is {subpage:string}. Imagine you write a MyPage component that takes
- * some extra input attrs (e.g. the App object) and you want to bind them
- * onActivate(). The results looks like this:
- *
- * interface MyPageAttrs extends PageAttrs { app: App; }
- *
- * class MyPage extends m.classComponent<MyPageAttrs> {... view() {...} }
- *
- * onActivate(app: App) {
- *   pages.register(... bindMithrilApps(MyPage, {app: app});
- * }
- *
- * The return value of bindMithrilApps is a mithril component that takes in
- * input only a {subpage: string} and passes down to MyPage the combination
- * of pre-bound and runtime attrs, that is {subpage, app}.
- */
-function bindMithrilAttrs(component, boundArgs) {
-    return {
-        view(vnode) {
-            const attrs = { ...vnode.attrs, ...boundArgs };
-            const emptyAttrs = {}; // Keep tsc happy.
-            return (0, mithril_1.default)(component, { ...attrs, ...emptyAttrs });
-        },
-    };
+        }, this.renderChildren(attrs.open, children));
+    }
+    renderChildren(open, children) {
+        // If the gate is open, pass the latest children through, otherwise pass the
+        // cached children through. When Mithril sees the same children as in the
+        // previous render cycle, it doesn't re-render those children. This is a
+        // performance optimization, as children that are not visible typically
+        // don't need to be re-rendered.
+        //
+        // Note: Render the children once more after the gate has been closed, which
+        // allows out-of-tree elements like popups to close properly, as the
+        // display: none doesn't apply to them.
+        if (open || this.wasOpen) {
+            this.previousChildren = children;
+        }
+        this.wasOpen = open;
+        return this.previousChildren;
+    }
 }
-/**
- * Converts a string input in a <span>, extracts URLs and converts them into
- * clickable links.
- * @param text the input string, e.g., "See https://example.org for details".
- * @returns a Mithril vnode, e.g.
- *    <span>See <a href="https://example.org">example.org<a> for more details.
- */
-function linkify(text) {
-    const urlPattern = /(https?:\/\/[^\s]+)|(go\/[^\s]+)/g;
-    const parts = text.split(urlPattern);
-    return (0, mithril_1.default)('span', parts.map((part) => {
-        if (/^(https?:\/\/[^\s]+)$/.test(part)) {
-            return (0, mithril_1.default)('a', { href: part, target: '_blank' }, part.split('://')[1]);
-        }
-        else if (/^(go\/[^\s]+)$/.test(part)) {
-            return (0, mithril_1.default)('a', {
-                href: `http://${part}`,
-                target: '_blank',
-            }, part);
-        }
-        else {
-            return part;
-        }
-    }));
-}
+exports.Gate = Gate;
 //# sourceMappingURL=mithril_utils.js.map

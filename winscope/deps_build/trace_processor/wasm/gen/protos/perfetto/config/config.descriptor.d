@@ -7,6 +7,7 @@ wasm/gen/protos/perfetto/config/config.descriptor: ..//protos/perfetto/common/bu
  ..//protos/perfetto/config/android/android_system_property_config.proto\
  ..//protos/perfetto/config/android/android_sdk_sysprop_guard_config.proto\
  ..//protos/perfetto/config/android/app_wakelock_config.proto\
+ ..//protos/perfetto/config/android/cpu_per_uid_config.proto\
  ..//protos/perfetto/config/android/kernel_wakelocks_config.proto\
  ..//protos/perfetto/config/android/network_trace_config.proto\
  ..//protos/perfetto/config/android/packages_list_config.proto\
@@ -21,6 +22,7 @@ wasm/gen/protos/perfetto/config/config.descriptor: ..//protos/perfetto/common/bu
  ..//protos/perfetto/config/etw/etw_config.proto\
  ..//protos/perfetto/config/chrome/system_metrics.proto\
  ..//protos/perfetto/config/ftrace/ftrace_config.proto\
+ ..//protos/perfetto/config/ftrace/frozen_ftrace_config.proto\
  ..//protos/perfetto/config/gpu/gpu_counter_config.proto\
  ..//protos/perfetto/config/gpu/vulkan_memory_config.proto\
  ..//protos/perfetto/config/gpu/gpu_renderstages_config.proto\
@@ -30,6 +32,7 @@ wasm/gen/protos/perfetto/config/config.descriptor: ..//protos/perfetto/common/bu
  ..//protos/perfetto/config/power/android_power_config.proto\
  ..//protos/perfetto/config/statsd/atom_ids.proto\
  ..//protos/perfetto/config/statsd/statsd_tracing_config.proto\
+ ..//protos/perfetto/config/priority_boost/priority_boost_config.proto\
  ..//protos/perfetto/config/process_stats/process_stats_config.proto\
  ..//protos/perfetto/config/profiling/heapprofd_config.proto\
  ..//protos/perfetto/config/profiling/java_hprof_config.proto\
@@ -39,7 +42,7 @@ wasm/gen/protos/perfetto/config/config.descriptor: ..//protos/perfetto/common/bu
  ..//protos/perfetto/config/sys_stats/sys_stats_config.proto\
  ..//protos/perfetto/config/test_config.proto\
  ..//protos/perfetto/config/track_event/track_event_config.proto\
- ..//protos/perfetto/config/system_info/system_info.proto\
+ ..//protos/perfetto/config/system_info/system_info_config.proto\
  ..//protos/perfetto/config/chrome/histogram_samples.proto\
  ..//protos/perfetto/config/data_source_config.proto\
  ..//protos/perfetto/config/trace_config.proto

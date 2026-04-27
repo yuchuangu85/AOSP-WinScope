@@ -6,54 +6,77 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <tuple>
 #include <type_traits>
 #include <utility>
+#include <variant>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/ref_counted.h"
-#include "src/trace_processor/containers/bit_vector.h"
-#include "src/trace_processor/containers/row_map.h"
-#include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/db/column/arrangement_overlay.h"
-#include "src/trace_processor/db/column/data_layer.h"
-#include "src/trace_processor/db/column/dense_null_overlay.h"
-#include "src/trace_processor/db/column/numeric_storage.h"
-#include "src/trace_processor/db/column/id_storage.h"
-#include "src/trace_processor/db/column/null_overlay.h"
-#include "src/trace_processor/db/column/range_overlay.h"
-#include "src/trace_processor/db/column/selector_overlay.h"
-#include "src/trace_processor/db/column/set_id_storage.h"
-#include "src/trace_processor/db/column/string_storage.h"
-#include "src/trace_processor/db/column/types.h"
-#include "src/trace_processor/db/column_storage.h"
-#include "src/trace_processor/db/column.h"
-#include "src/trace_processor/db/table.h"
-#include "src/trace_processor/db/typed_column.h"
-#include "src/trace_processor/db/typed_column_internal.h"
+#include "src/trace_processor/dataframe/dataframe.h"
+#include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/dataframe/typed_cursor.h"
 #include "src/trace_processor/tables/macros_internal.h"
 
 
 
 namespace perfetto::trace_processor::tables {
 
-class EtmV4ConfigurationTable : public macros_internal::MacroTable {
+class EtmV4ConfigurationTable {
  public:
-  static constexpr uint32_t kColumnCount = 10;
+  static constexpr auto kSpec = dataframe::CreateTypedDataframeSpec(
+    {"id","set_id","cpu","cs_trace_stream_id","core_profile","arch_version","major_version","minor_version","max_speculation_depth","bool_flags"},
+    dataframe::CreateTypedColumnSpec(dataframe::Id{}, dataframe::NonNull{}, dataframe::IdSorted{}, dataframe::NoDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::NonNull{}, dataframe::SetIdSorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::String{}, dataframe::SparseNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::String{}, dataframe::SparseNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Int64{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}));
 
-  struct Id : public BaseId {
+  struct Id : BaseId {
     Id() = default;
-    explicit constexpr Id(uint32_t v) : BaseId(v) {}
+    explicit constexpr Id(uint32_t _value) : BaseId(_value) {}
+
+    bool operator==(const Id& other) const {
+      return value == other.value;
+    }
   };
-  static_assert(std::is_trivially_destructible_v<Id>,
-                "Inheritance used without trivial destruction");
-    
+  struct RowReference;
+  struct ConstRowReference;
+  struct RowNumber {
+   public:
+    explicit constexpr RowNumber(uint32_t value) : value_(value) {}
+    uint32_t row_number() const { return value_; }
+
+    RowReference ToRowReference(EtmV4ConfigurationTable* table) const {
+      return RowReference(table, value_);
+    }
+    ConstRowReference ToRowReference(const EtmV4ConfigurationTable& table) const {
+      return ConstRowReference(&table, value_);
+    }
+
+    bool operator==(const RowNumber& other) const {
+      return value_ == other.value_;
+    }
+    bool operator<(const RowNumber& other) const {
+      return value_ < other.value_;
+    }
+   private:
+    uint32_t value_;
+  };
   struct ColumnIndex {
     static constexpr uint32_t id = 0;
     static constexpr uint32_t set_id = 1;
     static constexpr uint32_t cpu = 2;
-    static constexpr uint32_t cs_trace_id = 3;
+    static constexpr uint32_t cs_trace_stream_id = 3;
     static constexpr uint32_t core_profile = 4;
     static constexpr uint32_t arch_version = 5;
     static constexpr uint32_t major_version = 6;
@@ -61,1891 +84,1571 @@ class EtmV4ConfigurationTable : public macros_internal::MacroTable {
     static constexpr uint32_t max_speculation_depth = 8;
     static constexpr uint32_t bool_flags = 9;
   };
-  struct ColumnType {
-    using id = IdColumn<EtmV4ConfigurationTable::Id>;
-    using set_id = TypedColumn<uint32_t>;
-    using cpu = TypedColumn<uint32_t>;
-    using cs_trace_id = TypedColumn<uint32_t>;
-    using core_profile = TypedColumn<StringPool::Id>;
-    using arch_version = TypedColumn<StringPool::Id>;
-    using major_version = TypedColumn<uint32_t>;
-    using minor_version = TypedColumn<uint32_t>;
-    using max_speculation_depth = TypedColumn<uint32_t>;
-    using bool_flags = TypedColumn<int64_t>;
+  struct RowReference {
+   public:
+    explicit RowReference(EtmV4ConfigurationTable* table, uint32_t row)
+        : table_(table), row_(row) {
+        base::ignore_result(table_);
+    }
+    EtmV4ConfigurationTable::Id id() const {
+        
+        return EtmV4ConfigurationTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+        uint32_t cpu() const {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::cpu>(kSpec, row_);
+    }
+        uint32_t cs_trace_stream_id() const {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::cs_trace_stream_id>(kSpec, row_);
+    }
+    
+    RowNumber ToRowNumber() const {
+      return RowNumber{row_};
+    }
+
+   private:
+    friend struct ConstRowReference;
+    EtmV4ConfigurationTable* table_;
+    uint32_t row_;
   };
-  struct Row : public macros_internal::RootParentTable::Row {
-    Row(uint32_t in_set_id = {},
-        uint32_t in_cpu = {},
-        uint32_t in_cs_trace_id = {},
-        StringPool::Id in_core_profile = {},
-        StringPool::Id in_arch_version = {},
-        uint32_t in_major_version = {},
-        uint32_t in_minor_version = {},
-        uint32_t in_max_speculation_depth = {},
-        int64_t in_bool_flags = {},
-        std::nullptr_t = nullptr)
-        : macros_internal::RootParentTable::Row(),
-          set_id(in_set_id),
-          cpu(in_cpu),
-          cs_trace_id(in_cs_trace_id),
-          core_profile(in_core_profile),
-          arch_version(in_arch_version),
-          major_version(in_major_version),
-          minor_version(in_minor_version),
-          max_speculation_depth(in_max_speculation_depth),
-          bool_flags(in_bool_flags) {}
-    uint32_t set_id;
+  struct ConstRowReference {
+   public:
+    explicit ConstRowReference(const EtmV4ConfigurationTable* table, uint32_t row)
+        : table_(table), row_(row) {
+        base::ignore_result(table_);
+    }
+    ConstRowReference(const RowReference& other)
+        : table_(other.table_), row_(other.row_) {}
+    EtmV4ConfigurationTable::Id id() const {
+        
+        return EtmV4ConfigurationTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+        uint32_t cpu() const {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::cpu>(kSpec, row_);
+    }
+        uint32_t cs_trace_stream_id() const {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::cs_trace_stream_id>(kSpec, row_);
+    }
+    RowNumber ToRowNumber() const {
+      return RowNumber{row_};
+    }
+   private:
+    const EtmV4ConfigurationTable* table_;
+    uint32_t row_;
+  };
+  class ConstCursor {
+   public:
+    explicit ConstCursor(const dataframe::Dataframe& df,
+                         std::vector<dataframe::FilterSpec> filters,
+                         std::vector<dataframe::SortSpec> sorts)
+      : dataframe_(&df), cursor_(&df, std::move(filters), std::move(sorts)) {
+      base::ignore_result(dataframe_);
+    }
+
+    PERFETTO_ALWAYS_INLINE void Execute() { cursor_.ExecuteUnchecked(); }
+    PERFETTO_ALWAYS_INLINE bool Eof() const { return cursor_.Eof(); }
+    PERFETTO_ALWAYS_INLINE void Next() { cursor_.Next(); }
+    template <typename C>
+    PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index, C value) {
+      cursor_.SetFilterValueUnchecked(index, std::move(value));
+    }
+    RowNumber ToRowNumber() const {
+      return RowNumber{cursor_.RowIndex()};
+    }
+    void Reset() { cursor_.Reset(); }
+    EtmV4ConfigurationTable::Id id() const {
+        
+        return EtmV4ConfigurationTable::Id{cursor_.GetCellUnchecked<ColumnIndex::id>(kSpec)};
+      }
+    uint32_t cpu() const {
+      PERFETTO_DCHECK(!dataframe_->finalized());
+      return cursor_.GetCellUnchecked<ColumnIndex::cpu>(kSpec);
+    }
+    uint32_t cs_trace_stream_id() const {
+      PERFETTO_DCHECK(!dataframe_->finalized());
+      return cursor_.GetCellUnchecked<ColumnIndex::cs_trace_stream_id>(kSpec);
+    }
+
+   private:
+    const dataframe::Dataframe* dataframe_;
+    dataframe::TypedCursor cursor_;
+  };
+  class Cursor {
+   public:
+    explicit Cursor(dataframe::Dataframe& df,
+                    std::vector<dataframe::FilterSpec> filters,
+                    std::vector<dataframe::SortSpec> sorts)
+      : dataframe_(&df), cursor_(&df, std::move(filters), std::move(sorts)) {
+      base::ignore_result(dataframe_);
+    }
+
+    PERFETTO_ALWAYS_INLINE void Execute() { cursor_.ExecuteUnchecked(); }
+    PERFETTO_ALWAYS_INLINE bool Eof() const { return cursor_.Eof(); }
+    PERFETTO_ALWAYS_INLINE void Next() { cursor_.Next(); }
+    template <typename C>
+    PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index, C value) {
+      cursor_.SetFilterValueUnchecked(index, std::move(value));
+    }
+    RowNumber ToRowNumber() const {
+      return RowNumber{cursor_.RowIndex()};
+    }
+    void Reset() { cursor_.Reset(); }
+
+    EtmV4ConfigurationTable::Id id() const {
+        
+        return EtmV4ConfigurationTable::Id{cursor_.GetCellUnchecked<ColumnIndex::id>(kSpec)};
+      }
+    uint32_t cpu() const {
+      PERFETTO_DCHECK(!dataframe_->finalized());
+      return cursor_.GetCellUnchecked<ColumnIndex::cpu>(kSpec);
+    }
+    uint32_t cs_trace_stream_id() const {
+      PERFETTO_DCHECK(!dataframe_->finalized());
+      return cursor_.GetCellUnchecked<ColumnIndex::cs_trace_stream_id>(kSpec);
+    }
+    
+
+   private:
+    dataframe::Dataframe* dataframe_;
+    dataframe::TypedCursor cursor_;
+  };
+  class Iterator {
+    public:
+      explicit Iterator(EtmV4ConfigurationTable* table) : table_(table) {
+        base::ignore_result(table_);
+      }
+      explicit operator bool() const { return row_ < table_->row_count(); }
+      Iterator& operator++() {
+        ++row_;
+        return *this;
+      }
+      RowNumber row_number() const {
+        return RowNumber{row_};
+      }
+      RowReference ToRowReference() const {
+        return RowReference(table_, row_);
+      }
+      EtmV4ConfigurationTable::Id id() const {
+        
+        return EtmV4ConfigurationTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+        uint32_t cpu() const {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::cpu>(kSpec, row_);
+    }
+        uint32_t cs_trace_stream_id() const {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::cs_trace_stream_id>(kSpec, row_);
+    }
+      
+
+    private:
+      EtmV4ConfigurationTable* table_;
+      uint32_t row_ = 0;
+  };
+  class ConstIterator {
+    public:
+      explicit ConstIterator(const EtmV4ConfigurationTable* table) : table_(table) {
+        base::ignore_result(table_);
+      }
+      explicit operator bool() const { return row_ < table_->row_count(); }
+      ConstIterator& operator++() {
+        ++row_;
+        return *this;
+      }
+      RowNumber row_number() const {
+        return RowNumber{row_};
+      }
+      ConstRowReference ToRowReference() const {
+        return ConstRowReference(table_, row_);
+      }
+      EtmV4ConfigurationTable::Id id() const {
+        
+        return EtmV4ConfigurationTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+        uint32_t cpu() const {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::cpu>(kSpec, row_);
+    }
+        uint32_t cs_trace_stream_id() const {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::cs_trace_stream_id>(kSpec, row_);
+    }
+
+    private:
+      const EtmV4ConfigurationTable* table_;
+      uint32_t row_ = 0;
+  };
+  struct IdAndRow {
+    Id id;
+    RowNumber row_number;
+    uint32_t row;
+    RowReference row_reference;
+  };
+  
+  struct Row {
+    Row(uint32_t _set_id = {}, uint32_t _cpu = {}, uint32_t _cs_trace_stream_id = {}, StringPool::Id _core_profile = {}, StringPool::Id _arch_version = {}, uint32_t _major_version = {}, uint32_t _minor_version = {}, uint32_t _max_speculation_depth = {}, int64_t _bool_flags = {}) : set_id(std::move(_set_id)), cpu(std::move(_cpu)), cs_trace_stream_id(std::move(_cs_trace_stream_id)), core_profile(std::move(_core_profile)), arch_version(std::move(_arch_version)), major_version(std::move(_major_version)), minor_version(std::move(_minor_version)), max_speculation_depth(std::move(_max_speculation_depth)), bool_flags(std::move(_bool_flags)) {}
+
+    bool operator==(const Row& other) const {
+      return std::tie(set_id, cpu, cs_trace_stream_id, core_profile, arch_version, major_version, minor_version, max_speculation_depth, bool_flags) ==
+             std::tie(other.set_id, other.cpu, other.cs_trace_stream_id, other.core_profile, other.arch_version, other.major_version, other.minor_version, other.max_speculation_depth, other.bool_flags);
+    }
+
+        uint32_t set_id;
     uint32_t cpu;
-    uint32_t cs_trace_id;
+    uint32_t cs_trace_stream_id;
     StringPool::Id core_profile;
     StringPool::Id arch_version;
     uint32_t major_version;
     uint32_t minor_version;
     uint32_t max_speculation_depth;
     int64_t bool_flags;
-
-    bool operator==(const EtmV4ConfigurationTable::Row& other) const {
-      return ColumnType::set_id::Equals(set_id, other.set_id) &&
-       ColumnType::cpu::Equals(cpu, other.cpu) &&
-       ColumnType::cs_trace_id::Equals(cs_trace_id, other.cs_trace_id) &&
-       ColumnType::core_profile::Equals(core_profile, other.core_profile) &&
-       ColumnType::arch_version::Equals(arch_version, other.arch_version) &&
-       ColumnType::major_version::Equals(major_version, other.major_version) &&
-       ColumnType::minor_version::Equals(minor_version, other.minor_version) &&
-       ColumnType::max_speculation_depth::Equals(max_speculation_depth, other.max_speculation_depth) &&
-       ColumnType::bool_flags::Equals(bool_flags, other.bool_flags);
-    }
-  };
-  struct ColumnFlag {
-    static constexpr uint32_t set_id = static_cast<uint32_t>(ColumnLegacy::Flag::kSorted | ColumnLegacy::Flag::kSetId) | ColumnType::set_id::default_flags();
-    static constexpr uint32_t cpu = ColumnType::cpu::default_flags();
-    static constexpr uint32_t cs_trace_id = ColumnType::cs_trace_id::default_flags();
-    static constexpr uint32_t core_profile = ColumnType::core_profile::default_flags();
-    static constexpr uint32_t arch_version = ColumnType::arch_version::default_flags();
-    static constexpr uint32_t major_version = ColumnType::major_version::default_flags();
-    static constexpr uint32_t minor_version = ColumnType::minor_version::default_flags();
-    static constexpr uint32_t max_speculation_depth = ColumnType::max_speculation_depth::default_flags();
-    static constexpr uint32_t bool_flags = ColumnType::bool_flags::default_flags();
   };
 
-  class RowNumber;
-  class ConstRowReference;
-  class RowReference;
-
-  class RowNumber : public macros_internal::AbstractRowNumber<
-      EtmV4ConfigurationTable, ConstRowReference, RowReference> {
-   public:
-    explicit RowNumber(uint32_t row_number)
-        : AbstractRowNumber(row_number) {}
-  };
-  static_assert(std::is_trivially_destructible_v<RowNumber>,
-                "Inheritance used without trivial destruction");
-
-  class ConstRowReference : public macros_internal::AbstractConstRowReference<
-    EtmV4ConfigurationTable, RowNumber> {
-   public:
-    ConstRowReference(const EtmV4ConfigurationTable* table, uint32_t row_number)
-        : AbstractConstRowReference(table, row_number) {}
-
-    ColumnType::id::type id() const {
-      return table()->id()[row_number_];
-    }
-    ColumnType::set_id::type set_id() const {
-      return table()->set_id()[row_number_];
-    }
-    ColumnType::cpu::type cpu() const {
-      return table()->cpu()[row_number_];
-    }
-    ColumnType::cs_trace_id::type cs_trace_id() const {
-      return table()->cs_trace_id()[row_number_];
-    }
-    ColumnType::core_profile::type core_profile() const {
-      return table()->core_profile()[row_number_];
-    }
-    ColumnType::arch_version::type arch_version() const {
-      return table()->arch_version()[row_number_];
-    }
-    ColumnType::major_version::type major_version() const {
-      return table()->major_version()[row_number_];
-    }
-    ColumnType::minor_version::type minor_version() const {
-      return table()->minor_version()[row_number_];
-    }
-    ColumnType::max_speculation_depth::type max_speculation_depth() const {
-      return table()->max_speculation_depth()[row_number_];
-    }
-    ColumnType::bool_flags::type bool_flags() const {
-      return table()->bool_flags()[row_number_];
-    }
-  };
-  static_assert(std::is_trivially_destructible_v<ConstRowReference>,
-                "Inheritance used without trivial destruction");
-  class RowReference : public ConstRowReference {
-   public:
-    RowReference(const EtmV4ConfigurationTable* table, uint32_t row_number)
-        : ConstRowReference(table, row_number) {}
-
-    void set_set_id(
-        ColumnType::set_id::non_optional_type v) {
-      return mutable_table()->mutable_set_id()->Set(row_number_, v);
-    }
-    void set_cpu(
-        ColumnType::cpu::non_optional_type v) {
-      return mutable_table()->mutable_cpu()->Set(row_number_, v);
-    }
-    void set_cs_trace_id(
-        ColumnType::cs_trace_id::non_optional_type v) {
-      return mutable_table()->mutable_cs_trace_id()->Set(row_number_, v);
-    }
-    void set_core_profile(
-        ColumnType::core_profile::non_optional_type v) {
-      return mutable_table()->mutable_core_profile()->Set(row_number_, v);
-    }
-    void set_arch_version(
-        ColumnType::arch_version::non_optional_type v) {
-      return mutable_table()->mutable_arch_version()->Set(row_number_, v);
-    }
-    void set_major_version(
-        ColumnType::major_version::non_optional_type v) {
-      return mutable_table()->mutable_major_version()->Set(row_number_, v);
-    }
-    void set_minor_version(
-        ColumnType::minor_version::non_optional_type v) {
-      return mutable_table()->mutable_minor_version()->Set(row_number_, v);
-    }
-    void set_max_speculation_depth(
-        ColumnType::max_speculation_depth::non_optional_type v) {
-      return mutable_table()->mutable_max_speculation_depth()->Set(row_number_, v);
-    }
-    void set_bool_flags(
-        ColumnType::bool_flags::non_optional_type v) {
-      return mutable_table()->mutable_bool_flags()->Set(row_number_, v);
-    }
-
-   private:
-    EtmV4ConfigurationTable* mutable_table() const {
-      return const_cast<EtmV4ConfigurationTable*>(table());
-    }
-  };
-  static_assert(std::is_trivially_destructible_v<RowReference>,
-                "Inheritance used without trivial destruction");
-
-  class ConstIterator;
-  class ConstIterator : public macros_internal::AbstractConstIterator<
-    ConstIterator, EtmV4ConfigurationTable, RowNumber, ConstRowReference> {
-   public:
-    ColumnType::id::type id() const {
-      const auto& col = table()->id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::set_id::type set_id() const {
-      const auto& col = table()->set_id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::cpu::type cpu() const {
-      const auto& col = table()->cpu();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::cs_trace_id::type cs_trace_id() const {
-      const auto& col = table()->cs_trace_id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::core_profile::type core_profile() const {
-      const auto& col = table()->core_profile();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::arch_version::type arch_version() const {
-      const auto& col = table()->arch_version();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::major_version::type major_version() const {
-      const auto& col = table()->major_version();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::minor_version::type minor_version() const {
-      const auto& col = table()->minor_version();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::max_speculation_depth::type max_speculation_depth() const {
-      const auto& col = table()->max_speculation_depth();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::bool_flags::type bool_flags() const {
-      const auto& col = table()->bool_flags();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-
-   protected:
-    explicit ConstIterator(const EtmV4ConfigurationTable* table,
-                           Table::Iterator iterator)
-        : AbstractConstIterator(table, std::move(iterator)) {}
-
-    uint32_t CurrentRowNumber() const {
-      return iterator_.StorageIndexForLastOverlay();
-    }
-
-   private:
-    friend class EtmV4ConfigurationTable;
-    friend class macros_internal::AbstractConstIterator<
-      ConstIterator, EtmV4ConfigurationTable, RowNumber, ConstRowReference>;
-  };
-  class Iterator : public ConstIterator {
-    public:
-     RowReference row_reference() const {
-       return {const_cast<EtmV4ConfigurationTable*>(table()), CurrentRowNumber()};
-     }
-
-    private:
-     friend class EtmV4ConfigurationTable;
-
-     explicit Iterator(EtmV4ConfigurationTable* table, Table::Iterator iterator)
-        : ConstIterator(table, std::move(iterator)) {}
-  };
-
-  struct IdAndRow {
-    Id id;
-    uint32_t row;
-    RowReference row_reference;
-    RowNumber row_number;
-  };
-
-  static std::vector<ColumnLegacy> GetColumns(
-      EtmV4ConfigurationTable* self,
-      const macros_internal::MacroTable* parent) {
-    std::vector<ColumnLegacy> columns =
-        CopyColumnsFromParentOrAddRootColumns(parent);
-    uint32_t olay_idx = OverlayCount(parent);
-    AddColumnToVector(columns, "set_id", &self->set_id_, ColumnFlag::set_id,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "cpu", &self->cpu_, ColumnFlag::cpu,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "cs_trace_id", &self->cs_trace_id_, ColumnFlag::cs_trace_id,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "core_profile", &self->core_profile_, ColumnFlag::core_profile,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "arch_version", &self->arch_version_, ColumnFlag::arch_version,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "major_version", &self->major_version_, ColumnFlag::major_version,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "minor_version", &self->minor_version_, ColumnFlag::minor_version,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "max_speculation_depth", &self->max_speculation_depth_, ColumnFlag::max_speculation_depth,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "bool_flags", &self->bool_flags_, ColumnFlag::bool_flags,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    base::ignore_result(self);
-    return columns;
-  }
-
-  PERFETTO_NO_INLINE explicit EtmV4ConfigurationTable(StringPool* pool)
-      : macros_internal::MacroTable(
-          pool,
-          GetColumns(this, nullptr),
-          nullptr),
-        set_id_(ColumnStorage<ColumnType::set_id::stored_type>::Create<false>()),
-        cpu_(ColumnStorage<ColumnType::cpu::stored_type>::Create<false>()),
-        cs_trace_id_(ColumnStorage<ColumnType::cs_trace_id::stored_type>::Create<false>()),
-        core_profile_(ColumnStorage<ColumnType::core_profile::stored_type>::Create<false>()),
-        arch_version_(ColumnStorage<ColumnType::arch_version::stored_type>::Create<false>()),
-        major_version_(ColumnStorage<ColumnType::major_version::stored_type>::Create<false>()),
-        minor_version_(ColumnStorage<ColumnType::minor_version::stored_type>::Create<false>()),
-        max_speculation_depth_(ColumnStorage<ColumnType::max_speculation_depth::stored_type>::Create<false>()),
-        bool_flags_(ColumnStorage<ColumnType::bool_flags::stored_type>::Create<false>())
-,
-        id_storage_layer_(new column::IdStorage()),
-        set_id_storage_layer_(
-          new column::SetIdStorage(&set_id_.vector())),
-        cpu_storage_layer_(
-        new column::NumericStorage<ColumnType::cpu::non_optional_stored_type>(
-          &cpu_.vector(),
-          ColumnTypeHelper<ColumnType::cpu::stored_type>::ToColumnType(),
-          false)),
-        cs_trace_id_storage_layer_(
-        new column::NumericStorage<ColumnType::cs_trace_id::non_optional_stored_type>(
-          &cs_trace_id_.vector(),
-          ColumnTypeHelper<ColumnType::cs_trace_id::stored_type>::ToColumnType(),
-          false)),
-        core_profile_storage_layer_(
-          new column::StringStorage(string_pool(), &core_profile_.vector())),
-        arch_version_storage_layer_(
-          new column::StringStorage(string_pool(), &arch_version_.vector())),
-        major_version_storage_layer_(
-        new column::NumericStorage<ColumnType::major_version::non_optional_stored_type>(
-          &major_version_.vector(),
-          ColumnTypeHelper<ColumnType::major_version::stored_type>::ToColumnType(),
-          false)),
-        minor_version_storage_layer_(
-        new column::NumericStorage<ColumnType::minor_version::non_optional_stored_type>(
-          &minor_version_.vector(),
-          ColumnTypeHelper<ColumnType::minor_version::stored_type>::ToColumnType(),
-          false)),
-        max_speculation_depth_storage_layer_(
-        new column::NumericStorage<ColumnType::max_speculation_depth::non_optional_stored_type>(
-          &max_speculation_depth_.vector(),
-          ColumnTypeHelper<ColumnType::max_speculation_depth::stored_type>::ToColumnType(),
-          false)),
-        bool_flags_storage_layer_(
-        new column::NumericStorage<ColumnType::bool_flags::non_optional_stored_type>(
-          &bool_flags_.vector(),
-          ColumnTypeHelper<ColumnType::bool_flags::stored_type>::ToColumnType(),
-          false))
-         {
-    static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::set_id::stored_type>(
-          ColumnFlag::set_id),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::cpu::stored_type>(
-          ColumnFlag::cpu),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::cs_trace_id::stored_type>(
-          ColumnFlag::cs_trace_id),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::core_profile::stored_type>(
-          ColumnFlag::core_profile),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::arch_version::stored_type>(
-          ColumnFlag::arch_version),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::major_version::stored_type>(
-          ColumnFlag::major_version),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::minor_version::stored_type>(
-          ColumnFlag::minor_version),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::max_speculation_depth::stored_type>(
-          ColumnFlag::max_speculation_depth),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::bool_flags::stored_type>(
-          ColumnFlag::bool_flags),
-        "Column type and flag combination is not valid");
-    OnConstructionCompletedRegularConstructor(
-      {id_storage_layer_,set_id_storage_layer_,cpu_storage_layer_,cs_trace_id_storage_layer_,core_profile_storage_layer_,arch_version_storage_layer_,major_version_storage_layer_,minor_version_storage_layer_,max_speculation_depth_storage_layer_,bool_flags_storage_layer_},
-      {{},{},{},{},{},{},{},{},{},{}});
-  }
-  ~EtmV4ConfigurationTable() override;
-
-  static const char* Name() { return "__intrinsic_etm_v4_configuration"; }
-
-  static Table::Schema ComputeStaticSchema() {
-    Table::Schema schema;
-    schema.columns.emplace_back(Table::Schema::Column{
-        "id", SqlValue::Type::kLong, true, true, false, false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "set_id", ColumnType::set_id::SqlValueType(), false,
-        true,
-        false,
-        true});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "cpu", ColumnType::cpu::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "cs_trace_id", ColumnType::cs_trace_id::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "core_profile", ColumnType::core_profile::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "arch_version", ColumnType::arch_version::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "major_version", ColumnType::major_version::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "minor_version", ColumnType::minor_version::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "max_speculation_depth", ColumnType::max_speculation_depth::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "bool_flags", ColumnType::bool_flags::SqlValueType(), false,
-        false,
-        false,
-        false});
-    return schema;
-  }
-
-  ConstIterator IterateRows() const {
-    return ConstIterator(this, Table::IterateRows());
-  }
-
-  Iterator IterateRows() { return Iterator(this, Table::IterateRows()); }
-
-  ConstIterator FilterToIterator(const Query& q) const {
-    return ConstIterator(this, QueryToIterator(q));
-  }
-
-  Iterator FilterToIterator(const Query& q) {
-    return Iterator(this, QueryToIterator(q));
-  }
-
-  void ShrinkToFit() {
-    set_id_.ShrinkToFit();
-    cpu_.ShrinkToFit();
-    cs_trace_id_.ShrinkToFit();
-    core_profile_.ShrinkToFit();
-    arch_version_.ShrinkToFit();
-    major_version_.ShrinkToFit();
-    minor_version_.ShrinkToFit();
-    max_speculation_depth_.ShrinkToFit();
-    bool_flags_.ShrinkToFit();
-  }
-
-  ConstRowReference operator[](uint32_t r) const {
-    return ConstRowReference(this, r);
-  }
-  RowReference operator[](uint32_t r) { return RowReference(this, r); }
-  ConstRowReference operator[](RowNumber r) const {
-    return ConstRowReference(this, r.row_number());
-  }
-  RowReference operator[](RowNumber r) {
-    return RowReference(this, r.row_number());
-  }
-
-  std::optional<ConstRowReference> FindById(Id find_id) const {
-    std::optional<uint32_t> row = id().IndexOf(find_id);
-    return row ? std::make_optional(ConstRowReference(this, *row))
-               : std::nullopt;
-  }
-
-  std::optional<RowReference> FindById(Id find_id) {
-    std::optional<uint32_t> row = id().IndexOf(find_id);
-    return row ? std::make_optional(RowReference(this, *row)) : std::nullopt;
-  }
+  explicit EtmV4ConfigurationTable(StringPool* pool)
+      : dataframe_(dataframe::Dataframe::CreateFromTypedSpec(kSpec, pool)) {}
 
   IdAndRow Insert(const Row& row) {
-    uint32_t row_number = row_count();
-    Id id = Id{row_number};
-    mutable_set_id()->Append(row.set_id);
-    mutable_cpu()->Append(row.cpu);
-    mutable_cs_trace_id()->Append(row.cs_trace_id);
-    mutable_core_profile()->Append(row.core_profile);
-    mutable_arch_version()->Append(row.arch_version);
-    mutable_major_version()->Append(row.major_version);
-    mutable_minor_version()->Append(row.minor_version);
-    mutable_max_speculation_depth()->Append(row.max_speculation_depth);
-    mutable_bool_flags()->Append(row.bool_flags);
-    UpdateSelfOverlayAfterInsert();
-    return IdAndRow{id, row_number, RowReference(this, row_number),
-                     RowNumber(row_number)};
+    uint32_t row_count = dataframe_.row_count();
+    dataframe_.InsertUnchecked(kSpec, std::monostate(), row.set_id, row.cpu, row.cs_trace_stream_id, row.core_profile != StringPool::Id::Null() ? std::make_optional(row.core_profile) : std::nullopt, row.arch_version != StringPool::Id::Null() ? std::make_optional(row.arch_version) : std::nullopt, row.major_version, row.minor_version, row.max_speculation_depth, row.bool_flags);
+    return IdAndRow{Id{row_count}, RowNumber{row_count}, row_count, RowReference(this, row_count)};
   }
 
-  
-
-  const IdColumn<EtmV4ConfigurationTable::Id>& id() const {
-    return static_cast<const ColumnType::id&>(columns()[ColumnIndex::id]);
-  }
-  const TypedColumn<uint32_t>& set_id() const {
-    return static_cast<const ColumnType::set_id&>(columns()[ColumnIndex::set_id]);
-  }
-  const TypedColumn<uint32_t>& cpu() const {
-    return static_cast<const ColumnType::cpu&>(columns()[ColumnIndex::cpu]);
-  }
-  const TypedColumn<uint32_t>& cs_trace_id() const {
-    return static_cast<const ColumnType::cs_trace_id&>(columns()[ColumnIndex::cs_trace_id]);
-  }
-  const TypedColumn<StringPool::Id>& core_profile() const {
-    return static_cast<const ColumnType::core_profile&>(columns()[ColumnIndex::core_profile]);
-  }
-  const TypedColumn<StringPool::Id>& arch_version() const {
-    return static_cast<const ColumnType::arch_version&>(columns()[ColumnIndex::arch_version]);
-  }
-  const TypedColumn<uint32_t>& major_version() const {
-    return static_cast<const ColumnType::major_version&>(columns()[ColumnIndex::major_version]);
-  }
-  const TypedColumn<uint32_t>& minor_version() const {
-    return static_cast<const ColumnType::minor_version&>(columns()[ColumnIndex::minor_version]);
-  }
-  const TypedColumn<uint32_t>& max_speculation_depth() const {
-    return static_cast<const ColumnType::max_speculation_depth&>(columns()[ColumnIndex::max_speculation_depth]);
-  }
-  const TypedColumn<int64_t>& bool_flags() const {
-    return static_cast<const ColumnType::bool_flags&>(columns()[ColumnIndex::bool_flags]);
+  uint32_t row_count() const {
+    return dataframe_.row_count();
   }
 
-  TypedColumn<uint32_t>* mutable_set_id() {
-    return static_cast<ColumnType::set_id*>(
-        GetColumn(ColumnIndex::set_id));
+  std::optional<ConstRowReference> FindById(Id id) const {
+    return ConstRowReference(this, id.value);
   }
-  TypedColumn<uint32_t>* mutable_cpu() {
-    return static_cast<ColumnType::cpu*>(
-        GetColumn(ColumnIndex::cpu));
+  ConstRowReference operator[](uint32_t row) const {
+    return ConstRowReference(this, row);
   }
-  TypedColumn<uint32_t>* mutable_cs_trace_id() {
-    return static_cast<ColumnType::cs_trace_id*>(
-        GetColumn(ColumnIndex::cs_trace_id));
+
+  std::optional<RowReference> FindById(Id id) {
+    return RowReference(this, id.value);
   }
-  TypedColumn<StringPool::Id>* mutable_core_profile() {
-    return static_cast<ColumnType::core_profile*>(
-        GetColumn(ColumnIndex::core_profile));
+  RowReference operator[](uint32_t row) {
+    return RowReference(this, row);
   }
-  TypedColumn<StringPool::Id>* mutable_arch_version() {
-    return static_cast<ColumnType::arch_version*>(
-        GetColumn(ColumnIndex::arch_version));
+
+  ConstCursor CreateCursor(
+      std::vector<dataframe::FilterSpec> filters = {},
+      std::vector<dataframe::SortSpec> sorts = {}) const {
+    return ConstCursor(dataframe_, std::move(filters), std::move(sorts));
   }
-  TypedColumn<uint32_t>* mutable_major_version() {
-    return static_cast<ColumnType::major_version*>(
-        GetColumn(ColumnIndex::major_version));
+  Cursor CreateCursor(
+      std::vector<dataframe::FilterSpec> filters = {},
+      std::vector<dataframe::SortSpec> sorts = {}) {
+    return Cursor(dataframe_, std::move(filters), std::move(sorts));
   }
-  TypedColumn<uint32_t>* mutable_minor_version() {
-    return static_cast<ColumnType::minor_version*>(
-        GetColumn(ColumnIndex::minor_version));
+
+  Iterator IterateRows() { return Iterator(this); }
+  ConstIterator IterateRows() const { return ConstIterator(this); }
+
+  void Finalize() { dataframe_.Finalize(); }
+
+  void Clear() { dataframe_.Clear(); }
+
+  static const char* Name() {
+    return "__intrinsic_etm_v4_configuration";
   }
-  TypedColumn<uint32_t>* mutable_max_speculation_depth() {
-    return static_cast<ColumnType::max_speculation_depth*>(
-        GetColumn(ColumnIndex::max_speculation_depth));
+
+  dataframe::Dataframe& dataframe() {
+    return dataframe_;
   }
-  TypedColumn<int64_t>* mutable_bool_flags() {
-    return static_cast<ColumnType::bool_flags*>(
-        GetColumn(ColumnIndex::bool_flags));
+  const dataframe::Dataframe& dataframe() const {
+    return dataframe_;
   }
 
  private:
-  
-  
-  ColumnStorage<ColumnType::set_id::stored_type> set_id_;
-  ColumnStorage<ColumnType::cpu::stored_type> cpu_;
-  ColumnStorage<ColumnType::cs_trace_id::stored_type> cs_trace_id_;
-  ColumnStorage<ColumnType::core_profile::stored_type> core_profile_;
-  ColumnStorage<ColumnType::arch_version::stored_type> arch_version_;
-  ColumnStorage<ColumnType::major_version::stored_type> major_version_;
-  ColumnStorage<ColumnType::minor_version::stored_type> minor_version_;
-  ColumnStorage<ColumnType::max_speculation_depth::stored_type> max_speculation_depth_;
-  ColumnStorage<ColumnType::bool_flags::stored_type> bool_flags_;
-
-  RefPtr<column::StorageLayer> id_storage_layer_;
-  RefPtr<column::StorageLayer> set_id_storage_layer_;
-  RefPtr<column::StorageLayer> cpu_storage_layer_;
-  RefPtr<column::StorageLayer> cs_trace_id_storage_layer_;
-  RefPtr<column::StorageLayer> core_profile_storage_layer_;
-  RefPtr<column::StorageLayer> arch_version_storage_layer_;
-  RefPtr<column::StorageLayer> major_version_storage_layer_;
-  RefPtr<column::StorageLayer> minor_version_storage_layer_;
-  RefPtr<column::StorageLayer> max_speculation_depth_storage_layer_;
-  RefPtr<column::StorageLayer> bool_flags_storage_layer_;
-
-  
+  dataframe::Dataframe dataframe_;
 };
-  
 
-class EtmV4SessionTable : public macros_internal::MacroTable {
+
+
+class EtmV4SessionTable {
  public:
-  static constexpr uint32_t kColumnCount = 3;
+  static constexpr auto kSpec = dataframe::CreateTypedDataframeSpec(
+    {"id","configuration_id","start_ts"},
+    dataframe::CreateTypedColumnSpec(dataframe::Id{}, dataframe::NonNull{}, dataframe::IdSorted{}, dataframe::NoDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Int64{}, dataframe::SparseNullWithPopcountAlways{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}));
 
-  struct Id : public BaseId {
+  struct Id : BaseId {
     Id() = default;
-    explicit constexpr Id(uint32_t v) : BaseId(v) {}
+    explicit constexpr Id(uint32_t _value) : BaseId(_value) {}
+
+    bool operator==(const Id& other) const {
+      return value == other.value;
+    }
   };
-  static_assert(std::is_trivially_destructible_v<Id>,
-                "Inheritance used without trivial destruction");
-    
+  struct RowReference;
+  struct ConstRowReference;
+  struct RowNumber {
+   public:
+    explicit constexpr RowNumber(uint32_t value) : value_(value) {}
+    uint32_t row_number() const { return value_; }
+
+    RowReference ToRowReference(EtmV4SessionTable* table) const {
+      return RowReference(table, value_);
+    }
+    ConstRowReference ToRowReference(const EtmV4SessionTable& table) const {
+      return ConstRowReference(&table, value_);
+    }
+
+    bool operator==(const RowNumber& other) const {
+      return value_ == other.value_;
+    }
+    bool operator<(const RowNumber& other) const {
+      return value_ < other.value_;
+    }
+   private:
+    uint32_t value_;
+  };
   struct ColumnIndex {
     static constexpr uint32_t id = 0;
     static constexpr uint32_t configuration_id = 1;
     static constexpr uint32_t start_ts = 2;
   };
-  struct ColumnType {
-    using id = IdColumn<EtmV4SessionTable::Id>;
-    using configuration_id = TypedColumn<EtmV4ConfigurationTable::Id>;
-    using start_ts = TypedColumn<std::optional<int64_t>>;
-  };
-  struct Row : public macros_internal::RootParentTable::Row {
-    Row(EtmV4ConfigurationTable::Id in_configuration_id = {},
-        std::optional<int64_t> in_start_ts = {},
-        std::nullptr_t = nullptr)
-        : macros_internal::RootParentTable::Row(),
-          configuration_id(in_configuration_id),
-          start_ts(in_start_ts) {}
-    EtmV4ConfigurationTable::Id configuration_id;
-    std::optional<int64_t> start_ts;
-
-    bool operator==(const EtmV4SessionTable::Row& other) const {
-      return ColumnType::configuration_id::Equals(configuration_id, other.configuration_id) &&
-       ColumnType::start_ts::Equals(start_ts, other.start_ts);
-    }
-  };
-  struct ColumnFlag {
-    static constexpr uint32_t configuration_id = ColumnType::configuration_id::default_flags();
-    static constexpr uint32_t start_ts = ColumnType::start_ts::default_flags();
-  };
-
-  class RowNumber;
-  class ConstRowReference;
-  class RowReference;
-
-  class RowNumber : public macros_internal::AbstractRowNumber<
-      EtmV4SessionTable, ConstRowReference, RowReference> {
+  struct RowReference {
    public:
-    explicit RowNumber(uint32_t row_number)
-        : AbstractRowNumber(row_number) {}
-  };
-  static_assert(std::is_trivially_destructible_v<RowNumber>,
-                "Inheritance used without trivial destruction");
-
-  class ConstRowReference : public macros_internal::AbstractConstRowReference<
-    EtmV4SessionTable, RowNumber> {
-   public:
-    ConstRowReference(const EtmV4SessionTable* table, uint32_t row_number)
-        : AbstractConstRowReference(table, row_number) {}
-
-    ColumnType::id::type id() const {
-      return table()->id()[row_number_];
+    explicit RowReference(EtmV4SessionTable* table, uint32_t row)
+        : table_(table), row_(row) {
+        base::ignore_result(table_);
     }
-    ColumnType::configuration_id::type configuration_id() const {
-      return table()->configuration_id()[row_number_];
+    EtmV4SessionTable::Id id() const {
+        
+        return EtmV4SessionTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+          EtmV4ConfigurationTable::Id configuration_id() const {
+        
+        return EtmV4ConfigurationTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::configuration_id>(kSpec, row_)};
+      }
+        std::optional<int64_t> start_ts() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::start_ts>(kSpec, row_);
     }
-    ColumnType::start_ts::type start_ts() const {
-      return table()->start_ts()[row_number_];
-    }
-  };
-  static_assert(std::is_trivially_destructible_v<ConstRowReference>,
-                "Inheritance used without trivial destruction");
-  class RowReference : public ConstRowReference {
-   public:
-    RowReference(const EtmV4SessionTable* table, uint32_t row_number)
-        : ConstRowReference(table, row_number) {}
-
-    void set_configuration_id(
-        ColumnType::configuration_id::non_optional_type v) {
-      return mutable_table()->mutable_configuration_id()->Set(row_number_, v);
-    }
-    void set_start_ts(
-        ColumnType::start_ts::non_optional_type v) {
-      return mutable_table()->mutable_start_ts()->Set(row_number_, v);
+    
+    RowNumber ToRowNumber() const {
+      return RowNumber{row_};
     }
 
    private:
-    EtmV4SessionTable* mutable_table() const {
-      return const_cast<EtmV4SessionTable*>(table());
-    }
+    friend struct ConstRowReference;
+    EtmV4SessionTable* table_;
+    uint32_t row_;
   };
-  static_assert(std::is_trivially_destructible_v<RowReference>,
-                "Inheritance used without trivial destruction");
-
-  class ConstIterator;
-  class ConstIterator : public macros_internal::AbstractConstIterator<
-    ConstIterator, EtmV4SessionTable, RowNumber, ConstRowReference> {
+  struct ConstRowReference {
    public:
-    ColumnType::id::type id() const {
-      const auto& col = table()->id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
+    explicit ConstRowReference(const EtmV4SessionTable* table, uint32_t row)
+        : table_(table), row_(row) {
+        base::ignore_result(table_);
     }
-    ColumnType::configuration_id::type configuration_id() const {
-      const auto& col = table()->configuration_id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
+    ConstRowReference(const RowReference& other)
+        : table_(other.table_), row_(other.row_) {}
+    EtmV4SessionTable::Id id() const {
+        
+        return EtmV4SessionTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+          EtmV4ConfigurationTable::Id configuration_id() const {
+        
+        return EtmV4ConfigurationTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::configuration_id>(kSpec, row_)};
+      }
+        std::optional<int64_t> start_ts() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::start_ts>(kSpec, row_);
     }
-    ColumnType::start_ts::type start_ts() const {
-      const auto& col = table()->start_ts();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
+    RowNumber ToRowNumber() const {
+      return RowNumber{row_};
+    }
+   private:
+    const EtmV4SessionTable* table_;
+    uint32_t row_;
+  };
+  class ConstCursor {
+   public:
+    explicit ConstCursor(const dataframe::Dataframe& df,
+                         std::vector<dataframe::FilterSpec> filters,
+                         std::vector<dataframe::SortSpec> sorts)
+      : dataframe_(&df), cursor_(&df, std::move(filters), std::move(sorts)) {
+      base::ignore_result(dataframe_);
     }
 
-   protected:
-    explicit ConstIterator(const EtmV4SessionTable* table,
-                           Table::Iterator iterator)
-        : AbstractConstIterator(table, std::move(iterator)) {}
-
-    uint32_t CurrentRowNumber() const {
-      return iterator_.StorageIndexForLastOverlay();
+    PERFETTO_ALWAYS_INLINE void Execute() { cursor_.ExecuteUnchecked(); }
+    PERFETTO_ALWAYS_INLINE bool Eof() const { return cursor_.Eof(); }
+    PERFETTO_ALWAYS_INLINE void Next() { cursor_.Next(); }
+    template <typename C>
+    PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index, C value) {
+      cursor_.SetFilterValueUnchecked(index, std::move(value));
+    }
+    RowNumber ToRowNumber() const {
+      return RowNumber{cursor_.RowIndex()};
+    }
+    void Reset() { cursor_.Reset(); }
+    EtmV4SessionTable::Id id() const {
+        
+        return EtmV4SessionTable::Id{cursor_.GetCellUnchecked<ColumnIndex::id>(kSpec)};
+      }
+      EtmV4ConfigurationTable::Id configuration_id() const {
+        
+        return EtmV4ConfigurationTable::Id{cursor_.GetCellUnchecked<ColumnIndex::configuration_id>(kSpec)};
+      }
+    std::optional<int64_t> start_ts() const {
+      
+      return cursor_.GetCellUnchecked<ColumnIndex::start_ts>(kSpec);
     }
 
    private:
-    friend class EtmV4SessionTable;
-    friend class macros_internal::AbstractConstIterator<
-      ConstIterator, EtmV4SessionTable, RowNumber, ConstRowReference>;
+    const dataframe::Dataframe* dataframe_;
+    dataframe::TypedCursor cursor_;
   };
-  class Iterator : public ConstIterator {
+  class Cursor {
+   public:
+    explicit Cursor(dataframe::Dataframe& df,
+                    std::vector<dataframe::FilterSpec> filters,
+                    std::vector<dataframe::SortSpec> sorts)
+      : dataframe_(&df), cursor_(&df, std::move(filters), std::move(sorts)) {
+      base::ignore_result(dataframe_);
+    }
+
+    PERFETTO_ALWAYS_INLINE void Execute() { cursor_.ExecuteUnchecked(); }
+    PERFETTO_ALWAYS_INLINE bool Eof() const { return cursor_.Eof(); }
+    PERFETTO_ALWAYS_INLINE void Next() { cursor_.Next(); }
+    template <typename C>
+    PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index, C value) {
+      cursor_.SetFilterValueUnchecked(index, std::move(value));
+    }
+    RowNumber ToRowNumber() const {
+      return RowNumber{cursor_.RowIndex()};
+    }
+    void Reset() { cursor_.Reset(); }
+
+    EtmV4SessionTable::Id id() const {
+        
+        return EtmV4SessionTable::Id{cursor_.GetCellUnchecked<ColumnIndex::id>(kSpec)};
+      }
+      EtmV4ConfigurationTable::Id configuration_id() const {
+        
+        return EtmV4ConfigurationTable::Id{cursor_.GetCellUnchecked<ColumnIndex::configuration_id>(kSpec)};
+      }
+    std::optional<int64_t> start_ts() const {
+      
+      return cursor_.GetCellUnchecked<ColumnIndex::start_ts>(kSpec);
+    }
+    
+
+   private:
+    dataframe::Dataframe* dataframe_;
+    dataframe::TypedCursor cursor_;
+  };
+  class Iterator {
     public:
-     RowReference row_reference() const {
-       return {const_cast<EtmV4SessionTable*>(table()), CurrentRowNumber()};
-     }
+      explicit Iterator(EtmV4SessionTable* table) : table_(table) {
+        base::ignore_result(table_);
+      }
+      explicit operator bool() const { return row_ < table_->row_count(); }
+      Iterator& operator++() {
+        ++row_;
+        return *this;
+      }
+      RowNumber row_number() const {
+        return RowNumber{row_};
+      }
+      RowReference ToRowReference() const {
+        return RowReference(table_, row_);
+      }
+      EtmV4SessionTable::Id id() const {
+        
+        return EtmV4SessionTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+          EtmV4ConfigurationTable::Id configuration_id() const {
+        
+        return EtmV4ConfigurationTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::configuration_id>(kSpec, row_)};
+      }
+        std::optional<int64_t> start_ts() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::start_ts>(kSpec, row_);
+    }
+      
 
     private:
-     friend class EtmV4SessionTable;
-
-     explicit Iterator(EtmV4SessionTable* table, Table::Iterator iterator)
-        : ConstIterator(table, std::move(iterator)) {}
+      EtmV4SessionTable* table_;
+      uint32_t row_ = 0;
   };
+  class ConstIterator {
+    public:
+      explicit ConstIterator(const EtmV4SessionTable* table) : table_(table) {
+        base::ignore_result(table_);
+      }
+      explicit operator bool() const { return row_ < table_->row_count(); }
+      ConstIterator& operator++() {
+        ++row_;
+        return *this;
+      }
+      RowNumber row_number() const {
+        return RowNumber{row_};
+      }
+      ConstRowReference ToRowReference() const {
+        return ConstRowReference(table_, row_);
+      }
+      EtmV4SessionTable::Id id() const {
+        
+        return EtmV4SessionTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+          EtmV4ConfigurationTable::Id configuration_id() const {
+        
+        return EtmV4ConfigurationTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::configuration_id>(kSpec, row_)};
+      }
+        std::optional<int64_t> start_ts() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::start_ts>(kSpec, row_);
+    }
 
+    private:
+      const EtmV4SessionTable* table_;
+      uint32_t row_ = 0;
+  };
   struct IdAndRow {
     Id id;
+    RowNumber row_number;
     uint32_t row;
     RowReference row_reference;
-    RowNumber row_number;
+  };
+  
+  struct Row {
+    Row(EtmV4ConfigurationTable::Id _configuration_id = {}, std::optional<int64_t> _start_ts = {}) : configuration_id(std::move(_configuration_id)), start_ts(std::move(_start_ts)) {}
+
+    bool operator==(const Row& other) const {
+      return std::tie(configuration_id, start_ts) ==
+             std::tie(other.configuration_id, other.start_ts);
+    }
+
+        EtmV4ConfigurationTable::Id configuration_id;
+    std::optional<int64_t> start_ts;
   };
 
-  static std::vector<ColumnLegacy> GetColumns(
-      EtmV4SessionTable* self,
-      const macros_internal::MacroTable* parent) {
-    std::vector<ColumnLegacy> columns =
-        CopyColumnsFromParentOrAddRootColumns(parent);
-    uint32_t olay_idx = OverlayCount(parent);
-    AddColumnToVector(columns, "configuration_id", &self->configuration_id_, ColumnFlag::configuration_id,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "start_ts", &self->start_ts_, ColumnFlag::start_ts,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    base::ignore_result(self);
-    return columns;
-  }
-
-  PERFETTO_NO_INLINE explicit EtmV4SessionTable(StringPool* pool)
-      : macros_internal::MacroTable(
-          pool,
-          GetColumns(this, nullptr),
-          nullptr),
-        configuration_id_(ColumnStorage<ColumnType::configuration_id::stored_type>::Create<false>()),
-        start_ts_(ColumnStorage<ColumnType::start_ts::stored_type>::Create<false>())
-,
-        id_storage_layer_(new column::IdStorage()),
-        configuration_id_storage_layer_(
-        new column::NumericStorage<ColumnType::configuration_id::non_optional_stored_type>(
-          &configuration_id_.vector(),
-          ColumnTypeHelper<ColumnType::configuration_id::stored_type>::ToColumnType(),
-          false)),
-        start_ts_storage_layer_(
-          new column::NumericStorage<ColumnType::start_ts::non_optional_stored_type>(
-            &start_ts_.non_null_vector(),
-            ColumnTypeHelper<ColumnType::start_ts::stored_type>::ToColumnType(),
-            false))
-,
-        start_ts_null_layer_(new column::NullOverlay(start_ts_.bv())) {
-    static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::configuration_id::stored_type>(
-          ColumnFlag::configuration_id),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::start_ts::stored_type>(
-          ColumnFlag::start_ts),
-        "Column type and flag combination is not valid");
-    OnConstructionCompletedRegularConstructor(
-      {id_storage_layer_,configuration_id_storage_layer_,start_ts_storage_layer_},
-      {{},{},start_ts_null_layer_});
-  }
-  ~EtmV4SessionTable() override;
-
-  static const char* Name() { return "__intrinsic_etm_v4_session"; }
-
-  static Table::Schema ComputeStaticSchema() {
-    Table::Schema schema;
-    schema.columns.emplace_back(Table::Schema::Column{
-        "id", SqlValue::Type::kLong, true, true, false, false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "configuration_id", ColumnType::configuration_id::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "start_ts", ColumnType::start_ts::SqlValueType(), false,
-        false,
-        false,
-        false});
-    return schema;
-  }
-
-  ConstIterator IterateRows() const {
-    return ConstIterator(this, Table::IterateRows());
-  }
-
-  Iterator IterateRows() { return Iterator(this, Table::IterateRows()); }
-
-  ConstIterator FilterToIterator(const Query& q) const {
-    return ConstIterator(this, QueryToIterator(q));
-  }
-
-  Iterator FilterToIterator(const Query& q) {
-    return Iterator(this, QueryToIterator(q));
-  }
-
-  void ShrinkToFit() {
-    configuration_id_.ShrinkToFit();
-    start_ts_.ShrinkToFit();
-  }
-
-  ConstRowReference operator[](uint32_t r) const {
-    return ConstRowReference(this, r);
-  }
-  RowReference operator[](uint32_t r) { return RowReference(this, r); }
-  ConstRowReference operator[](RowNumber r) const {
-    return ConstRowReference(this, r.row_number());
-  }
-  RowReference operator[](RowNumber r) {
-    return RowReference(this, r.row_number());
-  }
-
-  std::optional<ConstRowReference> FindById(Id find_id) const {
-    std::optional<uint32_t> row = id().IndexOf(find_id);
-    return row ? std::make_optional(ConstRowReference(this, *row))
-               : std::nullopt;
-  }
-
-  std::optional<RowReference> FindById(Id find_id) {
-    std::optional<uint32_t> row = id().IndexOf(find_id);
-    return row ? std::make_optional(RowReference(this, *row)) : std::nullopt;
-  }
+  explicit EtmV4SessionTable(StringPool* pool)
+      : dataframe_(dataframe::Dataframe::CreateFromTypedSpec(kSpec, pool)) {}
 
   IdAndRow Insert(const Row& row) {
-    uint32_t row_number = row_count();
-    Id id = Id{row_number};
-    mutable_configuration_id()->Append(row.configuration_id);
-    mutable_start_ts()->Append(row.start_ts);
-    UpdateSelfOverlayAfterInsert();
-    return IdAndRow{id, row_number, RowReference(this, row_number),
-                     RowNumber(row_number)};
+    uint32_t row_count = dataframe_.row_count();
+    dataframe_.InsertUnchecked(kSpec, std::monostate(), row.configuration_id.value, row.start_ts);
+    return IdAndRow{Id{row_count}, RowNumber{row_count}, row_count, RowReference(this, row_count)};
   }
 
-  
-
-  const IdColumn<EtmV4SessionTable::Id>& id() const {
-    return static_cast<const ColumnType::id&>(columns()[ColumnIndex::id]);
-  }
-  const TypedColumn<EtmV4ConfigurationTable::Id>& configuration_id() const {
-    return static_cast<const ColumnType::configuration_id&>(columns()[ColumnIndex::configuration_id]);
-  }
-  const TypedColumn<std::optional<int64_t>>& start_ts() const {
-    return static_cast<const ColumnType::start_ts&>(columns()[ColumnIndex::start_ts]);
+  uint32_t row_count() const {
+    return dataframe_.row_count();
   }
 
-  TypedColumn<EtmV4ConfigurationTable::Id>* mutable_configuration_id() {
-    return static_cast<ColumnType::configuration_id*>(
-        GetColumn(ColumnIndex::configuration_id));
+  std::optional<ConstRowReference> FindById(Id id) const {
+    return ConstRowReference(this, id.value);
   }
-  TypedColumn<std::optional<int64_t>>* mutable_start_ts() {
-    return static_cast<ColumnType::start_ts*>(
-        GetColumn(ColumnIndex::start_ts));
+  ConstRowReference operator[](uint32_t row) const {
+    return ConstRowReference(this, row);
+  }
+
+  std::optional<RowReference> FindById(Id id) {
+    return RowReference(this, id.value);
+  }
+  RowReference operator[](uint32_t row) {
+    return RowReference(this, row);
+  }
+
+  ConstCursor CreateCursor(
+      std::vector<dataframe::FilterSpec> filters = {},
+      std::vector<dataframe::SortSpec> sorts = {}) const {
+    return ConstCursor(dataframe_, std::move(filters), std::move(sorts));
+  }
+  Cursor CreateCursor(
+      std::vector<dataframe::FilterSpec> filters = {},
+      std::vector<dataframe::SortSpec> sorts = {}) {
+    return Cursor(dataframe_, std::move(filters), std::move(sorts));
+  }
+
+  Iterator IterateRows() { return Iterator(this); }
+  ConstIterator IterateRows() const { return ConstIterator(this); }
+
+  void Finalize() { dataframe_.Finalize(); }
+
+  void Clear() { dataframe_.Clear(); }
+
+  static const char* Name() {
+    return "__intrinsic_etm_v4_session";
+  }
+
+  dataframe::Dataframe& dataframe() {
+    return dataframe_;
+  }
+  const dataframe::Dataframe& dataframe() const {
+    return dataframe_;
   }
 
  private:
-  
-  
-  ColumnStorage<ColumnType::configuration_id::stored_type> configuration_id_;
-  ColumnStorage<ColumnType::start_ts::stored_type> start_ts_;
-
-  RefPtr<column::StorageLayer> id_storage_layer_;
-  RefPtr<column::StorageLayer> configuration_id_storage_layer_;
-  RefPtr<column::StorageLayer> start_ts_storage_layer_;
-
-  RefPtr<column::OverlayLayer> start_ts_null_layer_;
+  dataframe::Dataframe dataframe_;
 };
-  
 
-class EtmV4TraceTable : public macros_internal::MacroTable {
+
+
+class EtmV4ChunkTable {
  public:
-  static constexpr uint32_t kColumnCount = 4;
+  static constexpr auto kSpec = dataframe::CreateTypedDataframeSpec(
+    {"id","session_id","chunk_set_id","size"},
+    dataframe::CreateTypedColumnSpec(dataframe::Id{}, dataframe::NonNull{}, dataframe::IdSorted{}, dataframe::NoDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::NonNull{}, dataframe::SetIdSorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Int64{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}));
 
-  struct Id : public BaseId {
+  struct Id : BaseId {
     Id() = default;
-    explicit constexpr Id(uint32_t v) : BaseId(v) {}
+    explicit constexpr Id(uint32_t _value) : BaseId(_value) {}
+
+    bool operator==(const Id& other) const {
+      return value == other.value;
+    }
   };
-  static_assert(std::is_trivially_destructible_v<Id>,
-                "Inheritance used without trivial destruction");
-    
+  struct RowReference;
+  struct ConstRowReference;
+  struct RowNumber {
+   public:
+    explicit constexpr RowNumber(uint32_t value) : value_(value) {}
+    uint32_t row_number() const { return value_; }
+
+    RowReference ToRowReference(EtmV4ChunkTable* table) const {
+      return RowReference(table, value_);
+    }
+    ConstRowReference ToRowReference(const EtmV4ChunkTable& table) const {
+      return ConstRowReference(&table, value_);
+    }
+
+    bool operator==(const RowNumber& other) const {
+      return value_ == other.value_;
+    }
+    bool operator<(const RowNumber& other) const {
+      return value_ < other.value_;
+    }
+   private:
+    uint32_t value_;
+  };
   struct ColumnIndex {
     static constexpr uint32_t id = 0;
     static constexpr uint32_t session_id = 1;
-    static constexpr uint32_t trace_set_id = 2;
+    static constexpr uint32_t chunk_set_id = 2;
     static constexpr uint32_t size = 3;
   };
-  struct ColumnType {
-    using id = IdColumn<EtmV4TraceTable::Id>;
-    using session_id = TypedColumn<EtmV4SessionTable::Id>;
-    using trace_set_id = TypedColumn<uint32_t>;
-    using size = TypedColumn<int64_t>;
-  };
-  struct Row : public macros_internal::RootParentTable::Row {
-    Row(EtmV4SessionTable::Id in_session_id = {},
-        uint32_t in_trace_set_id = {},
-        int64_t in_size = {},
-        std::nullptr_t = nullptr)
-        : macros_internal::RootParentTable::Row(),
-          session_id(in_session_id),
-          trace_set_id(in_trace_set_id),
-          size(in_size) {}
-    EtmV4SessionTable::Id session_id;
-    uint32_t trace_set_id;
-    int64_t size;
-
-    bool operator==(const EtmV4TraceTable::Row& other) const {
-      return ColumnType::session_id::Equals(session_id, other.session_id) &&
-       ColumnType::trace_set_id::Equals(trace_set_id, other.trace_set_id) &&
-       ColumnType::size::Equals(size, other.size);
-    }
-  };
-  struct ColumnFlag {
-    static constexpr uint32_t session_id = ColumnType::session_id::default_flags();
-    static constexpr uint32_t trace_set_id = static_cast<uint32_t>(ColumnLegacy::Flag::kSorted | ColumnLegacy::Flag::kSetId) | ColumnType::trace_set_id::default_flags();
-    static constexpr uint32_t size = ColumnType::size::default_flags();
-  };
-
-  class RowNumber;
-  class ConstRowReference;
-  class RowReference;
-
-  class RowNumber : public macros_internal::AbstractRowNumber<
-      EtmV4TraceTable, ConstRowReference, RowReference> {
+  struct RowReference {
    public:
-    explicit RowNumber(uint32_t row_number)
-        : AbstractRowNumber(row_number) {}
-  };
-  static_assert(std::is_trivially_destructible_v<RowNumber>,
-                "Inheritance used without trivial destruction");
-
-  class ConstRowReference : public macros_internal::AbstractConstRowReference<
-    EtmV4TraceTable, RowNumber> {
-   public:
-    ConstRowReference(const EtmV4TraceTable* table, uint32_t row_number)
-        : AbstractConstRowReference(table, row_number) {}
-
-    ColumnType::id::type id() const {
-      return table()->id()[row_number_];
+    explicit RowReference(EtmV4ChunkTable* table, uint32_t row)
+        : table_(table), row_(row) {
+        base::ignore_result(table_);
     }
-    ColumnType::session_id::type session_id() const {
-      return table()->session_id()[row_number_];
-    }
-    ColumnType::trace_set_id::type trace_set_id() const {
-      return table()->trace_set_id()[row_number_];
-    }
-    ColumnType::size::type size() const {
-      return table()->size()[row_number_];
-    }
-  };
-  static_assert(std::is_trivially_destructible_v<ConstRowReference>,
-                "Inheritance used without trivial destruction");
-  class RowReference : public ConstRowReference {
-   public:
-    RowReference(const EtmV4TraceTable* table, uint32_t row_number)
-        : ConstRowReference(table, row_number) {}
-
-    void set_session_id(
-        ColumnType::session_id::non_optional_type v) {
-      return mutable_table()->mutable_session_id()->Set(row_number_, v);
-    }
-    void set_trace_set_id(
-        ColumnType::trace_set_id::non_optional_type v) {
-      return mutable_table()->mutable_trace_set_id()->Set(row_number_, v);
-    }
-    void set_size(
-        ColumnType::size::non_optional_type v) {
-      return mutable_table()->mutable_size()->Set(row_number_, v);
+    EtmV4ChunkTable::Id id() const {
+        
+        return EtmV4ChunkTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+          EtmV4SessionTable::Id session_id() const {
+        
+        return EtmV4SessionTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::session_id>(kSpec, row_)};
+      }
+    
+    RowNumber ToRowNumber() const {
+      return RowNumber{row_};
     }
 
    private:
-    EtmV4TraceTable* mutable_table() const {
-      return const_cast<EtmV4TraceTable*>(table());
-    }
+    friend struct ConstRowReference;
+    EtmV4ChunkTable* table_;
+    uint32_t row_;
   };
-  static_assert(std::is_trivially_destructible_v<RowReference>,
-                "Inheritance used without trivial destruction");
-
-  class ConstIterator;
-  class ConstIterator : public macros_internal::AbstractConstIterator<
-    ConstIterator, EtmV4TraceTable, RowNumber, ConstRowReference> {
+  struct ConstRowReference {
    public:
-    ColumnType::id::type id() const {
-      const auto& col = table()->id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
+    explicit ConstRowReference(const EtmV4ChunkTable* table, uint32_t row)
+        : table_(table), row_(row) {
+        base::ignore_result(table_);
     }
-    ColumnType::session_id::type session_id() const {
-      const auto& col = table()->session_id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
+    ConstRowReference(const RowReference& other)
+        : table_(other.table_), row_(other.row_) {}
+    EtmV4ChunkTable::Id id() const {
+        
+        return EtmV4ChunkTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+          EtmV4SessionTable::Id session_id() const {
+        
+        return EtmV4SessionTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::session_id>(kSpec, row_)};
+      }
+    RowNumber ToRowNumber() const {
+      return RowNumber{row_};
     }
-    ColumnType::trace_set_id::type trace_set_id() const {
-      const auto& col = table()->trace_set_id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::size::type size() const {
-      const auto& col = table()->size();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
+   private:
+    const EtmV4ChunkTable* table_;
+    uint32_t row_;
+  };
+  class ConstCursor {
+   public:
+    explicit ConstCursor(const dataframe::Dataframe& df,
+                         std::vector<dataframe::FilterSpec> filters,
+                         std::vector<dataframe::SortSpec> sorts)
+      : dataframe_(&df), cursor_(&df, std::move(filters), std::move(sorts)) {
+      base::ignore_result(dataframe_);
     }
 
-   protected:
-    explicit ConstIterator(const EtmV4TraceTable* table,
-                           Table::Iterator iterator)
-        : AbstractConstIterator(table, std::move(iterator)) {}
-
-    uint32_t CurrentRowNumber() const {
-      return iterator_.StorageIndexForLastOverlay();
+    PERFETTO_ALWAYS_INLINE void Execute() { cursor_.ExecuteUnchecked(); }
+    PERFETTO_ALWAYS_INLINE bool Eof() const { return cursor_.Eof(); }
+    PERFETTO_ALWAYS_INLINE void Next() { cursor_.Next(); }
+    template <typename C>
+    PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index, C value) {
+      cursor_.SetFilterValueUnchecked(index, std::move(value));
     }
+    RowNumber ToRowNumber() const {
+      return RowNumber{cursor_.RowIndex()};
+    }
+    void Reset() { cursor_.Reset(); }
+    EtmV4ChunkTable::Id id() const {
+        
+        return EtmV4ChunkTable::Id{cursor_.GetCellUnchecked<ColumnIndex::id>(kSpec)};
+      }
+      EtmV4SessionTable::Id session_id() const {
+        
+        return EtmV4SessionTable::Id{cursor_.GetCellUnchecked<ColumnIndex::session_id>(kSpec)};
+      }
 
    private:
-    friend class EtmV4TraceTable;
-    friend class macros_internal::AbstractConstIterator<
-      ConstIterator, EtmV4TraceTable, RowNumber, ConstRowReference>;
+    const dataframe::Dataframe* dataframe_;
+    dataframe::TypedCursor cursor_;
   };
-  class Iterator : public ConstIterator {
+  class Cursor {
+   public:
+    explicit Cursor(dataframe::Dataframe& df,
+                    std::vector<dataframe::FilterSpec> filters,
+                    std::vector<dataframe::SortSpec> sorts)
+      : dataframe_(&df), cursor_(&df, std::move(filters), std::move(sorts)) {
+      base::ignore_result(dataframe_);
+    }
+
+    PERFETTO_ALWAYS_INLINE void Execute() { cursor_.ExecuteUnchecked(); }
+    PERFETTO_ALWAYS_INLINE bool Eof() const { return cursor_.Eof(); }
+    PERFETTO_ALWAYS_INLINE void Next() { cursor_.Next(); }
+    template <typename C>
+    PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index, C value) {
+      cursor_.SetFilterValueUnchecked(index, std::move(value));
+    }
+    RowNumber ToRowNumber() const {
+      return RowNumber{cursor_.RowIndex()};
+    }
+    void Reset() { cursor_.Reset(); }
+
+    EtmV4ChunkTable::Id id() const {
+        
+        return EtmV4ChunkTable::Id{cursor_.GetCellUnchecked<ColumnIndex::id>(kSpec)};
+      }
+      EtmV4SessionTable::Id session_id() const {
+        
+        return EtmV4SessionTable::Id{cursor_.GetCellUnchecked<ColumnIndex::session_id>(kSpec)};
+      }
+    
+
+   private:
+    dataframe::Dataframe* dataframe_;
+    dataframe::TypedCursor cursor_;
+  };
+  class Iterator {
     public:
-     RowReference row_reference() const {
-       return {const_cast<EtmV4TraceTable*>(table()), CurrentRowNumber()};
-     }
+      explicit Iterator(EtmV4ChunkTable* table) : table_(table) {
+        base::ignore_result(table_);
+      }
+      explicit operator bool() const { return row_ < table_->row_count(); }
+      Iterator& operator++() {
+        ++row_;
+        return *this;
+      }
+      RowNumber row_number() const {
+        return RowNumber{row_};
+      }
+      RowReference ToRowReference() const {
+        return RowReference(table_, row_);
+      }
+      EtmV4ChunkTable::Id id() const {
+        
+        return EtmV4ChunkTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+          EtmV4SessionTable::Id session_id() const {
+        
+        return EtmV4SessionTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::session_id>(kSpec, row_)};
+      }
+      
 
     private:
-     friend class EtmV4TraceTable;
-
-     explicit Iterator(EtmV4TraceTable* table, Table::Iterator iterator)
-        : ConstIterator(table, std::move(iterator)) {}
+      EtmV4ChunkTable* table_;
+      uint32_t row_ = 0;
   };
+  class ConstIterator {
+    public:
+      explicit ConstIterator(const EtmV4ChunkTable* table) : table_(table) {
+        base::ignore_result(table_);
+      }
+      explicit operator bool() const { return row_ < table_->row_count(); }
+      ConstIterator& operator++() {
+        ++row_;
+        return *this;
+      }
+      RowNumber row_number() const {
+        return RowNumber{row_};
+      }
+      ConstRowReference ToRowReference() const {
+        return ConstRowReference(table_, row_);
+      }
+      EtmV4ChunkTable::Id id() const {
+        
+        return EtmV4ChunkTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+          EtmV4SessionTable::Id session_id() const {
+        
+        return EtmV4SessionTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::session_id>(kSpec, row_)};
+      }
 
+    private:
+      const EtmV4ChunkTable* table_;
+      uint32_t row_ = 0;
+  };
   struct IdAndRow {
     Id id;
+    RowNumber row_number;
     uint32_t row;
     RowReference row_reference;
-    RowNumber row_number;
+  };
+  
+  struct Row {
+    Row(EtmV4SessionTable::Id _session_id = {}, uint32_t _chunk_set_id = {}, int64_t _size = {}) : session_id(std::move(_session_id)), chunk_set_id(std::move(_chunk_set_id)), size(std::move(_size)) {}
+
+    bool operator==(const Row& other) const {
+      return std::tie(session_id, chunk_set_id, size) ==
+             std::tie(other.session_id, other.chunk_set_id, other.size);
+    }
+
+        EtmV4SessionTable::Id session_id;
+    uint32_t chunk_set_id;
+    int64_t size;
   };
 
-  static std::vector<ColumnLegacy> GetColumns(
-      EtmV4TraceTable* self,
-      const macros_internal::MacroTable* parent) {
-    std::vector<ColumnLegacy> columns =
-        CopyColumnsFromParentOrAddRootColumns(parent);
-    uint32_t olay_idx = OverlayCount(parent);
-    AddColumnToVector(columns, "session_id", &self->session_id_, ColumnFlag::session_id,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "trace_set_id", &self->trace_set_id_, ColumnFlag::trace_set_id,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "size", &self->size_, ColumnFlag::size,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    base::ignore_result(self);
-    return columns;
-  }
-
-  PERFETTO_NO_INLINE explicit EtmV4TraceTable(StringPool* pool)
-      : macros_internal::MacroTable(
-          pool,
-          GetColumns(this, nullptr),
-          nullptr),
-        session_id_(ColumnStorage<ColumnType::session_id::stored_type>::Create<false>()),
-        trace_set_id_(ColumnStorage<ColumnType::trace_set_id::stored_type>::Create<false>()),
-        size_(ColumnStorage<ColumnType::size::stored_type>::Create<false>())
-,
-        id_storage_layer_(new column::IdStorage()),
-        session_id_storage_layer_(
-        new column::NumericStorage<ColumnType::session_id::non_optional_stored_type>(
-          &session_id_.vector(),
-          ColumnTypeHelper<ColumnType::session_id::stored_type>::ToColumnType(),
-          false)),
-        trace_set_id_storage_layer_(
-          new column::SetIdStorage(&trace_set_id_.vector())),
-        size_storage_layer_(
-        new column::NumericStorage<ColumnType::size::non_optional_stored_type>(
-          &size_.vector(),
-          ColumnTypeHelper<ColumnType::size::stored_type>::ToColumnType(),
-          false))
-         {
-    static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::session_id::stored_type>(
-          ColumnFlag::session_id),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::trace_set_id::stored_type>(
-          ColumnFlag::trace_set_id),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::size::stored_type>(
-          ColumnFlag::size),
-        "Column type and flag combination is not valid");
-    OnConstructionCompletedRegularConstructor(
-      {id_storage_layer_,session_id_storage_layer_,trace_set_id_storage_layer_,size_storage_layer_},
-      {{},{},{},{}});
-  }
-  ~EtmV4TraceTable() override;
-
-  static const char* Name() { return "__intrinsic_etm_v4_trace"; }
-
-  static Table::Schema ComputeStaticSchema() {
-    Table::Schema schema;
-    schema.columns.emplace_back(Table::Schema::Column{
-        "id", SqlValue::Type::kLong, true, true, false, false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "session_id", ColumnType::session_id::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "trace_set_id", ColumnType::trace_set_id::SqlValueType(), false,
-        true,
-        false,
-        true});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "size", ColumnType::size::SqlValueType(), false,
-        false,
-        false,
-        false});
-    return schema;
-  }
-
-  ConstIterator IterateRows() const {
-    return ConstIterator(this, Table::IterateRows());
-  }
-
-  Iterator IterateRows() { return Iterator(this, Table::IterateRows()); }
-
-  ConstIterator FilterToIterator(const Query& q) const {
-    return ConstIterator(this, QueryToIterator(q));
-  }
-
-  Iterator FilterToIterator(const Query& q) {
-    return Iterator(this, QueryToIterator(q));
-  }
-
-  void ShrinkToFit() {
-    session_id_.ShrinkToFit();
-    trace_set_id_.ShrinkToFit();
-    size_.ShrinkToFit();
-  }
-
-  ConstRowReference operator[](uint32_t r) const {
-    return ConstRowReference(this, r);
-  }
-  RowReference operator[](uint32_t r) { return RowReference(this, r); }
-  ConstRowReference operator[](RowNumber r) const {
-    return ConstRowReference(this, r.row_number());
-  }
-  RowReference operator[](RowNumber r) {
-    return RowReference(this, r.row_number());
-  }
-
-  std::optional<ConstRowReference> FindById(Id find_id) const {
-    std::optional<uint32_t> row = id().IndexOf(find_id);
-    return row ? std::make_optional(ConstRowReference(this, *row))
-               : std::nullopt;
-  }
-
-  std::optional<RowReference> FindById(Id find_id) {
-    std::optional<uint32_t> row = id().IndexOf(find_id);
-    return row ? std::make_optional(RowReference(this, *row)) : std::nullopt;
-  }
+  explicit EtmV4ChunkTable(StringPool* pool)
+      : dataframe_(dataframe::Dataframe::CreateFromTypedSpec(kSpec, pool)) {}
 
   IdAndRow Insert(const Row& row) {
-    uint32_t row_number = row_count();
-    Id id = Id{row_number};
-    mutable_session_id()->Append(row.session_id);
-    mutable_trace_set_id()->Append(row.trace_set_id);
-    mutable_size()->Append(row.size);
-    UpdateSelfOverlayAfterInsert();
-    return IdAndRow{id, row_number, RowReference(this, row_number),
-                     RowNumber(row_number)};
+    uint32_t row_count = dataframe_.row_count();
+    dataframe_.InsertUnchecked(kSpec, std::monostate(), row.session_id.value, row.chunk_set_id, row.size);
+    return IdAndRow{Id{row_count}, RowNumber{row_count}, row_count, RowReference(this, row_count)};
   }
 
-  
-
-  const IdColumn<EtmV4TraceTable::Id>& id() const {
-    return static_cast<const ColumnType::id&>(columns()[ColumnIndex::id]);
-  }
-  const TypedColumn<EtmV4SessionTable::Id>& session_id() const {
-    return static_cast<const ColumnType::session_id&>(columns()[ColumnIndex::session_id]);
-  }
-  const TypedColumn<uint32_t>& trace_set_id() const {
-    return static_cast<const ColumnType::trace_set_id&>(columns()[ColumnIndex::trace_set_id]);
-  }
-  const TypedColumn<int64_t>& size() const {
-    return static_cast<const ColumnType::size&>(columns()[ColumnIndex::size]);
+  uint32_t row_count() const {
+    return dataframe_.row_count();
   }
 
-  TypedColumn<EtmV4SessionTable::Id>* mutable_session_id() {
-    return static_cast<ColumnType::session_id*>(
-        GetColumn(ColumnIndex::session_id));
+  std::optional<ConstRowReference> FindById(Id id) const {
+    return ConstRowReference(this, id.value);
   }
-  TypedColumn<uint32_t>* mutable_trace_set_id() {
-    return static_cast<ColumnType::trace_set_id*>(
-        GetColumn(ColumnIndex::trace_set_id));
+  ConstRowReference operator[](uint32_t row) const {
+    return ConstRowReference(this, row);
   }
-  TypedColumn<int64_t>* mutable_size() {
-    return static_cast<ColumnType::size*>(
-        GetColumn(ColumnIndex::size));
+
+  std::optional<RowReference> FindById(Id id) {
+    return RowReference(this, id.value);
+  }
+  RowReference operator[](uint32_t row) {
+    return RowReference(this, row);
+  }
+
+  ConstCursor CreateCursor(
+      std::vector<dataframe::FilterSpec> filters = {},
+      std::vector<dataframe::SortSpec> sorts = {}) const {
+    return ConstCursor(dataframe_, std::move(filters), std::move(sorts));
+  }
+  Cursor CreateCursor(
+      std::vector<dataframe::FilterSpec> filters = {},
+      std::vector<dataframe::SortSpec> sorts = {}) {
+    return Cursor(dataframe_, std::move(filters), std::move(sorts));
+  }
+
+  Iterator IterateRows() { return Iterator(this); }
+  ConstIterator IterateRows() const { return ConstIterator(this); }
+
+  void Finalize() { dataframe_.Finalize(); }
+
+  void Clear() { dataframe_.Clear(); }
+
+  static const char* Name() {
+    return "__intrinsic_etm_v4_chunk";
+  }
+
+  dataframe::Dataframe& dataframe() {
+    return dataframe_;
+  }
+  const dataframe::Dataframe& dataframe() const {
+    return dataframe_;
   }
 
  private:
-  
-  
-  ColumnStorage<ColumnType::session_id::stored_type> session_id_;
-  ColumnStorage<ColumnType::trace_set_id::stored_type> trace_set_id_;
-  ColumnStorage<ColumnType::size::stored_type> size_;
-
-  RefPtr<column::StorageLayer> id_storage_layer_;
-  RefPtr<column::StorageLayer> session_id_storage_layer_;
-  RefPtr<column::StorageLayer> trace_set_id_storage_layer_;
-  RefPtr<column::StorageLayer> size_storage_layer_;
-
-  
+  dataframe::Dataframe dataframe_;
 };
-  
 
-class FileTable : public macros_internal::MacroTable {
+
+
+class FileTable {
  public:
-  static constexpr uint32_t kColumnCount = 3;
+  static constexpr auto kSpec = dataframe::CreateTypedDataframeSpec(
+    {"id","name","size","trace_type"},
+    dataframe::CreateTypedColumnSpec(dataframe::Id{}, dataframe::NonNull{}, dataframe::IdSorted{}, dataframe::NoDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::String{}, dataframe::SparseNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Int64{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::String{}, dataframe::DenseNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}));
 
-  struct Id : public BaseId {
+  struct Id : BaseId {
     Id() = default;
-    explicit constexpr Id(uint32_t v) : BaseId(v) {}
+    explicit constexpr Id(uint32_t _value) : BaseId(_value) {}
+
+    bool operator==(const Id& other) const {
+      return value == other.value;
+    }
   };
-  static_assert(std::is_trivially_destructible_v<Id>,
-                "Inheritance used without trivial destruction");
-    
+  struct RowReference;
+  struct ConstRowReference;
+  struct RowNumber {
+   public:
+    explicit constexpr RowNumber(uint32_t value) : value_(value) {}
+    uint32_t row_number() const { return value_; }
+
+    RowReference ToRowReference(FileTable* table) const {
+      return RowReference(table, value_);
+    }
+    ConstRowReference ToRowReference(const FileTable& table) const {
+      return ConstRowReference(&table, value_);
+    }
+
+    bool operator==(const RowNumber& other) const {
+      return value_ == other.value_;
+    }
+    bool operator<(const RowNumber& other) const {
+      return value_ < other.value_;
+    }
+   private:
+    uint32_t value_;
+  };
   struct ColumnIndex {
     static constexpr uint32_t id = 0;
     static constexpr uint32_t name = 1;
     static constexpr uint32_t size = 2;
+    static constexpr uint32_t trace_type = 3;
   };
-  struct ColumnType {
-    using id = IdColumn<FileTable::Id>;
-    using name = TypedColumn<StringPool::Id>;
-    using size = TypedColumn<int64_t>;
-  };
-  struct Row : public macros_internal::RootParentTable::Row {
-    Row(StringPool::Id in_name = {},
-        int64_t in_size = {},
-        std::nullptr_t = nullptr)
-        : macros_internal::RootParentTable::Row(),
-          name(in_name),
-          size(in_size) {}
-    StringPool::Id name;
-    int64_t size;
-
-    bool operator==(const FileTable::Row& other) const {
-      return ColumnType::name::Equals(name, other.name) &&
-       ColumnType::size::Equals(size, other.size);
-    }
-  };
-  struct ColumnFlag {
-    static constexpr uint32_t name = ColumnType::name::default_flags();
-    static constexpr uint32_t size = ColumnType::size::default_flags();
-  };
-
-  class RowNumber;
-  class ConstRowReference;
-  class RowReference;
-
-  class RowNumber : public macros_internal::AbstractRowNumber<
-      FileTable, ConstRowReference, RowReference> {
+  struct RowReference {
    public:
-    explicit RowNumber(uint32_t row_number)
-        : AbstractRowNumber(row_number) {}
-  };
-  static_assert(std::is_trivially_destructible_v<RowNumber>,
-                "Inheritance used without trivial destruction");
-
-  class ConstRowReference : public macros_internal::AbstractConstRowReference<
-    FileTable, RowNumber> {
-   public:
-    ConstRowReference(const FileTable* table, uint32_t row_number)
-        : AbstractConstRowReference(table, row_number) {}
-
-    ColumnType::id::type id() const {
-      return table()->id()[row_number_];
+    explicit RowReference(FileTable* table, uint32_t row)
+        : table_(table), row_(row) {
+        base::ignore_result(table_);
     }
-    ColumnType::name::type name() const {
-      return table()->name()[row_number_];
+    FileTable::Id id() const {
+        
+        return FileTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+        int64_t size() const {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::size>(kSpec, row_);
     }
-    ColumnType::size::type size() const {
-      return table()->size()[row_number_];
+          StringPool::Id trace_type() const {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        auto res = table_->dataframe_.template GetCellUnchecked<ColumnIndex::trace_type>(kSpec, row_);
+        return res && res != StringPool::Id::Null() ? StringPool::Id{*res} : StringPool::Id::Null();
+      }
+    void set_size(int64_t res) {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      table_->dataframe_.SetCellUnchecked<ColumnIndex::size>(kSpec, row_, res);
     }
-  };
-  static_assert(std::is_trivially_destructible_v<ConstRowReference>,
-                "Inheritance used without trivial destruction");
-  class RowReference : public ConstRowReference {
-   public:
-    RowReference(const FileTable* table, uint32_t row_number)
-        : ConstRowReference(table, row_number) {}
-
-    void set_name(
-        ColumnType::name::non_optional_type v) {
-      return mutable_table()->mutable_name()->Set(row_number_, v);
+          void set_trace_type(StringPool::Id res) {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        auto res_value = res != StringPool::Id::Null() ? std::make_optional(res) : std::nullopt;
+        table_->dataframe_.SetCellUnchecked<ColumnIndex::trace_type>(kSpec, row_, res_value);
     }
-    void set_size(
-        ColumnType::size::non_optional_type v) {
-      return mutable_table()->mutable_size()->Set(row_number_, v);
+    RowNumber ToRowNumber() const {
+      return RowNumber{row_};
     }
 
    private:
-    FileTable* mutable_table() const {
-      return const_cast<FileTable*>(table());
-    }
+    friend struct ConstRowReference;
+    FileTable* table_;
+    uint32_t row_;
   };
-  static_assert(std::is_trivially_destructible_v<RowReference>,
-                "Inheritance used without trivial destruction");
-
-  class ConstIterator;
-  class ConstIterator : public macros_internal::AbstractConstIterator<
-    ConstIterator, FileTable, RowNumber, ConstRowReference> {
+  struct ConstRowReference {
    public:
-    ColumnType::id::type id() const {
-      const auto& col = table()->id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
+    explicit ConstRowReference(const FileTable* table, uint32_t row)
+        : table_(table), row_(row) {
+        base::ignore_result(table_);
     }
-    ColumnType::name::type name() const {
-      const auto& col = table()->name();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
+    ConstRowReference(const RowReference& other)
+        : table_(other.table_), row_(other.row_) {}
+    FileTable::Id id() const {
+        
+        return FileTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+        int64_t size() const {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::size>(kSpec, row_);
     }
-    ColumnType::size::type size() const {
-      const auto& col = table()->size();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
+          StringPool::Id trace_type() const {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        auto res = table_->dataframe_.template GetCellUnchecked<ColumnIndex::trace_type>(kSpec, row_);
+        return res && res != StringPool::Id::Null() ? StringPool::Id{*res} : StringPool::Id::Null();
+      }
+    RowNumber ToRowNumber() const {
+      return RowNumber{row_};
+    }
+   private:
+    const FileTable* table_;
+    uint32_t row_;
+  };
+  class ConstCursor {
+   public:
+    explicit ConstCursor(const dataframe::Dataframe& df,
+                         std::vector<dataframe::FilterSpec> filters,
+                         std::vector<dataframe::SortSpec> sorts)
+      : dataframe_(&df), cursor_(&df, std::move(filters), std::move(sorts)) {
+      base::ignore_result(dataframe_);
     }
 
-   protected:
-    explicit ConstIterator(const FileTable* table,
-                           Table::Iterator iterator)
-        : AbstractConstIterator(table, std::move(iterator)) {}
+    PERFETTO_ALWAYS_INLINE void Execute() { cursor_.ExecuteUnchecked(); }
+    PERFETTO_ALWAYS_INLINE bool Eof() const { return cursor_.Eof(); }
+    PERFETTO_ALWAYS_INLINE void Next() { cursor_.Next(); }
+    template <typename C>
+    PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index, C value) {
+      cursor_.SetFilterValueUnchecked(index, std::move(value));
+    }
+    RowNumber ToRowNumber() const {
+      return RowNumber{cursor_.RowIndex()};
+    }
+    void Reset() { cursor_.Reset(); }
+    FileTable::Id id() const {
+        
+        return FileTable::Id{cursor_.GetCellUnchecked<ColumnIndex::id>(kSpec)};
+      }
+    int64_t size() const {
+      PERFETTO_DCHECK(!dataframe_->finalized());
+      return cursor_.GetCellUnchecked<ColumnIndex::size>(kSpec);
+    }
+      StringPool::Id trace_type() const {
+        PERFETTO_DCHECK(!dataframe_->finalized());
+        auto res = cursor_.GetCellUnchecked<ColumnIndex::trace_type>(kSpec);
+        return res && res != StringPool::Id::Null() ? *res : StringPool::Id::Null();
+      }
 
-    uint32_t CurrentRowNumber() const {
-      return iterator_.StorageIndexForLastOverlay();
+   private:
+    const dataframe::Dataframe* dataframe_;
+    dataframe::TypedCursor cursor_;
+  };
+  class Cursor {
+   public:
+    explicit Cursor(dataframe::Dataframe& df,
+                    std::vector<dataframe::FilterSpec> filters,
+                    std::vector<dataframe::SortSpec> sorts)
+      : dataframe_(&df), cursor_(&df, std::move(filters), std::move(sorts)) {
+      base::ignore_result(dataframe_);
+    }
+
+    PERFETTO_ALWAYS_INLINE void Execute() { cursor_.ExecuteUnchecked(); }
+    PERFETTO_ALWAYS_INLINE bool Eof() const { return cursor_.Eof(); }
+    PERFETTO_ALWAYS_INLINE void Next() { cursor_.Next(); }
+    template <typename C>
+    PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index, C value) {
+      cursor_.SetFilterValueUnchecked(index, std::move(value));
+    }
+    RowNumber ToRowNumber() const {
+      return RowNumber{cursor_.RowIndex()};
+    }
+    void Reset() { cursor_.Reset(); }
+
+    FileTable::Id id() const {
+        
+        return FileTable::Id{cursor_.GetCellUnchecked<ColumnIndex::id>(kSpec)};
+      }
+    int64_t size() const {
+      PERFETTO_DCHECK(!dataframe_->finalized());
+      return cursor_.GetCellUnchecked<ColumnIndex::size>(kSpec);
+    }
+      StringPool::Id trace_type() const {
+        PERFETTO_DCHECK(!dataframe_->finalized());
+        auto res = cursor_.GetCellUnchecked<ColumnIndex::trace_type>(kSpec);
+        return res && res != StringPool::Id::Null() ? *res : StringPool::Id::Null();
+      }
+    void set_size(int64_t res) {
+        PERFETTO_DCHECK(!dataframe_->finalized());
+      cursor_.SetCellUnchecked<ColumnIndex::size>(kSpec, res);
+    }
+      void set_trace_type(StringPool::Id res) {
+        PERFETTO_DCHECK(!dataframe_->finalized());
+        auto res_value = res != StringPool::Id::Null() ? std::make_optional(res) : std::nullopt;
+        cursor_.SetCellUnchecked<ColumnIndex::trace_type>(kSpec, res_value);
     }
 
    private:
-    friend class FileTable;
-    friend class macros_internal::AbstractConstIterator<
-      ConstIterator, FileTable, RowNumber, ConstRowReference>;
+    dataframe::Dataframe* dataframe_;
+    dataframe::TypedCursor cursor_;
   };
-  class Iterator : public ConstIterator {
+  class Iterator {
     public:
-     RowReference row_reference() const {
-       return {const_cast<FileTable*>(table()), CurrentRowNumber()};
-     }
+      explicit Iterator(FileTable* table) : table_(table) {
+        base::ignore_result(table_);
+      }
+      explicit operator bool() const { return row_ < table_->row_count(); }
+      Iterator& operator++() {
+        ++row_;
+        return *this;
+      }
+      RowNumber row_number() const {
+        return RowNumber{row_};
+      }
+      RowReference ToRowReference() const {
+        return RowReference(table_, row_);
+      }
+      FileTable::Id id() const {
+        
+        return FileTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+        int64_t size() const {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::size>(kSpec, row_);
+    }
+          StringPool::Id trace_type() const {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        auto res = table_->dataframe_.template GetCellUnchecked<ColumnIndex::trace_type>(kSpec, row_);
+        return res && res != StringPool::Id::Null() ? StringPool::Id{*res} : StringPool::Id::Null();
+      }
+      void set_size(int64_t res) {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      table_->dataframe_.SetCellUnchecked<ColumnIndex::size>(kSpec, row_, res);
+    }
+          void set_trace_type(StringPool::Id res) {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        auto res_value = res != StringPool::Id::Null() ? std::make_optional(res) : std::nullopt;
+        table_->dataframe_.SetCellUnchecked<ColumnIndex::trace_type>(kSpec, row_, res_value);
+    }
 
     private:
-     friend class FileTable;
-
-     explicit Iterator(FileTable* table, Table::Iterator iterator)
-        : ConstIterator(table, std::move(iterator)) {}
+      FileTable* table_;
+      uint32_t row_ = 0;
   };
+  class ConstIterator {
+    public:
+      explicit ConstIterator(const FileTable* table) : table_(table) {
+        base::ignore_result(table_);
+      }
+      explicit operator bool() const { return row_ < table_->row_count(); }
+      ConstIterator& operator++() {
+        ++row_;
+        return *this;
+      }
+      RowNumber row_number() const {
+        return RowNumber{row_};
+      }
+      ConstRowReference ToRowReference() const {
+        return ConstRowReference(table_, row_);
+      }
+      FileTable::Id id() const {
+        
+        return FileTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+        int64_t size() const {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::size>(kSpec, row_);
+    }
+          StringPool::Id trace_type() const {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        auto res = table_->dataframe_.template GetCellUnchecked<ColumnIndex::trace_type>(kSpec, row_);
+        return res && res != StringPool::Id::Null() ? StringPool::Id{*res} : StringPool::Id::Null();
+      }
 
+    private:
+      const FileTable* table_;
+      uint32_t row_ = 0;
+  };
   struct IdAndRow {
     Id id;
+    RowNumber row_number;
     uint32_t row;
     RowReference row_reference;
-    RowNumber row_number;
+  };
+  
+  struct Row {
+    Row(StringPool::Id _name = {}, int64_t _size = {}, StringPool::Id _trace_type = {}) : name(std::move(_name)), size(std::move(_size)), trace_type(std::move(_trace_type)) {}
+
+    bool operator==(const Row& other) const {
+      return std::tie(name, size, trace_type) ==
+             std::tie(other.name, other.size, other.trace_type);
+    }
+
+        StringPool::Id name;
+    int64_t size;
+    StringPool::Id trace_type;
   };
 
-  static std::vector<ColumnLegacy> GetColumns(
-      FileTable* self,
-      const macros_internal::MacroTable* parent) {
-    std::vector<ColumnLegacy> columns =
-        CopyColumnsFromParentOrAddRootColumns(parent);
-    uint32_t olay_idx = OverlayCount(parent);
-    AddColumnToVector(columns, "name", &self->name_, ColumnFlag::name,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "size", &self->size_, ColumnFlag::size,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    base::ignore_result(self);
-    return columns;
-  }
-
-  PERFETTO_NO_INLINE explicit FileTable(StringPool* pool)
-      : macros_internal::MacroTable(
-          pool,
-          GetColumns(this, nullptr),
-          nullptr),
-        name_(ColumnStorage<ColumnType::name::stored_type>::Create<false>()),
-        size_(ColumnStorage<ColumnType::size::stored_type>::Create<false>())
-,
-        id_storage_layer_(new column::IdStorage()),
-        name_storage_layer_(
-          new column::StringStorage(string_pool(), &name_.vector())),
-        size_storage_layer_(
-        new column::NumericStorage<ColumnType::size::non_optional_stored_type>(
-          &size_.vector(),
-          ColumnTypeHelper<ColumnType::size::stored_type>::ToColumnType(),
-          false))
-         {
-    static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::name::stored_type>(
-          ColumnFlag::name),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::size::stored_type>(
-          ColumnFlag::size),
-        "Column type and flag combination is not valid");
-    OnConstructionCompletedRegularConstructor(
-      {id_storage_layer_,name_storage_layer_,size_storage_layer_},
-      {{},{},{}});
-  }
-  ~FileTable() override;
-
-  static const char* Name() { return "__intrinsic_file"; }
-
-  static Table::Schema ComputeStaticSchema() {
-    Table::Schema schema;
-    schema.columns.emplace_back(Table::Schema::Column{
-        "id", SqlValue::Type::kLong, true, true, false, false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "name", ColumnType::name::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "size", ColumnType::size::SqlValueType(), false,
-        false,
-        false,
-        false});
-    return schema;
-  }
-
-  ConstIterator IterateRows() const {
-    return ConstIterator(this, Table::IterateRows());
-  }
-
-  Iterator IterateRows() { return Iterator(this, Table::IterateRows()); }
-
-  ConstIterator FilterToIterator(const Query& q) const {
-    return ConstIterator(this, QueryToIterator(q));
-  }
-
-  Iterator FilterToIterator(const Query& q) {
-    return Iterator(this, QueryToIterator(q));
-  }
-
-  void ShrinkToFit() {
-    name_.ShrinkToFit();
-    size_.ShrinkToFit();
-  }
-
-  ConstRowReference operator[](uint32_t r) const {
-    return ConstRowReference(this, r);
-  }
-  RowReference operator[](uint32_t r) { return RowReference(this, r); }
-  ConstRowReference operator[](RowNumber r) const {
-    return ConstRowReference(this, r.row_number());
-  }
-  RowReference operator[](RowNumber r) {
-    return RowReference(this, r.row_number());
-  }
-
-  std::optional<ConstRowReference> FindById(Id find_id) const {
-    std::optional<uint32_t> row = id().IndexOf(find_id);
-    return row ? std::make_optional(ConstRowReference(this, *row))
-               : std::nullopt;
-  }
-
-  std::optional<RowReference> FindById(Id find_id) {
-    std::optional<uint32_t> row = id().IndexOf(find_id);
-    return row ? std::make_optional(RowReference(this, *row)) : std::nullopt;
-  }
+  explicit FileTable(StringPool* pool)
+      : dataframe_(dataframe::Dataframe::CreateFromTypedSpec(kSpec, pool)) {}
 
   IdAndRow Insert(const Row& row) {
-    uint32_t row_number = row_count();
-    Id id = Id{row_number};
-    mutable_name()->Append(row.name);
-    mutable_size()->Append(row.size);
-    UpdateSelfOverlayAfterInsert();
-    return IdAndRow{id, row_number, RowReference(this, row_number),
-                     RowNumber(row_number)};
+    uint32_t row_count = dataframe_.row_count();
+    dataframe_.InsertUnchecked(kSpec, std::monostate(), row.name != StringPool::Id::Null() ? std::make_optional(row.name) : std::nullopt, row.size, row.trace_type != StringPool::Id::Null() ? std::make_optional(row.trace_type) : std::nullopt);
+    return IdAndRow{Id{row_count}, RowNumber{row_count}, row_count, RowReference(this, row_count)};
   }
 
-  
-
-  const IdColumn<FileTable::Id>& id() const {
-    return static_cast<const ColumnType::id&>(columns()[ColumnIndex::id]);
-  }
-  const TypedColumn<StringPool::Id>& name() const {
-    return static_cast<const ColumnType::name&>(columns()[ColumnIndex::name]);
-  }
-  const TypedColumn<int64_t>& size() const {
-    return static_cast<const ColumnType::size&>(columns()[ColumnIndex::size]);
+  uint32_t row_count() const {
+    return dataframe_.row_count();
   }
 
-  TypedColumn<StringPool::Id>* mutable_name() {
-    return static_cast<ColumnType::name*>(
-        GetColumn(ColumnIndex::name));
+  std::optional<ConstRowReference> FindById(Id id) const {
+    return ConstRowReference(this, id.value);
   }
-  TypedColumn<int64_t>* mutable_size() {
-    return static_cast<ColumnType::size*>(
-        GetColumn(ColumnIndex::size));
+  ConstRowReference operator[](uint32_t row) const {
+    return ConstRowReference(this, row);
+  }
+
+  std::optional<RowReference> FindById(Id id) {
+    return RowReference(this, id.value);
+  }
+  RowReference operator[](uint32_t row) {
+    return RowReference(this, row);
+  }
+
+  ConstCursor CreateCursor(
+      std::vector<dataframe::FilterSpec> filters = {},
+      std::vector<dataframe::SortSpec> sorts = {}) const {
+    return ConstCursor(dataframe_, std::move(filters), std::move(sorts));
+  }
+  Cursor CreateCursor(
+      std::vector<dataframe::FilterSpec> filters = {},
+      std::vector<dataframe::SortSpec> sorts = {}) {
+    return Cursor(dataframe_, std::move(filters), std::move(sorts));
+  }
+
+  Iterator IterateRows() { return Iterator(this); }
+  ConstIterator IterateRows() const { return ConstIterator(this); }
+
+  void Finalize() { dataframe_.Finalize(); }
+
+  void Clear() { dataframe_.Clear(); }
+
+  static const char* Name() {
+    return "__intrinsic_file";
+  }
+
+  dataframe::Dataframe& dataframe() {
+    return dataframe_;
+  }
+  const dataframe::Dataframe& dataframe() const {
+    return dataframe_;
   }
 
  private:
-  
-  
-  ColumnStorage<ColumnType::name::stored_type> name_;
-  ColumnStorage<ColumnType::size::stored_type> size_;
-
-  RefPtr<column::StorageLayer> id_storage_layer_;
-  RefPtr<column::StorageLayer> name_storage_layer_;
-  RefPtr<column::StorageLayer> size_storage_layer_;
-
-  
+  dataframe::Dataframe dataframe_;
 };
-  
 
-class ElfFileTable : public macros_internal::MacroTable {
+
+
+class ElfFileTable {
  public:
-  static constexpr uint32_t kColumnCount = 4;
+  static constexpr auto kSpec = dataframe::CreateTypedDataframeSpec(
+    {"id","file_id","load_bias","build_id"},
+    dataframe::CreateTypedColumnSpec(dataframe::Id{}, dataframe::NonNull{}, dataframe::IdSorted{}, dataframe::NoDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Int64{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::String{}, dataframe::SparseNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}));
 
-  struct Id : public BaseId {
+  struct Id : BaseId {
     Id() = default;
-    explicit constexpr Id(uint32_t v) : BaseId(v) {}
+    explicit constexpr Id(uint32_t _value) : BaseId(_value) {}
+
+    bool operator==(const Id& other) const {
+      return value == other.value;
+    }
   };
-  static_assert(std::is_trivially_destructible_v<Id>,
-                "Inheritance used without trivial destruction");
-    
+  struct RowReference;
+  struct ConstRowReference;
+  struct RowNumber {
+   public:
+    explicit constexpr RowNumber(uint32_t value) : value_(value) {}
+    uint32_t row_number() const { return value_; }
+
+    RowReference ToRowReference(ElfFileTable* table) const {
+      return RowReference(table, value_);
+    }
+    ConstRowReference ToRowReference(const ElfFileTable& table) const {
+      return ConstRowReference(&table, value_);
+    }
+
+    bool operator==(const RowNumber& other) const {
+      return value_ == other.value_;
+    }
+    bool operator<(const RowNumber& other) const {
+      return value_ < other.value_;
+    }
+   private:
+    uint32_t value_;
+  };
   struct ColumnIndex {
     static constexpr uint32_t id = 0;
     static constexpr uint32_t file_id = 1;
     static constexpr uint32_t load_bias = 2;
     static constexpr uint32_t build_id = 3;
   };
-  struct ColumnType {
-    using id = IdColumn<ElfFileTable::Id>;
-    using file_id = TypedColumn<FileTable::Id>;
-    using load_bias = TypedColumn<int64_t>;
-    using build_id = TypedColumn<std::optional<StringPool::Id>>;
-  };
-  struct Row : public macros_internal::RootParentTable::Row {
-    Row(FileTable::Id in_file_id = {},
-        int64_t in_load_bias = {},
-        std::optional<StringPool::Id> in_build_id = {},
-        std::nullptr_t = nullptr)
-        : macros_internal::RootParentTable::Row(),
-          file_id(in_file_id),
-          load_bias(in_load_bias),
-          build_id(in_build_id) {}
-    FileTable::Id file_id;
-    int64_t load_bias;
-    std::optional<StringPool::Id> build_id;
-
-    bool operator==(const ElfFileTable::Row& other) const {
-      return ColumnType::file_id::Equals(file_id, other.file_id) &&
-       ColumnType::load_bias::Equals(load_bias, other.load_bias) &&
-       ColumnType::build_id::Equals(build_id, other.build_id);
-    }
-  };
-  struct ColumnFlag {
-    static constexpr uint32_t file_id = ColumnType::file_id::default_flags();
-    static constexpr uint32_t load_bias = ColumnType::load_bias::default_flags();
-    static constexpr uint32_t build_id = ColumnType::build_id::default_flags();
-  };
-
-  class RowNumber;
-  class ConstRowReference;
-  class RowReference;
-
-  class RowNumber : public macros_internal::AbstractRowNumber<
-      ElfFileTable, ConstRowReference, RowReference> {
+  struct RowReference {
    public:
-    explicit RowNumber(uint32_t row_number)
-        : AbstractRowNumber(row_number) {}
-  };
-  static_assert(std::is_trivially_destructible_v<RowNumber>,
-                "Inheritance used without trivial destruction");
-
-  class ConstRowReference : public macros_internal::AbstractConstRowReference<
-    ElfFileTable, RowNumber> {
-   public:
-    ConstRowReference(const ElfFileTable* table, uint32_t row_number)
-        : AbstractConstRowReference(table, row_number) {}
-
-    ColumnType::id::type id() const {
-      return table()->id()[row_number_];
+    explicit RowReference(ElfFileTable* table, uint32_t row)
+        : table_(table), row_(row) {
+        base::ignore_result(table_);
     }
-    ColumnType::file_id::type file_id() const {
-      return table()->file_id()[row_number_];
-    }
-    ColumnType::load_bias::type load_bias() const {
-      return table()->load_bias()[row_number_];
-    }
-    ColumnType::build_id::type build_id() const {
-      return table()->build_id()[row_number_];
-    }
-  };
-  static_assert(std::is_trivially_destructible_v<ConstRowReference>,
-                "Inheritance used without trivial destruction");
-  class RowReference : public ConstRowReference {
-   public:
-    RowReference(const ElfFileTable* table, uint32_t row_number)
-        : ConstRowReference(table, row_number) {}
-
-    void set_file_id(
-        ColumnType::file_id::non_optional_type v) {
-      return mutable_table()->mutable_file_id()->Set(row_number_, v);
-    }
-    void set_load_bias(
-        ColumnType::load_bias::non_optional_type v) {
-      return mutable_table()->mutable_load_bias()->Set(row_number_, v);
-    }
-    void set_build_id(
-        ColumnType::build_id::non_optional_type v) {
-      return mutable_table()->mutable_build_id()->Set(row_number_, v);
+    ElfFileTable::Id id() const {
+        
+        return ElfFileTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+          FileTable::Id file_id() const {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        return FileTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::file_id>(kSpec, row_)};
+      }
+    
+    RowNumber ToRowNumber() const {
+      return RowNumber{row_};
     }
 
    private:
-    ElfFileTable* mutable_table() const {
-      return const_cast<ElfFileTable*>(table());
-    }
+    friend struct ConstRowReference;
+    ElfFileTable* table_;
+    uint32_t row_;
   };
-  static_assert(std::is_trivially_destructible_v<RowReference>,
-                "Inheritance used without trivial destruction");
-
-  class ConstIterator;
-  class ConstIterator : public macros_internal::AbstractConstIterator<
-    ConstIterator, ElfFileTable, RowNumber, ConstRowReference> {
+  struct ConstRowReference {
    public:
-    ColumnType::id::type id() const {
-      const auto& col = table()->id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
+    explicit ConstRowReference(const ElfFileTable* table, uint32_t row)
+        : table_(table), row_(row) {
+        base::ignore_result(table_);
     }
-    ColumnType::file_id::type file_id() const {
-      const auto& col = table()->file_id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
+    ConstRowReference(const RowReference& other)
+        : table_(other.table_), row_(other.row_) {}
+    ElfFileTable::Id id() const {
+        
+        return ElfFileTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+          FileTable::Id file_id() const {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        return FileTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::file_id>(kSpec, row_)};
+      }
+    RowNumber ToRowNumber() const {
+      return RowNumber{row_};
     }
-    ColumnType::load_bias::type load_bias() const {
-      const auto& col = table()->load_bias();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::build_id::type build_id() const {
-      const auto& col = table()->build_id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
+   private:
+    const ElfFileTable* table_;
+    uint32_t row_;
+  };
+  class ConstCursor {
+   public:
+    explicit ConstCursor(const dataframe::Dataframe& df,
+                         std::vector<dataframe::FilterSpec> filters,
+                         std::vector<dataframe::SortSpec> sorts)
+      : dataframe_(&df), cursor_(&df, std::move(filters), std::move(sorts)) {
+      base::ignore_result(dataframe_);
     }
 
-   protected:
-    explicit ConstIterator(const ElfFileTable* table,
-                           Table::Iterator iterator)
-        : AbstractConstIterator(table, std::move(iterator)) {}
-
-    uint32_t CurrentRowNumber() const {
-      return iterator_.StorageIndexForLastOverlay();
+    PERFETTO_ALWAYS_INLINE void Execute() { cursor_.ExecuteUnchecked(); }
+    PERFETTO_ALWAYS_INLINE bool Eof() const { return cursor_.Eof(); }
+    PERFETTO_ALWAYS_INLINE void Next() { cursor_.Next(); }
+    template <typename C>
+    PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index, C value) {
+      cursor_.SetFilterValueUnchecked(index, std::move(value));
     }
+    RowNumber ToRowNumber() const {
+      return RowNumber{cursor_.RowIndex()};
+    }
+    void Reset() { cursor_.Reset(); }
+    ElfFileTable::Id id() const {
+        
+        return ElfFileTable::Id{cursor_.GetCellUnchecked<ColumnIndex::id>(kSpec)};
+      }
+      FileTable::Id file_id() const {
+        PERFETTO_DCHECK(!dataframe_->finalized());
+        return FileTable::Id{cursor_.GetCellUnchecked<ColumnIndex::file_id>(kSpec)};
+      }
 
    private:
-    friend class ElfFileTable;
-    friend class macros_internal::AbstractConstIterator<
-      ConstIterator, ElfFileTable, RowNumber, ConstRowReference>;
+    const dataframe::Dataframe* dataframe_;
+    dataframe::TypedCursor cursor_;
   };
-  class Iterator : public ConstIterator {
+  class Cursor {
+   public:
+    explicit Cursor(dataframe::Dataframe& df,
+                    std::vector<dataframe::FilterSpec> filters,
+                    std::vector<dataframe::SortSpec> sorts)
+      : dataframe_(&df), cursor_(&df, std::move(filters), std::move(sorts)) {
+      base::ignore_result(dataframe_);
+    }
+
+    PERFETTO_ALWAYS_INLINE void Execute() { cursor_.ExecuteUnchecked(); }
+    PERFETTO_ALWAYS_INLINE bool Eof() const { return cursor_.Eof(); }
+    PERFETTO_ALWAYS_INLINE void Next() { cursor_.Next(); }
+    template <typename C>
+    PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index, C value) {
+      cursor_.SetFilterValueUnchecked(index, std::move(value));
+    }
+    RowNumber ToRowNumber() const {
+      return RowNumber{cursor_.RowIndex()};
+    }
+    void Reset() { cursor_.Reset(); }
+
+    ElfFileTable::Id id() const {
+        
+        return ElfFileTable::Id{cursor_.GetCellUnchecked<ColumnIndex::id>(kSpec)};
+      }
+      FileTable::Id file_id() const {
+        PERFETTO_DCHECK(!dataframe_->finalized());
+        return FileTable::Id{cursor_.GetCellUnchecked<ColumnIndex::file_id>(kSpec)};
+      }
+    
+
+   private:
+    dataframe::Dataframe* dataframe_;
+    dataframe::TypedCursor cursor_;
+  };
+  class Iterator {
     public:
-     RowReference row_reference() const {
-       return {const_cast<ElfFileTable*>(table()), CurrentRowNumber()};
-     }
+      explicit Iterator(ElfFileTable* table) : table_(table) {
+        base::ignore_result(table_);
+      }
+      explicit operator bool() const { return row_ < table_->row_count(); }
+      Iterator& operator++() {
+        ++row_;
+        return *this;
+      }
+      RowNumber row_number() const {
+        return RowNumber{row_};
+      }
+      RowReference ToRowReference() const {
+        return RowReference(table_, row_);
+      }
+      ElfFileTable::Id id() const {
+        
+        return ElfFileTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+          FileTable::Id file_id() const {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        return FileTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::file_id>(kSpec, row_)};
+      }
+      
 
     private:
-     friend class ElfFileTable;
-
-     explicit Iterator(ElfFileTable* table, Table::Iterator iterator)
-        : ConstIterator(table, std::move(iterator)) {}
+      ElfFileTable* table_;
+      uint32_t row_ = 0;
   };
+  class ConstIterator {
+    public:
+      explicit ConstIterator(const ElfFileTable* table) : table_(table) {
+        base::ignore_result(table_);
+      }
+      explicit operator bool() const { return row_ < table_->row_count(); }
+      ConstIterator& operator++() {
+        ++row_;
+        return *this;
+      }
+      RowNumber row_number() const {
+        return RowNumber{row_};
+      }
+      ConstRowReference ToRowReference() const {
+        return ConstRowReference(table_, row_);
+      }
+      ElfFileTable::Id id() const {
+        
+        return ElfFileTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+          FileTable::Id file_id() const {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        return FileTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::file_id>(kSpec, row_)};
+      }
 
+    private:
+      const ElfFileTable* table_;
+      uint32_t row_ = 0;
+  };
   struct IdAndRow {
     Id id;
+    RowNumber row_number;
     uint32_t row;
     RowReference row_reference;
-    RowNumber row_number;
+  };
+  
+  struct Row {
+    Row(FileTable::Id _file_id = {}, int64_t _load_bias = {}, std::optional<StringPool::Id> _build_id = {}) : file_id(std::move(_file_id)), load_bias(std::move(_load_bias)), build_id(std::move(_build_id)) {}
+
+    bool operator==(const Row& other) const {
+      return std::tie(file_id, load_bias, build_id) ==
+             std::tie(other.file_id, other.load_bias, other.build_id);
+    }
+
+        FileTable::Id file_id;
+    int64_t load_bias;
+    std::optional<StringPool::Id> build_id;
   };
 
-  static std::vector<ColumnLegacy> GetColumns(
-      ElfFileTable* self,
-      const macros_internal::MacroTable* parent) {
-    std::vector<ColumnLegacy> columns =
-        CopyColumnsFromParentOrAddRootColumns(parent);
-    uint32_t olay_idx = OverlayCount(parent);
-    AddColumnToVector(columns, "file_id", &self->file_id_, ColumnFlag::file_id,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "load_bias", &self->load_bias_, ColumnFlag::load_bias,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "build_id", &self->build_id_, ColumnFlag::build_id,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    base::ignore_result(self);
-    return columns;
-  }
-
-  PERFETTO_NO_INLINE explicit ElfFileTable(StringPool* pool)
-      : macros_internal::MacroTable(
-          pool,
-          GetColumns(this, nullptr),
-          nullptr),
-        file_id_(ColumnStorage<ColumnType::file_id::stored_type>::Create<false>()),
-        load_bias_(ColumnStorage<ColumnType::load_bias::stored_type>::Create<false>()),
-        build_id_(ColumnStorage<ColumnType::build_id::stored_type>::Create<false>())
-,
-        id_storage_layer_(new column::IdStorage()),
-        file_id_storage_layer_(
-        new column::NumericStorage<ColumnType::file_id::non_optional_stored_type>(
-          &file_id_.vector(),
-          ColumnTypeHelper<ColumnType::file_id::stored_type>::ToColumnType(),
-          false)),
-        load_bias_storage_layer_(
-        new column::NumericStorage<ColumnType::load_bias::non_optional_stored_type>(
-          &load_bias_.vector(),
-          ColumnTypeHelper<ColumnType::load_bias::stored_type>::ToColumnType(),
-          false)),
-        build_id_storage_layer_(
-          new column::StringStorage(string_pool(), &build_id_.vector()))
-         {
-    static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::file_id::stored_type>(
-          ColumnFlag::file_id),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::load_bias::stored_type>(
-          ColumnFlag::load_bias),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::build_id::stored_type>(
-          ColumnFlag::build_id),
-        "Column type and flag combination is not valid");
-    OnConstructionCompletedRegularConstructor(
-      {id_storage_layer_,file_id_storage_layer_,load_bias_storage_layer_,build_id_storage_layer_},
-      {{},{},{},{}});
-  }
-  ~ElfFileTable() override;
-
-  static const char* Name() { return "__intrinsic_elf_file"; }
-
-  static Table::Schema ComputeStaticSchema() {
-    Table::Schema schema;
-    schema.columns.emplace_back(Table::Schema::Column{
-        "id", SqlValue::Type::kLong, true, true, false, false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "file_id", ColumnType::file_id::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "load_bias", ColumnType::load_bias::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "build_id", ColumnType::build_id::SqlValueType(), false,
-        false,
-        false,
-        false});
-    return schema;
-  }
-
-  ConstIterator IterateRows() const {
-    return ConstIterator(this, Table::IterateRows());
-  }
-
-  Iterator IterateRows() { return Iterator(this, Table::IterateRows()); }
-
-  ConstIterator FilterToIterator(const Query& q) const {
-    return ConstIterator(this, QueryToIterator(q));
-  }
-
-  Iterator FilterToIterator(const Query& q) {
-    return Iterator(this, QueryToIterator(q));
-  }
-
-  void ShrinkToFit() {
-    file_id_.ShrinkToFit();
-    load_bias_.ShrinkToFit();
-    build_id_.ShrinkToFit();
-  }
-
-  ConstRowReference operator[](uint32_t r) const {
-    return ConstRowReference(this, r);
-  }
-  RowReference operator[](uint32_t r) { return RowReference(this, r); }
-  ConstRowReference operator[](RowNumber r) const {
-    return ConstRowReference(this, r.row_number());
-  }
-  RowReference operator[](RowNumber r) {
-    return RowReference(this, r.row_number());
-  }
-
-  std::optional<ConstRowReference> FindById(Id find_id) const {
-    std::optional<uint32_t> row = id().IndexOf(find_id);
-    return row ? std::make_optional(ConstRowReference(this, *row))
-               : std::nullopt;
-  }
-
-  std::optional<RowReference> FindById(Id find_id) {
-    std::optional<uint32_t> row = id().IndexOf(find_id);
-    return row ? std::make_optional(RowReference(this, *row)) : std::nullopt;
-  }
+  explicit ElfFileTable(StringPool* pool)
+      : dataframe_(dataframe::Dataframe::CreateFromTypedSpec(kSpec, pool)) {}
 
   IdAndRow Insert(const Row& row) {
-    uint32_t row_number = row_count();
-    Id id = Id{row_number};
-    mutable_file_id()->Append(row.file_id);
-    mutable_load_bias()->Append(row.load_bias);
-    mutable_build_id()->Append(row.build_id);
-    UpdateSelfOverlayAfterInsert();
-    return IdAndRow{id, row_number, RowReference(this, row_number),
-                     RowNumber(row_number)};
+    uint32_t row_count = dataframe_.row_count();
+    dataframe_.InsertUnchecked(kSpec, std::monostate(), row.file_id.value, row.load_bias, row.build_id && row.build_id != StringPool::Id::Null() ? std::make_optional(*row.build_id) : std::nullopt);
+    return IdAndRow{Id{row_count}, RowNumber{row_count}, row_count, RowReference(this, row_count)};
   }
 
-  
-
-  const IdColumn<ElfFileTable::Id>& id() const {
-    return static_cast<const ColumnType::id&>(columns()[ColumnIndex::id]);
-  }
-  const TypedColumn<FileTable::Id>& file_id() const {
-    return static_cast<const ColumnType::file_id&>(columns()[ColumnIndex::file_id]);
-  }
-  const TypedColumn<int64_t>& load_bias() const {
-    return static_cast<const ColumnType::load_bias&>(columns()[ColumnIndex::load_bias]);
-  }
-  const TypedColumn<std::optional<StringPool::Id>>& build_id() const {
-    return static_cast<const ColumnType::build_id&>(columns()[ColumnIndex::build_id]);
+  uint32_t row_count() const {
+    return dataframe_.row_count();
   }
 
-  TypedColumn<FileTable::Id>* mutable_file_id() {
-    return static_cast<ColumnType::file_id*>(
-        GetColumn(ColumnIndex::file_id));
+  std::optional<ConstRowReference> FindById(Id id) const {
+    return ConstRowReference(this, id.value);
   }
-  TypedColumn<int64_t>* mutable_load_bias() {
-    return static_cast<ColumnType::load_bias*>(
-        GetColumn(ColumnIndex::load_bias));
+  ConstRowReference operator[](uint32_t row) const {
+    return ConstRowReference(this, row);
   }
-  TypedColumn<std::optional<StringPool::Id>>* mutable_build_id() {
-    return static_cast<ColumnType::build_id*>(
-        GetColumn(ColumnIndex::build_id));
+
+  std::optional<RowReference> FindById(Id id) {
+    return RowReference(this, id.value);
+  }
+  RowReference operator[](uint32_t row) {
+    return RowReference(this, row);
+  }
+
+  ConstCursor CreateCursor(
+      std::vector<dataframe::FilterSpec> filters = {},
+      std::vector<dataframe::SortSpec> sorts = {}) const {
+    return ConstCursor(dataframe_, std::move(filters), std::move(sorts));
+  }
+  Cursor CreateCursor(
+      std::vector<dataframe::FilterSpec> filters = {},
+      std::vector<dataframe::SortSpec> sorts = {}) {
+    return Cursor(dataframe_, std::move(filters), std::move(sorts));
+  }
+
+  Iterator IterateRows() { return Iterator(this); }
+  ConstIterator IterateRows() const { return ConstIterator(this); }
+
+  void Finalize() { dataframe_.Finalize(); }
+
+  void Clear() { dataframe_.Clear(); }
+
+  static const char* Name() {
+    return "__intrinsic_elf_file";
+  }
+
+  dataframe::Dataframe& dataframe() {
+    return dataframe_;
+  }
+  const dataframe::Dataframe& dataframe() const {
+    return dataframe_;
   }
 
  private:
-  
-  
-  ColumnStorage<ColumnType::file_id::stored_type> file_id_;
-  ColumnStorage<ColumnType::load_bias::stored_type> load_bias_;
-  ColumnStorage<ColumnType::build_id::stored_type> build_id_;
-
-  RefPtr<column::StorageLayer> id_storage_layer_;
-  RefPtr<column::StorageLayer> file_id_storage_layer_;
-  RefPtr<column::StorageLayer> load_bias_storage_layer_;
-  RefPtr<column::StorageLayer> build_id_storage_layer_;
-
-  
+  dataframe::Dataframe dataframe_;
 };
 
 }  // namespace perfetto

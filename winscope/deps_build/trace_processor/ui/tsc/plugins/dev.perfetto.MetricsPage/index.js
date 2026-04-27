@@ -13,11 +13,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 Object.defineProperty(exports, "__esModule", { value: true });
+const tslib_1 = require("tslib");
+const mithril_1 = tslib_1.__importDefault(require("mithril"));
 const metrics_page_1 = require("./metrics_page");
 class default_1 {
     static id = 'dev.perfetto.MetricsPage';
     async onTraceLoad(trace) {
-        trace.pages.registerPage({ route: '/metrics', page: metrics_page_1.MetricsPage });
+        trace.pages.registerPage({
+            route: '/metrics',
+            render: () => (0, mithril_1.default)(metrics_page_1.MetricsPage, { trace }),
+        });
         trace.sidebar.addMenuItem({
             section: 'current_trace',
             text: 'Metrics',

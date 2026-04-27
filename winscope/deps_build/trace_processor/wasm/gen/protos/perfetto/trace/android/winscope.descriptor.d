@@ -21,6 +21,7 @@ wasm/gen/protos/perfetto/trace/android/winscope.descriptor: ../buildtools/protob
  ..//protos/perfetto/trace/android/view/display.proto\
  ..//protos/perfetto/trace/android/view/windowlayoutparams.proto\
  ..//protos/perfetto/trace/android/view/viewrootimpl.proto\
+ ..//protos/perfetto/trace/android/graphics/insets.proto\
  ..//protos/perfetto/trace/android/view/insetssource.proto\
  ..//protos/perfetto/trace/android/view/insetsstate.proto\
  ..//protos/perfetto/trace/android/view/insetsanimationcontrolimpl.proto\

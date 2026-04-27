@@ -81,14 +81,14 @@ R"_d3l1m1t3r_(  ),
     WHERE name = 'trace_config_pbtxt'
   ),
   'sched_duration_ns', (
-    SELECT MAX(ts) - MIN(ts) FROM sched
+    SELECT IFNULL(MAX(TO_MONOTONIC(ts)) - MIN(TO_MONOTONIC(ts)), 0) FROM sched
   ),
   'tracing_started_ns', (
     SELECT int_value FROM metadata
     WHERE name='tracing_started_ns'
-  ),
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(  'android_sdk_version', (
+R"_d3l1m1t3r_(  ),
+  'android_sdk_version', (
     SELECT int_value FROM metadata
     WHERE name = 'android_sdk_version'
   ),
@@ -690,6 +690,7 @@ R"_d3l1m1t3r_(              'thread_state_count', thread_state_count
 R"_d3l1m1t3r_(            WHERE b.binder_txn_id = android_binder_txns.binder_txn_id
         )
       )
+      ORDER BY client_dur DESC
     )
     FROM android_binder_txns
   )
@@ -713,86 +714,22 @@ const char kAndroidAndroidBlockingCallsCujMetric[] = R"_d3l1m1t3r_(--
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- Create the base table (`android_jank_cuj`) containing all completed CUJs
--- found in the trace.
--- This script will use the `android_jank_cuj_main_thread_cuj_boundary`,
--- containing bounds of jank CUJs.
-SELECT RUN_METRIC('android/android_jank_cuj.sql');
+SELECT RUN_METRIC('android/process_metadata.sql');
 
 INCLUDE PERFETTO MODULE android.slices;
 INCLUDE PERFETTO MODULE android.binder;
 INCLUDE PERFETTO MODULE android.critical_blocking_calls;
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(
--- Jank "J<*>" and latency "L<*>" cujs are put together in android_cujs table.
--- They are computed separately as latency ones are slightly different, don't
--- currently have the same way to be cancelled, and are not anchored to vsyncs.
-DROP TABLE IF EXISTS android_cujs;
-CREATE TABLE android_cujs AS
-WITH latency_cujs AS (
-    SELECT
-        ROW_NUMBER() OVER (ORDER BY ts) AS cuj_id,
-        process.upid AS upid,
-        -- Latency CUJs don't have a well defined thread. Let's always consider
-        -- the app main thread for those.
-        process.upid AS utid,
-        process.name AS process_name,
-        process_metadata.metadata AS process_metadata,
-        -- Extracts "CUJ_NAME" from "L<CUJ_NAME>"
-        SUBSTR(slice.name, 3, LENGTH(slice.name) - 3) AS cuj_name,
-        ts,
-        dur,
-        ts + dur AS ts_end,
-        'completed' AS state
-    FROM slice
-        JOIN process_track
-          ON slice.track_id = process_track.id
-        JOIN process USING (upid)
-        JOIN process_metadata USING (upid)
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(    WHERE
-        slice.name GLOB 'L<*>'
-    AND dur > 0
-),
-all_cujs AS (
-    SELECT
-        cuj_id,
-        cuj.upid,
-        t.utid as ui_thread,
-        process_name,
-        process_metadata,
-        cuj_name,
-        tb.ts,
-        tb.dur,
-        tb.ts_end
-    FROM android_jank_cuj_main_thread_cuj_boundary tb
-        JOIN android_jank_cuj cuj USING (cuj_id)
-        JOIN android_jank_cuj_main_thread t USING (cuj_id)
-UNION
-    SELECT
-        cuj_id,
-        upid,
-        utid as ui_thread,
-        process_name,
-        process_metadata,
-        cuj_name,
-        ts,
-        dur,
-        ts_end
-    FROM latency_cujs
-)
-SELECT ROW_NUMBER() OVER (ORDER BY ts) AS cuj_id, *
-FROM all_cujs;
+INCLUDE PERFETTO MODULE android.cujs.sysui_cujs;
 
 -- We have:
 --  (1) a list of slices from the main thread of each process from the
 --  all_main_thread_relevant_slices table.
 --  (2) a list of android cuj with beginning, end, and process
--- It's needed to:
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(-- It's needed to:
 --  (1) assign a cuj to each slice. If there are multiple cujs going on during a
 --      slice, there needs to be 2 entries for that slice, one for each cuj id.
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(--  (2) each slice needs to be trimmed to be fully inside the cuj associated
+--  (2) each slice needs to be trimmed to be fully inside the cuj associated
 --      (as we don't care about what's outside cujs)
 DROP TABLE IF EXISTS main_thread_slices_scoped_to_cujs;
 CREATE PERFETTO TABLE main_thread_slices_scoped_to_cujs AS
@@ -809,14 +746,15 @@ SELECT
     s.upid,
     s.utid
 FROM _android_critical_blocking_calls s
-    JOIN  android_cujs cuj
+    JOIN  android_jank_latency_cujs cuj
     -- only when there is an overlap
     ON s.ts + s.dur > cuj.ts AND s.ts < cuj.ts_end
         -- and are from the same process
         AND s.upid = cuj.upid
         -- from the CUJ ui thread only
         AND s.utid = cuj.ui_thread;
-
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(
 
 DROP TABLE IF EXISTS android_blocking_calls_cuj_calls;
 CREATE TABLE android_blocking_calls_cuj_calls AS
@@ -825,8 +763,7 @@ SELECT
     COUNT(*) AS occurrences,
     MAX(dur) AS max_dur_ns,
     MIN(dur) AS min_dur_ns,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(    SUM(dur) AS total_dur_ns,
+    SUM(dur) AS total_dur_ns,
     upid,
     cuj_id,
     cuj_name,
@@ -844,7 +781,7 @@ SELECT AndroidBlockingCallsCujMetric('cuj', (
         AndroidBlockingCallsCujMetric_Cuj(
             'id', cuj_id,
             'name', cuj_name,
-            'process', process_metadata,
+            'process', process_metadata_proto(cuj.upid),
             'ts',  cuj.ts,
             'dur', cuj.dur,
             'blocking_calls', (
@@ -852,12 +789,12 @@ SELECT AndroidBlockingCallsCujMetric('cuj', (
                     AndroidBlockingCall(
                         'name', b.name,
                         'cnt', b.occurrences,
-                        'total_dur_ms', CAST(total_dur_ns / 1e6 AS INT),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(                        'total_dur_ms', CAST(total_dur_ns / 1e6 AS INT),
                         'max_dur_ms', CAST(max_dur_ns / 1e6 AS INT),
                         'min_dur_ms', CAST(min_dur_ns / 1e6 AS INT),
                         'total_dur_ns', b.total_dur_ns,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(                        'max_dur_ns', b.max_dur_ns,
+                        'max_dur_ns', b.max_dur_ns,
                         'min_dur_ns', b.min_dur_ns
                     )
                 )
@@ -867,7 +804,7 @@ R"_d3l1m1t3r_(                        'max_dur_ns', b.max_dur_ns,
             )
         )
     )
-    FROM android_cujs cuj
+    FROM android_jank_latency_cujs cuj
     ORDER BY cuj.cuj_id ASC
 ));
 
@@ -893,116 +830,15 @@ const char kAndroidAndroidBlockingCallsCujPerFrameMetric[] = R"_d3l1m1t3r_(--
 -- found in the trace.
 -- This script will use the `android_jank_cuj_main_thread_frame_boundary`,
 -- containing bounds of frames within jank CUJs.
-SELECT RUN_METRIC('android/android_jank_cuj.sql');
+SELECT RUN_METRIC('android/process_metadata.sql');
 
 INCLUDE PERFETTO MODULE android.slices;
 INCLUDE PERFETTO MODULE android.binder;
-INCLUDE PERFETTO MODULE android.critical_blocking_calls;
+INCLUDE PERFETTO MODULE android.frame_blocking_calls.blocking_calls_aggregation;
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(INCLUDE PERFETTO MODULE android.frames.timeline;
-
--- TODO(b/296349525): Add this to the perfetto standard library.
-DROP TABLE IF EXISTS android_cujs;
-CREATE TABLE android_cujs AS
-    SELECT
-        cuj_id,
-        cuj.upid,
-        t.utid AS ui_thread,
-        process_name,
-        process_metadata,
-        cuj_name,
-        cuj.layer_id,
-        tb.ts,
-        tb.dur,
-        tb.ts_end,
-        begin_vsync,
-        end_vsync
-    FROM android_jank_cuj_main_thread_cuj_boundary tb
-    JOIN android_jank_cuj cuj USING (cuj_id)
-    JOIN android_jank_cuj_main_thread t USING (cuj_id);
-
--- While calculating the metric, there are two possibilities for a blocking call:
--- 1. Blocking call is completely within a frame boundary.
--- 2. Blocking call crosses the frame boundary into the next frame.
--- For the first case, the blocking call duration is the 'dur' field value itself. But for the
--- second case, only the part within the frame is considered.
-DROP TABLE IF EXISTS blocking_calls_per_frame;
-CREATE PERFETTO TABLE blocking_calls_per_frame AS
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(SELECT
-    MIN(
-        bc.dur,
-        frame.ts_end - bc.ts,
-        bc.ts_end - frame.ts
-    ) AS dur,
-    MAX(frame.ts, bc.ts) AS ts,
-    bc.upid,
-    bc.name,
-    bc.process_name,
-    bc.utid,
-    frame.frame_id,
-    frame.layer_id
-FROM _android_critical_blocking_calls bc
-JOIN android_frames_layers frame
-ON bc.utid = frame.ui_thread_utid
-   -- The following condition to accommodate blocking call crossing frame boundary. The blocking
-   -- call starts in a frame and ends in a frame. It can either be the same frame or a different
-   -- frame.
-WHERE (bc.ts >= frame.ts AND bc.ts <= frame.ts_end) -- Blocking call starts within the frame.
-    OR (bc.ts_end >= frame.ts AND bc.ts_end <= frame.ts_end); -- Blocking call ends within the frame.
-
--- Table capturing the full and partial frames within a CUJ boundary. This table captures the
--- layer ID associated with the actual frame too.
-DROP TABLE IF EXISTS frames_in_cuj;
-CREATE PERFETTO TABLE frames_in_cuj AS
-SELECT
-    cuj.cuj_name,
-    cuj.upid,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(    cuj.process_name,
-    frame.layer_id,
-    frame.frame_id,
-    cuj.cuj_id,
-    MAX(frame.ts, cuj.ts) AS frame_ts,
-    MIN(
-        frame.dur,
-        cuj.ts_end - frame.ts,
-        frame.ts_end - cuj.ts
-    ) AS dur
-FROM android_frames_layers frame
-JOIN android_cujs cuj
-ON frame.upid = cuj.upid
-   AND frame.layer_id = cuj.layer_id
-   AND frame.ui_thread_utid = cuj.ui_thread
--- Check whether the frame_id falls within the begin and end vsync of the cuj.
--- Also check if the frame start or end timestamp falls within the cuj boundary.
-WHERE
-   -- frame withtin cuj vsync boundary
-   frame_id >= begin_vsync AND frame_id <= end_vsync
-   AND (
-      -- frame start within cuj
-      (frame.ts >= cuj.ts AND frame.ts <= cuj.ts_end)
-      OR
-      -- frame end within cuj
-      (frame.ts_end >= cuj.ts AND frame.ts_end <= cuj.ts_end)
-   );
-
--- Combine the above two tables to get blocking calls within frame within CUJ.
-DROP TABLE IF EXISTS blocking_calls_frame_cuj;
-CREATE PERFETTO TABLE blocking_calls_frame_cuj AS
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(SELECT
-    b.upid,
-    b.frame_id,
-    b.layer_id,
-    b.name,
-    frame_cuj.cuj_name,
-    b.ts,
-    b.dur,
-    b.process_name
-FROM frames_in_cuj frame_cuj
-JOIN blocking_calls_per_frame b
-USING (upid, frame_id, layer_id);
+R"_d3l1m1t3r_(INCLUDE PERFETTO MODULE android.critical_blocking_calls;
+INCLUDE PERFETTO MODULE android.frames.timeline;
+INCLUDE PERFETTO MODULE android.cujs.sysui_cujs;
 
 -- Calculate the mean/max values for duration and count for blocking calls per frame.
 DROP TABLE IF EXISTS android_blocking_calls_cuj_per_frame_calls;
@@ -1013,12 +849,11 @@ WITH blocking_calls_aggregate_values AS (
   SELECT
     COUNT(*) AS cnt,
     SUM(dur) AS total_dur_per_frame_ns,
-    MAX(dur) AS max_dur_per_frame_ns,
     cuj_name,
     upid,
     process_name,
     name
-  FROM blocking_calls_frame_cuj
+  FROM _blocking_calls_frame_cuj
   GROUP BY cuj_name, name, frame_id
 ),
 frame_cnt_per_cuj AS (
@@ -1026,16 +861,16 @@ frame_cnt_per_cuj AS (
   -- instances for the same CUJ).
   SELECT
     COUNT(*) AS frame_cnt,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(    cuj_name
-  FROM frames_in_cuj
+    cuj_name
+  FROM _android_frames_in_cuj
   GROUP BY cuj_name
 )
 SELECT
     cast_double!(SUM(cnt)) / frame_cnt AS mean_cnt_per_frame,
-    MAX(cnt) AS max_cnt_per_frame,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    MAX(cnt) AS max_cnt_per_frame,
     SUM(total_dur_per_frame_ns) / frame_cnt AS mean_dur_per_frame_ns,
-    MAX(max_dur_per_frame_ns) AS max_dur_per_frame_ns,
+    MAX(total_dur_per_frame_ns) AS max_dur_per_frame_ns,
     name,
     upid,
     bc.cuj_name,
@@ -1051,15 +886,15 @@ SELECT AndroidCujBlockingCallsPerFrameMetric('cuj', (
     SELECT RepeatedField(
         AndroidCujBlockingCallsPerFrameMetric_Cuj(
             'name', cuj_name,
-            'process', process_metadata,
+            'process', process_metadata_proto(cuj.upid),
             'blocking_calls', (
                 SELECT RepeatedField(
                     AndroidBlockingCallPerFrame(
                         'name', b.name,
                         'max_dur_per_frame_ms', CAST(max_dur_per_frame_ns / 1e6 AS INT),
+                        'max_dur_per_frame_ns', b.max_dur_per_frame_ns,
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(                        'max_dur_per_frame_ns', b.max_dur_per_frame_ns,
-                        'mean_dur_per_frame_ms', CAST(mean_dur_per_frame_ns / 1e6 AS INT),
+R"_d3l1m1t3r_(                        'mean_dur_per_frame_ms', CAST(mean_dur_per_frame_ns / 1e6 AS INT),
                         'mean_dur_per_frame_ns', b.mean_dur_per_frame_ns,
                         'max_cnt_per_frame', CAST(b.max_cnt_per_frame AS INT),
                         'mean_cnt_per_frame', b.mean_cnt_per_frame
@@ -1071,7 +906,7 @@ R"_d3l1m1t3r_(                        'max_dur_per_frame_ns', b.max_dur_per_fram
             )
         )
     )
-    FROM (SELECT DISTINCT cuj_name, upid, process_metadata FROM android_cujs) cuj
+    FROM (SELECT DISTINCT cuj_name, upid FROM android_sysui_jank_cujs) cuj
 ));
 
 )_d3l1m1t3r_"
@@ -3928,17 +3763,13 @@ const char kAndroidAndroidJankCuj[] = R"_d3l1m1t3r_(--
 -- found in the trace.
 SELECT RUN_METRIC('android/jank/cujs.sql');
 
--- Creates tables that store constant parameters for each CUJ - e.g. parameter
--- that describes whether Choreographer callbacks run on a dedicated thread.
-SELECT RUN_METRIC('android/jank/params.sql');
-
 -- Create tables to store each CUJs main, render, HWC release,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(-- and GPU completion threads.
+-- and GPU completion threads.
 -- Also stores the (not CUJ-specific) threads of SF: main, render engine,
 -- and GPU completion threads.
 SELECT RUN_METRIC('android/jank/relevant_threads.sql');
-
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(
 -- Create tables to store the main slices on each of the relevant threads
 -- * `Choreographer#doFrame` on the main thread
 -- * `DrawFrames on the render` thread
@@ -3955,11 +3786,11 @@ SELECT RUN_METRIC('android/jank/relevant_threads.sql');
 SELECT RUN_METRIC('android/jank/relevant_slices.sql');
 
 -- Computes the boundaries of specific frames and overall CUJ boundaries
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(-- on specific important threads since each thread will work on a frame at a
+-- on specific important threads since each thread will work on a frame at a
 -- slightly different time.
 -- We also compute the corrected CUJ ts boundaries. This is necessary because
--- the instrumentation logs begin/end CUJ markers *during* the first frame and
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(-- the instrumentation logs begin/end CUJ markers *during* the first frame and
 -- typically *right at the start* of the last CUJ frame. The ts boundaries in
 -- `android_jank_cuj` table are based on these markers so do not actually
 -- contain the whole CUJ, but instead overlap with all Choreographer#doFrame
@@ -3974,12 +3805,12 @@ SELECT RUN_METRIC('android/jank/frames.sql');
 
 -- Creates tables with slices from various relevant threads that are within
 -- the CUJ boundaries. Used as data sources for further processing and
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(-- jank cause analysis of traces.
+-- jank cause analysis of traces.
 SELECT RUN_METRIC('android/jank/slices.sql');
 
 -- Creates tables and functions to be used for manual investigations and
--- jank cause analysis of traces.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(-- jank cause analysis of traces.
 SELECT RUN_METRIC('android/jank/internal/query_base.sql');
 SELECT RUN_METRIC('android/jank/query_functions.sql');
 
@@ -4002,11 +3833,11 @@ SELECT
           'layer_name', layer_name,
           'ts', COALESCE(boundary.ts, cuj.ts),
           'dur', COALESCE(boundary.dur, cuj.dur),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(          'counter_metrics', (
+          'counter_metrics', (
             SELECT AndroidJankCujMetric_Metrics(
               'total_frames', total_frames,
-              'missed_frames', missed_frames,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(              'missed_frames', missed_frames,
               'missed_app_frames', missed_app_frames,
               'missed_sf_frames', missed_sf_frames,
               'missed_frames_max_successive', missed_frames_max_successive,
@@ -4016,6 +3847,27 @@ R"_d3l1m1t3r_(          'counter_metrics', (
             FROM android_jank_cuj_counter_metrics cm
             WHERE cm.cuj_id = cuj.cuj_id),
           'trace_metrics', (
+            SELECT AndroidJankCujMetric_Metrics(
+              'total_frames', COUNT(*),
+              'missed_frames', SUM(app_missed OR sf_missed),
+              'missed_app_frames', SUM(app_missed),
+              'missed_sf_frames', SUM(sf_missed),
+              'sf_callback_missed_frames', SUM(sf_callback_missed),
+              'hwui_callback_missed_frames', SUM(hwui_callback_missed),
+              'frame_dur_max', MAX(f.dur),
+              'frame_dur_avg', CAST(AVG(f.dur) AS INTEGER),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(              'frame_dur_p50', CAST(PERCENTILE(f.dur, 50) AS INTEGER),
+              'frame_dur_p90', CAST(PERCENTILE(f.dur, 90) AS INTEGER),
+              'frame_dur_p95', CAST(PERCENTILE(f.dur, 95) AS INTEGER),
+              'frame_dur_p99', CAST(PERCENTILE(f.dur, 99) AS INTEGER),
+              'frame_dur_ms_p50', PERCENTILE(f.dur / 1e6, 50),
+              'frame_dur_ms_p90', PERCENTILE(f.dur / 1e6, 90),
+              'frame_dur_ms_p95', PERCENTILE(f.dur / 1e6, 95),
+              'frame_dur_ms_p99', PERCENTILE(f.dur / 1e6, 99))
+            FROM android_jank_cuj_frame f
+            WHERE f.cuj_id = cuj.cuj_id),
+          'timeline_metrics', (
             SELECT AndroidJankCujMetric_Metrics(
               'total_frames', COUNT(*),
               'missed_frames', SUM(app_missed OR sf_missed),
@@ -4034,39 +3886,18 @@ R"_d3l1m1t3r_(              'frame_dur_max', MAX(f.dur),
               'frame_dur_ms_p90', PERCENTILE(f.dur / 1e6, 90),
               'frame_dur_ms_p95', PERCENTILE(f.dur / 1e6, 95),
               'frame_dur_ms_p99', PERCENTILE(f.dur / 1e6, 99))
-            FROM android_jank_cuj_frame f
-            WHERE f.cuj_id = cuj.cuj_id),
-          'timeline_metrics', (
-            SELECT AndroidJankCujMetric_Metrics(
-              'total_frames', COUNT(*),
-              'missed_frames', SUM(app_missed OR sf_missed),
-              'missed_app_frames', SUM(app_missed),
-              'missed_sf_frames', SUM(sf_missed),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(              'sf_callback_missed_frames', SUM(sf_callback_missed),
-              'hwui_callback_missed_frames', SUM(hwui_callback_missed),
-              'frame_dur_max', MAX(f.dur),
-              'frame_dur_avg', CAST(AVG(f.dur) AS INTEGER),
-              'frame_dur_p50', CAST(PERCENTILE(f.dur, 50) AS INTEGER),
-              'frame_dur_p90', CAST(PERCENTILE(f.dur, 90) AS INTEGER),
-              'frame_dur_p95', CAST(PERCENTILE(f.dur, 95) AS INTEGER),
-              'frame_dur_p99', CAST(PERCENTILE(f.dur, 99) AS INTEGER),
-              'frame_dur_ms_p50', PERCENTILE(f.dur / 1e6, 50),
-              'frame_dur_ms_p90', PERCENTILE(f.dur / 1e6, 90),
-              'frame_dur_ms_p95', PERCENTILE(f.dur / 1e6, 95),
-              'frame_dur_ms_p99', PERCENTILE(f.dur / 1e6, 99))
             FROM android_jank_cuj_frame_timeline f
             WHERE f.cuj_id = cuj.cuj_id),
           'frame', (
             SELECT RepeatedField(
               AndroidJankCujMetric_Frame(
                 'frame_number', f.frame_number,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(                'vsync', f.vsync,
+                'vsync', f.vsync,
                 'ts', f.ts,
                 'dur', f.dur,
                 'dur_expected', f.dur_expected,
-                'app_missed', f.app_missed,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(                'app_missed', f.app_missed,
                 'sf_missed', f.sf_missed,
                 'sf_callback_missed', f.sf_callback_missed,
                 'hwui_callback_missed', f.hwui_callback_missed))
@@ -4088,8 +3919,7 @@ R"_d3l1m1t3r_(                'vsync', f.vsync,
         ))
       FROM android_jank_cuj cuj
       LEFT JOIN android_jank_cuj_boundary boundary USING (cuj_id)
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      LEFT JOIN android_jank_cuj_layer_name cuj_layer USING (cuj_id)
+      LEFT JOIN android_jank_cuj_layer_name cuj_layer USING (cuj_id)
       ORDER BY cuj.cuj_id ASC));
 
 )_d3l1m1t3r_"
@@ -4111,47 +3941,26 @@ const char kAndroidAndroidLmk[] = R"_d3l1m1t3r_(--
 -- limitations under the License.
 --
 
-SELECT RUN_METRIC('android/process_oom_score.sql');
-
--- All LMK events ordered by timestamp
-DROP TABLE IF EXISTS lmk_events;
-CREATE PERFETTO TABLE lmk_events AS
-WITH raw_events AS (
-  SELECT upid, MAX(ts) AS ts
-  FROM instant
-  JOIN process_track ON instant.track_id = process_track.id
-  WHERE instant.name = 'mem.lmk'
-  GROUP BY 1
-)
-SELECT
-  raw_events.ts,
-  raw_events.upid,
-  oom_scores.oom_score_val AS score
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(FROM raw_events
-LEFT JOIN oom_score_span oom_scores
-  ON (raw_events.upid = oom_scores.upid
-      AND raw_events.ts >= oom_scores.ts
-      AND raw_events.ts < oom_scores.ts + oom_scores.dur)
-ORDER BY 1;
+INCLUDE PERFETTO MODULE android.memory.lmk;
 
 DROP VIEW IF EXISTS android_lmk_output;
 CREATE PERFETTO VIEW android_lmk_output AS
 WITH lmk_counts AS (
-  SELECT score, COUNT(1) AS count
-  FROM lmk_events
-  GROUP BY score
+  SELECT oom_score_adj, COUNT(1) AS count
+  FROM android_lmk_events
+  GROUP BY 1
 )
 SELECT AndroidLmkMetric(
-  'total_count', (SELECT COUNT(1) FROM lmk_events),
+  'total_count', (SELECT COUNT(1) FROM android_lmk_events),
   'by_oom_score', (
     SELECT
       RepeatedField(AndroidLmkMetric_ByOomScore(
-        'oom_score_adj', score,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(        'oom_score_adj', oom_score_adj,
         'count', count
       ))
     FROM lmk_counts
-    WHERE score IS NOT NULL
+    WHERE oom_score_adj IS NOT NULL
   ),
   'oom_victim_count', (
     SELECT COUNT(1)
@@ -4179,8 +3988,9 @@ const char kAndroidAndroidLmkReason[] = R"_d3l1m1t3r_(--
 -- limitations under the License.
 --
 
+INCLUDE PERFETTO MODULE android.memory.lmk;
+
 SELECT RUN_METRIC('android/android_ion.sql');
-SELECT RUN_METRIC('android/android_lmk.sql');
 SELECT RUN_METRIC('android/process_mem.sql');
 SELECT RUN_METRIC('android/process_metadata.sql');
 
@@ -4201,7 +4011,7 @@ oom_score_at_lmk_time AS (
     lmk_events.ts,
     oom_score_span.upid,
     oom_score_val
-  FROM lmk_events
+  FROM android_lmk_events lmk_events
   JOIN oom_score_span ON (
     lmk_events.ts
     BETWEEN oom_score_span.ts
@@ -4211,7 +4021,7 @@ ion_at_lmk_time AS (
   SELECT
     lmk_events.ts,
     CAST(ion_timeline.value AS INT) AS ion_size
-  FROM lmk_events
+  FROM android_lmk_events lmk_events
   JOIN ion_timeline ON (
     lmk_events.ts
     BETWEEN ion_timeline.ts
@@ -4227,16 +4037,16 @@ lmk_process_sizes AS (
     shmem_rss_val,
     swap_val,
     rss_and_swap_val
-  FROM lmk_events
+  FROM android_lmk_events lmk_events
   JOIN rss_and_swap_span
   WHERE lmk_events.ts
   BETWEEN rss_and_swap_span.ts
   AND rss_and_swap_span.ts + MAX(rss_and_swap_span.dur - 1, 0)
-),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(),
 lmk_process_sizes_output AS (
   SELECT ts, RepeatedField(AndroidLmkReasonMetric_Process(
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(    'process', metadata,
+    'process', metadata,
     'oom_score_adj', oom_score_val,
     'size', rss_and_swap_val,
     'file_rss_bytes', file_rss_val,
@@ -4257,7 +4067,7 @@ SELECT AndroidLmkReasonMetric(
       'ion_heaps_bytes', ion_size,
       'processes', processes
       ))
-    FROM lmk_events
+    FROM android_lmk_events
     LEFT JOIN oom_score_at_lmk_time USING (ts, upid)
     LEFT JOIN ion_at_lmk_time USING (ts)
     LEFT JOIN lmk_process_sizes_output USING (ts)
@@ -7148,13 +6958,29 @@ SELECT CASE WHEN COUNT(name) > 0 THEN 1 ELSE 0 END AS logs_found
 FROM counters
 WHERE name = 'SAME_FRAME' AND value = 0;
 
-DROP VIEW IF EXISTS dpu_underrun;
+DROP VIEW IF EXISTS dpu_underrun_detail;
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(CREATE PERFETTO VIEW dpu_underrun AS
-SELECT COUNT(name) AS total_dpu_underrun_count
+R"_d3l1m1t3r_(CREATE PERFETTO VIEW dpu_underrun_detail AS
+SELECT *
+FROM (
+  SELECT track.name, COUNT(*) AS dpu_underrun_count
+  FROM slices
+  JOIN track ON track.id = slices.track_id
+  WHERE slices.name = "disp_dpu_underrun"
+  GROUP BY track.name
+);
+
+DROP VIEW IF EXISTS dpu_underrun;
+CREATE PERFETTO VIEW dpu_underrun AS
+SELECT COUNT(name) AS total_dpu_underrun_count, 'old' AS source
 FROM counters
 WHERE name = 'DPU_UNDERRUN'
-  AND value = 1;
+  AND value = 1
+UNION ALL
+  SELECT SUM(dpu_underrun_count) AS total_dpu_underrun_count, 'new' as source
+  FROM dpu_underrun_detail
+
+;
 
 DROP VIEW IF EXISTS non_repeated_panel_fps;
 CREATE PERFETTO VIEW non_repeated_panel_fps AS
@@ -7177,7 +7003,8 @@ SELECT *
 FROM (
   SELECT
     ts,
-    value,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    value,
     LEAD(ts) OVER (PARTITION BY track_id ORDER BY ts) - ts AS dur
   FROM non_repeated_panel_fps
   ORDER BY ts
@@ -7192,15 +7019,29 @@ FROM slice
 WHERE slice.name = 'DisplayPowerController#updatePowerState' AND slice.dur >= 0;
 
 DROP VIEW IF EXISTS display_metrics_output;
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(CREATE PERFETTO VIEW display_metrics_output AS
+CREATE PERFETTO VIEW display_metrics_output AS
 SELECT AndroidDisplayMetrics(
   'total_duplicate_frames', (SELECT total_duplicate_frames
     FROM same_frame),
   'duplicate_frames_logged', (SELECT logs_found
     FROM duplicate_frames_logged),
-  'total_dpu_underrun_count', (SELECT total_dpu_underrun_count
-    FROM dpu_underrun),
+  'dpu_state', (
+    SELECT AndroidDisplayMetrics_DpuState(
+      'total_dpu_underrun_count', (SELECT MAX(total_dpu_underrun_count)
+        FROM dpu_underrun),
+      'dpu_underrun_detail', (
+        SELECT RepeatedField(metric)
+        FROM (
+          SELECT AndroidDisplayMetrics_DpuUnderrunDetail (
+            'name', name,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(            'dpu_underrun_count', dpu_underrun_count
+          ) AS metric
+          FROM dpu_underrun_detail
+        )
+      )
+    )
+  ),
   'refresh_rate_switches', (SELECT COUNT(*) FROM panel_fps_spans),
   'refresh_rate_stats', (
     SELECT RepeatedField(metric)
@@ -7605,7 +7446,7 @@ R"_d3l1m1t3r_(SELECT
   IFNULL(cuj.begin_vsync, MIN(vsync)) AS vsync_min,
   IFNULL(cuj.end_vsync, MAX(vsync)) AS vsync_max
 FROM android_jank_cuj cuj
-JOIN android_jank_cuj_do_frame_slice USING (cuj_id)
+JOIN _android_jank_cuj_do_frames USING (cuj_id)
 GROUP BY cuj.cuj_id, cuj.upid, cuj.layer_id;
 
 -- Similarly, extract the min/max vsync for the SF from
@@ -7664,7 +7505,7 @@ R"_d3l1m1t3r_(    e.ts AS ts_expected,
   GROUP BY cuj_id, e.vsync, e.ts
 ),
 -- Orders do_frame slices by vsync to calculate the ts_end of the previous frame
--- android_jank_cuj_do_frame_slice only contains frames within the CUJ so
+-- _android_jank_cuj_do_frames only contains frames within the CUJ so
 -- the ts_prev_do_frame_end is always missing for the very first frame
 -- For now this is acceptable as it keeps the query simpler.
 do_frame_ordered AS (
@@ -7673,7 +7514,7 @@ do_frame_ordered AS (
     -- ts_end of the previous do_frame, or -1 if no previous do_frame found
 )_d3l1m1t3r_"
 R"_d3l1m1t3r_(    COALESCE(LAG(ts_end) OVER (PARTITION BY cuj_id ORDER BY vsync ASC), -1) AS ts_prev_do_frame_end
-  FROM android_jank_cuj_do_frame_slice
+  FROM _android_jank_cuj_do_frames
 ),
 -- introducing an intermediate table since we want to calculate dur = ts_end - ts
 frame_boundary_base AS (
@@ -7764,7 +7605,7 @@ frame_boundary_base AS (
       MIN(draw_frame.ts)) AS ts,
     MAX(draw_frame.ts_end) AS ts_end
   FROM draw_frame_ordered draw_frame
-  JOIN android_jank_cuj_do_frame_slice do_frame USING (cuj_id, vsync)
+  JOIN _android_jank_cuj_do_frames do_frame USING (cuj_id, vsync)
   JOIN descendant_slice(do_frame.id) post_and_wait
   WHERE post_and_wait.name = 'postAndWait'
   GROUP BY draw_frame.cuj_id, draw_frame.utid, draw_frame.vsync
@@ -7802,7 +7643,7 @@ WITH boundary_base AS (
         THEN MAX(timeline_slice.ts + timeline_slice.dur)
       ELSE (
         SELECT MAX(MAX(ts_end), cuj.ts_end)
-        FROM android_jank_cuj_do_frame_slice do_frame
+        FROM _android_jank_cuj_do_frames do_frame
         WHERE do_frame.cuj_id = cuj.cuj_id)
     END AS ts_end
   FROM android_jank_cuj_main_thread_cuj_boundary main_thread_boundary
@@ -7920,19 +7761,10 @@ const char kAndroidJankFrames[] = R"_d3l1m1t3r_(--
 -- limitations under the License.
 
 INCLUDE PERFETTO MODULE android.frames.jank_type;
-
-DROP TABLE IF EXISTS vsync_missed_callback;
-CREATE PERFETTO TABLE vsync_missed_callback AS
-SELECT CAST(STR_SPLIT(name, 'Callback#', 1) AS INTEGER) AS vsync,
-       MAX(name GLOB '*SF*') as sf_callback_missed,
-       MAX(name GLOB '*HWUI*') as hwui_callback_missed
-FROM slice
-WHERE name GLOB '*FT#Missed*Callback*'
-GROUP BY vsync;
+INCLUDE PERFETTO MODULE android.frames.timeline;
 
 DROP TABLE IF EXISTS android_jank_cuj_frame_timeline;
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(CREATE PERFETTO TABLE android_jank_cuj_frame_timeline AS
+CREATE PERFETTO TABLE android_jank_cuj_frame_timeline AS
 WITH actual_timeline_with_vsync AS (
   SELECT
     *,
@@ -7944,7 +7776,8 @@ SELECT
   cuj_id,
   vsync,
   -- We use MAX to check if at least one of the layers jank_type matches the pattern
-  MAX(android_is_app_jank_type(jank_type)) AS app_missed,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  MAX(android_is_app_jank_type(jank_type)) AS app_missed,
   -- We use MAX to check if at least one of the layers jank_type matches the pattern
   MAX(android_is_sf_jank_type(jank_type)) AS sf_missed,
   IFNULL(MAX(sf_callback_missed), 0) AS sf_callback_missed,
@@ -7956,19 +7789,19 @@ SELECT
   -- At the moment of writing we expect to see at most one expected_frame_timeline_slice
   -- for a given vsync but using MAX here in case this changes in the future.
   -- In case expected timeline is missing, as a fallback we use the typical frame deadline
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  -- for 60Hz.
+  -- for 60Hz.
   COALESCE(MAX(expected.dur), 16600000) AS dur_expected,
   COUNT(DISTINCT timeline.layer_name) as number_of_layers_for_frame,
   -- we use MAX to get at least one of the frame's layer names
   MAX(timeline.layer_name) as frame_layer_name
-FROM android_jank_cuj_vsync_boundary boundary
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(FROM android_jank_cuj_vsync_boundary boundary
 JOIN actual_timeline_with_vsync timeline
   ON vsync >= vsync_min
      AND vsync <= vsync_max
 LEFT JOIN expected_frame_timeline_slice expected
   ON expected.upid = timeline.upid AND expected.name = timeline.name
-LEFT JOIN vsync_missed_callback missed_callback USING(vsync)
+LEFT JOIN _vsync_missed_callback missed_callback USING(vsync)
 WHERE
   boundary.layer_id IS NULL
   OR (
@@ -7985,12 +7818,12 @@ SELECT
 FROM android_jank_cuj_frame_timeline timeline
 GROUP BY cuj_id
 -- Return only cujs where the max number of layers for all frames in the whole cuj equals 1,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(-- this is to infer the layer name if the cuj marker for layer id is not present
+-- this is to infer the layer name if the cuj marker for layer id is not present
 HAVING MAX(number_of_layers_for_frame) = 1;
 
 -- Matches slices and boundaries to compute estimated frame boundaries across
--- all threads. Joins with the actual timeline to figure out which frames missed
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(-- all threads. Joins with the actual timeline to figure out which frames missed
 -- the deadline and whether the app process or SF are at fault.
 DROP TABLE IF EXISTS android_jank_cuj_frame;
 CREATE PERFETTO TABLE android_jank_cuj_frame AS
@@ -8004,12 +7837,11 @@ WITH frame_base AS (
     boundary.ts_do_frame_start,
     COUNT(fence_idx) AS gpu_fence_count,
     COUNT(fence_idx) > 0 AS drew_anything
-  FROM android_jank_cuj_do_frame_slice do_frame
+  FROM _android_jank_cuj_do_frames do_frame
   JOIN android_jank_cuj_main_thread_frame_boundary boundary USING (cuj_id, vsync)
   JOIN android_jank_cuj_draw_frame_slice draw_frame USING (cuj_id, vsync)
   LEFT JOIN android_jank_cuj_gpu_completion_fence fence USING (cuj_id, vsync)
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  WHERE draw_frame.id = fence.draw_frame_slice_id
+  WHERE draw_frame.id = fence.draw_frame_slice_id
   GROUP BY cuj_id, vsync, boundary.ts, boundary.ts_do_frame_start
 )
 SELECT
@@ -8017,7 +7849,8 @@ SELECT
   app_missed,
   sf_missed,
   sf_callback_missed,
-  hwui_callback_missed,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  hwui_callback_missed,
   on_time_finish,
   ts_end_actual - ts AS dur,
   ts_end_actual - ts_do_frame_start AS dur_unadjusted,
@@ -8038,14 +7871,14 @@ WITH android_jank_cuj_timeline_sf_frame AS (
       timeline.display_frame_token
     FROM android_jank_cuj_vsync_boundary boundary
     JOIN actual_frame_timeline_slice timeline
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ON
+      ON
         boundary.upid = timeline.upid
         AND CAST(timeline.name AS INTEGER) >= vsync_min
         AND CAST(timeline.name AS INTEGER) <= vsync_max
     WHERE
         boundary.layer_id IS NULL
-      OR (
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      OR (
         timeline.layer_name GLOB '*#*'
         AND boundary.layer_id = CAST(STR_SPLIT(timeline.layer_name, '#', 1) AS INTEGER))
 ),
@@ -8068,12 +7901,12 @@ android_jank_cuj_sf_frame_base AS (
       -- for 60Hz.
       -- See similar expression in android_jank_cuj_frame_timeline.
       COALESCE(expected_timeline.dur, 16600000) AS dur_expected
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(    FROM android_jank_cuj_sf_main_thread_frame_boundary boundary
+    FROM android_jank_cuj_sf_main_thread_frame_boundary boundary
     JOIN android_jank_cuj_sf_process sf_process
     JOIN actual_frame_timeline_slice actual_timeline
       ON actual_timeline.upid = sf_process.upid
-        AND boundary.vsync = CAST(actual_timeline.name AS INTEGER)
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(        AND boundary.vsync = CAST(actual_timeline.name AS INTEGER)
     JOIN android_jank_cuj_timeline_sf_frame ft
       ON CAST(actual_timeline.name AS INTEGER) = ft.display_frame_token
         AND boundary.cuj_id = ft.cuj_id
@@ -8103,78 +7936,16 @@ const char kAndroidJankInternalCounters[] = R"_d3l1m1t3r_(--
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
-
-DROP TABLE IF EXISTS android_jank_cuj_counter;
-CREATE PERFETTO TABLE android_jank_cuj_counter AS
-WITH cuj_counter_track AS (
-  SELECT DISTINCT
-    upid,
-    track.id AS track_id,
-    -- extract the CUJ name inside <>
-    STR_SPLIT(STR_SPLIT(track.name, '>#', 0), '<', 1) AS cuj_name,
-    -- take the name of the counter after #
-    STR_SPLIT(track.name, '#', 1) AS counter_name
-  FROM process_counter_track track
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  JOIN android_jank_cuj USING (upid)
-  WHERE track.name GLOB 'J<*>#*'
-)
-SELECT
-  ts,
-  upid,
-  cuj_name,
-  counter_name,
-  CAST(value AS INTEGER) AS value
-FROM counter
-JOIN cuj_counter_track ON counter.track_id = cuj_counter_track.track_id;
-
-CREATE OR REPLACE PERFETTO FUNCTION android_jank_cuj_counter_value(cuj_name STRING,
-                                                        counter_name STRING,
-                                                        ts_min INT,
-                                                        ts_max INT)
-RETURNS INT AS
-SELECT value
-FROM android_jank_cuj_counter
-WHERE
-  cuj_name = $cuj_name
-  AND counter_name = $counter_name
-  AND ts >= $ts_min
-  AND ($ts_max IS NULL OR ts <= $ts_max)
-ORDER BY ts ASC LIMIT 1;
-
-DROP TABLE IF EXISTS cuj_marker_missed_callback;
-CREATE PERFETTO TABLE cuj_marker_missed_callback AS
-SELECT
-  marker_track.name AS cuj_slice_name,
-  marker.ts,
-  marker.name AS marker_name
-FROM slice marker
-JOIN track marker_track on  marker_track.id = marker.track_id
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(WHERE marker.name GLOB '*FT#Missed*';
-
-CREATE OR REPLACE PERFETTO FUNCTION android_missed_vsyncs_for_callback(
-  cuj_slice_name STRING,
-  ts_min INT,
-  ts_max INT,
-  callback_missed STRING
-)
-RETURNS INT AS
-SELECT IFNULL(SUM(marker_name GLOB $callback_missed), 0)
-FROM cuj_marker_missed_callback
-WHERE
-  cuj_slice_name = $cuj_slice_name
-  AND ts >= $ts_min
-  AND ($ts_max IS NULL OR ts <= $ts_max)
-ORDER BY ts ASC
-LIMIT 1;
+INCLUDE PERFETTO MODULE android.cujs.sysui_cuj_counters;
+INCLUDE PERFETTO MODULE android.cujs.sysui_cujs;
 
 DROP TABLE IF EXISTS android_jank_cuj_counter_metrics;
 CREATE PERFETTO TABLE android_jank_cuj_counter_metrics AS
 -- Order CUJs to get the ts of the next CUJ with the same name.
 -- This is to avoid selecting counters logged for the next CUJ in case multiple
 -- CUJs happened in a short succession.
-WITH cujs_ordered AS (
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(WITH cujs_ordered AS (
   SELECT
     cuj_id,
     cuj_name,
@@ -8186,27 +7957,26 @@ WITH cujs_ordered AS (
       WHEN process_name GLOB 'com.android.*' THEN ts_end
       WHEN process_name = 'com.google.android.apps.nexuslauncher' THEN ts_end
       -- Some processes publish counters just before logging the CUJ end
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ELSE MAX(ts, ts_end - 4000000)
+      ELSE MAX(ts, ts_end - 4000000)
     END AS ts_earliest_allowed_counter,
     LEAD(ts_end) OVER (PARTITION BY cuj_name ORDER BY ts_end ASC) AS ts_end_next_cuj
-  FROM android_jank_cuj
+  FROM android_sysui_jank_cujs
 )
 SELECT
   cuj_id,
   cuj_name,
   upid,
   state,
-  android_jank_cuj_counter_value(cuj_name, 'totalFrames', ts_earliest_allowed_counter, ts_end_next_cuj) AS total_frames,
-  android_jank_cuj_counter_value(cuj_name, 'missedFrames', ts_earliest_allowed_counter, ts_end_next_cuj) AS missed_frames,
-  android_jank_cuj_counter_value(cuj_name, 'missedAppFrames', ts_earliest_allowed_counter, ts_end_next_cuj) AS missed_app_frames,
-  android_jank_cuj_counter_value(cuj_name, 'missedSfFrames', ts_earliest_allowed_counter, ts_end_next_cuj) AS missed_sf_frames,
-  android_jank_cuj_counter_value(cuj_name, 'maxSuccessiveMissedFrames', ts_earliest_allowed_counter, ts_end_next_cuj) AS missed_frames_max_successive,
-  -- convert ms to nanos to align with the unit for `dur` in the other tables
-  android_jank_cuj_counter_value(cuj_name, 'maxFrameTimeMillis', ts_earliest_allowed_counter, ts_end_next_cuj) * 1000000 AS frame_dur_max,
+  _android_jank_cuj_counter_value(cuj_name, 'totalFrames', ts_earliest_allowed_counter, ts_end_next_cuj) AS total_frames,
+  _android_jank_cuj_counter_value(cuj_name, 'missedFrames', ts_earliest_allowed_counter, ts_end_next_cuj) AS missed_frames,
+  _android_jank_cuj_counter_value(cuj_name, 'missedAppFrames', ts_earliest_allowed_counter, ts_end_next_cuj) AS missed_app_frames,
+  _android_jank_cuj_counter_value(cuj_name, 'missedSfFrames', ts_earliest_allowed_counter, ts_end_next_cuj) AS missed_sf_frames,
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(  android_missed_vsyncs_for_callback(cuj_slice_name, ts_earliest_allowed_counter, ts_end_next_cuj, '*SF*') AS sf_callback_missed_frames,
-  android_missed_vsyncs_for_callback(cuj_slice_name, ts_earliest_allowed_counter, ts_end_next_cuj, '*HWUI*') AS hwui_callback_missed_frames
+R"_d3l1m1t3r_(  _android_jank_cuj_counter_value(cuj_name, 'maxSuccessiveMissedFrames', ts_earliest_allowed_counter, ts_end_next_cuj) AS missed_frames_max_successive,
+  -- convert ms to nanos to align with the unit for `dur` in the other tables
+  _android_jank_cuj_counter_value(cuj_name, 'maxFrameTimeMillis', ts_earliest_allowed_counter, ts_end_next_cuj) * 1000000 AS frame_dur_max,
+  _android_cuj_missed_vsyncs_for_callback(cuj_slice_name, ts_earliest_allowed_counter, ts_end_next_cuj, '*SF*') AS sf_callback_missed_frames,
+  _android_cuj_missed_vsyncs_for_callback(cuj_slice_name, ts_earliest_allowed_counter, ts_end_next_cuj, '*HWUI*') AS hwui_callback_missed_frames
 FROM cujs_ordered cuj;
 
 )_d3l1m1t3r_"
@@ -8442,52 +8212,6 @@ GROUP BY cuj_id, frame_number, vsync, dur_expected, app_missed, sf_missed;
 )_d3l1m1t3r_"
 ;
 
-const char kAndroidJankParams[] = R"_d3l1m1t3r_(--
--- Copyright 2024 The Android Open Source Project
---
--- Licensed under the Apache License, Version 2.0 (the "License");
--- you may not use this file except in compliance with the License.
--- You may obtain a copy of the License at
---
---     https://www.apache.org/licenses/LICENSE-2.0
---
--- Unless required by applicable law or agreed to in writing, software
--- distributed under the License is distributed on an "AS IS" BASIS,
--- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
--- See the License for the specific language governing permissions and
--- limitations under the License.
-
--- (Deprecated) Table to store parameters that will be matched with CUJs using
--- the CUJ name.
---
--- Note that this list should not be used anymore: in recent android versions
--- each CUJ reports an instant event on their ui thread that can be used to
--- automatically find the thread id.
--- This is kept for compatibility with old android versions, as a fallback only.
--- TODO: b/358038927 - Remove this list in 2025
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(DROP TABLE IF EXISTS android_jank_cuj_param_set;
-CREATE TABLE android_jank_cuj_param_set (cuj_name_glob STRING, main_thread_override STRING);
-INSERT INTO android_jank_cuj_param_set (cuj_name_glob, main_thread_override)
-VALUES
-('SPLASHSCREEN_EXIT_ANIM', 'll.splashscreen'),
-('SPLASHSCREEN_AVD', 'll.splashscreen'),
-('ONE_HANDED_ENTER_TRANSITION::*', 'wmshell.main'),
-('ONE_HANDED_EXIT_TRANSITION::*', 'wmshell.main'),
-('PIP_TRANSITION::*', 'wmshell.main'),
-('BACK_PANEL_ARROW', 'BackPanelUiThre');
-
-
--- Matches each CUJ with the right set of parameters.
-DROP TABLE IF EXISTS android_jank_cuj_param;
-CREATE PERFETTO TABLE android_jank_cuj_param AS
-SELECT cuj_id, main_thread_override
-FROM android_jank_cuj
-LEFT JOIN android_jank_cuj_param_set ON cuj_name GLOB cuj_name_glob;
-
-)_d3l1m1t3r_"
-;
-
 const char kAndroidJankQueryFunctions[] = R"_d3l1m1t3r_(--
 -- Copyright 2022 The Android Open Source Project
 --
@@ -8588,6 +8312,9 @@ const char kAndroidJankRelevantSlices[] = R"_d3l1m1t3r_(--
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+INCLUDE PERFETTO MODULE android.cujs.sysui_cujs;
+INCLUDE PERFETTO MODULE android.surfaceflinger;
+
 CREATE OR REPLACE PERFETTO FUNCTION vsync_from_name(slice_name STRING)
 RETURNS STRING AS
 SELECT CAST(STR_SPLIT($slice_name, " ", 1) AS INTEGER);
@@ -8598,11 +8325,11 @@ SELECT
   CASE
     WHEN
       $slice_name GLOB "GPU completion fence *"
-    THEN
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    THEN
       CAST(STR_SPLIT($slice_name, " ", 3) AS INTEGER)
     WHEN
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      $slice_name GLOB "Trace GPU completion fence *"
+      $slice_name GLOB "Trace GPU completion fence *"
     THEN
       CAST(STR_SPLIT($slice_name, " ", 4) AS INTEGER)
     WHEN
@@ -8631,10 +8358,10 @@ SELECT
   main_thread.utid,
   slice.*,
   slice.ts + slice.dur AS ts_end,
-  vsync_from_name(slice.name) AS vsync
-FROM android_jank_cuj cuj
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(JOIN slice
+R"_d3l1m1t3r_(  vsync_from_name(slice.name) AS vsync
+FROM android_jank_cuj cuj
+JOIN slice
   ON slice.ts + slice.dur >= cuj.ts AND slice.ts <= cuj.ts_end
 JOIN android_jank_cuj_main_thread main_thread
   ON cuj.cuj_id = main_thread.cuj_id
@@ -8659,9 +8386,9 @@ WHERE
 
 -- Store render thread DrawFrames by matching in the vsync IDs extracted from
 -- doFrame slices. In case of multiple layers being drawn, there might be
--- multiple DrawFrames for a single vsync.
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(DROP TABLE IF EXISTS android_jank_cuj_draw_frame_slice;
+R"_d3l1m1t3r_(-- multiple DrawFrames for a single vsync.
+DROP TABLE IF EXISTS android_jank_cuj_draw_frame_slice;
 CREATE PERFETTO TABLE android_jank_cuj_draw_frame_slice AS
 SELECT
   cuj_id,
@@ -8670,7 +8397,7 @@ SELECT
   slice.*,
   slice.ts + slice.dur AS ts_end,
   vsync_from_name(slice.name) AS vsync
-FROM android_jank_cuj_do_frame_slice do_frame
+FROM _android_jank_cuj_do_frames do_frame
 JOIN android_jank_cuj_render_thread render_thread USING (cuj_id)
 JOIN slice
   ON slice.track_id = render_thread.track_id
@@ -8688,9 +8415,9 @@ SELECT
   draw_frame.id AS draw_frame_slice_id,
   gpu_completion_fence_id_from_name(fence.name) AS fence_idx
 FROM android_jank_cuj_draw_frame_slice draw_frame
-JOIN descendant_slice(draw_frame.id) fence
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(  ON fence.name GLOB '*GPU completion fence*';
+R"_d3l1m1t3r_(JOIN descendant_slice(draw_frame.id) fence
+  ON fence.name GLOB '*GPU completion fence*';
 
 -- Similarly find descendants of DrawFrames which have the HWC release fence ID
 DROP TABLE IF EXISTS android_jank_cuj_hwc_release_fence;
@@ -8745,43 +8472,16 @@ WHERE
   slice.name GLOB 'waiting for GPU completion *'
   AND slice.dur > 0;
 
--- Match the frame timeline on the app side with the frame timeline on the SF side.
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(-- This way we get the vsyncs IDs of SF frames within the CUJ.
--- Note that there might be multiple SF vsync IDs that match a single App vsync ID, e.g.
--- if one App layer produced a frame later and it was picked up by the next SF frame.
-DROP TABLE IF EXISTS android_jank_cuj_app_to_sf_match;
-CREATE PERFETTO TABLE android_jank_cuj_app_to_sf_match AS
-SELECT
-  cuj_id,
-  do_frame.upid AS app_upid,
-  do_frame.vsync AS app_vsync,
-  sf_process.upid AS sf_upid,
-  CAST(sf_timeline.name AS INTEGER) AS sf_vsync
-FROM android_jank_cuj_do_frame_slice do_frame
-JOIN actual_frame_timeline_slice app_timeline
-  ON do_frame.upid = app_timeline.upid
-    AND do_frame.vsync = CAST(app_timeline.name AS INTEGER)
-JOIN directly_connected_flow(app_timeline.id) flow
-  ON flow.slice_out = app_timeline.id
-JOIN actual_frame_timeline_slice sf_timeline
-  ON flow.slice_in = sf_timeline.id
-JOIN android_jank_cuj_sf_process sf_process
-  ON sf_timeline.upid = sf_process.upid
--- In cases where there are multiple layers drawn we would have separate frame timeline
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(-- slice for each of the layers. GROUP BY to deduplicate these rows.
-GROUP BY cuj_id, app_upid, app_vsync, sf_upid, sf_vsync;
-
 CREATE OR REPLACE PERFETTO FUNCTION find_android_jank_cuj_sf_main_thread_slice(
-  slice_name_glob STRING)
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  slice_name_glob STRING)
 RETURNS TABLE(
   cuj_id INT, utid INT, vsync INT, id INT,
   name STRING, ts LONG, dur LONG, ts_end LONG)
 AS
 WITH sf_vsync AS (
   SELECT DISTINCT cuj_id, sf_vsync AS vsync
-  FROM android_jank_cuj_app_to_sf_match)
+  FROM _android_jank_cuj_app_sf_frame_timeline_match)
 SELECT
   cuj_id,
   utid,
@@ -8792,7 +8492,7 @@ SELECT
   slice.dur,
   slice.ts + slice.dur AS ts_end
 FROM slice
-JOIN android_jank_cuj_sf_main_thread main_thread USING (track_id)
+JOIN _android_sf_main_thread main_thread USING (track_id)
 JOIN sf_vsync
   ON vsync_from_name(slice.name) = sf_vsync.vsync
 WHERE slice.name GLOB $slice_name_glob AND slice.dur > 0
@@ -8803,12 +8503,12 @@ CREATE PERFETTO TABLE android_jank_cuj_sf_commit_slice AS
 SELECT * FROM FIND_ANDROID_JANK_CUJ_SF_MAIN_THREAD_SLICE('commit *');
 
 DROP TABLE IF EXISTS android_jank_cuj_sf_composite_slice;
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(CREATE PERFETTO TABLE android_jank_cuj_sf_composite_slice AS
+CREATE PERFETTO TABLE android_jank_cuj_sf_composite_slice AS
 SELECT * FROM FIND_ANDROID_JANK_CUJ_SF_MAIN_THREAD_SLICE('composite *');
 
 -- Older builds do not have the commit/composite but onMessageInvalidate instead
-DROP TABLE IF EXISTS android_jank_cuj_sf_on_message_invalidate_slice;
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(DROP TABLE IF EXISTS android_jank_cuj_sf_on_message_invalidate_slice;
 CREATE PERFETTO TABLE android_jank_cuj_sf_on_message_invalidate_slice AS
 SELECT * FROM FIND_ANDROID_JANK_CUJ_SF_MAIN_THREAD_SLICE('onMessageInvalidate *');
 
@@ -8824,15 +8524,15 @@ SELECT * FROM android_jank_cuj_sf_on_message_invalidate_slice;
 -- is used for signaling that the GPU finished drawing.
 DROP TABLE IF EXISTS android_jank_cuj_sf_gpu_completion_fence;
 CREATE PERFETTO TABLE android_jank_cuj_sf_gpu_completion_fence AS
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(SELECT
+SELECT
   cuj_id,
   vsync,
   sf_root_slice.id AS sf_root_slice_id,
   gpu_completion_fence_id_from_name(fence.name) AS fence_idx
 FROM android_jank_cuj_sf_root_slice sf_root_slice
 JOIN descendant_slice(sf_root_slice.id) fence
-  ON fence.name GLOB '*GPU completion fence*';
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  ON fence.name GLOB '*GPU completion fence*';
 
 -- Find GPU completion slices which indicate when the GPU finished drawing.
 DROP TABLE IF EXISTS android_jank_cuj_sf_gpu_completion_slice;
@@ -8855,12 +8555,12 @@ WHERE
 
 -- Find REThreaded::drawLayers on RenderEngine thread.
 -- These will be only relevant if SF is doing client composition so we check if
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(-- the drawLayers slice is completely within the bounds of composeSurfaces on SF
+-- the drawLayers slice is completely within the bounds of composeSurfaces on SF
 -- main thread.
 DROP TABLE IF EXISTS android_jank_cuj_sf_draw_layers_slice;
 CREATE PERFETTO TABLE android_jank_cuj_sf_draw_layers_slice AS
-WITH compose_surfaces AS (
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(WITH compose_surfaces AS (
   SELECT
     cuj_id,
     vsync,
@@ -8885,8 +8585,7 @@ JOIN slice draw_layers
   ON draw_layers.track_id = re_thread.track_id
     AND draw_layers.ts >= compose_surfaces.ts
     AND draw_layers.ts + draw_layers.dur <= compose_surfaces.ts_end
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(WHERE
+WHERE
   draw_layers.name = 'REThreaded::drawLayers'
   AND draw_layers.dur > 0;
 
@@ -8908,33 +8607,9 @@ const char kAndroidJankRelevantThreads[] = R"_d3l1m1t3r_(--
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+INCLUDE PERFETTO MODULE android.frames.timeline;
+INCLUDE PERFETTO MODULE android.surfaceflinger;
 INCLUDE PERFETTO MODULE slices.with_context;
-
--- This is for backward compatibility only: From the table with main thread name
--- override (not needed anymore in new android versions), generates a table
--- containing the utid for the ui thread of each CUJ.
-DROP TABLE IF EXISTS android_jank_cuj_hardcoded_thread_names;
-CREATE PERFETTO TABLE android_jank_cuj_hardcoded_thread_names AS
-SELECT
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  cuj.cuj_id,
-  thread.utid as utid
-FROM thread
-  JOIN android_jank_cuj cuj USING (upid)
-  JOIN thread_track USING (utid)
-  JOIN android_jank_cuj_param p USING (cuj_id)
-WHERE p.main_thread_override = thread.name;
-
--- Uses both the deprecated android_jank_cuj_hardcoded_thread_names (for
--- compatibility reasons) and the instant events ui thread overrides.
--- Instant events for the UI thread always take precendence.
-DROP TABLE IF EXISTS android_jank_cuj_main_thread_overrides;
-CREATE PERFETTO TABLE android_jank_cuj_main_thread_overrides AS
-SELECT
-  cuj.cuj_id,
-  COALESCE(cuj.ui_thread, p.utid) AS main_thread_override
-FROM android_jank_cuj cuj
-  LEFT JOIN android_jank_cuj_hardcoded_thread_names p USING (cuj_id);
 
 DROP TABLE IF EXISTS android_jank_cuj_main_thread;
 CREATE PERFETTO TABLE android_jank_cuj_main_thread AS
@@ -8942,12 +8617,11 @@ SELECT cuj_id, cuj.upid, utid, thread.name, thread_track.id AS track_id
 FROM thread
 JOIN android_jank_cuj cuj USING (upid)
 JOIN thread_track USING (utid)
-JOIN android_jank_cuj_main_thread_overrides p USING (cuj_id)
 )_d3l1m1t3r_"
 R"_d3l1m1t3r_(WHERE
-  (p.main_thread_override IS NULL AND thread.is_main_thread)
+  (cuj.ui_thread IS NULL AND thread.is_main_thread)
   -- Some CUJs use a dedicated thread for Choreographer callbacks
-  OR (p.main_thread_override = thread.utid);
+  OR (cuj.ui_thread = thread.utid);
 
 CREATE OR REPLACE PERFETTO FUNCTION android_jank_cuj_app_thread(thread_name STRING)
 RETURNS TABLE(cuj_id INT, upid INT, utid INT, name STRING, track_id INT) AS
@@ -8972,40 +8646,32 @@ SELECT * FROM ANDROID_JANK_CUJ_APP_THREAD('GPU completion');
 
 DROP TABLE IF EXISTS android_jank_cuj_hwc_release_thread;
 CREATE PERFETTO TABLE android_jank_cuj_hwc_release_thread AS
+SELECT * FROM ANDROID_JANK_CUJ_APP_THREAD('HWC release');
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(SELECT * FROM ANDROID_JANK_CUJ_APP_THREAD('HWC release');
-
+R"_d3l1m1t3r_(
 DROP TABLE IF EXISTS android_jank_cuj_sf_process;
 CREATE PERFETTO TABLE android_jank_cuj_sf_process AS
-SELECT * FROM process
-WHERE process.name = '/system/bin/surfaceflinger'
-LIMIT 1;
+SELECT * FROM _android_sf_process;
 
+-- TODO(devianb): Remove table once we migrate google3 pipelines away from using them.
 DROP TABLE IF EXISTS android_jank_cuj_sf_main_thread;
 CREATE PERFETTO TABLE android_jank_cuj_sf_main_thread AS
-SELECT upid, utid, thread.name, thread_track.id AS track_id
-FROM thread
-JOIN android_jank_cuj_sf_process sf_process USING (upid)
-JOIN thread_track USING (utid)
-WHERE thread.is_main_thread;
+SELECT * FROM _android_sf_main_thread;
 
+-- TODO(devianb): Removed function once we migrate google3 pipelines away from using them.
 CREATE OR REPLACE PERFETTO FUNCTION android_jank_cuj_sf_thread(thread_name STRING)
 RETURNS TABLE(upid INT, utid INT, name STRING, track_id INT) AS
-SELECT upid, utid, thread.name, thread_track.id AS track_id
-FROM thread
-JOIN android_jank_cuj_sf_process sf_process USING (upid)
-JOIN thread_track USING (utid)
-WHERE thread.name = $thread_name;
+SELECT * FROM _android_sf_thread($thread_name);
 
 DROP TABLE IF EXISTS android_jank_cuj_sf_gpu_completion_thread;
 CREATE PERFETTO TABLE android_jank_cuj_sf_gpu_completion_thread AS
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(SELECT * FROM ANDROID_JANK_CUJ_SF_THREAD('GPU completion');
+SELECT * FROM _ANDROID_SF_THREAD('GPU completion');
 
 DROP TABLE IF EXISTS android_jank_cuj_sf_render_engine_thread;
 CREATE PERFETTO TABLE android_jank_cuj_sf_render_engine_thread AS
-SELECT * FROM ANDROID_JANK_CUJ_SF_THREAD('RenderEngine');
-
+SELECT * FROM _ANDROID_SF_THREAD('RenderEngine');
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(
 )_d3l1m1t3r_"
 ;
 
@@ -9238,25 +8904,28 @@ const char kAndroidJavaHeapHistogram[] = R"_d3l1m1t3r_(--
 
 SELECT RUN_METRIC('android/process_metadata.sql');
 
+INCLUDE PERFETTO MODULE android.memory.heap_graph.class_relationship;
+
 DROP TABLE IF EXISTS android_special_classes;
 CREATE PERFETTO TABLE android_special_classes AS
-WITH RECURSIVE cls_visitor(cls_id, category) AS (
-  SELECT id, name FROM heap_graph_class WHERE name IN (
-    'android.view.View',
-    'android.app.Activity',
-    'android.app.Fragment',
-    'android.content.ContentProviderClient',
-    'android.os.Binder',
+WITH
+  special_classes(id) AS (
+    SELECT id
+    FROM heap_graph_class WHERE name IN (
+      'android.view.View',
+      'android.app.Activity',
+      'android.app.Fragment',
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(    'android.os.BinderProxy',
-    'android.os.Parcel',
-    'com.android.server.am.ConnectionRecord',
-    'com.android.server.am.PendingIntentRecord')
-  UNION ALL
-  SELECT child.id, parent.category
-  FROM heap_graph_class child JOIN cls_visitor parent ON parent.cls_id = child.superclass_id
-)
-SELECT * FROM cls_visitor;
+R"_d3l1m1t3r_(      'android.content.ContentProviderClient',
+      'android.os.Binder',
+      'android.os.BinderProxy',
+      'android.os.Parcel',
+      'com.android.server.am.ConnectionRecord',
+      'com.android.server.am.PendingIntentRecord')
+  )
+SELECT
+  id as cls_id, ancestor_class_name as category
+FROM android_heap_graph_class_find_descendants!(special_classes);
 
 DROP TABLE IF EXISTS heap_obj_histograms;
 CREATE PERFETTO TABLE heap_obj_histograms AS
@@ -9278,9 +8947,9 @@ DROP VIEW IF EXISTS java_heap_histogram_output;
 CREATE PERFETTO VIEW java_heap_histogram_output AS
 WITH
 -- Group by to build the repeated field by upid, ts
-heap_obj_histogram_count_protos AS (
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(  SELECT
+R"_d3l1m1t3r_(heap_obj_histogram_count_protos AS (
+  SELECT
     upid,
     graph_sample_ts,
     RepeatedField(JavaHeapHistogram_TypeCount(
@@ -9311,9 +8980,9 @@ heap_obj_histogram_sample_protos AS (
 )
 SELECT JavaHeapHistogram(
   'instance_stats', RepeatedField(JavaHeapHistogram_InstanceStats(
-    'upid', upid,
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(    'process', process_metadata.metadata,
+R"_d3l1m1t3r_(    'upid', upid,
+    'process', process_metadata.metadata,
     'samples', sample_protos
   )))
 FROM heap_obj_histogram_sample_protos JOIN process_metadata USING (upid);
@@ -15292,10 +14961,11 @@ R"_d3l1m1t3r_(SELECT AndroidWattsonTimePeriodMetric(
       AndroidWattsonEstimateInfo(
         'period_id', period_id,
         'period_dur', period_dur,
-        'cpu_subsystem', proto
+        'cpu_subsystem', cpu_proto,
+        'gpu_subsystem', gpu_proto
       )
     )
-    FROM _estimate_cpu_subsystem_sum
+    FROM _estimate_subsystems_sum
   )
 );
 
@@ -15318,8 +14988,8 @@ const char kAndroidWattsonAppStartupThreads[] = R"_d3l1m1t3r_(
 -- limitations under the License.
 
 INCLUDE PERFETTO MODULE android.startup.startups;
-INCLUDE PERFETTO MODULE wattson.curves.estimates;
-INCLUDE PERFETTO MODULE viz.summary.threads_w_processes;
+INCLUDE PERFETTO MODULE wattson.estimates;
+INCLUDE PERFETTO MODULE wattson.tasks.task_slices;
 
 DROP VIEW IF EXISTS _app_startup_window;
 CREATE PERFETTO VIEW _app_startup_window AS
@@ -15332,9 +15002,9 @@ FROM android_startups;
 SELECT RUN_METRIC(
   'android/wattson_tasks_attribution.sql',
   'window_table',
+  '_app_startup_window'
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(  '_app_startup_window'
-);
+R"_d3l1m1t3r_();
 
 DROP VIEW IF EXISTS wattson_app_startup_threads_output;
 CREATE PERFETTO VIEW wattson_app_startup_threads_output AS
@@ -15370,7 +15040,7 @@ const char kAndroidWattsonAtraceAppsRails[] = R"_d3l1m1t3r_(
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE wattson.curves.estimates;
+INCLUDE PERFETTO MODULE wattson.estimates;
 
 -- Create the base table (`android_jank_cuj`) containing all completed CUJs
 -- found in the trace.
@@ -15401,10 +15071,11 @@ SELECT AndroidWattsonTimePeriodMetric(
         'period_id', period_id,
         'period_name', cuj_name,
         'period_dur', period_dur,
-        'cpu_subsystem', proto
+        'cpu_subsystem', cpu_proto,
+        'gpu_subsystem', gpu_proto
       )
     )
-    FROM _estimate_cpu_subsystem_sum AS est
+    FROM _estimate_subsystems_sum AS est
     JOIN android_jank_cuj AS cuj ON cuj.cuj_id = est.period_id
   )
 );
@@ -15428,8 +15099,8 @@ const char kAndroidWattsonAtraceAppsThreads[] = R"_d3l1m1t3r_(
 -- limitations under the License.
 
 INCLUDE PERFETTO MODULE android.startup.startups;
-INCLUDE PERFETTO MODULE wattson.curves.estimates;
-INCLUDE PERFETTO MODULE viz.summary.threads_w_processes;
+INCLUDE PERFETTO MODULE wattson.estimates;
+INCLUDE PERFETTO MODULE wattson.tasks.task_slices;
 
 -- Create the base table (`android_jank_cuj`) containing all completed CUJs
 -- found in the trace.
@@ -15438,10 +15109,10 @@ SELECT RUN_METRIC('android/jank/cujs.sql');
 DROP VIEW IF EXISTS _atrace_apps_window;
 CREATE PERFETTO VIEW _atrace_apps_window AS
 SELECT
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  ts,
+  ts,
   dur,
-  cuj_id as period_id
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  cuj_id as period_id
 FROM android_jank_cuj;
 
 SELECT RUN_METRIC(
@@ -15486,23 +15157,24 @@ const char kAndroidWattsonMarkersRails[] = R"_d3l1m1t3r_(
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE wattson.curves.estimates;
+INCLUDE PERFETTO MODULE wattson.estimates;
+INCLUDE PERFETTO MODULE wattson.utils;
 
 DROP VIEW IF EXISTS _wattson_period_windows;
 CREATE PERFETTO VIEW _wattson_period_windows AS
 SELECT
   -- Requirement is there is exactly one pair of start/stop
-  (SELECT ts FROM slice WHERE name == 'wattson_start') as ts,
-  (SELECT ts FROM slice WHERE name == 'wattson_stop')
-  - (SELECT ts FROM slice WHERE name == 'wattson_start') as dur,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  1 as period_id;
+  ts,
+  dur,
+  1 as period_id
+FROM _wattson_markers_window;
 
 SELECT RUN_METRIC(
   'android/wattson_rail_relations.sql',
   'window_table',
   '_wattson_period_windows'
-);
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_();
 
 DROP VIEW IF EXISTS wattson_markers_rails_output;
 CREATE PERFETTO VIEW wattson_markers_rails_output AS
@@ -15514,10 +15186,11 @@ SELECT AndroidWattsonTimePeriodMetric(
       AndroidWattsonEstimateInfo(
         'period_id', period_id,
         'period_dur', period_dur,
-        'cpu_subsystem', proto
+        'cpu_subsystem', cpu_proto,
+        'gpu_subsystem', gpu_proto
       )
     )
-    FROM _estimate_cpu_subsystem_sum
+    FROM _estimate_subsystems_sum
   )
 );
 
@@ -15539,22 +15212,23 @@ const char kAndroidWattsonMarkersThreads[] = R"_d3l1m1t3r_(
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE wattson.curves.estimates;
-INCLUDE PERFETTO MODULE viz.summary.threads_w_processes;
+INCLUDE PERFETTO MODULE wattson.estimates;
+INCLUDE PERFETTO MODULE wattson.tasks.task_slices;
+INCLUDE PERFETTO MODULE wattson.utils;
 
 DROP VIEW IF EXISTS _wattson_period_window;
 CREATE PERFETTO VIEW _wattson_period_window AS
 SELECT
   -- Requirement is there is exactly one pair of start/stop
-  (SELECT ts FROM slice WHERE name == 'wattson_start') as ts,
-  (SELECT ts FROM slice WHERE name == 'wattson_stop')
-  - (SELECT ts FROM slice WHERE name == 'wattson_start') as dur,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  1 as period_id;
+  ts,
+  dur,
+  1 as period_id
+FROM _wattson_markers_window;
 
 SELECT RUN_METRIC(
   'android/wattson_tasks_attribution.sql',
-  'window_table',
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  'window_table',
   '_wattson_period_window'
 );
 
@@ -15595,13 +15269,14 @@ const char kAndroidWattsonRailRelations[] = R"_d3l1m1t3r_(
 -- This file established the tables that define the relationships between rails
 -- and subrails as well as the hierarchical power estimates of each rail
 
-INCLUDE PERFETTO MODULE wattson.curves.estimates;
+INCLUDE PERFETTO MODULE wattson.estimates;
+INCLUDE PERFETTO MODULE wattson.utils;
 
 -- The most basic rail components that form the "building blocks" from which all
 -- other rails and components are derived. Average power over the entire trace
--- for each of these rail components.
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(DROP VIEW IF EXISTS _wattson_base_components_avg_mw;
+R"_d3l1m1t3r_(-- for each of these rail components.
+DROP VIEW IF EXISTS _wattson_base_components_avg_mw;
 CREATE PERFETTO VIEW _wattson_base_components_avg_mw AS
 SELECT
   (SELECT m.policy FROM _dev_cpu_policy_map AS m WHERE m.cpu = 0) as cpu0_poli,
@@ -15616,15 +15291,16 @@ SELECT
   SUM(ii.dur * ss.cpu0_mw) / SUM(ii.dur) as cpu0_mw,
   SUM(ii.dur * ss.cpu1_mw) / SUM(ii.dur) as cpu1_mw,
   SUM(ii.dur * ss.cpu2_mw) / SUM(ii.dur) as cpu2_mw,
-  SUM(ii.dur * ss.cpu3_mw) / SUM(ii.dur) as cpu3_mw,
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(  SUM(ii.dur * ss.cpu4_mw) / SUM(ii.dur) as cpu4_mw,
+R"_d3l1m1t3r_(  SUM(ii.dur * ss.cpu3_mw) / SUM(ii.dur) as cpu3_mw,
+  SUM(ii.dur * ss.cpu4_mw) / SUM(ii.dur) as cpu4_mw,
   SUM(ii.dur * ss.cpu5_mw) / SUM(ii.dur) as cpu5_mw,
   SUM(ii.dur * ss.cpu6_mw) / SUM(ii.dur) as cpu6_mw,
   SUM(ii.dur * ss.cpu7_mw) / SUM(ii.dur) as cpu7_mw,
   SUM(ii.dur * ss.dsu_scu_mw) / SUM(ii.dur) as dsu_scu_mw,
+  SUM(ii.dur * ss.gpu_mw) / SUM(ii.dur) as gpu_mw,
   SUM(ii.dur) as period_dur,
-  w.period_id
+  ii.id_0 as period_id
 FROM _interval_intersect!(
   (
     (SELECT period_id AS id, * FROM {{window_table}}),
@@ -15632,9 +15308,8 @@ FROM _interval_intersect!(
   ),
   ()
 ) ii
-JOIN {{window_table}} AS w ON w.period_id = id_0
 JOIN _system_state_mw AS ss ON ss._auto_id = id_1
-GROUP BY w.period_id;
+GROUP BY period_id;
 
 -- Macro that filters out CPUs that are unrelated to the policy of the table
 -- passed in, and does some bookkeeping to put data in expected format
@@ -15647,9 +15322,9 @@ RETURNS TableOrSubquery AS
       *,
       COALESCE(
         cpu0_mw, cpu1_mw, cpu2_mw, cpu3_mw, cpu4_mw, cpu5_mw, cpu6_mw, cpu7_mw
-      ) IS NOT NULL as is_defined,
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(      (
+R"_d3l1m1t3r_(      ) IS NOT NULL as is_defined,
+      (
         IFNULL(cpu0_mw, 0) + IFNULL(cpu1_mw, 0) + IFNULL(cpu2_mw, 0)
          + IFNULL(cpu3_mw, 0) + IFNULL(cpu4_mw, 0) + IFNULL(cpu5_mw, 0)
          + IFNULL(cpu6_mw, 0) + IFNULL(cpu7_mw, 0)
@@ -15681,9 +15356,9 @@ R"_d3l1m1t3r_(      (
         cpu1_mw,
         AndroidWattsonCpuEstimate(
           'estimated_mw', cpu1_mw,
-          'estimated_mws', cpu1_mw * period_dur / 1e9
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(        ),
+R"_d3l1m1t3r_(          'estimated_mws', cpu1_mw * period_dur / 1e9
+        ),
         NULL
       ),
       'cpu2', IIF(
@@ -15723,12 +15398,12 @@ R"_d3l1m1t3r_(        ),
         AndroidWattsonCpuEstimate(
           'estimated_mw', cpu6_mw,
           'estimated_mws', cpu6_mw * period_dur / 1e9
-        ),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(        ),
         NULL
       ),
       'cpu7', IIF(
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(        cpu7_mw,
+        cpu7_mw,
         AndroidWattsonCpuEstimate(
           'estimated_mw', cpu7_mw,
           'estimated_mws', cpu7_mw * period_dur / 1e9
@@ -15758,12 +15433,12 @@ SELECT * FROM _get_valid_cpu_mw!(
       IIF(cpu7_poli = 0, cpu7_mw, NULL) as cpu7_mw
     FROM _wattson_base_components_avg_mw
     GROUP BY period_id, period_dur
-  )
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  )
 );
 
 DROP VIEW IF EXISTS _estimate_policy1_proto;
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(CREATE PERFETTO VIEW _estimate_policy1_proto AS
+CREATE PERFETTO VIEW _estimate_policy1_proto AS
 SELECT * FROM _get_valid_cpu_mw!(
   (
     SELECT
@@ -15792,9 +15467,9 @@ SELECT * FROM _get_valid_cpu_mw!(
       IIF(cpu0_poli = 2, cpu0_mw, NULL) as cpu0_mw,
       IIF(cpu1_poli = 2, cpu1_mw, NULL) as cpu1_mw,
       IIF(cpu2_poli = 2, cpu2_mw, NULL) as cpu2_mw,
-      IIF(cpu3_poli = 2, cpu3_mw, NULL) as cpu3_mw,
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(      IIF(cpu4_poli = 2, cpu4_mw, NULL) as cpu4_mw,
+R"_d3l1m1t3r_(      IIF(cpu3_poli = 2, cpu3_mw, NULL) as cpu3_mw,
+      IIF(cpu4_poli = 2, cpu4_mw, NULL) as cpu4_mw,
       IIF(cpu5_poli = 2, cpu5_mw, NULL) as cpu5_mw,
       IIF(cpu6_poli = 2, cpu6_mw, NULL) as cpu6_mw,
       IIF(cpu7_poli = 2, cpu7_mw, NULL) as cpu7_mw
@@ -15820,12 +15495,12 @@ SELECT * FROM _get_valid_cpu_mw!(
       IIF(cpu7_poli = 3, cpu7_mw, NULL) as cpu7_mw
     FROM _wattson_base_components_avg_mw
     GROUP BY period_id, period_dur
-  )
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  )
 );
 
 DROP VIEW IF EXISTS _estimate_policy4_proto;
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(CREATE PERFETTO VIEW _estimate_policy4_proto AS
+CREATE PERFETTO VIEW _estimate_policy4_proto AS
 SELECT * FROM _get_valid_cpu_mw!(
   (
     SELECT
@@ -15854,9 +15529,9 @@ SELECT * FROM _get_valid_cpu_mw!(
       IIF(cpu0_poli = 5, cpu0_mw, NULL) as cpu0_mw,
       IIF(cpu1_poli = 5, cpu1_mw, NULL) as cpu1_mw,
       IIF(cpu2_poli = 5, cpu2_mw, NULL) as cpu2_mw,
-      IIF(cpu3_poli = 5, cpu3_mw, NULL) as cpu3_mw,
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(      IIF(cpu4_poli = 5, cpu4_mw, NULL) as cpu4_mw,
+R"_d3l1m1t3r_(      IIF(cpu3_poli = 5, cpu3_mw, NULL) as cpu3_mw,
+      IIF(cpu4_poli = 5, cpu4_mw, NULL) as cpu4_mw,
       IIF(cpu5_poli = 5, cpu5_mw, NULL) as cpu5_mw,
       IIF(cpu6_poli = 5, cpu6_mw, NULL) as cpu6_mw,
       IIF(cpu7_poli = 5, cpu7_mw, NULL) as cpu7_mw
@@ -15882,12 +15557,12 @@ SELECT * FROM _get_valid_cpu_mw!(
       IIF(cpu7_poli = 6, cpu7_mw, NULL) as cpu7_mw
     FROM _wattson_base_components_avg_mw
     GROUP BY period_id, period_dur
-  )
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  )
 );
 
 DROP VIEW IF EXISTS _estimate_policy7_proto;
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(CREATE PERFETTO VIEW _estimate_policy7_proto AS
+CREATE PERFETTO VIEW _estimate_policy7_proto AS
 SELECT * FROM _get_valid_cpu_mw!(
   (
     SELECT
@@ -15917,9 +15592,9 @@ GROUP BY period_id, period_dur;
 
 -- Automatically populates the appropriate policy based on the device of the
 -- trace. For policies that do not exist on the device, a NULL proto/estimate is
--- populated.
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(DROP VIEW IF EXISTS _estimate_cpu_subsystem_sum;
+R"_d3l1m1t3r_(-- populated.
+DROP VIEW IF EXISTS _estimate_cpu_subsystem_sum;
 CREATE PERFETTO VIEW _estimate_cpu_subsystem_sum AS
 WITH components AS (
   SELECT
@@ -15941,9 +15616,9 @@ WITH components AS (
     IIF(p6.is_defined, p6.estimated_mw, NULL) as p6_mw,
     IIF(p6.is_defined, p6.proto, NULL) as p6_proto,
     IIF(p7.is_defined, p7.estimated_mw, NULL) as p7_mw,
-    IIF(p7.is_defined, p7.proto, NULL) as p7_proto
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(  FROM _estimate_policy0_proto AS p0
+R"_d3l1m1t3r_(    IIF(p7.is_defined, p7.proto, NULL) as p7_proto
+  FROM _estimate_policy0_proto AS p0
   JOIN _estimate_policy1_proto AS p1 USING (period_id, period_dur)
   JOIN _estimate_policy2_proto AS p2 USING (period_id, period_dur)
   JOIN _estimate_policy3_proto AS p3 USING (period_id, period_dur)
@@ -15969,9 +15644,9 @@ SELECT
   AndroidWattsonCpuSubsystemEstimate(
     'estimated_mw', sum_mw,
     'estimated_mws', sum_mw * period_dur / 1e9,
-    'policy0', p0_proto,
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(    'policy1', p1_proto,
+R"_d3l1m1t3r_(    'policy0', p0_proto,
+    'policy1', p1_proto,
     'policy2', p2_proto,
     'policy3', p3_proto,
     'policy4', p4_proto,
@@ -15982,9 +15657,32 @@ R"_d3l1m1t3r_(    'policy1', p1_proto,
       'estimated_mw', dsu_scu_mw,
       'estimated_mws', dsu_scu_mw * period_dur / 1e9
     )
-  ) as proto
+  ) as cpu_proto
 FROM components_w_sum;
 
+DROP VIEW IF EXISTS _estimate_gpu_subsystem_sum;
+CREATE PERFETTO VIEW _estimate_gpu_subsystem_sum AS
+SELECT
+  period_id,
+  period_dur,
+  gpu_mw IS NOT NULL as defined,
+  AndroidWattsonGpuSubsystemEstimate(
+    'estimated_mw', gpu_mw,
+    'estimated_mws', gpu_mw * period_dur / 1e9
+  ) as gpu_proto
+FROM _wattson_base_components_avg_mw;
+
+DROP VIEW IF EXISTS _estimate_subsystems_sum;
+CREATE PERFETTO VIEW _estimate_subsystems_sum AS
+SELECT
+  period_id,
+  period_dur,
+  cpu_ss.cpu_proto,
+  IIF(gpu_ss.defined, gpu_ss.gpu_proto, NULL) as gpu_proto
+FROM _estimate_cpu_subsystem_sum cpu_ss
+JOIN _estimate_gpu_subsystem_sum gpu_ss
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  USING (period_id, period_dur);
 
 )_d3l1m1t3r_"
 ;
@@ -16004,98 +15702,34 @@ const char kAndroidWattsonTasksAttribution[] = R"_d3l1m1t3r_(
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE wattson.curves.estimates;
-INCLUDE PERFETTO MODULE wattson.curves.idle_attribution;
-INCLUDE PERFETTO MODULE viz.summary.threads_w_processes;
+INCLUDE PERFETTO MODULE wattson.estimates;
+INCLUDE PERFETTO MODULE wattson.tasks.attribution;
+INCLUDE PERFETTO MODULE wattson.tasks.idle_transitions_attribution;
+INCLUDE PERFETTO MODULE wattson.utils;
 
 -- Take only the Wattson estimations that are in the window of interest
-DROP VIEW IF EXISTS _windowed_wattson;
-CREATE PERFETTO VIEW _windowed_wattson AS
+DROP VIEW IF EXISTS _windowed_threads_system_state;
+CREATE PERFETTO VIEW _windowed_threads_system_state AS
 SELECT
   ii.ts,
-  ii.dur,
-  ii.id_1 as period_id,
-  ss.cpu0_mw,
-  ss.cpu1_mw,
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(  ss.cpu2_mw,
-  ss.cpu3_mw,
-  ss.cpu4_mw,
-  ss.cpu5_mw,
-  ss.cpu6_mw,
-  ss.cpu7_mw,
-  ss.dsu_scu_mw
+R"_d3l1m1t3r_(  ii.dur,
+  ii.id_1 AS period_id,
+  tasks.cpu,
+  tasks.estimated_mw,
+  tasks.thread_name,
+  tasks.process_name,
+  tasks.tid,
+  tasks.pid,
+  tasks.utid
 FROM _interval_intersect!(
   (
-    _ii_subquery!(_system_state_mw),
+    _ii_subquery!(_estimates_w_tasks_attribution),
     (SELECT ts, dur, period_id as id FROM {{window_table}})
   ),
   ()
 ) ii
-JOIN _system_state_mw AS ss ON ss._auto_id = id_0;
-
--- "Unpivot" the table so that table can by PARTITIONED BY cpu
-DROP TABLE IF EXISTS _unioned_windowed_wattson;
-CREATE PERFETTO TABLE _unioned_windowed_wattson AS
-  SELECT ts, dur, 0 as cpu, cpu0_mw as estimated_mw, period_id
-  FROM _windowed_wattson
-  WHERE EXISTS (SELECT cpu FROM _dev_cpu_policy_map WHERE 0 = cpu)
-  UNION ALL
-  SELECT ts, dur, 1 as cpu, cpu1_mw as estimated_mw, period_id
-  FROM _windowed_wattson
-  WHERE EXISTS (SELECT cpu FROM _dev_cpu_policy_map WHERE 1 = cpu)
-  UNION ALL
-  SELECT ts, dur, 2 as cpu, cpu2_mw as estimated_mw, period_id
-  FROM _windowed_wattson
-  WHERE EXISTS (SELECT cpu FROM _dev_cpu_policy_map WHERE 2 = cpu)
-  UNION ALL
-  SELECT ts, dur, 3 as cpu, cpu3_mw as estimated_mw, period_id
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  FROM _windowed_wattson
-  WHERE EXISTS (SELECT cpu FROM _dev_cpu_policy_map WHERE 3 = cpu)
-  UNION ALL
-  SELECT ts, dur, 4 as cpu, cpu4_mw as estimated_mw, period_id
-  FROM _windowed_wattson
-  WHERE EXISTS (SELECT cpu FROM _dev_cpu_policy_map WHERE 4 = cpu)
-  UNION ALL
-  SELECT ts, dur, 5 as cpu, cpu5_mw as estimated_mw, period_id
-  FROM _windowed_wattson
-  WHERE EXISTS (SELECT cpu FROM _dev_cpu_policy_map WHERE 5 = cpu)
-  UNION ALL
-  SELECT ts, dur, 6 as cpu, cpu6_mw as estimated_mw, period_id
-  FROM _windowed_wattson
-  WHERE EXISTS (SELECT cpu FROM _dev_cpu_policy_map WHERE 6 = cpu)
-  UNION ALL
-  SELECT ts, dur, 7 as cpu, cpu7_mw as estimated_mw, period_id
-  FROM _windowed_wattson
-  WHERE EXISTS (SELECT cpu FROM _dev_cpu_policy_map WHERE 7 = cpu)
-  UNION ALL
-  SELECT ts, dur, -1 as cpu, dsu_scu_mw as estimated_mw, period_id
-  FROM _windowed_wattson;
-
-DROP TABLE IF EXISTS _windowed_threads_system_state;
-CREATE PERFETTO TABLE _windowed_threads_system_state AS
-SELECT
-  ii.ts,
-  ii.dur,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  ii.cpu,
-  uw.estimated_mw,
-  s.thread_name,
-  s.process_name,
-  s.tid,
-  s.pid,
-  s.utid,
-  uw.period_id
-FROM _interval_intersect!(
-  (
-    _ii_subquery!(_unioned_windowed_wattson),
-    _ii_subquery!(_sched_w_thread_process_package_summary)
-  ),
-  (cpu)
-) ii
-JOIN _unioned_windowed_wattson AS uw ON uw._auto_id = id_0
-JOIN _sched_w_thread_process_package_summary AS s ON s._auto_id = id_1;
+JOIN _estimates_w_tasks_attribution AS tasks ON tasks._auto_id = id_0;
 
 -- Get idle overhead attribution per thread
 DROP VIEW IF EXISTS _per_thread_idle_attribution;
@@ -16117,7 +15751,7 @@ SELECT
 )_d3l1m1t3r_"
 R"_d3l1m1t3r_(  SUM(estimated_mw * dur) / 1000000000 as estimated_mws,
   (
-    SUM(estimated_mw * dur) / (SELECT SUM(dur) from _windowed_wattson)
+    SUM(estimated_mw * dur) / (SELECT SUM(dur) from {{window_table}})
   ) as estimated_mw,
   -- Output zero idle cost for threads that don't cause wakeup
   COALESCE(idle_cost_mws, 0) as idle_cost_mws,
@@ -16174,7 +15808,7 @@ const char kAndroidWattsonTraceRails[] = R"_d3l1m1t3r_(
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE wattson.curves.estimates;
+INCLUDE PERFETTO MODULE wattson.estimates;
 
 -- This metric is defined to be for entire trace duration
 DROP VIEW IF EXISTS _wattson_period_windows;
@@ -16200,10 +15834,11 @@ SELECT AndroidWattsonTimePeriodMetric(
       AndroidWattsonEstimateInfo(
         'period_id', period_id,
         'period_dur', period_dur,
-        'cpu_subsystem', proto
+        'cpu_subsystem', cpu_proto,
+        'gpu_subsystem', gpu_proto
       )
     )
-    FROM _estimate_cpu_subsystem_sum
+    FROM _estimate_subsystems_sum
   )
 );
 
@@ -16225,8 +15860,8 @@ const char kAndroidWattsonTraceThreads[] = R"_d3l1m1t3r_(
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE wattson.curves.estimates;
-INCLUDE PERFETTO MODULE viz.summary.threads_w_processes;
+INCLUDE PERFETTO MODULE wattson.estimates;
+INCLUDE PERFETTO MODULE wattson.tasks.task_slices;
 
 -- This metric is defined to be for entire trace duration
 DROP VIEW IF EXISTS _wattson_period_window;
@@ -16238,9 +15873,9 @@ SELECT
 
 SELECT RUN_METRIC(
   'android/wattson_tasks_attribution.sql',
+  'window_table',
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(  'window_table',
-  '_wattson_period_window'
+R"_d3l1m1t3r_(  '_wattson_period_window'
 );
 
 DROP VIEW IF EXISTS wattson_trace_threads_output;
@@ -16739,7 +16374,7 @@ R"_d3l1m1t3r_(    -- entire duration of the trace.
     SELECT upid, NULL AS reliable_from
     FROM chrome_processes_with_missing_main
   )
-ORDER BY start DESC
+ORDER BY start DESC, upid
 LIMIT 1;
 
 DROP VIEW IF EXISTS chrome_reliable_range;
@@ -16769,6 +16404,130 @@ FROM
     (SELECT limiting_upid FROM chrome_processes_data_loss_free_period) AS limiting_upid
     FROM chrome_reliable_range_per_thread
     WHERE has_first_packet_on_sequence = 0);
+
+)_d3l1m1t3r_"
+;
+
+const char kChromeChromeScrollJankV3[] = R"_d3l1m1t3r_(--
+-- Copyright 2023 The Android Open Source Project
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     https://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
+INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_jank_v3;
+
+DROP VIEW IF EXISTS chrome_scroll_jank_v3_causes_per_scroll;
+
+-- An "intermediate" view with jank causes per scroll.
+--
+-- @column scroll_id                   The ID of the scroll.
+-- @column max_delay_since_last_frame  The maximum time a frame was delayed
+--                                     after the presentation of the previous
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(--                                     frame.
+-- @column vsync_interval              The expected vsync interval.
+-- @column scrolls                     A proto amalgamation of each scroll jank
+--                                     cause including cause name, sub cause and
+--                                     the duration of the delay since the
+--                                     previous frame was presented.
+CREATE PERFETTO VIEW chrome_scroll_jank_v3_causes_per_scroll AS
+SELECT
+  scroll_id,
+  max(1.0 * delay_since_last_frame / vsync_interval) AS max_delay_since_last_frame,
+  -- MAX does not matter, since `vsync_interval` is the computed as the same
+  -- value for a single trace.
+  max(vsync_interval) AS vsync_interval,
+  repeatedfield(
+    chromescrolljankv3_scroll_scrolljankcause(
+      'cause',
+      cause_of_jank,
+      'sub_cause',
+      sub_cause_of_jank,
+      'delay_since_last_frame',
+      1.0 * delay_since_last_frame / vsync_interval
+    )
+  ) AS scroll_jank_causes
+FROM chrome_janky_frames
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(GROUP BY
+  scroll_id;
+
+DROP VIEW IF EXISTS chrome_scroll_jank_v3_intermediate;
+
+-- An "intermediate" view for computing `chrome_scroll_jank_v3_output` below.
+--
+-- @column trace_num_frames          The number of frames in the trace.
+-- @column trace_num_janky_frames    The number of delayed/janky frames in the
+--                                   trace.
+-- @column vsync_interval            The standard vsync interval.
+-- @column scrolls                   A proto amalgamation of metrics per scroll
+--                                   including the number of frames, number of
+--                                   janky frames, percent of janky frames,
+--                                   maximum presentation delay, and the causes
+--                                   of jank (cause, sub-cause, delay).
+CREATE PERFETTO VIEW chrome_scroll_jank_v3_intermediate AS
+SELECT
+  -- MAX does not matter for these aggregations, since the values are the
+  -- same across rows.
+  (SELECT COUNT(*) FROM chrome_frame_info_with_delay)
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    AS trace_num_frames,
+  (SELECT COUNT(*) FROM chrome_janky_frames)
+    AS trace_num_janky_frames,
+  causes.vsync_interval,
+  RepeatedField(
+    ChromeScrollJankV3_Scroll(
+      'num_frames',
+      frames.num_frames,
+      'num_janky_frames',
+      frames.num_janky_frames,
+      'scroll_jank_percentage',
+      frames.scroll_jank_percentage,
+      'max_delay_since_last_frame',
+      causes.max_delay_since_last_frame,
+      'scroll_jank_causes',
+      causes.scroll_jank_causes))
+    AS scrolls
+FROM
+  chrome_frames_per_scroll AS frames
+INNER JOIN chrome_scroll_jank_v3_causes_per_scroll AS causes
+  ON frames.scroll_id = causes.scroll_id;
+
+DROP VIEW IF EXISTS chrome_scroll_jank_v3_output;
+
+-- For producing a "native" Perfetto UI metric.
+--
+-- @column scroll_jank_summary     A proto amalgamation summarizing all of the
+--                                 scroll jank in a trace, including the number
+--                                 of frames, janky frames, percentage of janky
+--                                 frames, vsync interval, and a summary of this
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(--                                 data (including individual causes) for each
+--                                 scroll.
+CREATE PERFETTO VIEW chrome_scroll_jank_v3_output AS
+SELECT
+  ChromeScrollJankV3(
+    'trace_num_frames',
+    trace_num_frames,
+    'trace_num_janky_frames',
+    trace_num_janky_frames,
+    'trace_scroll_jank_percentage',
+    100.0 * trace_num_janky_frames / trace_num_frames,
+    'vsync_interval_ms',
+    vsync_interval,
+    'scrolls',
+    scrolls) AS scroll_jank_summary
+FROM
+  chrome_scroll_jank_v3_intermediate;
 
 )_d3l1m1t3r_"
 ;
@@ -17194,30 +16953,21 @@ const char kCommonCloneDuration[] = R"_d3l1m1t3r_(--
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+INCLUDE PERFETTO MODULE traced.stats;
+
 DROP VIEW IF EXISTS clone_duration_output;
 CREATE PERFETTO VIEW clone_duration_output AS
 SELECT
   CloneDuration(
     'by_buffer', (
-      WITH clone_started_ns AS (
-        SELECT value
-        FROM stats
-        WHERE name = 'traced_clone_started_timestamp_ns'
-        LIMIT 1
-      )
       SELECT
         RepeatedField(CloneDuration_ByBuffer(
           'buffer',
-          idx,
+          buffer_id,
           'duration_ns',
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(          value - (SELECT value FROM clone_started_ns)
+          duration_ns
         ))
-      FROM stats
-      WHERE
-        name = 'traced_buf_clone_done_timestamp_ns'
-        AND (SELECT value FROM clone_started_ns) <> 0
-      ORDER BY idx
+      FROM traced_clone_flush_latency
     )
   );
 
@@ -18576,8 +18326,6 @@ const FileToSql kFileToSql[] = {
 
   {"android/jank/internal/query_frame_slice.sql", kAndroidJankInternalQueryFrameSlice},
 
-  {"android/jank/params.sql", kAndroidJankParams},
-
   {"android/jank/query_functions.sql", kAndroidJankQueryFunctions},
 
   {"android/jank/relevant_slices.sql", kAndroidJankRelevantSlices},
@@ -18717,6 +18465,8 @@ const FileToSql kFileToSql[] = {
   {"chrome/chrome_processes.sql", kChromeChromeProcesses},
 
   {"chrome/chrome_reliable_range.sql", kChromeChromeReliableRange},
+
+  {"chrome/chrome_scroll_jank_v3.sql", kChromeChromeScrollJankV3},
 
   {"chrome/chrome_slice_names.sql", kChromeChromeSliceNames},
 

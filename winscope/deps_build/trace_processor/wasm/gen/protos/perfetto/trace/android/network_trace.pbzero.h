@@ -262,8 +262,8 @@ class NetworkPacketEvent_Decoder : public ::protozero::TypedProtoDecoder</*MAX_F
   explicit NetworkPacketEvent_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
   bool has_direction() const { return at<1>().valid(); }
   int32_t direction() const { return at<1>().as_int32(); }
-  bool has_interface() const { return at<2>().valid(); }
-  ::protozero::ConstChars interface() const { return at<2>().as_string(); }
+  bool has_network_interface() const { return at<2>().valid(); }
+  ::protozero::ConstChars network_interface() const { return at<2>().as_string(); }
   bool has_length() const { return at<3>().valid(); }
   uint32_t length() const { return at<3>().as_uint32(); }
   bool has_uid() const { return at<4>().valid(); }
@@ -289,7 +289,7 @@ class NetworkPacketEvent : public ::protozero::Message {
   using Decoder = NetworkPacketEvent_Decoder;
   enum : int32_t {
     kDirectionFieldNumber = 1,
-    kInterfaceFieldNumber = 2,
+    kNetworkInterfaceFieldNumber = 2,
     kLengthFieldNumber = 3,
     kUidFieldNumber = 4,
     kTagFieldNumber = 5,
@@ -321,7 +321,7 @@ class NetworkPacketEvent : public ::protozero::Message {
         ::Append(*this, field_id, value);
   }
 
-  using FieldMetadata_Interface =
+  using FieldMetadata_NetworkInterface =
     ::protozero::proto_utils::FieldMetadata<
       2,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
@@ -329,15 +329,15 @@ class NetworkPacketEvent : public ::protozero::Message {
       std::string,
       NetworkPacketEvent>;
 
-  static constexpr FieldMetadata_Interface kInterface{};
-  void set_interface(const char* data, size_t size) {
-    AppendBytes(FieldMetadata_Interface::kFieldId, data, size);
+  static constexpr FieldMetadata_NetworkInterface kNetworkInterface{};
+  void set_network_interface(const char* data, size_t size) {
+    AppendBytes(FieldMetadata_NetworkInterface::kFieldId, data, size);
   }
-  void set_interface(::protozero::ConstChars chars) {
-    AppendBytes(FieldMetadata_Interface::kFieldId, chars.data, chars.size);
+  void set_network_interface(::protozero::ConstChars chars) {
+    AppendBytes(FieldMetadata_NetworkInterface::kFieldId, chars.data, chars.size);
   }
-  void set_interface(std::string value) {
-    static constexpr uint32_t field_id = FieldMetadata_Interface::kFieldId;
+  void set_network_interface(std::string value) {
+    static constexpr uint32_t field_id = FieldMetadata_NetworkInterface::kFieldId;
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<

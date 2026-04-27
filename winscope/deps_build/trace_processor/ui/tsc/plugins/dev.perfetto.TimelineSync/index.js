@@ -18,6 +18,8 @@ const mithril_1 = tslib_1.__importDefault(require("mithril"));
 const time_1 = require("../../base/time");
 const modal_1 = require("../../widgets/modal");
 const logging_1 = require("../../base/logging");
+const button_1 = require("../../widgets/button");
+const common_1 = require("../../widgets/common");
 const PLUGIN_ID = 'dev.perfetto.TimelineSync';
 const DEFAULT_BROADCAST_CHANNEL = `${PLUGIN_ID}#broadcastChannel`;
 const VIEWPORT_UPDATE_THROTTLE_TIME_FOR_SENDING_AFTER_RECEIVING_MS = 1_000;
@@ -57,20 +59,44 @@ class default_1 {
     _initialBoundsForSibling = new Map();
     async onTraceLoad(ctx) {
         ctx.commands.registerCommand({
-            id: `dev.perfetto.SplitScreen#enableTimelineSync`,
+            id: `dev.perfetto.EnableTimelineSync`,
             name: 'Enable timeline sync with other Perfetto UI tabs',
             callback: () => this.showTimelineSyncDialog(),
         });
         ctx.commands.registerCommand({
-            id: `dev.perfetto.SplitScreen#disableTimelineSync`,
+            id: `dev.perfetto.DisableTimelineSync`,
             name: 'Disable timeline sync',
             callback: () => this.disableTimelineSync(this._sessionId),
         });
         ctx.commands.registerCommand({
-            id: `dev.perfetto.SplitScreen#toggleTimelineSync`,
+            id: `dev.perfetto.ToggleTimelineSync`,
             name: 'Toggle timeline sync with other PerfettoUI tabs',
             callback: () => this.toggleTimelineSync(),
             defaultHotkey: 'Mod+Alt+S',
+        });
+        ctx.statusbar.registerItem({
+            renderItem: () => {
+                return {
+                    label: `Timeline Sync`,
+                    icon: 'sync',
+                    intent: this.active ? common_1.Intent.Success : common_1.Intent.None,
+                    onclick: this.active
+                        ? undefined
+                        : () => this.showTimelineSyncDialog(),
+                };
+            },
+            popupContent: () => {
+                return this.active
+                    ? (0, mithril_1.default)('.pf-timeline-sync-popup', `Timeline Sync Active`, (0, mithril_1.default)(button_1.ButtonBar, (0, mithril_1.default)(button_1.Button, {
+                        label: 'Stop',
+                        icon: 'stop_circle',
+                        intent: common_1.Intent.Danger,
+                        variant: button_1.ButtonVariant.Filled,
+                        dismissPopup: true,
+                        onclick: () => this.disableTimelineSync(this._sessionId),
+                    })))
+                    : undefined;
+            },
         });
         // Start advertising this tab. This allows the command run in other
         // instances to discover us.
@@ -81,10 +107,10 @@ class default_1 {
         setInterval(() => this.advertise(), ADVERTISE_PERIOD_MS);
         // Allow auto-enabling of timeline sync from the URI. The user can
         // optionally specify a session id, otherwise we just use a default one.
-        const m = /dev.perfetto.TimelineSync:enable(=\d+)?/.exec(location.hash);
-        if (m !== null) {
-            this._sessionidFromUrl = m[1]
-                ? parseInt(m[1].substring(1))
+        const regex = /dev.perfetto.TimelineSync:enable(=\d+)?/.exec(location.hash);
+        if (regex !== null) {
+            this._sessionidFromUrl = regex[1]
+                ? parseInt(regex[1].substring(1))
                 : DEFAULT_SESSION_ID;
         }
         this._ctx = ctx;

@@ -14,10 +14,13 @@
  * limitations under the License.
  */
 
-import {TimelineUtils} from 'app/components/timeline/timeline_utils';
-import {assertDefined} from 'common/assert_utils';
+import {convertHexToRgb} from 'app/components/timeline/timeline_utils';
+import {assertDefined} from 'common/assert';
 import {Rect} from 'common/geometry/rect';
 
+/**
+ * A class for drawing shapes on a canvas.
+ */
 export class CanvasDrawer {
   private canvas: HTMLCanvasElement | undefined;
   private ctx: CanvasRenderingContext2D | undefined;
@@ -42,7 +45,7 @@ export class CanvasDrawer {
       throw new Error('Canvas not set');
     }
 
-    const rgbColor = TimelineUtils.convertHexToRgb(hexColor);
+    const rgbColor = convertHexToRgb(hexColor);
     if (rgbColor === undefined) {
       throw new Error('Failed to parse provided hex color');
     }

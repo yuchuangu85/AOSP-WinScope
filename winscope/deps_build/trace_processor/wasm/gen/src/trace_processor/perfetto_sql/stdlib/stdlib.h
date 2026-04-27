@@ -578,6 +578,653 @@ ORDER BY
 )_d3l1m1t3r_"
 ;
 
+const char kAndroidCujsSysuiCujCounters[] = R"_d3l1m1t3r_(--
+-- Copyright 2025 The Android Open Source Project
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     https://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
+-- This module captures the various counter values associated with Jank CUJs. These counters can be
+-- missedFrames, missedSFFrames, missedCallbacks etc. These tables are beneficial while querying
+-- for jank related metrics.
+INCLUDE PERFETTO MODULE android.cujs.sysui_cujs;
+
+-- A missed callback in a perfetto trace means the ftrace was unable to capture callback events
+-- for an operation. For eg. a SFMissedCallback indicates that events related to surfaceflinger
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(-- operations, such as vsync synchronization, transaction/presentation callbacks were not captured.
+-- This view captures all such missed callback slices.
+CREATE PERFETTO VIEW _marker_missed_callback AS
+SELECT
+  marker_track.name AS cuj_slice_name,
+  marker.ts,
+  marker.name AS marker_name
+FROM slice AS marker
+JOIN track AS marker_track
+  ON marker_track.id = marker.track_id
+WHERE
+  marker.name GLOB '*FT#Missed*';
+
+-- Extract count of a given missed callback for a specific CUJ.
+CREATE PERFETTO FUNCTION _android_cuj_missed_vsyncs_for_callback(
+    -- name of the cuj slice.
+    cuj_slice_name STRING,
+    -- Min timestamp after which the missed callback value should be considered.
+    ts_min TIMESTAMP,
+    -- Max timestamp before which the missed callback value should be considered.
+    ts_max TIMESTAMP,
+    -- missed callback.
+    callback_missed STRING
+)
+RETURNS LONG AS
+SELECT
+  coalesce(sum(marker_name GLOB $callback_missed), 0)
+FROM _marker_missed_callback
+WHERE
+  cuj_slice_name = $cuj_slice_name
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  AND ts >= $ts_min
+  AND (
+    $ts_max IS NULL OR ts <= $ts_max
+  )
+ORDER BY
+  ts ASC
+LIMIT 1;
+
+-- Extract all counters for Jank CUJ tracks.
+CREATE PERFETTO VIEW _android_jank_cuj_counter AS
+WITH
+  cuj_counter_track AS (
+    SELECT DISTINCT
+      upid,
+      track.id AS track_id,
+      -- extract the CUJ name inside <>
+      str_split(str_split(track.name, '>#', 0), '<', 1) AS cuj_name,
+      -- take the name of the counter after #
+      str_split(track.name, '#', 1) AS counter_name
+    FROM process_counter_track AS track
+    JOIN android_sysui_jank_cujs
+      USING (upid)
+    WHERE
+      track.name GLOB 'J<*>#*'
+  )
+SELECT
+  ts,
+  upid,
+  cuj_name,
+  counter_name,
+  CAST(value AS INTEGER) AS value
+FROM counter
+JOIN cuj_counter_track
+  ON counter.track_id = cuj_counter_track.track_id;
+
+-- Returns the counter value for the given CUJ name and counter name.
+CREATE PERFETTO FUNCTION _android_jank_cuj_counter_value(
+    cuj_name STRING,
+    counter_name STRING,
+    -- Min timestamp after which the CUJ counter value should be considered.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    ts_min TIMESTAMP,
+    -- Max timestamp before which the CUJ counter value should be considered.
+    ts_max TIMESTAMP
+)
+RETURNS LONG AS
+SELECT
+  value
+FROM _android_jank_cuj_counter
+WHERE
+  cuj_name = $cuj_name
+  AND counter_name = $counter_name
+  AND ts >= $ts_min
+  AND (
+    $ts_max IS NULL OR ts <= $ts_max
+  )
+ORDER BY
+  ts ASC
+LIMIT 1;
+
+)_d3l1m1t3r_"
+;
+
+const char kAndroidCujsSysuiCujs[] = R"_d3l1m1t3r_(--
+-- Copyright 2025 The Android Open Source Project
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     https://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
+INCLUDE PERFETTO MODULE android.frames.timeline;
+
+-- Macro defining the filtering conditions for a jank or latency CUJ slice in relevant processes.
+CREATE PERFETTO MACRO _is_jank_latency_sysui_slice(
+    slice TableOrSubquery,
+    process TableOrSubquery
+)
+RETURNS Expr AS
+$slice.name GLOB 'J<*>'
+OR $slice.name GLOB 'L<*>'
+AND (
+  $process.name GLOB 'com.google.android*' OR $process.name GLOB 'com.android.*'
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_();
+
+-- List of CUJ slices emitted. Note that this is not the final list of CUJs with the correct
+-- boundary information. The proper CUJs and their boundaries are computed after taking into
+-- account instant events and frame boundaries in the following tables.
+CREATE PERFETTO TABLE _sysui_cujs_slices AS
+SELECT
+  row_number() OVER (ORDER BY ts) AS cuj_id,
+  process.upid AS upid,
+  process.name AS process_name,
+  slice.id AS slice_id,
+  slice.name AS cuj_slice_name,
+  ts,
+  dur,
+  ts + dur AS ts_end
+FROM slice
+JOIN process_track
+  ON slice.track_id = process_track.id
+JOIN process
+  USING (upid)
+WHERE
+  _is_jank_latency_sysui_slice!(slice, process) AND dur > 0;
+
+-- Slices logged from FrameTracker#markEvent that describe when
+-- the instrumentation was started and the reason the CUJ ended.
+CREATE PERFETTO TABLE _sysui_cuj_state_markers AS
+SELECT
+  cuj.cuj_id,
+  upid,
+  CASE
+    WHEN cuj_state_marker.name GLOB '*FT#begin*'
+    THEN 'begin'
+    WHEN cuj_state_marker.name GLOB '*FT#deferMonitoring*'
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    THEN 'deferMonitoring'
+    WHEN cuj_state_marker.name GLOB '*FT#end*'
+    THEN 'end'
+    WHEN cuj_state_marker.name GLOB '*FT#cancel*'
+    THEN 'cancel'
+    WHEN cuj_state_marker.name GLOB '*FT#layerId*'
+    THEN 'layerId'
+    WHEN cuj_state_marker.name GLOB '*#UIThread'
+    THEN 'UIThread'
+    ELSE 'other'
+  END AS marker_type,
+  cuj_state_marker.name AS marker_name,
+  thread_track.utid AS utid
+FROM _sysui_cujs_slices AS cuj
+LEFT JOIN slice AS cuj_state_marker
+  ON cuj_state_marker.ts >= cuj.ts AND cuj_state_marker.ts < cuj.ts_end
+LEFT JOIN track AS marker_track
+  ON marker_track.id = cuj_state_marker.track_id
+LEFT JOIN thread_track
+  ON cuj_state_marker.track_id = thread_track.id
+WHERE
+  -- e.g. J<CUJ_NAME>#FT#end#0 this for backward compatibility
+  cuj_state_marker.name GLOB (
+    cuj.cuj_slice_name || "#FT#*"
+  )
+  OR (
+    marker_track.name = cuj_slice_name AND cuj_state_marker.name GLOB 'FT#*'
+  )
+  OR cuj_state_marker.name = (
+    cuj.cuj_slice_name || "#UIThread"
+  );
+
+-- CUJ instant event values.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(CREATE PERFETTO TABLE _sysui_cuj_instant_events AS
+SELECT
+  cuj_id,
+  cuj.upid,
+  max(
+    CASE
+      WHEN csm.marker_name GLOB '*layerId#*'
+      THEN CAST(str_split(csm.marker_name, 'layerId#', 1) AS INTEGER)
+      ELSE NULL
+    END
+  ) AS layer_id,
+  -- Extract begin VSync ID from 'beginVsync#<ID>' marker.
+  max(
+    CASE
+      WHEN csm.marker_name GLOB '*beginVsync#*'
+      THEN CAST(str_split(csm.marker_name, 'beginVsync#', 1) AS INTEGER)
+      ELSE NULL
+    END
+  ) AS begin_vsync,
+  -- Extract end VSync ID from 'endVsync#<ID>' marker.
+  max(
+    CASE
+      WHEN csm.marker_name GLOB '*endVsync#*'
+      THEN CAST(str_split(csm.marker_name, 'endVsync#', 1) AS INTEGER)
+      ELSE NULL
+    END
+  ) AS end_vsync,
+  -- Extract UI thread UTID from 'UIThread' marker.
+  max(CASE WHEN csm.marker_type = 'UIThread' THEN csm.utid ELSE NULL END) AS ui_thread
+FROM _sysui_cuj_state_markers AS csm
+JOIN _sysui_cujs_slices AS cuj
+  USING (cuj_id)
+-- Only consider markers relevant for extracting these values.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(WHERE
+  csm.marker_type IN ('layerId', 'begin', 'end', 'UIThread')
+GROUP BY
+  cuj_id;
+
+CREATE PERFETTO FUNCTION _extract_cuj_name_from_slice(
+    cuj_slice_name STRING
+)
+RETURNS STRING AS
+SELECT
+  substr($cuj_slice_name, 3, length($cuj_slice_name) - 3);
+
+-- Track all distinct frames that overlap with the CUJ slice.
+CREATE PERFETTO VIEW _android_frames_in_cuj AS
+-- Captures all frames in the CUJ boundary. In cases where there are multiple actual frames, there
+-- can be multiple rows with the same frame_id.
+WITH
+  all_frames_in_cuj AS (
+    SELECT
+      _extract_cuj_name_from_slice(cuj.cuj_slice_name) AS cuj_name,
+      cuj.upid,
+      cuj.process_name,
+      frame.layer_id,
+      frame.frame_id,
+      frame.do_frame_id,
+      frame.expected_frame_timeline_id,
+      cuj.cuj_id,
+      frame.ts AS frame_ts,
+      frame.dur AS dur,
+      (
+        frame.ts + frame.dur
+      ) AS ts_end,
+      ui_thread_utid
+    FROM android_frames_layers AS frame
+    JOIN _sysui_cuj_instant_events AS cie
+      ON frame.ui_thread_utid = cie.ui_thread AND frame.layer_id IS NOT NULL
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    JOIN _sysui_cujs_slices AS cuj
+      ON cie.cuj_id = cuj.cuj_id
+    -- Check whether the frame_id falls within the begin and end vsync of the cuj.
+    -- Also check if the frame start or end timestamp falls within the cuj boundary.
+    WHERE
+      frame_id >= begin_vsync
+      AND frame_id <= end_vsync
+      AND (
+        -- frame start within cuj
+        (
+          frame.ts >= cuj.ts AND frame.ts <= cuj.ts_end
+        )
+        -- frame end within cuj
+        OR (
+          (
+            frame.ts + frame.dur
+          ) >= cuj.ts AND (
+            frame.ts + frame.dur
+          ) <= cuj.ts_end
+        )
+      )
+  )
+SELECT
+  row_number() OVER (PARTITION BY cuj_id ORDER BY min(frame_ts)) AS frame_idx,
+  count(*) OVER (PARTITION BY cuj_id) AS frame_cnt,
+  -- Column values with no aggregation function will stay identical across rows. For eg.
+  -- a cuj_name, upid will be the same for a given cuj_id. do_frame_id or expected_frame_timeline_id
+  -- will be the same for a given frame_id. Hence it is ok to not have aggregation functions for
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- all selected columns.
+  cuj_name,
+  upid,
+  layer_id,
+  process_name,
+  frame_id,
+  do_frame_id,
+  expected_frame_timeline_id,
+  cuj_id,
+  ui_thread_utid,
+  -- In case of multiple frames for a frame_id, consider the min start timestamp.
+  min(frame_ts) AS frame_ts,
+  -- In case of multiple frames for a frame_id, consider the max end timestamp.
+  max(ts_end) AS ts_end,
+  (
+    max(ts_end) - min(frame_ts)
+  ) AS dur
+FROM all_frames_in_cuj
+GROUP BY
+  frame_id,
+  cuj_id;
+
+-- Table tracking all jank CUJs information.
+CREATE PERFETTO TABLE android_sysui_jank_cujs (
+  -- Unique incremental ID for each CUJ.
+  cuj_id LONG,
+  -- process id.
+  upid JOINID(process.id),
+  -- process name.
+  process_name STRING,
+  -- Name of the CUJ slice.
+  cuj_slice_name STRING,
+  -- Name of the CUJ without the 'J<' prefix.
+  cuj_name STRING,
+  -- Id of the CUJ slice in perfetto. Keeping the slice id column as part of this table
+  -- as provision to lookup the actual CUJ slice ts and dur. The ts and dur in this table
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- might differ from the slice duration, as they are associated with start and end frame
+  -- corresponding to the CUJ.
+  slice_id JOINID(slice.id),
+  -- Start timestamp of the CUJ. Start of the CUJ as defined by the start of the first overlapping
+  -- expected frame.
+  ts TIMESTAMP,
+  -- End timestamp of the CUJ. Calculated as the end timestamp of the last actual frame
+  -- overlapping with the CUJ.
+  ts_end TIMESTAMP,
+  -- Duration of the CUJ calculated based on the ts and ts_end values.
+  dur DURATION,
+  -- State of the CUJ. One of "completed", "cancelled" or NULL. NULL in cases where the FT#cancel or
+  -- FT#end instant event is not present for the CUJ.
+  state STRING,
+  -- thread id of the UI thread.
+  ui_thread JOINID(thread.id),
+  -- layer id associated with the actual frame.
+  layer_id LONG,
+  -- vysnc id of the first frame that falls within the CUJ boundary.
+  begin_vsync LONG,
+  -- vysnc id of the last frame that falls within the CUJ boundary.
+  end_vsync LONG
+) AS
+WITH
+  -- select the first and last frame.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  cuj_frame_boundary AS (
+    SELECT
+      *,
+      -- To keep the new table consistent with the current jank CUJ boundary
+      -- logic, the start ts of the CUJ will be the start of the first
+      -- expected frame, and the end ts will be the end of the last Choreographer
+      -- doFrame.
+      (
+        SELECT
+          ts
+        FROM expected_frame_timeline_slice
+        WHERE
+          id = expected_frame_timeline_id
+      ) AS start_frame_ts,
+      (
+        SELECT
+          (
+            ts + dur
+          ) AS ts_end
+        FROM slice
+        WHERE
+          id = do_frame_id
+      ) AS end_frame_ts_end
+    FROM _android_frames_in_cuj
+    WHERE
+      frame_idx = 1 OR frame_idx = frame_cnt
+  )
+SELECT
+  cuj.cuj_id,
+  cuj.upid,
+  cuj.process_name,
+  cuj.cuj_slice_name,
+  -- Extracts "CUJ_NAME" from "J<CUJ_NAME>"
+  _extract_cuj_name_from_slice(cuj.cuj_slice_name) AS cuj_name,
+  cuj.slice_id,
+  min(start_frame_ts) AS ts,
+  max(end_frame_ts_end) AS ts_end,
+  (
+    max(end_frame_ts_end) - min(start_frame_ts)
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  ) AS dur,
+  CASE
+    WHEN EXISTS(
+      SELECT
+        1
+      FROM _sysui_cuj_state_markers AS csm
+      WHERE
+        csm.cuj_id = cuj.cuj_id AND csm.marker_type = 'cancel'
+    )
+    THEN 'canceled'
+    WHEN EXISTS(
+      SELECT
+        1
+      FROM _sysui_cuj_state_markers AS csm
+      WHERE
+        csm.cuj_id = cuj.cuj_id AND csm.marker_type = 'end'
+    )
+    THEN 'completed'
+    ELSE NULL
+  END AS state,
+  cuj_events.ui_thread,
+  cuj_events.layer_id,
+  cuj_events.begin_vsync,
+  cuj_events.end_vsync
+FROM _sysui_cujs_slices AS cuj
+JOIN _sysui_cuj_instant_events AS cuj_events
+  USING (cuj_id)
+JOIN cuj_frame_boundary AS boundary
+  USING (cuj_id)
+JOIN android_frames_choreographer_do_frame AS do_frame
+  ON do_frame_id = do_frame.id
+WHERE
+  -- Filter only jank CUJs.
+  cuj.cuj_slice_name GLOB 'J<*>'
+  AND (
+    state != 'canceled'
+    -- Older builds don't have the state markers so we allow NULL but filter out
+    -- CUJs that are <4ms long - assuming CUJ was canceled in that case.
+    OR (
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      state IS NULL AND cuj.dur > 4e6
+    )
+  )
+GROUP BY
+  cuj_id
+ORDER BY
+  ts ASC;
+
+-- Table tracking all latency CUJs information.
+CREATE PERFETTO TABLE android_sysui_latency_cujs (
+  -- Unique incremental ID for each CUJ.
+  cuj_id LONG,
+  -- process id.
+  upid JOINID(process.id),
+  -- process name.
+  process_name STRING,
+  -- Name of the CUJ slice.
+  cuj_slice_name STRING,
+  -- Name of the CUJ without the 'L<' prefix.
+  cuj_name STRING,
+  -- Id of the CUJ slice in perfetto. Keeping the slice id column as part of this table
+  -- as provision to lookup the actual CUJ slice ts and dur. The ts and dur in this table
+  -- might differ from the slice duration, as they are associated with start and end frame
+  -- corresponding to the CUJ.
+  slice_id JOINID(slice.id),
+  -- Start timestamp of the CUJ calculated as the start of the CUJ slice in trace.
+  ts TIMESTAMP,
+  -- End timestamp of the CUJ calculated as the end timestamp of the CUJ slice.
+  ts_end TIMESTAMP,
+  -- Duration of the CUJ calculated based on the ts and ts_end values.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  dur DURATION,
+  -- State of the CUJ whether it was completed/cancelled.
+  state STRING
+) AS
+SELECT
+  cuj.cuj_id,
+  cuj.upid,
+  cuj.process_name,
+  cuj.cuj_slice_name,
+  -- Extracts "CUJ_NAME" from "L<CUJ_NAME>"
+  _extract_cuj_name_from_slice(cuj.cuj_slice_name) AS cuj_name,
+  cuj.slice_id,
+  cuj.ts,
+  cuj.ts_end,
+  cuj.dur,
+  CASE
+    WHEN EXISTS(
+      SELECT
+        1
+      FROM _sysui_cuj_state_markers AS csm
+      WHERE
+        csm.cuj_id = cuj.cuj_id AND csm.marker_type = 'cancel'
+    )
+    THEN 'canceled'
+    WHEN EXISTS(
+      SELECT
+        1
+      FROM _sysui_cuj_state_markers AS csm
+      WHERE
+        csm.cuj_id = cuj.cuj_id AND csm.marker_type = 'end'
+    )
+    THEN 'completed'
+    ELSE NULL
+  END AS state
+FROM _sysui_cujs_slices AS cuj
+JOIN _sysui_cuj_instant_events AS cuj_events
+  USING (cuj_id)
+WHERE
+  -- Filter only latency CUJs.
+  cuj.cuj_slice_name GLOB 'L<*>'
+  AND (
+    state != 'canceled'
+    -- Older builds don't have the state markers so we allow NULL but filter out
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    -- CUJs that are <4ms long - assuming CUJ was canceled in that case.
+    OR (
+      state IS NULL AND cuj.dur > 4e6
+    )
+  )
+ORDER BY
+  ts ASC;
+
+-- Table tracking all jank/latency CUJs information.
+CREATE PERFETTO TABLE android_jank_latency_cujs (
+  -- Unique incremental ID for each CUJ.
+  cuj_id LONG,
+  -- process id.
+  upid JOINID(process.id),
+  -- process name.
+  process_name STRING,
+  -- Name of the CUJ slice.
+  cuj_slice_name STRING,
+  -- Name of the CUJ without the 'J<' prefix.
+  cuj_name STRING,
+  -- Id of the CUJ slice in perfetto. Keeping the slice id column as part of this table
+  -- as provision to lookup the actual CUJ slice ts and dur. The ts and dur in this table
+  -- might differ from the slice duration, as they are associated with start and end frame
+  -- corresponding to the CUJ.
+  slice_id JOINID(slice.id),
+  -- Start timestamp of the CUJ. Start of the CUJ as defined by the start of the first overlapping
+  -- expected frame.
+  ts TIMESTAMP,
+  -- End timestamp of the CUJ. Calculated as the end timestamp of the last actual frame
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- overlapping with the CUJ.
+  ts_end TIMESTAMP,
+  -- Duration of the CUJ calculated based on the ts and ts_end values.
+  dur DURATION,
+  -- State of the CUJ. One of "completed", "cancelled" or NULL. NULL in cases where the FT#cancel or
+  -- FT#end instant event is not present for the CUJ.
+  state STRING,
+  -- thread id of the UI thread. In case of latency CUJs, this will always be the main thread of
+  -- the process.
+  ui_thread JOINID(thread.id),
+  -- layer id associated with the actual frame.
+  layer_id LONG,
+  -- vysnc id of the first frame that falls within the CUJ boundary.
+  begin_vsync LONG,
+  -- vysnc id of the last frame that falls within the CUJ boundary.
+  end_vsync LONG,
+  -- Type of CUJ, i.e. jank or latency.
+  cuj_type STRING
+) AS
+SELECT
+  *,
+  "jank" AS cuj_type
+FROM android_sysui_jank_cujs
+UNION ALL
+SELECT
+  *,
+  -- upid is used as the ui_thread as it's the tid of the main thread.
+  upid AS ui_thread,
+  NULL AS layer_id,
+  NULL AS begin_vsync,
+  NULL AS end_vsync,
+  "latency" AS cuj_type
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(FROM android_sysui_latency_cujs;
+
+-- Table captures all Choreographer#doFrame within a CUJ boundary.
+CREATE PERFETTO TABLE _android_jank_cuj_do_frames AS
+WITH
+  do_frame_slice_with_end_ts AS (
+    SELECT
+      slice.id,
+      frame_id AS vsync,
+      do_frame.ts,
+      upid,
+      slice.ts + slice.dur AS ts_end,
+      slice.track_id
+    FROM android_frames_choreographer_do_frame AS do_frame
+    JOIN slice
+      USING (id)
+  )
+SELECT
+  cuj.cuj_id,
+  cuj.ui_thread,
+  thread.utid,
+  do_frame.*
+FROM thread
+JOIN android_sysui_jank_cujs AS cuj
+  USING (upid)
+JOIN thread_track
+  USING (utid)
+JOIN do_frame_slice_with_end_ts AS do_frame
+  ON do_frame.ts_end >= cuj.ts
+  AND do_frame.ts <= cuj.ts_end
+  AND thread_track.id = do_frame.track_id
+WHERE
+  (
+    (
+      cuj.ui_thread IS NULL AND thread.is_main_thread
+    )
+    -- Some CUJs use a dedicated thread for Choreographer callbacks
+    OR (
+      cuj.ui_thread = thread.utid
+    )
+  )
+  AND vsync > 0
+  AND (
+    vsync >= begin_vsync OR begin_vsync IS NULL
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  )
+  AND (
+    vsync <= end_vsync OR end_vsync IS NULL
+  );
+
+)_d3l1m1t3r_"
+;
+
 const char kAndroidDumpsysShowMap[] = R"_d3l1m1t3r_(--
 -- Copyright 2025 The Android Open Source Project
 --
@@ -710,6 +1357,82 @@ WHERE
 )_d3l1m1t3r_"
 ;
 
+const char kAndroidFrameBlockingCallsBlockingCallsAggregation[] = R"_d3l1m1t3r_(--
+-- Copyright 2025 The Android Open Source Project
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     https://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
+-- This module primarily performs composition between the blocking calls, frames and CUJs.
+-- This is used for capturing blocking call per frame metrics, and the related plugins.
+INCLUDE PERFETTO MODULE android.critical_blocking_calls;
+
+INCLUDE PERFETTO MODULE android.cujs.sysui_cujs;
+
+-- For cases when a blocking call starts within a frame, but does not end before the actual frame
+-- ends, a part of the blocking call can be missed while calculating the metric. To avoid this
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(-- issue, the frame boundary is extended, spanning from the start of the current actual frame, till
+-- the start of the next actual frame.
+CREATE PERFETTO VIEW _extended_frame_boundary AS
+SELECT
+  frame_ts AS ts,
+  ui_thread_utid,
+  frame_id,
+  layer_id,
+  cuj_id,
+  cuj_name,
+  -- Calculate the end timestamp (ts_end) by taking the start time (frame_ts) of the next frame in the session.
+  -- For the last frame, fall back to the default ts_end.
+  coalesce(lead(frame_ts) OVER (PARTITION BY cuj_id ORDER BY frame_id ASC), ts_end) AS ts_end,
+  frame_id
+FROM _android_frames_in_cuj
+ORDER BY
+  frame_id;
+
+-- Capture blocking call duration within frames within a CUJ.
+CREATE PERFETTO VIEW _blocking_calls_frame_cuj AS
+SELECT
+  min(bc.dur, frame.ts_end - bc.ts, bc.ts_end - frame.ts) AS dur,
+  max(frame.ts, bc.ts) AS ts,
+  bc.upid,
+  bc.name,
+  bc.process_name,
+  bc.utid,
+  frame.frame_id,
+  frame.layer_id,
+  cuj_id,
+  cuj_name
+FROM _android_critical_blocking_calls AS bc
+JOIN _extended_frame_boundary AS frame
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  ON bc.utid = frame.ui_thread_utid
+-- The following condition to accommodate blocking call crossing frame boundary. The blocking
+-- call starts in a frame or ends in a frame. It can either be the same frame or a different
+-- frame.
+WHERE
+  (
+    -- Blocking call starts within the frame.
+    (
+      bc.ts >= frame.ts AND bc.ts <= frame.ts_end
+    )
+    OR (
+      bc.ts_end >= frame.ts AND bc.ts_end <= frame.ts_end
+    )
+  );
+
+)_d3l1m1t3r_"
+;
+
 const char kAndroidFramesJankType[] = R"_d3l1m1t3r_(--
 -- Copyright 2024 The Android Open Source Project
 --
@@ -751,6 +1474,19 @@ CREATE PERFETTO FUNCTION android_is_app_jank_type(
 RETURNS BOOL AS
 SELECT
   $jank_type GLOB '*App Deadline Missed*';
+
+-- Categorizes whether the jank was caused by the sf, app or "Dropped Frame"
+CREATE PERFETTO FUNCTION android_is_missed_frame_type(
+    -- the jank type
+    -- from args.display_value with key = "Jank type"
+    jank_type STRING
+)
+-- True if jank_type represents missed frame jank
+RETURNS BOOL AS
+SELECT
+  android_is_sf_jank_type($jank_type)
+  OR android_is_app_jank_type($jank_type)
+  OR $jank_type GLOB '*Dropped Frame*';
 
 )_d3l1m1t3r_"
 ;
@@ -1067,26 +1803,27 @@ WITH
       upid,
       ts
     FROM thread_slice
-    -- Mostly the frame slice is at depth 0. Though it could be pushed to depth 1 while users
-    -- enable low layer trace e.g. atrace_app.
     WHERE
-      name GLOB $glob_str AND depth IN (0, 1)
+      name GLOB $glob_str
   )
 SELECT
   *
 FROM all_found
--- Casting string to int returns 0 if the string can't be cast.
+-- Casting string to int returns 0 if the string can't be cast. This eliminates the Choreographer resynced slices
+-- with the format "Choreographer#doFrame - resynced to 1234 in 20.0ms". The stdlib table is to only list the top
+-- level Choreographer#doFrame slices, hence the 'resynced' slices are ignored.
+-- frame_id is -1 indicating an invalid vsync id.
 WHERE
-  frame_id != 0;
+  frame_id != 0 AND frame_id != -1;
 
 -- All of the `Choreographer#doFrame` slices with their frame id.
 CREATE PERFETTO TABLE android_frames_choreographer_do_frame (
   -- Choreographer#doFrame slice. Slice with the name "Choreographer#doFrame
-  -- {frame id}".
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- {frame id}".
   id ID(slice.id),
   -- Frame id. Taken as the value behind "Choreographer#doFrame" in slice
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  -- name.
+  -- name.
   frame_id LONG,
   -- Utid of the UI thread
   ui_thread_utid JOINID(thread.id),
@@ -1113,13 +1850,13 @@ CREATE PERFETTO TABLE android_frames_draw_frame (
   -- DrawFrame slice. Slice with the name "DrawFrame {frame id}".
   id ID(slice.id),
   -- Frame id. Taken as the value behind "DrawFrame" in slice
-  -- name.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- name.
   frame_id LONG,
   -- Utid of the render thread
   render_thread_utid JOINID(thread.id),
   -- Upid of application process
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  upid JOINID(process.id)
+  upid JOINID(process.id)
 ) AS
 SELECT
   id,
@@ -1148,13 +1885,25 @@ SELECT
   id
 FROM expected_frame_timeline_slice;
 
+-- Contains frames with missed SF or HWUI callbacks.
+CREATE PERFETTO TABLE _vsync_missed_callback AS
+SELECT
+  CAST(str_split(name, 'Callback#', 1) AS INTEGER) AS vsync,
+  max(name GLOB '*SF*') AS sf_callback_missed,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  max(name GLOB '*HWUI*') AS hwui_callback_missed
+FROM slice
+WHERE
+  name GLOB '*FT#Missed*Callback*'
+GROUP BY
+  vsync;
+
 -- TODO(b/384322064) Match actual timeline slice with correct draw frame using layer name.
 -- All slices related to one frame. Aggregates `Choreographer#doFrame`,
 -- `actual_frame_timeline_slice` and `expected_frame_timeline_slice` slices.
 -- This table differs slightly from the android_frames table, as it
 -- captures the layer_id for each actual timeline slice too.
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(CREATE PERFETTO TABLE android_frames_layers (
+CREATE PERFETTO TABLE android_frames_layers (
   -- Frame id.
   frame_id LONG,
   -- Timestamp of the frame. Start of the frame as defined by the start of
@@ -1166,7 +1915,8 @@ R"_d3l1m1t3r_(CREATE PERFETTO TABLE android_frames_layers (
   -- `ts` and the end of the final `DrawFrame`.
   dur DURATION,
   -- End timestamp of the frame. End of the frame as defined by the sum of start timestamp and
-  -- duration of the frame.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- duration of the frame.
   ts_end TIMESTAMP,
   -- `slice.id` of "Choreographer#doFrame" slice.
   do_frame_id JOINID(slice.id),
@@ -1176,8 +1926,7 @@ R"_d3l1m1t3r_(CREATE PERFETTO TABLE android_frames_layers (
   -- `slice.id` from `actual_frame_timeline_slice`
   actual_frame_timeline_id JOINID(slice.id),
   -- `slice.id` from `expected_frame_timeline_slice`
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  expected_frame_timeline_id JOINID(slice.id),
+  expected_frame_timeline_id JOINID(slice.id),
   -- `utid` of the render thread.
   render_thread_utid JOINID(thread.id),
   -- thread id of the UI thread.
@@ -1199,7 +1948,8 @@ WITH
       (
         draw_frame_slice.ts + draw_frame_slice.dur
       ) - do_frame_slice.ts AS dur
-    FROM android_frames_choreographer_do_frame AS do_frame
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    FROM android_frames_choreographer_do_frame AS do_frame
     JOIN android_frames_draw_frame AS draw_frame
       USING (frame_id, upid)
     JOIN slice AS do_frame_slice
@@ -1215,8 +1965,7 @@ WITH
     SELECT
       frame_id,
       coalesce(act.ts, fallback.ts) AS ts,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      coalesce(act.dur, fallback.dur) AS dur,
+      coalesce(act.dur, fallback.dur) AS dur,
       do_frame.id AS do_frame_id,
       draw_frame.id AS draw_frame_id,
       draw_frame.render_thread_utid,
@@ -1231,7 +1980,8 @@ R"_d3l1m1t3r_(      coalesce(act.dur, fallback.dur) AS dur,
     FROM android_frames_choreographer_do_frame AS do_frame
     JOIN android_frames_draw_frame AS draw_frame
       USING (frame_id, upid)
-    JOIN fallback
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    JOIN fallback
       USING (frame_id)
     JOIN process
       USING (upid)
@@ -1250,8 +2000,7 @@ R"_d3l1m1t3r_(      coalesce(act.dur, fallback.dur) AS dur,
     SELECT
       *,
       NULL AS actual_frame_timeline_id,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      NULL AS expected_frame_timeline_id,
+      NULL AS expected_frame_timeline_id,
       NULL AS layer_id,
       NULL AS layer_name
     FROM _frames_maxsdk_28
@@ -1286,7 +2035,8 @@ WHERE
   );
 
 -- Table based on the android_frames_layers table. It aggregates time, duration and counts
--- information across different layers for a given frame_id in a given process.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(-- information across different layers for a given frame_id in a given process.
 CREATE PERFETTO TABLE android_frames (
   -- Frame id.
   frame_id LONG,
@@ -1295,8 +2045,7 @@ CREATE PERFETTO TABLE android_frames (
   -- `actual_frame_timeline_slice if present.
   ts TIMESTAMP,
   -- Duration of the frame, as defined by the duration of the corresponding
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  -- `actual_frame_timeline_slice` or, if not present the time between the
+  -- `actual_frame_timeline_slice` or, if not present the time between the
   -- `ts` and the end of the final `DrawFrame`.
   dur DURATION,
   -- `slice.id` of "Choreographer#doFrame" slice.
@@ -1308,7 +2057,8 @@ R"_d3l1m1t3r_(  -- `actual_frame_timeline_slice` or, if not present the time bet
   actual_frame_timeline_id JOINID(slice.id),
   -- `slice.id` from `expected_frame_timeline_slice`
   expected_frame_timeline_id JOINID(slice.id),
-  -- `utid` of the render thread.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- `utid` of the render thread.
   render_thread_utid JOINID(thread.id),
   -- thread id of the UI thread.
   ui_thread_utid JOINID(thread.id),
@@ -1318,8 +2068,7 @@ R"_d3l1m1t3r_(  -- `actual_frame_timeline_slice` or, if not present the time bet
   expected_frame_timeline_count LONG,
   -- Count of draw_frame associated to this frame.
   draw_frame_count LONG,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  -- process id.
+  -- process id.
   upid JOINID(process.id),
   -- process name.
   process_name STRING
@@ -1337,7 +2086,8 @@ SELECT
   count(DISTINCT actual_frame_timeline_id) AS actual_frame_timeline_count,
   -- Expected frame count will always be 1 for a given frame_id.
   1 AS expected_frame_timeline_count,
-  count(DISTINCT draw_frame_id) AS draw_frame_count,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  count(DISTINCT draw_frame_id) AS draw_frame_count,
   upid,
   process_name
 FROM android_frames_layers AS frames_layers
@@ -1355,8 +2105,7 @@ RETURNS TABLE (
   -- Frame id.
   frame_id LONG,
   -- Start of the frame, the timestamp of the "Choreographer#doFrame" slice.
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  ts TIMESTAMP,
+  ts TIMESTAMP,
   -- Duration of the frame.
   dur DURATION,
   -- "Choreographer#doFrame" slice. The slice with name
@@ -1369,7 +2118,8 @@ R"_d3l1m1t3r_(  ts TIMESTAMP,
   actual_frame_timeline_id JOINID(slice.id),
   -- `expected_frame_timeline_slice` slice related to this frame.
   expected_frame_timeline_id JOINID(slice.id),
-  -- `utid` of the render thread.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- `utid` of the render thread.
   render_thread_utid JOINID(thread.id),
   -- `utid` of the UI thread.
   ui_thread_utid JOINID(thread.id)
@@ -1443,26 +2193,17 @@ R"_d3l1m1t3r_(  -- Timestamp of the frame. Start of "Choreographer#doFrame" slic
   process_name STRING
 ) AS
 WITH
-  choreographer AS (
-    SELECT
-      id
-    FROM slice
-    WHERE
-      name = 'Choreographer#doFrame'
-  ),
   do_frames AS (
     SELECT
       id,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ts,
+      ts,
       lead(ts, 1, trace_end()) OVER (PARTITION BY upid ORDER BY ts) AS next_do_frame,
       utid,
-      upid
-    FROM choreographer
-    JOIN thread_slice
-      USING (id)
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      upid
+    FROM thread_slice
     WHERE
-      is_main_thread = 1
+      is_main_thread = 1 AND name = 'Choreographer#doFrame'
     ORDER BY
       ts
   ),
@@ -1529,16 +2270,22 @@ CREATE PERFETTO TABLE android_gpu_frequency (
   -- GPU id. Joinable with `gpu_counter_track.gpu_id`.
   gpu_id LONG,
   -- GPU frequency
-  gpu_freq LONG
+  gpu_freq LONG,
+  -- GPU frequency from previous slice
+  prev_gpu_freq LONG,
+  -- GPU frequency from next slice
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  next_gpu_freq LONG
 ) AS
 SELECT
   ts,
   dur,
   gpu_id,
-  cast_int!(value) AS gpu_freq
+  cast_int!(value) AS gpu_freq,
+  cast_int!(value - delta_value) AS prev_gpu_freq,
+  cast_int!(next_value) AS next_gpu_freq
 FROM counter_leading_intervals!((
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(    SELECT c.*
+    SELECT c.*
     FROM counter c
     JOIN gpu_counter_track t
     ON t.id = c.track_id AND t.name = 'gpufreq'
@@ -1546,6 +2293,50 @@ R"_d3l1m1t3r_(    SELECT c.*
 ))
 JOIN gpu_counter_track AS t
   ON t.id = track_id;
+
+)_d3l1m1t3r_"
+;
+
+const char kAndroidGpuMaliPowerState[] = R"_d3l1m1t3r_(--
+-- Copyright 2025 The Android Open Source Project
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     https://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+--
+
+INCLUDE PERFETTO MODULE counters.intervals;
+
+-- GPU power state which is analogous to CPU idle state
+CREATE PERFETTO TABLE android_mali_gpu_power_state (
+  -- Timestamp
+  ts TIMESTAMP,
+  -- Duration
+  dur DURATION,
+  -- GPU power state
+  power_state LONG
+) AS
+SELECT
+  ts,
+  dur,
+  cast_int!(value) AS power_state
+FROM counter_leading_intervals!((
+    SELECT c.*
+    FROM counter c
+    JOIN counter_track t ON t.id = c.track_id
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      AND t.name = 'mali_gpu_power_state'
+)) AS cli
+JOIN counter_track AS t
+  ON t.id = cli.track_id;
 
 )_d3l1m1t3r_"
 ;
@@ -1629,6 +2420,74 @@ SELECT
 FROM track
 WHERE
   type = 'android_gpu_work_period';
+
+)_d3l1m1t3r_"
+;
+
+const char kAndroidMemoryHeapGraphClassRelationship[] = R"_d3l1m1t3r_(--
+-- Copyright 2024 The Android Open Source Project
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     https://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed ON an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
+INCLUDE PERFETTO MODULE graphs.scan;
+
+-- Given a list of classes as ancestor classes, return all the classes that
+-- descend from them.
+CREATE PERFETTO MACRO android_heap_graph_class_find_descendants(
+    -- ancestor class `id`s from the heap_graph_class table containing a
+    -- single column: `id`
+    ancestor_class_ids TableOrSubquery
+)
+-- Table of the schema
+-- (id JOINID(heap_graph_class.id), ancestor_class_id JOINID(heap_graph_class.id), ancestor_class_name STRING)
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(-- id: `id` of the class as in heap_graph_class
+-- ancestor_class_id: `id` of the ancestor class as given in the input
+-- ancestor_class_name: `name` of the ancestor class as in heap_graph_class
+RETURNS TableOrSubquery AS
+(
+  WITH
+    class_forest(source_node_id, dest_node_id) AS (
+      SELECT
+        superclass_id AS source_node_id,
+        id AS dest_node_id
+      FROM heap_graph_class
+      WHERE
+        superclass_id IS NOT NULL
+    ),
+    ancestors(id, ancestor_class_id, ancestor_class_name) AS (
+      SELECT
+        id,
+        id AS ancestor_class_id,
+        name AS ancestor_class_name
+      FROM $ancestor_class_ids
+      JOIN heap_graph_class
+        USING (id)
+    )
+  SELECT
+    id,
+    ancestor_class_id,
+    ancestor_class_name
+  FROM _graph_scan!(
+    class_forest,
+    ancestors,
+    (ancestor_class_id, ancestor_class_name),
+    (
+      SELECT id, ancestor_class_id, ancestor_class_name
+      FROM $table
+    )
+  )
+);
 
 )_d3l1m1t3r_"
 ;
@@ -1819,7 +2678,7 @@ R"_d3l1m1t3r_((
     )
   SELECT
     path_hash,
-    c.name AS class_name,
+    coalesce(c.deobfuscated_name, c.name) AS class_name,
     count(r.owned_id) AS outgoing_reference_count,
     o.*
   FROM _path_hashes AS h
@@ -1851,16 +2710,16 @@ RETURNS TableOrSubquery AS
     )
   SELECT
     path_hash,
-    c.name AS class_name,
-    r.field_name,
+    coalesce(c.deobfuscated_name, c.name) AS class_name,
+    coalesce(r.deobfuscated_field_name, r.field_name) AS field_name,
     r.field_type_name,
-    src.*
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    src.*
   FROM _path_hashes AS h
   JOIN heap_graph_object AS dst
     ON h.id = dst.id
   JOIN heap_graph_reference AS r
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(    ON r.owned_id = dst.id
+    ON r.owned_id = dst.id
   JOIN heap_graph_object AS src
     ON r.owner_id = src.id
   JOIN heap_graph_class AS c
@@ -1885,8 +2744,8 @@ RETURNS TableOrSubquery AS
     )
   SELECT
     path_hash,
-    c.name AS class_name,
-    r.field_name,
+    coalesce(c.deobfuscated_name, c.name) AS class_name,
+    coalesce(r.deobfuscated_field_name, r.field_name) AS field_name,
     r.field_type_name,
     dst.*
   FROM _path_hashes AS h
@@ -1897,7 +2756,8 @@ RETURNS TableOrSubquery AS
   JOIN heap_graph_object AS dst
     ON r.owned_id = dst.id
   JOIN heap_graph_class AS c
-    ON dst.type_id = c.id
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    ON dst.type_id = c.id
   ORDER BY
     dst.self_size DESC
 );
@@ -1907,10 +2767,9 @@ CREATE PERFETTO MACRO _heap_graph_retained_object_count_agg(
     path_hash_values TableOrSubquery
 )
 RETURNS TableOrSubquery AS
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_((
+(
   SELECT
-    c.name AS class_name,
+    coalesce(c.deobfuscated_name, c.name) AS class_name,
     o.heap_type,
     o.root_type,
     o.reachable,
@@ -1938,7 +2797,8 @@ R"_d3l1m1t3r_((
     ON b.node_id = o.id
   JOIN heap_graph_class AS c
     ON o.type_id = c.id
-  GROUP BY
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  GROUP BY
     class_name,
     heap_type,
     root_type,
@@ -1952,10 +2812,9 @@ CREATE PERFETTO MACRO _heap_graph_retaining_object_count_agg(
     path_hash_values TableOrSubquery
 )
 RETURNS TableOrSubquery AS
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_((
+(
   SELECT
-    c.name AS class_name,
+    coalesce(c.deobfuscated_name, c.name) AS class_name,
     o.heap_type,
     o.root_type,
     o.reachable,
@@ -1982,7 +2841,8 @@ R"_d3l1m1t3r_((
   JOIN heap_graph_object AS o
     ON b.node_id = o.id
   JOIN heap_graph_class AS c
-    ON o.type_id = c.id
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    ON o.type_id = c.id
   GROUP BY
     class_name,
     heap_type,
@@ -1999,11 +2859,10 @@ RETURNS TableOrSubquery AS
 (
   SELECT
     count(DISTINCT path_hash) AS path_count,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(    count() AS object_count,
+    count() AS object_count,
     sum(o.self_size) AS total_size,
     sum(o.native_size) AS total_native_size,
-    c.name AS class_name
+    coalesce(c.deobfuscated_name, c.name) AS class_name
   FROM $path_hashes AS h
   JOIN heap_graph_object AS o
     ON h.id = o.id
@@ -2216,8 +3075,8 @@ ORDER BY
 CREATE PERFETTO TABLE _excluded_refs AS
 SELECT
   ref.id
-FROM heap_graph_reference AS ref
-CROSS JOIN heap_graph_object AS robj
+FROM heap_graph_object AS robj
+CROSS JOIN heap_graph_reference AS ref
   USING (reference_set_id)
 CROSS JOIN _ref_type_ids
 )_d3l1m1t3r_"
@@ -2533,7 +3392,7 @@ R"_d3l1m1t3r_(      JOIN heap_graph_class AS c
     path_hash AS parent_path_hash,
     '[native] ' || x.name AS name,
     root_type,
-    'native' AS heap_type,
+    'HEAP_TYPE_NATIVE' AS heap_type,
     sum(x.self_native_count) AS self_count,
     sum(x.self_native_size) AS self_size
   FROM x
@@ -2657,6 +3516,9 @@ WHERE
 ORDER BY
   id;
 
+CREATE PERFETTO INDEX _raw_heap_graph_dominator_tree_idom_id_idx ON _raw_heap_graph_dominator_tree(idom_id);
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(
 )_d3l1m1t3r_"
 ;
 
@@ -2863,16 +3725,12 @@ const char kAndroidMemoryDmabuf[] = R"_d3l1m1t3r_(--
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+INCLUDE PERFETTO MODULE counters.intervals;
+
 -- Raw ftrace events
 CREATE PERFETTO TABLE _raw_dmabuf_events AS
 SELECT
-  (
-    SELECT
-      int_value
-    FROM args
-    WHERE
-      arg_set_id = c.arg_set_id AND key = 'inode'
-  ) AS inode,
+  extract_arg(arg_set_id, 'inode') AS inode,
   tt.utid,
   c.ts,
   cast_int!(c.value) AS buf_size
@@ -2883,9 +3741,9 @@ WHERE
   tt.name = 'mem.dma_heap_change';
 
 -- gralloc binder reply slices
+CREATE PERFETTO TABLE _gralloc_binders AS
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(CREATE PERFETTO TABLE _gralloc_binders AS
-WITH
+R"_d3l1m1t3r_(WITH
   gralloc_threads AS (
     SELECT
       utid
@@ -2894,15 +3752,16 @@ WITH
       USING (upid)
     WHERE
       process.name GLOB '/vendor/bin/hw/android.hardware.graphics.allocator*'
+      OR process.name GLOB '/vendor/bin/hw/*gralloc.allocator*'
   )
 SELECT
   flow.slice_out AS client_slice_id,
   gralloc_slice.ts,
   gralloc_slice.dur,
-  thread_track.utid
+  gralloc_tt.utid
 FROM slice AS gralloc_slice
-JOIN thread_track
-  ON gralloc_slice.track_id = thread_track.id
+JOIN thread_track AS gralloc_tt
+  ON gralloc_slice.track_id = gralloc_tt.id
 JOIN gralloc_threads
   USING (utid)
 JOIN flow
@@ -2916,19 +3775,21 @@ SELECT
   r.inode,
   r.ts,
   r.buf_size,
-  coalesce(client_thread.utid, r.utid) AS attr_utid
+  coalesce(client_tt.utid, r.utid) AS attr_utid
 FROM _raw_dmabuf_events AS r
 LEFT JOIN _gralloc_binders AS gb
   ON r.utid = gb.utid AND r.ts BETWEEN gb.ts AND gb.ts + gb.dur
-LEFT JOIN thread_track AS client_thread
-  ON gb.client_slice_id = client_thread.id
+LEFT JOIN slice AS client_slice
+  ON client_slice.id = gb.client_slice_id
+LEFT JOIN thread_track AS client_tt
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  ON client_slice.track_id = client_tt.id
 ORDER BY
   r.inode,
   r.ts;
 
 CREATE PERFETTO FUNCTION _alloc_source(
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(    is_alloc BOOL,
+    is_alloc BOOL,
     inode LONG,
     ts TIMESTAMP
 )
@@ -2966,11 +3827,11 @@ CREATE PERFETTO TABLE android_dmabuf_allocs (
   tid LONG,
   -- thread name
   thread_name STRING,
-  -- upid of process responsible for the allocation (matches utid)
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- upid of process responsible for the allocation (matches utid)
   upid JOINID(process.id),
   -- pid of process responsible for the allocation
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  pid LONG,
+  pid LONG,
   -- process name
   process_name STRING
 ) AS
@@ -3000,6 +3861,231 @@ LEFT JOIN process
   USING (upid)
 ORDER BY
   ts;
+
+-- Provides a timeseries of dmabuf allocations for each process.
+-- To populate this table, tracing must be enabled with the "dmabuf_allocs" ftrace event.
+CREATE PERFETTO TABLE android_memory_cumulative_dmabuf (
+  -- upid of process responsible for the allocation (matches utid)
+  upid JOINID(process.id),
+  -- process name
+  process_name STRING,
+  -- utid of thread responsible for the allocation
+  -- if a dmabuf is allocated by gralloc we follow the binder transaction
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- to the requesting thread (requires binder tracing)
+  utid JOINID(thread.id),
+  -- thread name
+  thread_name STRING,
+  -- timestamp of the allocation
+  ts TIMESTAMP,
+  -- total allocation size per process and thread
+  value LONG
+) AS
+SELECT
+  upid,
+  process_name,
+  utid,
+  thread_name,
+  ts,
+  sum(buf_size) OVER (PARTITION BY coalesce(upid, utid) ORDER BY ts) AS value
+FROM android_dmabuf_allocs;
+
+)_d3l1m1t3r_"
+;
+
+const char kAndroidMemoryLmk[] = R"_d3l1m1t3r_(--
+-- Copyright 2025 The Android Open Source Project
+--
+-- Licensed under the Apache License, Version 2.0 (the 'License');
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     https://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an 'AS IS' BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
+INCLUDE PERFETTO MODULE android.oom_adjuster;
+
+CREATE PERFETTO FUNCTION _android_lmk_kill_reason_string(
+    -- kill reason enum value
+    kill_reason LONG
+)
+RETURNS STRING AS
+SELECT
+  CASE
+    WHEN $kill_reason = 0
+    THEN 'PRESSURE_AFTER_KILL'
+    WHEN $kill_reason = 1
+    THEN 'NOT_RESPONDING'
+    WHEN $kill_reason = 2
+    THEN 'LOW_SWAP_AND_THRASHING'
+    WHEN $kill_reason = 3
+    THEN 'LOW_MEM_AND_SWAP'
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    WHEN $kill_reason = 4
+    THEN 'LOW_MEM_AND_THRASHING'
+    WHEN $kill_reason = 5
+    THEN 'DIRECT_RECL_AND_THRASHING'
+    WHEN $kill_reason = 6
+    THEN 'LOW_MEM_AND_SWAP_UTIL'
+    WHEN $kill_reason = 7
+    THEN 'LOW_FILECACHE_AFTER_THRASHING'
+    WHEN $kill_reason = 8
+    THEN 'LOW_MEM'
+    WHEN $kill_reason = 9
+    THEN 'DIRECT_RECL_STUCK'
+    WHEN $kill_reason >= 1000 AND $kill_reason < 2000
+    THEN 'VENDOR_REASON'
+    ELSE 'UNKNOWN'
+  END;
+
+-- Kills recorded via the instant lowmemorykiller track
+-- Introduced with ag/32702401 (Mar 2025)
+CREATE PERFETTO TABLE _lmk_instant_events AS
+SELECT
+  ts,
+  CAST(str_split(slice.name, ',', 1) AS LONG) AS pid,
+  CAST(str_split(slice.name, ',', 2) AS LONG) AS kill_reason_raw,
+  CAST(str_split(slice.name, ',', 3) AS LONG) AS oom_score_adj
+FROM slice
+JOIN process_track AS pt
+  ON slice.track_id = pt.id
+WHERE
+  pt.name = 'lowmemorykiller' AND slice.name GLOB 'lmk,*' AND dur = 0;
+
+-- LMK events based on the slice atrace event (legacy)
+-- Introduced with aosp/1782391 (Aug 2021)
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(CREATE PERFETTO TABLE _legacy_lmk_events AS
+SELECT
+  ts,
+  CAST(str_split(slice.name, ',', 1) AS LONG) AS pid,
+  CAST(str_split(slice.name, ',', 2) AS LONG) AS kill_reason_raw,
+  CAST(str_split(slice.name, ',', 3) AS LONG) AS oom_score_adj
+FROM slice
+WHERE
+  slice.name GLOB 'lmk,*' AND dur > 0;
+
+-- The original lmkd trace events, deprecated in 2022
+CREATE PERFETTO TABLE _kill_one_process_events AS
+WITH
+  kills AS (
+    SELECT
+      c.ts,
+      c.value AS pid
+    FROM counter AS c
+    JOIN counter_track AS ct
+      ON c.track_id = ct.id
+    WHERE
+      ct.name = 'kill_one_process' AND c.value > 0
+  ),
+  si AS (
+    SELECT
+      si.ts,
+      si.dur,
+      si.score,
+      process.pid
+    FROM android_oom_adj_intervals AS si
+    JOIN process
+      USING (upid)
+  )
+SELECT
+  kills.ts,
+  kills.pid,
+  NULL AS kill_reason_raw,
+  si.score AS oom_score_adj
+FROM kills
+LEFT JOIN si
+  ON kills.pid = si.pid AND kills.ts >= si.ts AND kills.ts < si.ts + si.dur;
+
+CREATE PERFETTO VIEW _android_lmk_events AS
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(WITH
+  selector AS (
+    SELECT
+      CASE
+        WHEN (
+          SELECT
+            count(1)
+          FROM _lmk_instant_events
+        ) > 0
+        THEN '_lmk_instant_events'
+        WHEN (
+          SELECT
+            count(1)
+          FROM _legacy_lmk_events
+        ) > 0
+        THEN '_legacy_lmk_events'
+        ELSE '_kill_one_process_events'
+      END AS s
+  )
+SELECT
+  *
+FROM _lmk_instant_events
+WHERE
+  (
+    SELECT
+      s
+    FROM selector
+  ) = '_lmk_instant_events'
+UNION ALL
+SELECT
+  *
+FROM _legacy_lmk_events
+WHERE
+  (
+    SELECT
+      s
+    FROM selector
+  ) = '_legacy_lmk_events'
+UNION ALL
+SELECT
+  *
+FROM _kill_one_process_events
+WHERE
+  (
+    SELECT
+      s
+    FROM selector
+  ) = '_kill_one_process_events';
+
+-- Android Low-Memory Kill (LMK) events
+CREATE PERFETTO TABLE android_lmk_events (
+  -- timestamp of the kill being requested by lmkd
+  ts TIMESTAMP,
+  -- upid of the process being killed
+  upid JOINID(process.id),
+  -- pid of the process being killed
+  pid LONG,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- process name of the process being killed
+  process_name STRING,
+  -- oom_score_adj of the process being killed
+  oom_score_adj LONG,
+  -- lmkd kill_reason (matches lmkd/statslog.h kill_reasons enum)
+  kill_reason STRING,
+  -- lmkd kill_reason enum value
+  kill_reason_raw LONG
+) AS
+SELECT
+  ts,
+  process.pid,
+  process.upid,
+  process.name AS process_name,
+  oom_score_adj,
+  _android_lmk_kill_reason_string(kill_reason_raw) AS kill_reason,
+  kill_reason_raw
+FROM _android_lmk_events AS evt
+LEFT JOIN process
+  ON (
+    evt.pid = process.pid
+    AND evt.ts >= coalesce(process.start_ts, trace_start())
+    AND evt.ts <= coalesce(process.end_ts, trace_end())
+  );
 
 )_d3l1m1t3r_"
 ;
@@ -3261,7 +4347,9 @@ R"_d3l1m1t3r_(        WHERE dur > 0
       ),
       name) AS p
 JOIN thread_slice
-  USING (id);
+  USING (id)
+ORDER BY
+  p.id;
 
 -- Subset of _startup_normalized_slices that occurred during any app startups on the main thread.
 -- Their timestamps and durations are chopped to fit within the respective app startup duration.
@@ -3289,9 +4377,9 @@ SELECT
   i.ts,
   i.dur,
   i.root_id,
-  t.id AS thread_state_id,
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(  t.state,
+R"_d3l1m1t3r_(  t.id AS thread_state_id,
+  t.state,
   t.io_wait,
   t.irq_context
 FROM _intervals_merge_root_and_children_by_intersection!(_startup_root_slices,
@@ -4403,6 +5491,240 @@ FROM __intrinsic_inputmethod_service;
 )_d3l1m1t3r_"
 ;
 
+const char kAndroidWinscopeRect[] = R"_d3l1m1t3r_(--
+-- Copyright 2025 The Android Open Source Project
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     https://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
+-- Android Winscope rects.
+CREATE PERFETTO VIEW android_winscope_rect (
+  -- Rect id
+  id LONG,
+  -- x
+  x DOUBLE,
+  -- y
+  y DOUBLE,
+  -- w
+  w DOUBLE,
+  -- h
+  h DOUBLE
+) AS
+SELECT
+  *
+FROM __intrinsic_winscope_rect;
+
+-- Android Winscope transforms.
+CREATE PERFETTO VIEW android_winscope_transform (
+  -- Transform id
+  id LONG,
+  -- dsdx
+  dsdx DOUBLE,
+  -- dtdx
+  dtdx DOUBLE,
+  -- tx
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  tx DOUBLE,
+  -- dtdy
+  dtdy DOUBLE,
+  -- dsdy
+  dsdy DOUBLE,
+  -- ty
+  ty DOUBLE
+) AS
+SELECT
+  id,
+  dsdx,
+  dtdx,
+  tx,
+  dtdy,
+  dsdy,
+  ty
+FROM __intrinsic_winscope_transform;
+
+-- Android Winscope trace rects.
+CREATE PERFETTO VIEW android_winscope_trace_rect (
+  -- Trace rect id
+  id LONG,
+  -- Rect id
+  rect_id LONG,
+  -- Group id
+  group_id LONG,
+  -- Depth
+  depth LONG,
+  -- Is spy rect
+  is_spy LONG,
+  -- Is visible
+  is_visible LONG,
+  -- Opacity
+  opacity DOUBLE,
+  -- Transform id
+  transform_id LONG
+) AS
+SELECT
+  *
+FROM __intrinsic_winscope_trace_rect;
+
+)_d3l1m1t3r_"
+;
+
+const char kAndroidWinscopeSurfaceflinger[] = R"_d3l1m1t3r_(--
+-- Copyright 2025 The Android Open Source Project
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     https://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
+-- Android surfaceflinger transactions (from android.surfaceflinger.transactions data source).
+CREATE PERFETTO VIEW android_surfaceflinger_transaction (
+  -- Row id
+  id LONG,
+  -- Snapshot id
+  snapshot_id LONG,
+  -- Arg set id
+  arg_set_id LONG,
+  -- Transaction id
+  transaction_id LONG,
+  -- PID
+  pid LONG,
+  -- UID
+  uid LONG,
+  -- Layer id
+  layer_id LONG,
+  -- Display id
+  display_id LONG,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- Flags id
+  flags_id LONG,
+  -- Transaction type
+  transaction_type STRING
+) AS
+SELECT
+  id,
+  snapshot_id,
+  arg_set_id,
+  transaction_id,
+  pid,
+  uid,
+  layer_id,
+  display_id,
+  flags_id,
+  transaction_type
+FROM __intrinsic_surfaceflinger_transaction;
+
+-- Android surfaceflinger transaction flags.
+CREATE PERFETTO VIEW android_surfaceflinger_transaction_flag (
+  -- Flags id
+  flags_id LONG,
+  -- Flag
+  flag STRING
+) AS
+SELECT
+  flags_id,
+  flag
+FROM __intrinsic_surfaceflinger_transaction_flag;
+
+-- Android surfaceflinger displays (from android.surfaceflinger.layers data source).
+CREATE PERFETTO VIEW android_surfaceflinger_display (
+  -- Id
+  id LONG,
+  -- Snapshot id
+  snapshot_id LONG,
+  -- Is on
+  is_on LONG,
+  -- Is virtual
+  is_virtual LONG,
+  -- Trace rect id
+  trace_rect_id LONG,
+  -- Display id
+  display_id LONG,
+  -- Display name
+  display_name STRING
+) AS
+SELECT
+  *
+FROM __intrinsic_surfaceflinger_display;
+
+-- Android surfaceflinger input rect fill regions (from android.surfaceflinger.layers data source).
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(CREATE PERFETTO VIEW android_winscope_fill_region (
+  -- Fill region id
+  id LONG,
+  -- Trace rect id
+  trace_rect_id LONG,
+  -- Rect id
+  rect_id LONG
+) AS
+SELECT
+  *
+FROM __intrinsic_winscope_fill_region;
+
+)_d3l1m1t3r_"
+;
+
+const char kAndroidWinscopeTransitions[] = R"_d3l1m1t3r_(--
+-- Copyright 2025 The Android Open Source Project
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     https://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
+-- Android transition participants (from com.android.wm.shell.transition data source).
+CREATE PERFETTO VIEW android_window_manager_shell_transition_participants (
+  -- Transition id
+  transition_id LONG,
+  -- Layer participant
+  layer_id LONG,
+  -- Window participant
+  window_id LONG
+) AS
+SELECT
+  transition_id,
+  layer_id,
+  window_id
+FROM __intrinsic_window_manager_shell_transition_participants;
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(
+-- Android transition protos (from com.android.wm.shell.transition data source).
+CREATE PERFETTO VIEW android_window_manager_shell_transition_protos (
+  -- Transition id
+  transition_id LONG,
+  -- Base64 proto id
+  base64_proto_id LONG
+) AS
+SELECT
+  transition_id,
+  base64_proto_id
+FROM __intrinsic_window_manager_shell_transition_protos;
+
+)_d3l1m1t3r_"
+;
+
 const char kAndroidWinscopeViewcapture[] = R"_d3l1m1t3r_(--
 -- Copyright 2024 The Android Open Source Project
 --
@@ -4432,6 +5754,22 @@ SELECT
   ts,
   arg_set_id
 FROM __intrinsic_viewcapture;
+
+-- Android viewcapture view (from android.viewcapture data source).
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(CREATE PERFETTO VIEW android_viewcapture_view (
+  -- Row id
+  id LONG,
+  -- Snapshot id
+  snapshot_id LONG,
+  -- Extra args parsed from the proto message
+  arg_set_id ARGSETID
+) AS
+SELECT
+  id,
+  snapshot_id,
+  arg_set_id
+FROM __intrinsic_viewcapture_view;
 
 )_d3l1m1t3r_"
 ;
@@ -4766,7 +6104,7 @@ FROM _provider_proc_start;
 ;
 
 const char kAndroidBattery[] = R"_d3l1m1t3r_(--
--- Copyright 2022 The Android Open Source Project
+-- Copyright 2025 The Android Open Source Project
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
@@ -4796,7 +6134,9 @@ CREATE PERFETTO VIEW android_battery_charge (
   voltage_uv DOUBLE,
 )_d3l1m1t3r_"
 R"_d3l1m1t3r_(  -- Current energy counter in microwatt-hours(µWh).
-  energy_counter_uwh DOUBLE
+  energy_counter_uwh DOUBLE,
+  -- Current power in milliwatts.
+  power_mw DOUBLE
 ) AS
 SELECT
   all_ts.ts,
@@ -4805,7 +6145,8 @@ SELECT
   charge_uah,
   current_ua,
   voltage_uv,
-  energy_counter_uwh
+  energy_counter_uwh,
+  power_mw
 FROM (
   SELECT DISTINCT
     (
@@ -4852,12 +6193,12 @@ LEFT JOIN (
   USING (ts)
 LEFT JOIN (
   SELECT
-    ts,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    ts,
     value AS current_ua
   FROM counter AS c
   JOIN counter_track AS t
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(    ON c.track_id = t.id
+    ON c.track_id = t.id
   WHERE
     name = 'batt.current_ua'
 )
@@ -4882,6 +6223,17 @@ LEFT JOIN (
     ON c.track_id = t.id
   WHERE
     name = 'batt.energy_counter_uwh'
+)
+  USING (ts)
+LEFT JOIN (
+  SELECT
+    ts,
+    value AS power_mw
+  FROM counter AS c
+  JOIN counter_track AS t
+    ON c.track_id = t.id
+  WHERE
+    name = 'batt.power_mw'
 )
   USING (ts)
 ORDER BY
@@ -5565,7 +6917,9 @@ R"_d3l1m1t3r_(  *,
   lead(name) OVER (PARTITION BY track_id ORDER BY ts) AS next_name,
   lead(ts) OVER (PARTITION BY track_id ORDER BY ts) AS next_ts,
   lead(dur) OVER (PARTITION BY track_id ORDER BY ts) AS next_dur
-FROM async_reply;
+FROM async_reply
+ORDER BY
+  id;
 
 CREATE PERFETTO TABLE _binder_async_txn_raw AS
 SELECT
@@ -5587,15 +6941,17 @@ JOIN thread
 JOIN process
   USING (upid)
 WHERE
-  slice.name = 'binder transaction async';
+  slice.name = 'binder transaction async'
+ORDER BY
+  binder_txn_id;
 
 CREATE PERFETTO TABLE _binder_async_txn AS
 SELECT
   iif(binder_reply.next_name = 'binder async rcv', NULL, binder_reply.next_name) AS aidl_name,
   iif(binder_reply.next_name = 'binder async rcv', NULL, binder_reply.next_ts) AS aidl_ts,
-  iif(binder_reply.next_name = 'binder async rcv', NULL, binder_reply.next_dur) AS aidl_dur,
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(  binder_txn.*,
+R"_d3l1m1t3r_(  iif(binder_reply.next_name = 'binder async rcv', NULL, binder_reply.next_dur) AS aidl_dur,
+  binder_txn.*,
   binder_reply.id AS binder_reply_id,
   reply_process.name AS server_process,
   reply_thread.name AS server_thread,
@@ -5617,13 +6973,15 @@ JOIN thread AS reply_thread
 JOIN process AS reply_process
   ON reply_process.upid = reply_thread.upid
 WHERE
-  binder_reply.name = 'binder async rcv';
+  binder_reply.name = 'binder async rcv'
+ORDER BY
+  binder_txn_id;
 
 -- Breakdown asynchronous binder transactions per txn.
--- It returns data about the client and server ends of every binder transaction async.
-CREATE PERFETTO VIEW _async_binder_metrics_by_txn AS
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(SELECT
+R"_d3l1m1t3r_(-- It returns data about the client and server ends of every binder transaction async.
+CREATE PERFETTO VIEW _async_binder_metrics_by_txn AS
+SELECT
   binder.*,
   client_oom.value AS client_oom_score,
   server_oom.value AS server_oom_score
@@ -5645,10 +7003,10 @@ CREATE PERFETTO TABLE android_binder_txns (
   -- Method name of the binder endpoint if existing.
   method_name STRING,
   -- Timestamp the binder interface name was emitted. Proxy to 'ts' and 'dur' for async txns.
-  aidl_ts TIMESTAMP,
-  -- Duration of the binder interface name. Proxy to 'ts' and 'dur' for async txns.
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(  aidl_dur DURATION,
+R"_d3l1m1t3r_(  aidl_ts TIMESTAMP,
+  -- Duration of the binder interface name. Proxy to 'ts' and 'dur' for async txns.
+  aidl_dur DURATION,
   -- Slice id of the binder txn.
   binder_txn_id JOINID(slice.id),
   -- Name of the client process.
@@ -5677,11 +7035,11 @@ R"_d3l1m1t3r_(  aidl_dur DURATION,
   server_thread STRING,
   -- Upid of the server process.
   server_upid JOINID(process.id),
-  -- Utid of the server thread.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- Utid of the server thread.
   server_utid JOINID(thread.id),
   -- Tid of the server thread.
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  server_tid LONG,
+  server_tid LONG,
   -- Pid of the server thread.
   server_pid LONG,
   -- Timestamp of the server txn.
@@ -5709,13 +7067,13 @@ R"_d3l1m1t3r_(  server_tid LONG,
 ) AS
 WITH
   all_binder AS (
-    SELECT
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    SELECT
       *,
       1 AS is_sync
     FROM _sync_binder_metrics_by_txn
     UNION ALL
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(    SELECT
+    SELECT
       *,
       0 AS is_sync
     FROM _async_binder_metrics_by_txn
@@ -5734,12 +7092,14 @@ FROM all_binder
 LEFT JOIN android_process_metadata AS client_process_metadata
   ON all_binder.client_upid = client_process_metadata.upid
 LEFT JOIN android_process_metadata AS server_process_metadata
-  ON all_binder.server_upid = server_process_metadata.upid;
+  ON all_binder.server_upid = server_process_metadata.upid
+ORDER BY
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  binder_txn_id;
 
 -- Returns a DAG of all outgoing binder txns from a process.
 -- The roots of the graph are the threads making the txns and the graph flows from:
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(-- thread -> server_process -> AIDL interface -> AIDL method.
+-- thread -> server_process -> AIDL interface -> AIDL method.
 -- The weights of each node represent the wall execution time in the server_process.
 CREATE PERFETTO FUNCTION android_binder_outgoing_graph(
     -- Upid of process to generate an outgoing graph for.
@@ -5774,11 +7134,11 @@ WITH
     SELECT
       binder_txn_id,
       cat_stacks(stack, str_split(aidl_name, '::', iif(aidl_name GLOB 'AIDL*', 2, 1))) AS stack
-    FROM android_binder_txns
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    FROM android_binder_txns
     JOIN server_process
       USING (binder_txn_id)
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  ),
+  ),
   aidl_names AS (
     SELECT
       binder_txn_id,
@@ -5809,12 +7169,12 @@ WITH
     SELECT
       binder_txn_id,
       cat_stacks(client_process) AS stack
-    FROM android_binder_txns
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    FROM android_binder_txns
     WHERE
       (
         NOT $upid IS NULL AND server_upid = $upid
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ) OR (
+      ) OR (
         $upid IS NULL
       )
   ),
@@ -5844,10 +7204,10 @@ FROM aidl_names;
 -- The weights of each node represent the wall execution time in the server_process.
 CREATE PERFETTO FUNCTION android_binder_graph(
     -- Matches txns from client_processes greater than or equal to the OOM score.
-    min_client_oom_score LONG,
-    -- Matches txns from client_processes less than or equal to the OOM score.
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(    max_client_oom_score LONG,
+R"_d3l1m1t3r_(    min_client_oom_score LONG,
+    -- Matches txns from client_processes less than or equal to the OOM score.
+    max_client_oom_score LONG,
     -- Matches txns to server_processes greater than or equal to the OOM score.
     min_server_oom_score LONG,
     -- Matches txns to server_processes less than or equal to the OOM score.
@@ -5880,7 +7240,8 @@ WITH
 SELECT
   experimental_profile(stack, 'duration', 'ns', server_dur) AS pprof
 FROM servers;
-
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(
 )_d3l1m1t3r_"
 ;
 
@@ -6016,7 +7377,7 @@ FROM _binder_flatten_descendants!(binder_reply_id, server_ts,
 )_d3l1m1t3r_"
 R"_d3l1m1t3r_(                                             server_dur, 'binder reply')
 ORDER BY
-  ts;
+  id;
 
 -- Client side flattened descendant slices.
 CREATE PERFETTO TABLE _binder_client_flat_descendants AS
@@ -6025,7 +7386,7 @@ SELECT
 FROM _binder_flatten_descendants!(binder_txn_id, client_ts, client_dur,
                                            'binder transaction')
 ORDER BY
-  ts;
+  id;
 
 -- Server side flattened descendants intersected with their thread_states.
 CREATE PERFETTO TABLE _binder_server_flat_descendants_with_thread_state AS
@@ -6036,14 +7397,14 @@ SELECT
   _server_flat.binder_reply_id,
   _server_flat.name,
   _server_flat.flat_id,
-  _thread_state_view.state,
-  _thread_state_view.io_wait
+  thread_state.state,
+  thread_state.io_wait
 FROM _interval_intersect !((_binder_server_flat_descendants,
                             _thread_state_view), (utid)) AS ii
 JOIN _binder_server_flat_descendants AS _server_flat
   ON id_0 = _server_flat.id
-JOIN _thread_state_view
-  ON id_1 = _thread_state_view.id;
+JOIN thread_state
+  ON id_1 = thread_state.id;
 
 -- Client side flattened descendants intersected with their thread_states.
 )_d3l1m1t3r_"
@@ -6214,6 +7575,175 @@ SELECT
 FROM _binder_client_server_breakdown_sp;
 )_d3l1m1t3r_"
 R"_d3l1m1t3r_(
+)_d3l1m1t3r_"
+;
+
+const char kAndroidBitmaps[] = R"_d3l1m1t3r_(--
+-- Copyright 2025 The Android Open Source Project
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     https://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+--
+
+INCLUDE PERFETTO MODULE counters.intervals;
+
+INCLUDE PERFETTO MODULE intervals.intersect;
+
+CREATE PERFETTO MACRO _android_bitmap_counter_macro(
+    name Expr
+)
+RETURNS TableOrSubquery AS
+(
+  SELECT
+    id,
+    track_id,
+    ts,
+    dur,
+    track_id,
+    value
+  FROM counter_leading_intervals!((
+    SELECT
+      c.id,
+      c.track_id,
+      c.ts,
+      c.value
+    FROM counter AS c
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(JOIN process_counter_track AS pct ON pct.id = c.track_id
+    WHERE pct.name = $name
+  )) AS intervals
+);
+
+-- Provides a timeseries of "Bitmap Memory" counter for each process, which
+-- is useful for retrieving the total memory used by bitmaps by an application over time.
+--
+-- To populate this table, tracing must be enabled with the "view" atrace
+-- category.
+CREATE PERFETTO TABLE android_bitmap_memory (
+  -- ID of the row in the underlying counter table.
+  id ID(counter.id),
+  -- Upid of the process.
+  upid JOINID(process.upid),
+  -- Timestamp of the start of the interval.
+  ts TIMESTAMP,
+  -- Duration of the interval.
+  dur DURATION,
+  -- Duration of the interval.
+  track_id JOINID(counter.track_id),
+  -- Memory consumed by bitmaps in bytes.
+  value LONG
+) AS
+SELECT
+  c.id,
+  upid,
+  ts,
+  dur,
+  track_id,
+  value
+FROM _android_bitmap_counter_macro!('Bitmap Memory') AS c
+JOIN process_counter_track AS pct
+  ON pct.id = c.track_id
+ORDER BY
+  c.id;
+
+-- Provides a timeseries of "Bitmap Count" counter for each process, which
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(-- is useful for retrieving the number of bitmaps used by an application over time.
+--
+-- To populate this table, tracing must be enabled with the "view" atrace
+-- category.
+CREATE PERFETTO TABLE android_bitmap_count (
+  -- ID of the row in the underlying counter table.
+  id ID(counter.id),
+  -- Upid of the process.
+  upid JOINID(process.upid),
+  -- Timestamp of the start of the interval.
+  ts TIMESTAMP,
+  -- Duration of the interval.
+  dur DURATION,
+  -- Duration of the interval.
+  track_id JOINID(counter.track_id),
+  -- Number of allocated bitmaps.
+  value LONG
+) AS
+SELECT
+  c.id,
+  upid,
+  ts,
+  dur,
+  track_id,
+  value
+FROM _android_bitmap_counter_macro!('Bitmap Count') AS c
+JOIN process_counter_track AS pct
+  ON pct.id = c.track_id
+ORDER BY
+  c.id;
+
+-- Provides a timeseries of bitmap-related counters for each process, which
+-- is useful for understanding an application's bitmap usage over time.
+--
+-- To populate this table, tracing must be enabled with the "view" atrace
+-- category.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(CREATE PERFETTO TABLE android_bitmap_counters_per_process (
+  -- Upid of the process.
+  upid JOINID(process.upid),
+  -- Name of the process.
+  process_name STRING,
+  -- Timestamp of the start of the interval.
+  ts TIMESTAMP,
+  -- Duration of the interval.
+  dur DURATION,
+  -- Memory consumed by bitmaps in bytes.
+  bitmap_memory LONG,
+  -- Number of allocated bitmaps.
+  bitmap_count LONG,
+  -- ID of the row in the underlying counter table.
+  bitmap_memory_id JOINID(counter.id),
+  -- ID of the row in the underlying counter table.
+  bitmap_count_id JOINID(counter.id)
+) AS
+SELECT
+  p.upid,
+  p.name AS process_name,
+  c.ts,
+  c.dur,
+  abm.value AS bitmap_memory,
+  abc.value AS bitmap_count,
+  abm.id AS bitmap_memory_id,
+  abc.id AS bitmap_count_id
+-- TODO(lalitm): we have this interval intersect because as implemented today,
+-- the bitmap memory and count counters are updated one after the
+-- other *but* with slightly different timestamps. Ideally, we would remove
+-- these "intermediate" intervals but that would require heuristics. So for now,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(-- we just intersect the intervals together and retain the intermediate
+-- intervals. Alternatively, if we had a way to actually timestamp both
+-- counters at the same time, we could avoid this. We would need the Perfetto
+-- SDK for that though.
+FROM _interval_intersect!(
+  (
+    android_bitmap_memory,
+    android_bitmap_count
+  ),
+  (upid)
+) AS c
+JOIN android_bitmap_memory AS abm
+  ON c.id_0 = abm.id
+JOIN android_bitmap_count AS abc
+  ON c.id_1 = abc.id
+JOIN process AS p
+  USING (upid);
+
 )_d3l1m1t3r_"
 ;
 
@@ -6392,6 +7922,7 @@ R"_d3l1m1t3r_(  OR $name = 'postAndWait'
   OR $name GLOB 'GC: Wait For*'
   OR $name GLOB 'Recomposer:*'
   OR $name GLOB 'Compose:*'
+  OR $name GLOB 'draw-VRI*'
   OR (
     -- Some top level handler slices
     $depth = 0
@@ -6408,9 +7939,9 @@ R"_d3l1m1t3r_(  OR $name = 'postAndWait'
   );
 
 --Extract critical blocking calls from all processes.
-CREATE PERFETTO TABLE _android_critical_blocking_calls AS
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(SELECT
+R"_d3l1m1t3r_(CREATE PERFETTO TABLE _android_critical_blocking_calls AS
+SELECT
   android_standardize_slice_name(s.name) AS name,
   s.ts,
   s.dur,
@@ -6439,6 +7970,23 @@ SELECT
 FROM android_binder_txns AS tx
 WHERE
   NOT aidl_name IS NULL AND is_sync = 1;
+
+CREATE PERFETTO FUNCTION _is_relevant_notifications_blocking_call(
+    name STRING,
+    dur LONG
+)
+RETURNS BOOL AS
+SELECT
+  $name = 'NotificationStackScrollLayout#onMeasure'
+  AND $dur > 0
+  AND (
+    $name GLOB 'NotificationStackScrollLayout#onMeasure'
+    OR $name GLOB 'NotificationToplineView#onMeasure'
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    OR $name GLOB 'ExpNotRow#*'
+    OR $name GLOB 'NotificationShadeWindowView#onMeasure'
+    OR $name GLOB 'ImageFloatingTextView#onMeasure'
+  );
 
 )_d3l1m1t3r_"
 ;
@@ -6741,6 +8289,103 @@ GROUP BY
 )_d3l1m1t3r_"
 ;
 
+const char kAndroidEntityStateResidency[] = R"_d3l1m1t3r_(--
+-- Copyright 2025 The Android Open Source Project
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     https://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+--
+
+-- Android entity state residency samples.
+-- For details see: https://perfetto.dev/docs/reference/trace-config-proto#AndroidPowerConfig
+CREATE PERFETTO TABLE android_entity_state_residency (
+  -- `counter.id`
+  id ID(counter.id),
+  -- Timestamp of the residency sample.
+  ts TIMESTAMP,
+  -- Time until the next residency sample.
+  dur DURATION,
+  -- Entity or subsytem name.
+  entity_name STRING,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- State name
+  state_name STRING,
+  -- Raw name (alias of counter.name)
+  raw_name STRING,
+  -- Time the entity or subsystem spent in the state since boot
+  state_time_since_boot DURATION,
+  -- Time the entity or subsystem spent in the state since boot on the next
+  -- sample
+  state_time_since_boot_at_end DURATION,
+  -- ratio of the time the entity or subsystem spend in the state out of the
+  -- elapsed time of the sample period. A value of 1 typically means the 100%
+  -- of time was spent in the state, and a value of 0 means no time was spent.
+  state_time_ratio DOUBLE,
+  -- entity + state track id. Alias of `counter_track.id`.
+  track_id JOINID(track.id)
+) AS
+WITH
+  filtered_track_info AS (
+    SELECT
+      id,
+      name AS raw_name,
+      iif(
+        name GLOB 'Entity residency: *' AND name GLOB '* is *',
+        replace(substr(name, 0, instr(name, ' is ')), 'Entity residency: ', ''),
+        NULL
+      ) AS entity_name,
+      iif(
+        name GLOB 'Entity residency: *' AND name GLOB '* is *',
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(        substr(name, instr(name, ' is ') + length(' is ')),
+        NULL
+      ) AS state_name
+    FROM counter_track
+    WHERE
+      type = 'entity_state'
+  ),
+  partial_results AS (
+    SELECT
+      c.id,
+      c.ts,
+      lead(c.ts) OVER (PARTITION BY track_id ORDER BY c.ts) - c.ts AS dur,
+      t.entity_name,
+      t.state_name,
+      t.raw_name,
+      CAST(c.value * 1e6 AS INTEGER) AS state_time_since_boot,
+      CAST(lead(c.value) OVER (PARTITION BY track_id ORDER BY c.ts) * 1e6 AS INTEGER) AS state_time_since_boot_at_end,
+      c.track_id
+    FROM counter AS c
+    JOIN filtered_track_info AS t
+      ON c.track_id = t.id
+  )
+SELECT
+  id,
+  ts,
+  dur,
+  entity_name,
+  state_name,
+  raw_name,
+  state_time_since_boot,
+  state_time_since_boot_at_end,
+  (
+    state_time_since_boot_at_end - state_time_since_boot
+  ) * 1.0 / dur AS state_time_ratio,
+  track_id
+FROM partial_results;
+
+)_d3l1m1t3r_"
+;
+
 const char kAndroidFreezer[] = R"_d3l1m1t3r_(--
 -- Copyright 2024 The Android Open Source Project
 --
@@ -6764,7 +8409,7 @@ RETURNS LONG AS
 SELECT
   cast_int!(reverse(str_split(reverse(str_split($name, ' ', 1)), ':', 0)));
 
--- Converts a pid to a upid using the timestamp of occurence of an event from
+-- Converts a pid to a upid using the timestamp of occurrence of an event from
 -- |pid| to disambiguate duplicate pids.
 --
 -- This is still best effort because it relies on having information about
@@ -7094,12 +8739,12 @@ SELECT
   last_value,
   value,
   CASE
-    WHEN gc_name GLOB '*young*'
-    THEN 'young'
     WHEN gc_name GLOB '*NativeAlloc*'
     THEN 'native_alloc'
     WHEN gc_name GLOB '*Alloc*'
     THEN 'alloc'
+    WHEN gc_name GLOB '*young*'
+    THEN 'young'
     WHEN gc_name GLOB '*CollectorTransition*'
     THEN 'collector_transition'
     WHEN gc_name GLOB '*Explicit*'
@@ -7757,7 +9402,7 @@ CREATE PERFETTO TABLE android_input_events (
 )_d3l1m1t3r_"
 R"_d3l1m1t3r_(  -- Duration from input received to input ACK sent.
   handling_latency_dur DURATION,
-  -- Duration from input ACK sent to input ACK recieved.
+  -- Duration from input ACK sent to input ACK received.
   ack_latency_dur DURATION,
   -- Duration from input dispatch to input event ACK received.
   total_latency_dur DURATION,
@@ -7891,13 +9536,28 @@ R"_d3l1m1t3r_(  -- by Android Framework, used to track the event through the inp
   -- The timestamp of when the input event was processed by the system
   ts TIMESTAMP,
   -- Details of the input event parsed from the proto message
-  arg_set_id ARGSETID
+  arg_set_id ARGSETID,
+  -- Event source e.g. touchscreen, keyboard
+  source LONG,
+  -- Action e.g. down, move
+  action LONG,
+  -- Device id
+  device_id LONG,
+  -- Display id
+  display_id LONG,
+  -- Key code
+  key_code LONG
 ) AS
 SELECT
   id,
   event_id,
   ts,
-  arg_set_id
+  arg_set_id,
+  source,
+  action,
+  device_id,
+  display_id,
+  key_code
 FROM __intrinsic_android_key_events;
 
 -- Motion events processed by the Android framework (from android.input.inputevent data source).
@@ -7908,20 +9568,32 @@ CREATE PERFETTO VIEW android_motion_events (
   -- by Android Framework, used to track the event through the input pipeline
   event_id LONG,
   -- The timestamp of when the input event was processed by the system
-  ts TIMESTAMP,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  ts TIMESTAMP,
   -- Details of the input event parsed from the proto message
-  arg_set_id ARGSETID
+  arg_set_id ARGSETID,
+  -- Event source e.g. touchscreen, keyboard
+  source LONG,
+  -- Action e.g. down, move
+  action LONG,
+  -- Device id
+  device_id LONG,
+  -- Display id
+  display_id LONG
 ) AS
 SELECT
   id,
   event_id,
   ts,
-  arg_set_id
+  arg_set_id,
+  source,
+  action,
+  device_id,
+  display_id
 FROM __intrinsic_android_motion_events;
 
 -- Input event dispatching information in Android (from android.input.inputevent data source).
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(CREATE PERFETTO VIEW android_input_event_dispatch (
+CREATE PERFETTO VIEW android_input_event_dispatch (
   -- ID of the trace entry
   id LONG,
   -- Event ID of the input event that was dispatched
@@ -7940,7 +9612,8 @@ SELECT
   vsync_id,
   window_id
 FROM __intrinsic_android_input_event_dispatch;
-
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(
 )_d3l1m1t3r_"
 ;
 
@@ -8626,6 +10299,8 @@ CREATE PERFETTO TABLE android_kernel_wakelocks (
   ts TIMESTAMP,
   -- Duration.
   dur DURATION,
+  -- Duration spent awake.
+  awake_dur DURATION,
   -- Kernel or native wakelock name.
   name STRING,
   -- 'kernel' or 'native'.
@@ -8646,17 +10321,16 @@ WITH
       sum(dur) AS dur,
       sum(iif(power_state = 'awake', dur, 0)) AS awake_dur
     FROM _android_kernel_wakelocks_joined
-    WHERE
-      power_state = 'awake'
     GROUP BY
-      1,
-      2,
-      3,
-      4
+      original_ts,
+      name,
+      type,
+      held_dur
   )
 SELECT
   ts,
   dur,
+  awake_dur,
   name,
   type,
   cast_int!(held_dur) AS held_dur,
@@ -9262,6 +10936,8 @@ const char kAndroidNetworkPackets[] = R"_d3l1m1t3r_(--
 
 -- Android network packet events (from android.network_packets data source).
 CREATE PERFETTO VIEW android_network_packets (
+  -- Id of the slice.
+  id ID,
   -- Timestamp.
   ts TIMESTAMP,
   -- Duration (non-zero only in aggregate events)
@@ -9270,9 +10946,9 @@ CREATE PERFETTO VIEW android_network_packets (
   track_name STRING,
   -- Traffic package source (or uid=$X if not found)
   package_name STRING,
-  -- Traffic interface name (linux interface name)
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(  iface STRING,
+R"_d3l1m1t3r_(  -- Traffic interface name (linux interface name)
+  iface STRING,
   -- Traffic direction ('Transmitted' or 'Received')
   direction STRING,
   -- Number of packets in this event
@@ -9301,15 +10977,16 @@ R"_d3l1m1t3r_(  iface STRING,
   socket_tag_int LONG
 ) AS
 SELECT
+  id,
   ts,
   dur,
   category AS track_name,
-  name AS package_name,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  name AS package_name,
   iface,
   direction,
   packet_count,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  packet_length,
+  packet_length,
   packet_transport,
   -- For backwards compatibility, the _str suffixed flags (which the ui shows)
   -- are exposed without suffix, and the integer fields get suffix instead.
@@ -9322,7 +10999,175 @@ R"_d3l1m1t3r_(  packet_length,
   remote_port,
   packet_icmp_type,
   packet_icmp_code
-FROM __intrinsic_android_network_packets;
+FROM __intrinsic_android_network_packets
+JOIN slice
+  USING (id);
+
+-- This helper is used to unparenthesize a column list expression. Currently,
+-- the the pre-processor is unable to do both steps in one macro, so this macro
+-- must be passed to __intrinsic_token_apply at the callsite.
+CREATE PERFETTO MACRO _np_identity(
+    x Expr
+)
+RETURNS Expr AS
+$x;
+
+-- Finds groups of overlapping slices and assigns them group ids.
+--
+-- An overlap group is a set of slices (or instants) that contiguously have >=1
+-- slice present. For example, the following is one group:
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(--
+--   ###   ##
+--     #####
+--
+-- Overlap detection is partitioned by the partition columns, where overlaps are
+-- only considered within the same partition.
+--
+-- Returns $src with two additional columns:
+-- * group_id: the group the row belongs to (per partition_columns)
+-- * max_end_so_far: the maximum end timestamp observed so far, useful for
+--   determining the time since the last group or event (per partition_columns)
+CREATE PERFETTO MACRO _add_overlap_group_id(
+    src TableOrSubquery,
+    partition_columns ColumnNameList
+)
+RETURNS TableOrSubquery AS
+(
+  WITH
+    _max_endpoint AS (
+      SELECT
+        *,
+        max(ts + dur) OVER (PARTITION BY __intrinsic_token_apply!(_np_identity, $partition_columns) ORDER BY ts ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS max_end_so_far
+      FROM $src
+    )
+  SELECT
+    *,
+    sum(coalesce(ts > max_end_so_far, TRUE)) OVER (PARTITION BY __intrinsic_token_apply!(_np_identity, $partition_columns) ORDER BY ts) AS group_id
+  FROM _max_endpoint
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_();
+
+-- Computes network uptime spans based on an idle timeout model.
+--
+-- It is common in networking to have an interface active for some time after
+-- use. For example, mobile networks are often connected for 10 or more seconds
+-- after the last packet is sent or received. This macro simulates this timeout
+-- and returns spans that approximate the underlying connected regions.
+CREATE PERFETTO MACRO android_network_uptime_spans(
+    -- A table/view/subquery containing the network events to apply the idle
+    -- timeout model to. The table must contain all partition_columns, ts, dur,
+    -- packet_count, and packet_length.
+    src TableOrSubquery,
+    -- A parenthesized set of columns to partition the analysis by.
+    partition_columns ColumnNameList,
+    -- The idle timeout, expressed in nanoseconds.
+    timeout Expr
+)
+RETURNS TableOrSubquery AS
+(
+  -- This query applies the timeout as additional duration per item and performs
+  -- pre-aggregation to speed up the overlap group detection below.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  WITH
+    _quantized AS (
+      SELECT
+        __intrinsic_token_apply!(_np_identity, $partition_columns),
+        min(ts) AS ts,
+        max(ts + dur + $timeout) - min(ts) AS dur,
+        sum(packet_count) AS packet_count,
+        sum(packet_length) AS packet_length
+      FROM $src
+      GROUP BY
+        __intrinsic_token_apply!(_np_identity, $partition_columns),
+        CAST(ts / $timeout AS LONG)
+    )
+  SELECT
+    __intrinsic_token_apply!(_np_identity, $partition_columns),
+    min(ts) AS ts,
+    max(ts + dur) - min(ts) AS dur,
+    sum(packet_count) AS packet_count,
+    sum(packet_length) AS packet_length
+  FROM _add_overlap_group_id!(_quantized, $partition_columns)
+  GROUP BY
+    __intrinsic_token_apply!(_np_identity, $partition_columns),
+    group_id
+);
+
+-- Compute the per-row uptime cost of network activity.
+--
+-- It is common in networking to have an interface active for some time after
+-- use. For example, mobile networks are often connected for 10 or more seconds
+-- after the last packet is sent or received. This macro computes a cost factor
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(-- indicating how much each row impacts the idle timer.
+--
+-- For example, assuming a 10s timeout, the first packet will extend the timeout
+-- 10s in the future, and be assigned 10s of cost. If a packet arrives 4s later,
+-- it pushes the timer an additional 4s, receiving 4s of cost. In this simple
+-- case, cost is MIN(ts-last_packet_ts, timeout).
+--
+-- The complication is that network events can be aggregates, with more than one
+-- packet. In such cases, we end up with a span with non-zero duration, rather
+-- than an instant, and no easy way to compute time since the last packet.
+--
+-- The solution is to detect overlap regions and compute cost for the region as
+-- a whole. The first event in each group receives the standard uptime cost as
+-- described above. Each group has an additional cost equal to the duration of
+-- the group which is distributed using packet count as weight.
+--
+-- For example (times in seconds, no partition, and 10 second timeout):
+-- ```
+-- ts=5,  dur=0, packet_count=1  -> group=1, uptime_cost=10
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(-- ts=7,  dur=0, packet_count=1  -> group=2, uptime_cost=2
+-- ts=20, dur=5, packet_count=9  -> group=3, uptime_cost=14.5
+-- ts=22, dur=0, packet_count=1  -> group=3, uptime_cost=0.5
+-- ```
+-- The third group spans ts=20 to ts=25, with a timeout at ts=35. This gives the
+-- group a total cost of 15 which is distributed between the two rows. The 3rd
+-- row receives 10s for being first, and 9/10 the duration cost (5*9/10=4.5).
+--
+-- The returned table schema is (id ID, uptime_cost INT64) where uptime cost is
+-- in nanoseconds.
+CREATE PERFETTO MACRO android_network_uptime_cost(
+    -- A table/view/subquery containing the network events to apply the idle
+    -- timeout model to. The table must contain all partition_columns, id, ts,
+    -- dur, and packet_count.
+    src TableOrSubquery,
+    -- A parenthesized set of columns to partition the analysis by.
+    partition_columns ColumnNameList,
+    -- The idle timeout, expressed in nanoseconds.
+    timeout Expr
+)
+RETURNS TableOrSubquery AS
+(
+  WITH
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    _group_metrics AS (
+      SELECT
+        *,
+        sum(packet_count) OVER group_window AS group_packets,
+        max(ts + dur) OVER group_window - min(ts) OVER group_window AS group_dur
+      FROM _add_overlap_group_id!($src, $partition_columns)
+      WINDOW group_window AS (PARTITION BY __intrinsic_token_apply!(_np_identity, $partition_columns), group_id)
+    ),
+    _cost_parts AS (
+      SELECT
+        id,
+        -- The first part is the standard time since last packet. For rows in
+        -- the middle of a group, max_end_so_far>ts, so this is clamped to 0.
+        coalesce(max(0, min($timeout, ts - max_end_so_far)), $timeout) AS initial_cost,
+        -- The second part is the amortized duration cost, which is scaled by
+        -- the packet count for this row, relative to the whole group.
+        group_dur * packet_count / group_packets AS amortized_cost
+      FROM _group_metrics
+    )
+  SELECT
+    id,
+    initial_cost + amortized_cost AS uptime_cost
+  FROM _cost_parts
+);
 
 )_d3l1m1t3r_"
 ;
@@ -9560,7 +11405,7 @@ INCLUDE PERFETTO MODULE time.conversion;
 -- NOTE: Requires dedicated hardware - table is only populated on Pixels.
 CREATE PERFETTO TABLE android_power_rails_counters (
   -- `counter.id`
-  id LONG,
+  id ID(counter.id),
   -- Timestamp of the energy measurement.
 )_d3l1m1t3r_"
 R"_d3l1m1t3r_(  ts TIMESTAMP,
@@ -9597,7 +11442,7 @@ WITH
     JOIN counter_track AS t
       ON c.track_id = t.id
     WHERE
-      name GLOB 'power.*'
+      type = 'power_rails'
   )
 SELECT
   c.id,
@@ -9608,7 +11453,9 @@ SELECT
   c.value AS energy_since_boot,
   c.next_value AS energy_since_boot_at_end,
   1e6 * (
-    c.delta_value / c.dur
+    (
+      c.next_value - c.value
+    ) / c.dur
   ) AS average_power,
   c.delta_value AS energy_delta,
   c.track_id,
@@ -9616,6 +11463,33 @@ SELECT
 FROM counter_leading_intervals!(counter_table) AS c
 JOIN counter_track AS t
   ON c.track_id = t.id;
+
+-- High level metadata about each of the power rails.
+CREATE PERFETTO TABLE android_power_rails_metadata (
+  -- Power rail name. Alias of `counter_track.name`.
+  power_rail_name STRING,
+  -- Raw power rail name from the hardware.
+  raw_power_rail_name STRING,
+  -- User-friendly name for the power rail.
+  friendly_name STRING,
+  -- Power rail track id. Alias of `counter_track.id`.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  track_id JOINID(track.id),
+  -- Subsystem name that this power rail belongs to.
+  subsystem_name STRING,
+  -- The device the power rail is associated with.
+  machine_id JOINID(machine.id)
+) AS
+SELECT
+  t.name AS power_rail_name,
+  extract_arg(t.source_arg_set_id, 'raw_name') AS raw_power_rail_name,
+  CASE WHEN t.name GLOB 'power.rails.*' THEN substr(t.name, 13) ELSE NULL END AS friendly_name,
+  t.id AS track_id,
+  extract_arg(t.source_arg_set_id, 'subsystem_name') AS subsystem_name,
+  t.machine_id AS machine_id
+FROM counter_track AS t
+WHERE
+  t.type = 'power_rails';
 
 )_d3l1m1t3r_"
 ;
@@ -10520,6 +12394,236 @@ WHERE
 )_d3l1m1t3r_"
 ;
 
+const char kAndroidSurfaceflinger[] = R"_d3l1m1t3r_(--
+-- Copyright 2025 The Android Open Source Project
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     https://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
+INCLUDE PERFETTO MODULE android.cujs.sysui_cujs;
+
+CREATE PERFETTO TABLE _android_sf_process AS
+SELECT
+  *
+FROM process
+WHERE
+  process.name = '/system/bin/surfaceflinger'
+LIMIT 1;
+
+CREATE PERFETTO TABLE _android_sf_main_thread AS
+SELECT
+  upid,
+  utid,
+  thread.name,
+  thread_track.id AS track_id
+FROM thread
+JOIN _android_sf_process AS sf_process
+  USING (upid)
+JOIN thread_track
+  USING (utid)
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(WHERE
+  thread.is_main_thread;
+
+-- Extract thread and track information for a given thread in the surfaceflinger process.
+CREATE PERFETTO FUNCTION _android_sf_thread(
+    -- thread_name to fetch information for.
+    thread_name STRING
+)
+RETURNS TABLE (
+  -- upid of the process.
+  upid JOINID(process.id),
+  -- utid of the process.
+  utid JOINID(thread.id),
+  -- name of the thread.
+  name STRING,
+  -- track_id for the thread.
+  track_id JOINID(track.id)
+) AS
+SELECT
+  upid,
+  utid,
+  thread.name,
+  thread_track.id AS track_id
+FROM thread
+JOIN _android_sf_process AS sf_process
+  USING (upid)
+JOIN thread_track
+  USING (utid)
+WHERE
+  thread.name = $thread_name;
+
+-- Match the frame timeline on the app side with the frame timeline on the SF side.
+-- In cases where there are multiple layers drawn, there would be separate frame timeline
+-- slice for each of the layers. GROUP BY is used to deduplicate these rows.
+CREATE PERFETTO TABLE android_app_to_sf_frame_timeline_match (
+  -- upid of the app.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  app_upid JOINID(process.upid),
+  -- vsync id of the app.
+  app_vsync LONG,
+  -- upid of surfaceflinger process.
+  sf_upid JOINID(process.upid),
+  -- vsync id for surfaceflinger.
+  sf_vsync LONG
+) AS
+SELECT
+  app_timeline.upid AS app_upid,
+  CAST(app_timeline.name AS INTEGER) AS app_vsync,
+  sf_process.upid AS sf_upid,
+  CAST(sf_timeline.name AS INTEGER) AS sf_vsync
+FROM actual_frame_timeline_slice AS app_timeline
+JOIN flow
+  ON flow.slice_out = app_timeline.id
+JOIN actual_frame_timeline_slice AS sf_timeline
+  ON flow.slice_in = sf_timeline.id
+JOIN _android_sf_process AS sf_process
+  ON sf_timeline.upid = sf_process.upid
+GROUP BY
+  app_upid,
+  app_vsync,
+  sf_upid,
+  sf_vsync;
+
+-- Extract app and SF frame vsync scoped to CUJs.
+CREATE PERFETTO TABLE _android_jank_cuj_app_sf_frame_timeline_match AS
+SELECT
+  cuj_id,
+  do_frame.upid AS app_upid,
+  app_vsync,
+  app_sf_match.sf_upid,
+  app_sf_match.sf_vsync
+FROM _android_jank_cuj_do_frames AS do_frame
+JOIN android_app_to_sf_frame_timeline_match AS app_sf_match
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  ON do_frame.vsync = app_sf_match.app_vsync AND do_frame.upid = app_sf_match.app_upid;
+
+-- Extract ts and dur for a given slice name from the SF process main thread track.
+CREATE PERFETTO FUNCTION _find_android_jank_cuj_sf_main_thread_slice(
+    slice_name_glob STRING
+)
+RETURNS TABLE (
+  cuj_id LONG,
+  utid JOINID(thread.id),
+  vsync LONG,
+  id ID(slice.id),
+  name STRING,
+  ts TIMESTAMP,
+  dur LONG,
+  ts_end TIMESTAMP
+) AS
+WITH
+  sf_vsync AS (
+    SELECT DISTINCT
+      cuj_id,
+      sf_vsync AS vsync
+    FROM _android_jank_cuj_app_sf_frame_timeline_match
+  )
+SELECT
+  cuj_id,
+  utid,
+  sf_vsync.vsync,
+  slice.id,
+  slice.name,
+  slice.ts,
+  slice.dur,
+  slice.ts + slice.dur AS ts_end
+FROM slice
+JOIN _android_sf_main_thread AS main_thread
+  USING (track_id)
+JOIN sf_vsync
+  ON CAST(str_split(slice.name, " ", 1) AS INTEGER) = sf_vsync.vsync
+WHERE
+  slice.name GLOB $slice_name_glob AND slice.dur > 0
+ORDER BY
+  cuj_id,
+  vsync;
+
+CREATE PERFETTO TABLE _android_jank_cuj_sf_commit_slice AS
+SELECT
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  *
+FROM _find_android_jank_cuj_sf_main_thread_slice('commit *');
+
+CREATE PERFETTO TABLE _android_jank_cuj_sf_composite_slice AS
+SELECT
+  *
+FROM _find_android_jank_cuj_sf_main_thread_slice('composite *');
+
+CREATE PERFETTO TABLE _android_jank_cuj_sf_on_message_invalidate_slice AS
+SELECT
+  *
+FROM _find_android_jank_cuj_sf_main_thread_slice('onMessageInvalidate *');
+
+-- Calculates the frame boundaries based on when we *expected* the work to
+-- start and we use the end of the `composite` slice as the end of the work
+-- on the frame.
+CREATE PERFETTO TABLE _android_jank_cuj_sf_main_thread_frame_boundary AS
+-- Join `commit` and `composite` slices using vsync IDs.
+-- We treat the two slices as a single "fake slice" that starts when `commit` starts, and ends
+-- when `composite` ends.
+WITH
+  combined_commit_composite_slice AS (
+    SELECT
+      cuj_id,
+      commit_slice.utid,
+      vsync,
+      commit_slice.ts,
+      composite_slice.ts_end,
+      composite_slice.ts_end - commit_slice.ts AS dur
+    FROM _android_jank_cuj_sf_commit_slice AS commit_slice
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    JOIN _android_jank_cuj_sf_composite_slice AS composite_slice
+      USING (cuj_id, vsync)
+  ),
+  -- As older builds will not have separate commit/composite slices for each frame, but instead
+  -- a single `onMessageInvalidate`, we UNION ALL the two tables. Exactly one of them should
+  -- have data.
+  main_thread_slice AS (
+    SELECT
+      utid,
+      cuj_id,
+      vsync,
+      ts,
+      dur,
+      ts_end
+    FROM combined_commit_composite_slice
+    UNION ALL
+    SELECT
+      utid,
+      cuj_id,
+      vsync,
+      ts,
+      dur,
+      ts_end
+    FROM _android_jank_cuj_sf_on_message_invalidate_slice
+  )
+SELECT
+  cuj_id,
+  utid,
+  vsync,
+  expected_timeline.ts,
+  main_thread_slice.ts AS ts_main_thread_start,
+  main_thread_slice.ts_end,
+  main_thread_slice.ts_end - expected_timeline.ts AS dur
+FROM expected_frame_timeline_slice AS expected_timeline
+JOIN _android_sf_process
+  USING (upid)
+JOIN main_thread_slice
+  ON main_thread_slice.vsync = CAST(expected_timeline.name AS INTEGER);
+
+)_d3l1m1t3r_"
+;
+
 const char kAndroidSuspend[] = R"_d3l1m1t3r_(--
 -- Copyright 2024 The Android Open Source Project
 --
@@ -10561,15 +12665,11 @@ R"_d3l1m1t3r_(    SELECT
     WHERE
       t.name = 'Suspend/Resume Minimal'
   ),
-  suspend_slice AS (
+  suspend_slice_latency AS (
     SELECT
       ts,
-      dur
-    FROM suspend_slice_from_minimal
-    UNION ALL
-    SELECT
-      ts,
-      dur
+      dur,
+      lead(ts) OVER (ORDER BY ts) - ts - dur AS duration_gap
     FROM slice
     JOIN track
       ON slice.track_id = track.id
@@ -10585,6 +12685,28 @@ R"_d3l1m1t3r_(    SELECT
         FROM suspend_slice_from_minimal
       )
   ),
+  suspend_slice_pre_filter AS (
+    SELECT
+      ts,
+      dur
+    FROM suspend_slice_from_minimal
+    UNION ALL
+    SELECT
+      ts,
+      dur
+    FROM suspend_slice_latency
+  ),
+  suspend_slice AS (
+    -- Filter out all the slices that overlapped with the following slices.
+    -- This happens with data loss where we lose start and end slices for suspends.
+    SELECT
+      ts,
+      dur
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    FROM suspend_slice_pre_filter
+    WHERE
+      dur > 0
+  ),
   awake_slice AS (
     -- If we don't have any rows, use the trace bounds if bounds are defined.
     SELECT
@@ -10599,8 +12721,7 @@ R"_d3l1m1t3r_(    SELECT
     UNION ALL
     -- If we do have rows, create one slice from the trace start to the first suspend.
     SELECT
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      trace_start() AS ts,
+      trace_start() AS ts,
       (
         SELECT
           min(ts)
@@ -10624,7 +12745,8 @@ SELECT
   ts,
   dur,
   'awake' AS power_state
-FROM awake_slice
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(FROM awake_slice
 UNION ALL
 SELECT
   ts,
@@ -10640,8 +12762,7 @@ ORDER BY
 -- This is the same as converting an event duration from wall clock to monotonic clock.
 -- If there was no CPU suspend, the result is same as |dur|.
 CREATE PERFETTO FUNCTION _extract_duration_without_suspend(
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(    -- Timestamp of event.
+    -- Timestamp of event.
     ts TIMESTAMP,
     -- Duration of event.
     dur DURATION
@@ -10835,7 +12956,7 @@ R"_d3l1m1t3r_(  -- suspend backoff duration if one exists, or the lesser of (5 s
   -- 'short', 'failed' or NULL. Set if suspend backoff is triggered.
 )_d3l1m1t3r_"
 R"_d3l1m1t3r_(  backoff_reason STRING,
-  -- Number of times suspend backoff has occured, or NULL. Set if suspend
+  -- Number of times suspend backoff has occurred, or NULL. Set if suspend
   -- backoff is triggered.
   backoff_count LONG,
   -- Next suspend backoff duration, or NULL. Set if suspend backoff is
@@ -11423,6 +13544,64 @@ R"_d3l1m1t3r_(      FROM $callstacks p
 )_d3l1m1t3r_"
 ;
 
+const char kCallstacksSymbolize[] = R"_d3l1m1t3r_(--
+-- Copyright 2025 The Android Open Source Project
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     https://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
+-- Symbolizes a table or subquery that contains the columns "file_name" "rel_pc" "mapping_id" "address" using
+-- llvm_symbolizer and returns a table that contains function_name, file_name, line_number, mapping_id, address.
+-- The input file_name is a column that contains the path to the elf file.
+-- The input rel_pc is the relative address to be symbolized.
+-- Currently also includes mapping_id and address as a way to join back symbolization results to original data.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(CREATE PERFETTO MACRO _callstack_frame_symbolize(
+    -- A subquery which returns a table with columns "file_name", "rel_pc", "mapping_id", and "address".
+    frames TableOrSubquery
+)
+RETURNS TableOrSubquery AS
+(
+  SELECT
+    c0 AS function_name,
+    c1 AS file_name,
+    c2 AS line_number,
+    c3 AS mapping_id,
+    c4 AS address
+  FROM __intrinsic_table_ptr(
+    -- Result table of symbolization
+    __intrinsic_symbolize(
+      (
+        SELECT
+          __intrinsic_symbolize_agg(input.file_name, input.rel_pc, input.mapping_id, input.address)
+        FROM (
+          SELECT
+            *
+          FROM $frames
+        ) AS input
+      )
+    )
+  )
+  WHERE
+    __intrinsic_table_ptr_bind(c0, 'function_name')
+    AND __intrinsic_table_ptr_bind(c1, 'file_name')
+    AND __intrinsic_table_ptr_bind(c2, 'line_number')
+    AND __intrinsic_table_ptr_bind(c3, 'mapping_id')
+    AND __intrinsic_table_ptr_bind(c4, 'address')
+);
+
+)_d3l1m1t3r_"
+;
+
 const char kChromeAndroidInput[] = R"_d3l1m1t3r_(-- Copyright 2024 The Chromium Authors
 -- Use of this source code is governed by a BSD-style license that can be
 -- found in the LICENSE file.
@@ -11625,14 +13804,17 @@ SELECT
   chrome_event_latency.scroll_id,
   chrome_event_latency.is_presented,
   chrome_event_latency.is_janky,
+  chrome_event_latency.is_janky_v3,
   chrome_event_latency.event_type = 'INERTIAL_GESTURE_SCROLL_UPDATE' AS is_inertial,
   chrome_event_latency.event_type = 'FIRST_GESTURE_SCROLL_UPDATE' AS is_first_scroll_update_in_scroll,
   chrome_event_latency.ts AS generation_ts,
+  chrome_android_input.input_reader_processing_end_ts,
+  chrome_android_input.input_dispatcher_processing_end_ts,
   -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
-  touch_move_received_step.slice_id AS touch_move_received_slice_id,
-  touch_move_received_step.ts AS touch_move_received_ts,
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(  -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+R"_d3l1m1t3r_(  touch_move_received_step.slice_id AS touch_move_received_slice_id,
+  touch_move_received_step.ts AS touch_move_received_ts,
+  -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
   touch_move_processed_step.slice_id AS touch_move_processed_slice_id,
   touch_move_processed_step.ts AS touch_move_processed_ts,
   -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
@@ -11645,9 +13827,9 @@ R"_d3l1m1t3r_(  -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -
   compositor_dispatch_step.task_start_time_ts AS compositor_dispatch_task_ts,
   compositor_dispatch_step.ts AS compositor_dispatch_ts,
   compositor_dispatch_step.ts + compositor_dispatch_step.dur AS compositor_dispatch_end_ts,
-  compositor_dispatch_step.utid AS compositor_utid,
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(  -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+R"_d3l1m1t3r_(  compositor_dispatch_step.utid AS compositor_utid,
+  -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
   compositor_coalesced_input_handled_step.slice_id AS compositor_coalesced_input_handled_slice_id,
   compositor_coalesced_input_handled_step.ts AS compositor_coalesced_input_handled_ts,
   compositor_coalesced_input_handled_step.ts + compositor_coalesced_input_handled_step.dur AS compositor_coalesced_input_handled_end_ts
@@ -11656,12 +13838,17 @@ FROM chrome_scroll_update_refs AS refs
 LEFT JOIN chrome_gesture_scroll_updates AS chrome_event_latency
   ON chrome_event_latency.scroll_update_id = refs.scroll_update_latency_id
 -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+LEFT JOIN chrome_dispatch_android_input_event_to_touch_move
+  ON refs.touch_move_latency_id = chrome_dispatch_android_input_event_to_touch_move.touch_move_latency_id
+LEFT JOIN chrome_android_input
+  ON chrome_android_input.android_input_id = chrome_dispatch_android_input_event_to_touch_move.android_input_id
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 LEFT JOIN chrome_input_pipeline_steps AS touch_move_received_step
   ON refs.touch_move_latency_id = touch_move_received_step.latency_id
   AND touch_move_received_step.step = 'STEP_SEND_INPUT_EVENT_UI'
   AND touch_move_received_step.input_type = 'TOUCH_MOVE_EVENT'
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 LEFT JOIN chrome_input_pipeline_steps AS touch_move_processed_step
   ON touch_move_processed_step.latency_id = refs.touch_move_latency_id
   AND touch_move_processed_step.step = 'STEP_TOUCH_EVENT_HANDLED'
@@ -11671,12 +13858,12 @@ LEFT JOIN chrome_input_pipeline_steps AS scroll_update_created_step
   ON scroll_update_created_step.latency_id = refs.scroll_update_latency_id
   AND scroll_update_created_step.step = 'STEP_SEND_INPUT_EVENT_UI'
   AND scroll_update_created_step.input_type = 'GESTURE_SCROLL_UPDATE_EVENT'
--- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 LEFT JOIN chrome_input_pipeline_steps AS compositor_dispatch_step
   ON compositor_dispatch_step.latency_id = refs.scroll_update_latency_id
   AND compositor_dispatch_step.step = 'STEP_HANDLE_INPUT_EVENT_IMPL'
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  AND compositor_dispatch_step.input_type = 'GESTURE_SCROLL_UPDATE_EVENT'
+  AND compositor_dispatch_step.input_type = 'GESTURE_SCROLL_UPDATE_EVENT'
 -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 LEFT JOIN chrome_input_pipeline_steps AS compositor_coalesced_input_handled_step
   ON compositor_coalesced_input_handled_step.latency_id = refs.scroll_update_latency_id
@@ -11687,30 +13874,42 @@ LEFT JOIN chrome_input_pipeline_steps AS compositor_coalesced_input_handled_step
 -- into a frame) stages of a scroll.
 CREATE PERFETTO TABLE chrome_scroll_update_input_pipeline (
   -- Id of the `LatencyInfo.Flow` slices corresponding to this scroll event.
-  id LONG,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  id LONG,
   -- Id of the scroll this scroll update belongs to.
   scroll_id LONG,
   -- Id of the frame that this input was presented in. Can be joined with
   -- `chrome_scroll_update_frame_pipeline.id`.
   presented_in_frame_id LONG,
   -- Whether this input event was presented.
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  is_presented BOOL,
-  -- Whether the corresponding frame is janky. This comes directly from
-  -- `perfetto.protos.EventLatency`.
+  is_presented BOOL,
+  -- Whether the corresponding frame is janky based on the
+  -- Event.ScrollJank.DelayedFramesPercentage.FixedWindow metric. This comes
+  -- directly from `perfetto.protos.EventLatency.is_janky_scrolled_frame`.
   is_janky BOOL,
+  -- Whether the corresponding frame is janky based on the
+  -- Event.ScrollJank.DelayedFramesPercentage.FixedWindow3 metric. This comes
+  -- directly from `perfetto.protos.EventLatency.is_janky_scrolled_frame_v3`.
+  is_janky_v3 BOOL,
   -- Whether the corresponding scroll is inertial (fling).
   -- If this is `true`, "generation" and "touch_move" related timestamps and
   -- durations will be null.
   is_inertial BOOL,
   -- Whether this is the first update in a scroll.
   -- First scroll update can never be janky.
-  is_first_scroll_update_in_scroll BOOL,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  is_first_scroll_update_in_scroll BOOL,
   -- Whether this is the first input that was presented in frame
   -- `presented_in_frame_id`.
   is_first_scroll_update_in_frame BOOL,
   -- Input generation timestamp (from the Android system).
   generation_ts TIMESTAMP,
+  -- End timestamp for the InputReader step (see android_input.sql).
+  -- Only populated when atrace 'input' category is enabled.
+  input_reader_processing_end_ts TIMESTAMP,
+  -- End timestamp for the InputDispatcher step (see android_input.sql).
+  -- Only populated when atrace 'input' category is enabled.
+  input_dispatcher_processing_end_ts TIMESTAMP,
   -- Duration from input generation to when the browser received the input.
   generation_to_browser_main_dur DURATION,
   -- Utid for the browser main thread.
@@ -11718,9 +13917,9 @@ R"_d3l1m1t3r_(  is_presented BOOL,
   -- Slice id for the `STEP_SEND_INPUT_EVENT_UI` slice for the touch move.
   touch_move_received_slice_id LONG,
   -- Timestamp for the `STEP_SEND_INPUT_EVENT_UI` slice for the touch move.
+  touch_move_received_ts TIMESTAMP,
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(  touch_move_received_ts TIMESTAMP,
-  -- Duration for processing  a `TouchMove` event.
+R"_d3l1m1t3r_(  -- Duration for processing  a `TouchMove` event.
   touch_move_processing_dur DURATION,
   -- Slice id for the `STEP_SEND_INPUT_EVENT_UI` slice for the gesture scroll.
   scroll_update_created_slice_id LONG,
@@ -11739,9 +13938,9 @@ R"_d3l1m1t3r_(  touch_move_received_ts TIMESTAMP,
   -- Timestamp for the `STEP_HANDLE_INPUT_EVENT_IMPL` slice or the
   -- containing task (if available).
   compositor_dispatch_ts TIMESTAMP,
+  -- Duration for the compositor dispatch itself.
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(  -- Duration for the compositor dispatch itself.
-  compositor_dispatch_dur DURATION,
+R"_d3l1m1t3r_(  compositor_dispatch_dur DURATION,
   -- End timestamp for the `STEP_HANDLE_INPUT_EVENT_IMPL` slice.
   compositor_dispatch_end_ts TIMESTAMP,
   -- Duration between compositor dispatch and coalescing input.
@@ -11763,16 +13962,19 @@ WITH
       presented_in_frame_id,
       is_presented,
       is_janky,
+      is_janky_v3,
       is_inertial,
       is_first_scroll_update_in_scroll,
+      row_number() OVER (PARTITION BY presented_in_frame_id ORDER BY generation_ts ASC) = 1 AS is_first_scroll_update_in_frame,
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(      row_number() OVER (PARTITION BY presented_in_frame_id ORDER BY generation_ts ASC) = 1 AS is_first_scroll_update_in_frame,
-      -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+R"_d3l1m1t3r_(      -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
       -- Ids
       browser_utid,
       touch_move_received_slice_id,
       -- Timestamps
       generation_ts,
+      input_reader_processing_end_ts,
+      input_dispatcher_processing_end_ts,
       touch_move_received_ts,
       -- TODO(b:385160424): this is a workaround for cases when
       -- generation time is later than the input time.
@@ -11792,10 +13994,10 @@ R"_d3l1m1t3r_(      row_number() OVER (PARTITION BY presented_in_frame_id ORDER 
       scroll_update_created_end_ts,
       -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
       -- Ids
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      compositor_utid,
+      compositor_utid,
       compositor_dispatch_slice_id,
-      -- Timestamps
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      -- Timestamps
       coalesce(compositor_dispatch_task_ts, compositor_dispatch_ts) AS compositor_dispatch_ts,
       compositor_dispatch_end_ts,
       -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
@@ -11812,6 +14014,7 @@ SELECT
   presented_in_frame_id,
   is_presented,
   is_janky,
+  is_janky_v3,
   is_inertial,
   is_first_scroll_update_in_scroll,
   is_first_scroll_update_in_frame,
@@ -11819,10 +14022,12 @@ SELECT
   -- No applicable utid (duration between two threads).
   -- No applicable slice id (duration between two threads).
   generation_ts,
+  input_reader_processing_end_ts,
+  input_dispatcher_processing_end_ts,
   -- Flings don't have a touch move event so make GenerationToBrowserMain span
-  -- all the way to the creation of the gesture scroll update.
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(  browser_main_received_ts - generation_ts AS generation_to_browser_main_dur,
+R"_d3l1m1t3r_(  -- all the way to the creation of the gesture scroll update.
+  browser_main_received_ts - generation_ts AS generation_to_browser_main_dur,
   -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
   browser_utid,
   touch_move_received_slice_id,
@@ -11840,9 +14045,9 @@ R"_d3l1m1t3r_(  browser_main_received_ts - generation_ts AS generation_to_browse
   -- TODO(b:385161677): use the start
   -- of the STEP_SEND_DISPATCH_EVENT_MOJO_MESSAGE step
   -- instead of scroll_update_created_end_ts.
-  max(compositor_dispatch_ts, scroll_update_created_end_ts) - scroll_update_created_end_ts AS browser_to_compositor_delay_dur,
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(  -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+R"_d3l1m1t3r_(  max(compositor_dispatch_ts, scroll_update_created_end_ts) - scroll_update_created_end_ts AS browser_to_compositor_delay_dur,
+  -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
   compositor_utid,
   compositor_dispatch_slice_id,
   compositor_dispatch_ts,
@@ -11858,9 +14063,9 @@ R"_d3l1m1t3r_(  -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -
   compositor_coalesced_input_handled_slice_id,
   compositor_coalesced_input_handled_ts,
   compositor_coalesced_input_handled_end_ts - compositor_coalesced_input_handled_ts AS compositor_coalesced_input_handled_dur,
-  -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(  compositor_coalesced_input_handled_end_ts
+R"_d3l1m1t3r_(  -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+  compositor_coalesced_input_handled_end_ts
 FROM processed_timestamps_and_metadata;
 
 -- Timestamps and other related information for events during the
@@ -11878,9 +14083,9 @@ SELECT
   compositor_resample_step.ts AS compositor_resample_ts,
   -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
   compositor_receive_begin_frame_step.id AS compositor_receive_begin_frame_slice_id,
-  compositor_receive_begin_frame_step.task_start_time_ts AS compositor_receive_begin_frame_task_ts,
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(  compositor_receive_begin_frame_step.ts AS compositor_receive_begin_frame_ts,
+R"_d3l1m1t3r_(  compositor_receive_begin_frame_step.task_start_time_ts AS compositor_receive_begin_frame_task_ts,
+  compositor_receive_begin_frame_step.ts AS compositor_receive_begin_frame_ts,
   --
   compositor_generate_compositor_frame_step.id AS compositor_generate_compositor_frame_slice_id,
   compositor_generate_compositor_frame_step.task_start_time_ts AS compositor_generate_compositor_frame_task_ts,
@@ -11891,9 +14096,9 @@ R"_d3l1m1t3r_(  compositor_receive_begin_frame_step.ts AS compositor_receive_beg
   compositor_submit_compositor_frame_step.ts + compositor_submit_compositor_frame_step.dur AS compositor_submit_compositor_frame_end_ts,
   -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
   viz_receive_compositor_frame_step.id AS viz_receive_compositor_frame_slice_id,
-  viz_receive_compositor_frame_step.task_start_time_ts AS viz_receive_compositor_frame_task_ts,
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(  viz_receive_compositor_frame_step.ts AS viz_receive_compositor_frame_ts,
+R"_d3l1m1t3r_(  viz_receive_compositor_frame_step.task_start_time_ts AS viz_receive_compositor_frame_task_ts,
+  viz_receive_compositor_frame_step.ts AS viz_receive_compositor_frame_ts,
   viz_receive_compositor_frame_step.ts + viz_receive_compositor_frame_step.dur AS viz_receive_compositor_frame_end_ts,
   viz_receive_compositor_frame_step.utid AS viz_compositor_utid,
   -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
@@ -11906,9 +14111,9 @@ R"_d3l1m1t3r_(  viz_receive_compositor_frame_step.ts AS viz_receive_compositor_f
   -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
   viz_swap_buffers_step.id AS viz_swap_buffers_slice_id,
   viz_swap_buffers_step.task_start_time_ts AS viz_swap_buffers_task_ts,
-  viz_swap_buffers_step.ts AS viz_swap_buffers_ts,
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(  viz_swap_buffers_step.ts + viz_swap_buffers_step.dur AS viz_swap_buffers_end_ts,
+R"_d3l1m1t3r_(  viz_swap_buffers_step.ts AS viz_swap_buffers_ts,
+  viz_swap_buffers_step.ts + viz_swap_buffers_step.dur AS viz_swap_buffers_end_ts,
   viz_swap_buffers_step.utid AS viz_gpu_thread_utid,
   -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
   chrome_event_latency.buffer_available_timestamp,
@@ -12242,26 +14447,34 @@ R"_d3l1m1t3r_(--   +------------+------------+   +------------+------------+
 CREATE PERFETTO TABLE chrome_scroll_update_info (
   -- Id of the `LatencyInfo.Flow` slices corresponding to this scroll event.
   id LONG,
+  -- Id of the scroll this scroll update belongs to.
+  scroll_id LONG,
   -- Id (`LatencyInfo.ID`) of the previous input in this scroll.
-  previous_input_id LONG,
-  -- Id (`display_trace_id`) of the aggregated frame which this scroll update
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(  -- was presented in.
+R"_d3l1m1t3r_(  previous_input_id LONG,
+  -- Id (`display_trace_id`) of the aggregated frame which this scroll update
+  -- was presented in.
   frame_display_id LONG,
   -- Vsync interval (in milliseconds).
   vsync_interval_ms DOUBLE,
   -- Whether this input event was presented.
   is_presented BOOL,
-  -- Whether the corresponding frame is janky. This comes directly from
-  -- `perfetto.protos.EventLatency`.
+  -- Whether the corresponding frame is janky based on the
+  -- Event.ScrollJank.DelayedFramesPercentage.FixedWindow metric. This comes
+  -- directly from `perfetto.protos.EventLatency.is_janky_scrolled_frame`.
   is_janky BOOL,
+  -- Whether the corresponding frame is janky based on the
+  -- Event.ScrollJank.DelayedFramesPercentage.FixedWindow3 metric. This comes
+  -- directly from `perfetto.protos.EventLatency.is_janky_scrolled_frame_v3`.
+  is_janky_v3 BOOL,
   -- Whether the corresponding scroll is inertial (fling).
   -- If this is `true`, "generation" and "touch_move" related timestamps and
   -- durations will be null.
   is_inertial BOOL,
   -- Whether this is the first update in a scroll.
   -- First scroll update can never be janky.
-  is_first_scroll_update_in_scroll BOOL,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  is_first_scroll_update_in_scroll BOOL,
   -- Whether this is the first input that was presented in the frame.
   is_first_scroll_update_in_frame BOOL,
   -- Duration from the start of the browser process to the first
@@ -12269,16 +14482,22 @@ R"_d3l1m1t3r_(  -- was presented in.
   browser_uptime_dur DURATION,
   -- Input generation timestamp (from the Android system).
   generation_ts TIMESTAMP,
-  -- Duration from the generation timestamp fo the previous input to
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  -- this input's generation timestamp.
+  -- Duration from the generation timestamp to the end of InputReader's work.
+  -- Only populated when atrace 'input' category is enabled.
+  input_reader_dur DURATION,
+  -- Duration of InputDispatcher's work.
+  -- Only populated when atrace 'input' category is enabled.
+  input_dispatcher_dur DURATION,
+  -- Duration from the generation timestamp for the previous input to
+  -- this input's generation timestamp.
   since_previous_generation_dur DURATION,
   -- Duration from input generation to when the browser received the input.
   generation_to_browser_main_dur DURATION,
   -- Utid for the browser main thread.
   browser_utid LONG,
   -- Slice id for the `STEP_SEND_INPUT_EVENT_UI` slice for the touch move.
-  touch_move_received_slice_id LONG,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  touch_move_received_slice_id LONG,
   -- Timestamp for the `STEP_SEND_INPUT_EVENT_UI` slice for the touch move.
   touch_move_received_ts TIMESTAMP,
   -- Duration for processing  a `TouchMove` event.
@@ -12290,8 +14509,7 @@ R"_d3l1m1t3r_(  -- this input's generation timestamp.
   -- Duration for creating a `GestureScrollUpdate` from a `TouchMove` event.
   scroll_update_processing_dur DURATION,
   -- End timestamp for the `STEP_SEND_INPUT_EVENT_UI` slice for the above.
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  scroll_update_created_end_ts TIMESTAMP,
+  scroll_update_created_end_ts TIMESTAMP,
   -- Duration between the browser and compositor dispatch.
   browser_to_compositor_delay_dur DURATION,
   -- Utid for the renderer compositor thread.
@@ -12299,7 +14517,8 @@ R"_d3l1m1t3r_(  scroll_update_created_end_ts TIMESTAMP,
   -- Slice id for the `STEP_HANDLE_INPUT_EVENT_IMPL` slice.
   compositor_dispatch_slice_id LONG,
   -- Timestamp for the `STEP_HANDLE_INPUT_EVENT_IMPL` slice or the
-  -- containing task (if available).
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- containing task (if available).
   compositor_dispatch_ts TIMESTAMP,
   -- Duration for the compositor dispatch itself.
   compositor_dispatch_dur DURATION,
@@ -12312,14 +14531,14 @@ R"_d3l1m1t3r_(  scroll_update_created_end_ts TIMESTAMP,
   -- Slice id for the `STEP_DID_HANDLE_INPUT_AND_OVERSCROLL` slice.
   compositor_coalesced_input_handled_slice_id LONG,
   -- Start timestamp for work done on the input during "OnBeginFrame".
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  compositor_on_begin_frame_ts TIMESTAMP,
+  compositor_on_begin_frame_ts TIMESTAMP,
   -- Duration of the "OnBeginFrame" work for this input.
   compositor_on_begin_frame_dur DURATION,
   -- End timestamp for work done on the input during "OnBeginFrame".
   compositor_on_begin_frame_end_ts TIMESTAMP,
   -- Delay until the compositor work for generating the frame begins.
-  compositor_on_begin_frame_to_generation_delay_dur DURATION,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  compositor_on_begin_frame_to_generation_delay_dur DURATION,
   -- Slice id for the `STEP_GENERATE_COMPOSITOR_FRAME` slice.
   compositor_generate_compositor_frame_slice_id LONG,
   -- Timestamp for the `STEP_GENERATE_COMPOSITOR_FRAME` slice or the
@@ -12331,14 +14550,14 @@ R"_d3l1m1t3r_(  compositor_on_begin_frame_ts TIMESTAMP,
   compositor_submit_compositor_frame_slice_id LONG,
   -- Timestamp for the `STEP_SUBMIT_COMPOSITOR_FRAME` slice.
   compositor_submit_compositor_frame_ts TIMESTAMP,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  -- Duration for submitting the compositor frame (to viz).
+  -- Duration for submitting the compositor frame (to viz).
   compositor_submit_frame_dur DURATION,
   -- End timestamp for the `STEP_SUBMIT_COMPOSITOR_FRAME` slice.
   compositor_submit_compositor_frame_end_ts TIMESTAMP,
   -- Delay when a compositor frame is sent from the renderer to viz.
   compositor_to_viz_delay_dur DURATION,
-  -- Utid for the viz compositor thread.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- Utid for the viz compositor thread.
   viz_compositor_utid LONG,
   -- Slice id for the `STEP_RECEIVE_COMPOSITOR_FRAME` slice.
   viz_receive_compositor_frame_slice_id LONG,
@@ -12352,15 +14571,15 @@ R"_d3l1m1t3r_(  -- Duration for submitting the compositor frame (to viz).
   -- Duration between viz receiving the compositor frame to frame draw.
   viz_wait_for_draw_dur DURATION,
   -- Slice id for the `STEP_DRAW_AND_SWAP` slice.
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  viz_draw_and_swap_slice_id LONG,
+  viz_draw_and_swap_slice_id LONG,
   -- Timestamp for the `STEP_DRAW_AND_SWAP` slice or the
   -- containing task (if available).
   viz_draw_and_swap_ts TIMESTAMP,
   -- Duration for the viz drawing/swapping work for this frame.
   viz_draw_and_swap_dur DURATION,
   -- Slice id for the `STEP_SEND_BUFFER_SWAP` slice.
-  viz_send_buffer_swap_slice_id LONG,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  viz_send_buffer_swap_slice_id LONG,
   -- End timestamp for the `STEP_SEND_BUFFER_SWAP` slice.
   viz_send_buffer_swap_end_ts TIMESTAMP,
   -- Delay between viz work on compositor thread and `CompositorGpuThread`.
@@ -12375,37 +14594,41 @@ R"_d3l1m1t3r_(  viz_draw_and_swap_slice_id LONG,
   -- Duration of frame buffer swapping work on viz.
   viz_swap_buffers_dur DURATION,
   -- End timestamp for the `STEP_BUFFER_SWAP_POST_SUBMIT` slice.
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  viz_swap_buffers_end_ts TIMESTAMP,
+  viz_swap_buffers_end_ts TIMESTAMP,
   -- Duration of `EventLatency`'s `BufferReadyToLatch` step.
   viz_swap_buffers_to_latch_dur DURATION,
   -- Timestamp for `EventLatency`'s `LatchToSwapEnd` step.
   latch_timestamp TIMESTAMP,
   -- Duration of either `EventLatency`'s `LatchToSwapEnd` +
   -- `SwapEndToPresentationCompositorFrame` steps or its `LatchToPresentation`
-  -- step.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- step.
   viz_latch_to_presentation_dur DURATION,
   -- Presentation timestamp for the frame.
   presentation_timestamp TIMESTAMP
 ) AS
 SELECT
   input.id,
+  input.scroll_id,
   lag(input.id) OVER (PARTITION BY input.scroll_id ORDER BY input.generation_ts) AS previous_input_id,
   frame.display_trace_id AS frame_display_id,
   -- TODO(b:381062412): This is sometimes unexpectedly 0; check/fix this.
   frame.vsync_interval_ms,
   input.is_presented,
   input.is_janky,
+  input.is_janky_v3,
   input.is_inertial,
   input.is_first_scroll_update_in_scroll,
   input.is_first_scroll_update_in_frame,
   generation_ts - browser_process.start_ts AS browser_uptime_dur,
   -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  -- No applicable utid (duration between two threads).
+  -- No applicable utid (duration between two threads).
   -- No applicable slice id (duration between two threads).
   input.generation_ts,
-  input.generation_ts - lag(input.generation_ts) OVER (PARTITION BY input.scroll_id ORDER BY input.generation_ts) AS since_previous_generation_dur,
+  input.input_reader_processing_end_ts - generation_ts AS input_reader_dur,
+  input.input_dispatcher_processing_end_ts - input.input_reader_processing_end_ts AS input_dispatcher_dur,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  input.generation_ts - lag(input.generation_ts) OVER (PARTITION BY input.scroll_id ORDER BY input.generation_ts) AS since_previous_generation_dur,
   input.generation_to_browser_main_dur,
   -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
   input.browser_utid,
@@ -12422,10 +14645,10 @@ R"_d3l1m1t3r_(  -- No applicable utid (duration between two threads).
   -- No applicable slice id (duration between two threads).
   input.scroll_update_created_end_ts,
   -- TODO(b:380868337): This is sometimes negative; check/fix this.
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  input.browser_to_compositor_delay_dur,
+  input.browser_to_compositor_delay_dur,
   -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
-  input.compositor_utid,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  input.compositor_utid,
   input.compositor_dispatch_slice_id,
   input.compositor_dispatch_ts,
   input.compositor_dispatch_dur,
@@ -12441,10 +14664,10 @@ R"_d3l1m1t3r_(  input.browser_to_compositor_delay_dur,
   -- On `compositor_utid`.
   -- `compositor_on_begin_frame_dur` can depend on two slices.
   frame.compositor_resample_slice_id,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  input.compositor_coalesced_input_handled_slice_id,
+  input.compositor_coalesced_input_handled_slice_id,
   coalesce(frame.compositor_resample_ts, input.compositor_coalesced_input_handled_ts) AS compositor_on_begin_frame_ts,
-  input.compositor_coalesced_input_handled_end_ts - coalesce(frame.compositor_resample_ts, input.compositor_coalesced_input_handled_ts) AS compositor_on_begin_frame_dur,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  input.compositor_coalesced_input_handled_end_ts - coalesce(frame.compositor_resample_ts, input.compositor_coalesced_input_handled_ts) AS compositor_on_begin_frame_dur,
   -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
   -- On `compositor_utid`.
   -- No applicable slice id (duration between two slices).
@@ -12455,11 +14678,11 @@ R"_d3l1m1t3r_(  input.compositor_coalesced_input_handled_slice_id,
   frame.compositor_generate_compositor_frame_slice_id,
   -- TODO(b:380868337): This is sometimes unexpectedly null; check/fix this.
   frame.compositor_generate_compositor_frame_ts,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  frame.compositor_generate_frame_to_submit_frame_dur,
+  frame.compositor_generate_frame_to_submit_frame_dur,
   -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
   -- On `compositor_utid`.
-  frame.compositor_submit_compositor_frame_slice_id,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  frame.compositor_submit_compositor_frame_slice_id,
   frame.compositor_submit_compositor_frame_ts,
   frame.compositor_submit_frame_dur,
   -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
@@ -12475,12 +14698,12 @@ R"_d3l1m1t3r_(  frame.compositor_generate_frame_to_submit_frame_dur,
   frame.viz_receive_compositor_frame_dur,
   -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
   -- On `viz_compositor_utid`.
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  -- No applicable slice id (duration between two slices).
+  -- No applicable slice id (duration between two slices).
   frame.viz_receive_compositor_frame_end_ts,
   frame.viz_wait_for_draw_dur,
   -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
-  -- On `viz_compositor_utid`.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- On `viz_compositor_utid`.
   frame.viz_draw_and_swap_slice_id,
   frame.viz_draw_and_swap_ts,
   frame.viz_draw_and_swap_dur,
@@ -12498,13 +14721,13 @@ R"_d3l1m1t3r_(  -- No applicable slice id (duration between two slices).
   frame.viz_swap_buffers_end_ts,
   frame.viz_swap_buffers_to_latch_dur,
   -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  frame.latch_timestamp,
+  frame.latch_timestamp,
   frame.viz_latch_to_presentation_dur,
   -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
   frame.presentation_timestamp
 FROM chrome_scroll_update_input_pipeline AS input
-LEFT JOIN chrome_scroll_update_frame_pipeline AS frame
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(LEFT JOIN chrome_scroll_update_frame_pipeline AS frame
   ON input.presented_in_frame_id = frame.id
 LEFT JOIN thread AS browser_main_thread
   ON browser_utid = browser_main_thread.utid
@@ -12527,18 +14750,25 @@ iif(
 -- metadata.
 CREATE PERFETTO TABLE chrome_scroll_frame_info (
   -- Id (frame's display_trace_id) for the given frame.
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  id LONG,
+  id LONG,
+  -- Id of the scroll this scroll update belongs to.
+  scroll_id LONG,
   -- Id (LatencyInfo.ID) of the last input before this frame.
   last_input_before_this_frame_id LONG,
   -- Vsync interval (in milliseconds).
-  -- TODO(b/394303662): Remove in favour of `vsync_interval_dur`.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- TODO(b/394303662): Remove in favour of `vsync_interval_dur`.
   vsync_interval_ms DOUBLE,
   -- Vsync interval (in nanoseconds).
   vsync_interval_dur DURATION,
-  -- Whether the corresponding frame is janky. This comes directly from
-  -- `perfetto.protos.EventLatency`.
+  -- Whether the corresponding frame is janky based on the
+  -- Event.ScrollJank.DelayedFramesPercentage.FixedWindow metric. This comes
+  -- directly from `perfetto.protos.EventLatency.is_janky_scrolled_frame`.
   is_janky BOOL,
+  -- Whether the corresponding frame is janky based on the
+  -- Event.ScrollJank.DelayedFramesPercentage.FixedWindow3 metric. This comes
+  -- directly from `perfetto.protos.EventLatency.is_janky_scrolled_frame_v3`.
+  is_janky_v3 BOOL,
   -- Whether the corresponding scroll is inertial (fling).
   is_inertial BOOL,
   -- Sum of all input deltas for all scroll updates in this frame.
@@ -12547,12 +14777,18 @@ R"_d3l1m1t3r_(  id LONG,
   -- Presented delta (change in page offset) for the given frame.
   -- This delta is computed by Chrome (based on the input events).
   presented_scrolled_delta_y DOUBLE,
-  -- Duration from the start of the browser process to the first
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- Duration from the start of the browser process to the first
   -- input generation timestamp.
   browser_uptime_dur DURATION,
   -- Input generation timestamp (from the Android system) for the first input.
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  first_input_generation_ts TIMESTAMP,
+  first_input_generation_ts TIMESTAMP,
+  --  Duration from the generation timestamp to the end of InputReader's work.
+  -- Only populated when atrace 'input' category is enabled.
+  input_reader_dur DURATION,
+  -- Duration of InputDispatcher's work.
+  -- Only populated when atrace 'input' category is enabled.
+  input_dispatcher_dur DURATION,
   -- Duration from the previous input (last input that wasn't part of this frame)
   -- to the first input in this frame.
   previous_last_input_to_first_input_generation_dur DURATION,
@@ -12563,7 +14799,8 @@ R"_d3l1m1t3r_(  first_input_generation_ts TIMESTAMP,
   -- Duration from input generation to when the browser received the first input
   -- in this frame.
   first_input_generation_to_browser_main_dur DURATION,
-  -- Difference between `first_input_generation_to_browser_main_dur` for this
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- Difference between `first_input_generation_to_browser_main_dur` for this
   -- frame and the previous frame in the same scroll.
   first_input_generation_to_browser_main_delta_dur DURATION,
   -- Duration for processing  a `TouchMove` event for the first input in this
@@ -12572,8 +14809,7 @@ R"_d3l1m1t3r_(  first_input_generation_ts TIMESTAMP,
   -- Difference between `first_input_touch_move_processing_dur` for this
   -- frame and the previous frame in the same scroll.
   first_input_touch_move_processing_delta_dur DURATION,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  -- Utid for the renderer compositor thread.
+  -- Utid for the renderer compositor thread.
   compositor_utid JOINID(thread.id),
   -- Duration between the browser and compositor dispatch for the first input
   -- in this frame.
@@ -12582,7 +14818,8 @@ R"_d3l1m1t3r_(  -- Utid for the renderer compositor thread.
   -- frame and the previous frame in the same scroll.
   first_input_browser_to_compositor_delay_delta_dur DURATION,
   -- Duration for the compositor dispatch for the first input in this frame.
-  first_input_compositor_dispatch_dur DURATION,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  first_input_compositor_dispatch_dur DURATION,
   -- Difference between `first_input_compositor_dispatch_dur` for this frame and
   -- the previous frame in the same scroll.
   first_input_compositor_dispatch_delta_dur DURATION,
@@ -12590,8 +14827,7 @@ R"_d3l1m1t3r_(  -- Utid for the renderer compositor thread.
   -- first input in this frame.
   first_input_compositor_dispatch_to_on_begin_frame_delay_dur DURATION,
   -- Difference between `first_input_compositor_dispatch_to_on_begin_frame_delay_dur`
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  -- for this frame and the previous frame in the same scroll.
+  -- for this frame and the previous frame in the same scroll.
   first_input_compositor_dispatch_to_on_begin_frame_delay_delta_dur DURATION,
   -- Duration of the "OnBeginFrame" work for this frame.
   compositor_on_begin_frame_dur DURATION,
@@ -12600,15 +14836,15 @@ R"_d3l1m1t3r_(  -- for this frame and the previous frame in the same scroll.
   compositor_on_begin_frame_delta_dur DURATION,
   -- Duration between the "OnBeginFrame" work and the generation of this frame.
   compositor_on_begin_frame_to_generation_delay_dur DURATION,
-  -- Difference between `compositor_on_begin_frame_to_generation_delay_dur` for
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- Difference between `compositor_on_begin_frame_to_generation_delay_dur` for
   -- this frame and the previous frame in the same scroll.
   compositor_on_begin_frame_to_generation_delay_delta_dur DURATION,
   -- Duration between the generation and submission of this frame.
   compositor_generate_frame_to_submit_frame_dur DURATION,
   -- Difference between `compositor_generate_frame_to_submit_frame_dur` for this
   -- frame and the previous frame in the same scroll.
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  compositor_generate_frame_to_submit_frame_delta_dur DURATION,
+  compositor_generate_frame_to_submit_frame_delta_dur DURATION,
   -- Duration for submitting this frame.
   compositor_submit_frame_dur DURATION,
   -- Difference between `compositor_submit_frame_dur` for this frame and the
@@ -12619,7 +14855,8 @@ R"_d3l1m1t3r_(  compositor_generate_frame_to_submit_frame_delta_dur DURATION,
   -- Delay when a compositor frame is sent from the renderer to viz.
   compositor_to_viz_delay_dur DURATION,
   -- Difference between `compositor_to_viz_delay_dur` for this frame and the
-  -- previous frame in the same scroll.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- previous frame in the same scroll.
   compositor_to_viz_delay_delta_dur DURATION,
   -- Duration of the viz work done on receiving the compositor frame.
   viz_receive_compositor_frame_dur DURATION,
@@ -12627,8 +14864,7 @@ R"_d3l1m1t3r_(  compositor_generate_frame_to_submit_frame_delta_dur DURATION,
   -- previous frame in the same scroll.
   viz_receive_compositor_frame_delta_dur DURATION,
   -- Duration between viz receiving the compositor frame to frame draw.
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  viz_wait_for_draw_dur DURATION,
+  viz_wait_for_draw_dur DURATION,
   -- Difference between `viz_wait_for_draw_dur` for this frame and the previous
   -- frame in the same scroll.
   viz_wait_for_draw_delta_dur DURATION,
@@ -12640,7 +14876,8 @@ R"_d3l1m1t3r_(  viz_wait_for_draw_dur DURATION,
   -- Utid for the viz `CompositorGpuThread`.
   viz_gpu_thread_utid JOINID(thread.id),
   -- Delay between viz work on compositor thread and `CompositorGpuThread`.
-  viz_to_gpu_delay_dur DURATION,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  viz_to_gpu_delay_dur DURATION,
   -- Difference between `viz_to_gpu_delay_dur` for this frame and the previous
   -- frame in the same scroll.
   viz_to_gpu_delay_delta_dur DURATION,
@@ -12649,8 +14886,7 @@ R"_d3l1m1t3r_(  viz_wait_for_draw_dur DURATION,
   -- Difference between `viz_swap_buffers_dur` for this frame and the previous
   -- frame in the same scroll.
   viz_swap_buffers_delta_dur DURATION,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  -- Time between buffers ready until Choreographer's latch.
+  -- Time between buffers ready until Choreographer's latch.
   viz_swap_buffers_to_latch_dur DURATION,
   -- Difference between `viz_swap_buffers_to_latch_dur` for this frame and the
   -- previous frame in the same scroll.
@@ -12663,10 +14899,13 @@ R"_d3l1m1t3r_(  -- Time between buffers ready until Choreographer's latch.
 ) AS
 SELECT
   frame_display_id AS id,
-  previous_input_id AS last_input_before_this_frame_id,
+  info.scroll_id,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  previous_input_id AS last_input_before_this_frame_id,
   vsync_interval_ms,
   cast_int!(vsync_interval_ms * 1e6) AS vsync_interval_dur,
   is_janky,
+  is_janky_v3,
   is_inertial,
   (
     SELECT
@@ -12677,37 +14916,38 @@ SELECT
     WHERE
       update_info.frame_display_id = info.frame_display_id
   ) AS total_input_delta_y,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  delta.delta_y AS presented_scrolled_delta_y,
+  delta.delta_y AS presented_scrolled_delta_y,
   browser_uptime_dur,
   info.generation_ts AS first_input_generation_ts,
+  input_reader_dur,
+  input_dispatcher_dur,
   info.since_previous_generation_dur AS previous_last_input_to_first_input_generation_dur,
   info.browser_utid,
   info.generation_to_browser_main_dur AS first_input_generation_to_browser_main_dur,
   presentation_timestamp AS presentation_ts,
   _chrome_scroll_frame_stage_delta!(generation_to_browser_main_dur) AS first_input_generation_to_browser_main_delta_dur,
   info.touch_move_processing_dur AS first_input_touch_move_processing_dur,
-  _chrome_scroll_frame_stage_delta!(touch_move_processing_dur) AS first_input_touch_move_processing_delta_dur,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  _chrome_scroll_frame_stage_delta!(touch_move_processing_dur) AS first_input_touch_move_processing_delta_dur,
   info.compositor_utid,
   info.browser_to_compositor_delay_dur AS first_input_browser_to_compositor_delay_dur,
   _chrome_scroll_frame_stage_delta!(browser_to_compositor_delay_dur) AS first_input_browser_to_compositor_delay_delta_dur,
   info.compositor_dispatch_dur AS first_input_compositor_dispatch_dur,
   _chrome_scroll_frame_stage_delta!(compositor_dispatch_dur) AS first_input_compositor_dispatch_delta_dur,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  info.compositor_dispatch_to_on_begin_frame_delay_dur AS first_input_compositor_dispatch_to_on_begin_frame_delay_dur,
+  info.compositor_dispatch_to_on_begin_frame_delay_dur AS first_input_compositor_dispatch_to_on_begin_frame_delay_dur,
   _chrome_scroll_frame_stage_delta!(compositor_dispatch_to_on_begin_frame_delay_dur) AS first_input_compositor_dispatch_to_on_begin_frame_delay_delta_dur,
   info.compositor_on_begin_frame_dur,
   _chrome_scroll_frame_stage_delta!(compositor_on_begin_frame_dur) AS compositor_on_begin_frame_delta_dur,
   info.compositor_on_begin_frame_to_generation_delay_dur,
   _chrome_scroll_frame_stage_delta!(compositor_on_begin_frame_to_generation_delay_dur) AS compositor_on_begin_frame_to_generation_delay_delta_dur,
-  info.compositor_generate_frame_to_submit_frame_dur,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  info.compositor_generate_frame_to_submit_frame_dur,
   _chrome_scroll_frame_stage_delta!(compositor_generate_frame_to_submit_frame_dur) AS compositor_generate_frame_to_submit_frame_delta_dur,
   info.compositor_submit_frame_dur,
   _chrome_scroll_frame_stage_delta!(compositor_submit_frame_dur) AS compositor_submit_frame_delta_dur,
   viz_compositor_utid,
   info.compositor_to_viz_delay_dur,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  _chrome_scroll_frame_stage_delta!(compositor_to_viz_delay_dur) AS compositor_to_viz_delay_delta_dur,
+  _chrome_scroll_frame_stage_delta!(compositor_to_viz_delay_dur) AS compositor_to_viz_delay_delta_dur,
   info.viz_receive_compositor_frame_dur,
   _chrome_scroll_frame_stage_delta!(viz_receive_compositor_frame_dur) AS viz_receive_compositor_frame_delta_dur,
   info.viz_wait_for_draw_dur,
@@ -12717,14 +14957,14 @@ R"_d3l1m1t3r_(  _chrome_scroll_frame_stage_delta!(compositor_to_viz_delay_dur) A
   viz_gpu_thread_utid,
   info.viz_to_gpu_delay_dur,
   _chrome_scroll_frame_stage_delta!(viz_to_gpu_delay_dur) AS viz_to_gpu_delay_delta_dur,
-  info.viz_swap_buffers_dur,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  info.viz_swap_buffers_dur,
   _chrome_scroll_frame_stage_delta!(viz_swap_buffers_dur) AS viz_swap_buffers_delta_dur,
   info.viz_swap_buffers_to_latch_dur,
   _chrome_scroll_frame_stage_delta!(viz_swap_buffers_to_latch_dur) AS viz_swap_buffers_to_latch_delta_dur,
   info.viz_latch_to_presentation_dur,
   _chrome_scroll_frame_stage_delta!(viz_latch_to_presentation_dur) AS viz_latch_to_presentation_delta_dur
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(FROM chrome_scroll_update_info AS info
+FROM chrome_scroll_update_info AS info
 LEFT JOIN chrome_presented_scroll_offsets AS delta
   ON info.id = delta.scroll_update_id
 -- TODO(b:380286381, b:393051057): remove the frame_display_id condition when dropped frames are handled.
@@ -12737,7 +14977,8 @@ CREATE PERFETTO TABLE chrome_scroll_update_info_step_templates (
   -- The name of a stage of a scroll.
   step_name STRING,
   -- The name of the column in `chrome_scroll_update_info` which contains the
-  -- timestamp of the stage.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- timestamp of the stage.
   ts_column_name STRING,
   -- The name of the column in `chrome_scroll_update_info` which contains the
   -- duration of the stage. NULL if the stage doesn't have a duration.
@@ -12749,8 +14990,7 @@ WITH
       *
     FROM (VALUES
       ('GenerationToBrowserMain', 'generation_ts', 'generation_to_browser_main_dur'),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ('TouchMoveProcessing', 'touch_move_received_ts', 'touch_move_processing_dur'),
+      ('TouchMoveProcessing', 'touch_move_received_ts', 'touch_move_processing_dur'),
       (
         'ScrollUpdateProcessing',
         'scroll_update_created_ts',
@@ -12770,7 +15010,8 @@ R"_d3l1m1t3r_(      ('TouchMoveProcessing', 'touch_move_received_ts', 'touch_mov
         'RendererCompositorDispatchToOnBeginFrame',
         'compositor_dispatch_end_ts',
         'compositor_dispatch_to_on_begin_frame_delay_dur'
-      ),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ),
       (
         'RendererCompositorBeginFrame',
         'compositor_on_begin_frame_ts',
@@ -12783,8 +15024,7 @@ R"_d3l1m1t3r_(      ('TouchMoveProcessing', 'touch_move_received_ts', 'touch_mov
       ),
       (
         'RendererCompositorGenerateToSubmitFrame',
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(        'compositor_generate_compositor_frame_ts',
+        'compositor_generate_compositor_frame_ts',
         'compositor_generate_frame_to_submit_frame_dur'
       ),
       (
@@ -12806,7 +15046,8 @@ R"_d3l1m1t3r_(        'compositor_generate_compositor_frame_ts',
         'VizReceiveToDrawFrame',
         'viz_receive_compositor_frame_end_ts',
         'viz_wait_for_draw_dur'
-      ),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ),
       ('VizDrawToSwapFrame', 'viz_draw_and_swap_ts', 'viz_draw_and_swap_dur'),
       ('VizToGpu', 'viz_send_buffer_swap_end_ts', 'viz_to_gpu_delay_dur'),
       ('VizSwapBuffers', 'viz_swap_buffers_ts', 'viz_swap_buffers_dur'),
@@ -12814,8 +15055,7 @@ R"_d3l1m1t3r_(        'compositor_generate_compositor_frame_ts',
         'VizSwapBuffersToLatch',
         'viz_swap_buffers_end_ts',
         'viz_swap_buffers_to_latch_dur'
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ),
+      ),
       ('VizLatchToPresentation', 'latch_timestamp', 'viz_latch_to_presentation_dur'),
       ('Presentation', 'presentation_timestamp', NULL)) AS _values
   )
@@ -12954,8 +15194,12 @@ R"_d3l1m1t3r_(  --     version 133.0.6943.33).
   track_id LONG,
   -- Vsync interval (in milliseconds).
   vsync_interval_ms DOUBLE,
-  -- Whether the corresponding frame is janky.
+  -- Whether the corresponding frame is janky based on the
+  -- Event.ScrollJank.DelayedFramesPercentage.FixedWindow metric.
   is_janky_scrolled_frame BOOL,
+  -- Whether the corresponding frame is janky based on the
+  -- Event.ScrollJank.DelayedFramesPercentage.FixedWindow3 metric.
+  is_janky_scrolled_frame_v3 BOOL,
   -- Timestamp of the BufferAvailableToBufferReady substage.
   buffer_available_timestamp LONG,
   -- Timestamp of the BufferReadyToLatch substage.
@@ -12965,12 +15209,12 @@ R"_d3l1m1t3r_(  --     version 133.0.6943.33).
   latch_timestamp LONG,
   -- Timestamp of the SwapEndToPresentationCompositorFrame substage.
   swap_end_timestamp LONG,
-  -- Frame presentation timestamp aka the timestamp of the
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- Frame presentation timestamp aka the timestamp of the
   -- SwapEndToPresentationCompositorFrame substage.
   -- TODO(b/341047059): temporarily use LatchToSwapEnd as a workaround if
   -- SwapEndToPresentationCompositorFrame is missing due to b/247542163.
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  presentation_timestamp LONG
+  presentation_timestamp LONG
 ) AS
 SELECT
   slice.id,
@@ -12985,13 +15229,14 @@ SELECT
   slice.track_id,
   extract_arg(arg_set_id, 'event_latency.vsync_interval_ms') AS vsync_interval_ms,
   coalesce(extract_arg(arg_set_id, 'event_latency.is_janky_scrolled_frame'), 0) AS is_janky_scrolled_frame,
-  _descendant_slice_begin(slice.id, 'BufferAvailableToBufferReady') AS buffer_available_timestamp,
+  coalesce(extract_arg(arg_set_id, 'event_latency.is_janky_scrolled_frame_v3'), 0) AS is_janky_scrolled_frame_v3,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  _descendant_slice_begin(slice.id, 'BufferAvailableToBufferReady') AS buffer_available_timestamp,
   _descendant_slice_begin(slice.id, 'BufferReadyToLatch') AS buffer_ready_timestamp,
   coalesce(
     _descendant_slice_begin(slice.id, 'LatchToSwapEnd'),
     _descendant_slice_begin(slice.id, 'LatchToPresentation')
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  ) AS latch_timestamp,
+  ) AS latch_timestamp,
   _descendant_slice_begin(slice.id, 'SwapEndToPresentationCompositorFrame') AS swap_end_timestamp,
   _get_presentation_timestamp(slice.id) AS presentation_timestamp
 FROM slice
@@ -13009,7 +15254,8 @@ CREATE PERFETTO TABLE chrome_gesture_scroll_updates (
   name STRING,
   -- The start timestamp of the scroll.
   ts TIMESTAMP,
-  -- The duration of the scroll.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- The duration of the scroll.
   dur DURATION,
   -- The id of the scroll update event.
   scroll_update_id LONG,
@@ -13020,10 +15266,13 @@ CREATE PERFETTO TABLE chrome_gesture_scroll_updates (
   -- Perfetto track this slice is found on.
   track_id LONG,
   -- Vsync interval (in milliseconds).
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  vsync_interval_ms DOUBLE,
-  -- Whether the corresponding frame is janky.
+  vsync_interval_ms DOUBLE,
+  -- Whether the corresponding frame is janky based on the
+  -- Event.ScrollJank.DelayedFramesPercentage.FixedWindow metric.
   is_janky BOOL,
+  -- Whether the corresponding frame is janky based on the
+  -- Event.ScrollJank.DelayedFramesPercentage.FixedWindow3 metric.
+  is_janky_v3 BOOL,
   -- Timestamp of the BufferAvailableToBufferReady substage.
   buffer_available_timestamp LONG,
   -- Timestamp of the BufferReadyToLatch substage.
@@ -13032,7 +15281,8 @@ R"_d3l1m1t3r_(  vsync_interval_ms DOUBLE,
   -- fallback).
   latch_timestamp LONG,
   -- Timestamp of the SwapEndToPresentationCompositorFrame substage.
-  swap_end_timestamp LONG,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  swap_end_timestamp LONG,
   -- Frame presentation timestamp aka the timestamp of the
   -- SwapEndToPresentationCompositorFrame substage.
   -- TODO(b/341047059): temporarily use LatchToSwapEnd as a workaround if
@@ -13044,8 +15294,7 @@ R"_d3l1m1t3r_(  vsync_interval_ms DOUBLE,
 -- To compute scroll id, we first mark all of the FIRST_GESTURE_SCROLL_UPDATE events
 -- (or the first scroll update in the trace) as the points where scroll id should be
 -- incremented and then use the cumulative sum as the scroll id.
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(WITH
+WITH
   updates_without_scroll_ids AS (
     SELECT
       id,
@@ -13058,11 +15307,13 @@ R"_d3l1m1t3r_(WITH
       track_id,
       vsync_interval_ms,
       is_janky_scrolled_frame AS is_janky,
+      is_janky_scrolled_frame_v3 AS is_janky_v3,
       buffer_available_timestamp,
       buffer_ready_timestamp,
       latch_timestamp,
       swap_end_timestamp,
-      presentation_timestamp,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      presentation_timestamp,
       (
         event_type = 'FIRST_GESTURE_SCROLL_UPDATE' OR row_number() OVER (ORDER BY ts) = 1
       ) AS is_first_update_in_scroll
@@ -13086,10 +15337,10 @@ SELECT
   track_id,
   vsync_interval_ms,
   is_janky,
+  is_janky_v3,
   buffer_available_timestamp,
   buffer_ready_timestamp,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  latch_timestamp,
+  latch_timestamp,
   swap_end_timestamp,
   presentation_timestamp,
   coalesce(
@@ -13486,7 +15737,8 @@ const char kChromeHistograms[] = R"_d3l1m1t3r_(-- Copyright 2023 The Chromium Au
 -- found in the LICENSE file.
 
 -- A helper view on top of the histogram events emitted by Chrome.
--- Requires "disabled-by-default-histogram_samples" Chrome category.
+-- Requires "disabled-by-default-histogram_samples" Chrome category or the
+-- "org.chromium.histogram_sample" data source.
 CREATE PERFETTO TABLE chrome_histograms (
   -- The name of the histogram.
   name STRING,
@@ -13507,28 +15759,60 @@ CREATE PERFETTO TABLE chrome_histograms (
   -- Pid of the process.
   pid LONG
 ) AS
+WITH
+  -- Select raw histogram sample slices from the slice table.
+  hist AS (
+    SELECT
+      extract_arg(slice.arg_set_id, 'chrome_histogram_sample.name') AS name,
+      extract_arg(slice.arg_set_id, 'chrome_histogram_sample.sample') AS value,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ts,
+      track_id
+    FROM slice
+    WHERE
+      slice.name = "HistogramSample"
+      AND category = "disabled-by-default-histogram_samples"
+  )
+-- Part 1: join histogram samples emitted via the track event category.
+-- These samples are associated with a specific thread track.
 SELECT
-  extract_arg(slice.arg_set_id, "chrome_histogram_sample.name") AS name,
-  extract_arg(slice.arg_set_id, "chrome_histogram_sample.sample") AS value,
-  ts,
+  hist.name,
+  hist.value,
+  hist.ts,
   thread.name AS thread_name,
   thread.utid AS utid,
   thread.tid AS tid,
   process.name AS process_name,
-  process.upid AS upid,
-  process.pid AS pid
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(FROM slice
+  process.upid,
+  process.pid
+FROM hist
 JOIN thread_track
-  ON thread_track.id = slice.track_id
+  ON thread_track.id = hist.track_id
 JOIN thread
   USING (utid)
 JOIN process
   USING (upid)
-WHERE
-  slice.name = "HistogramSample"
-  AND category = "disabled-by-default-histogram_samples";
-
+UNION ALL
+-- Part 2: Join histogram samples emitted via the
+-- "org.chromium.histogram_sample" data source. These samples are associated
+-- with a process track.
+SELECT
+  hist.name,
+  hist.value,
+  hist.ts,
+  NULL AS thread_name,
+  NULL AS utid,
+  NULL AS tid,
+  process.name AS process_name,
+  process.upid,
+  process.pid
+FROM hist
+JOIN process_track
+  ON process_track.id = hist.track_id
+JOIN process
+  USING (upid);
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(
 )_d3l1m1t3r_"
 ;
 
@@ -13699,8 +15983,8 @@ SELECT
   input_type,
   task_start_time_ts
 FROM steps_with_ordering
--- This is where we actually remove duplicate steps.
 WHERE
+  -- This is where we actually remove duplicate steps.
   ordering_within_partition = 1
 ORDER BY
   slice_id,
@@ -16885,40 +19169,6 @@ FROM frames
 LEFT JOIN janky_frames
   ON frames.scroll_id = janky_frames.scroll_id;
 
--- Scroll jank causes per scroll.
-CREATE PERFETTO VIEW chrome_causes_per_scroll (
-  -- The ID of the scroll.
-  scroll_id LONG,
-  -- The maximum time a frame was delayed after the presentation of the previous
-  -- frame.
-  max_delay_since_last_frame DOUBLE,
-  -- The expected vsync interval.
-  vsync_interval DOUBLE,
-  -- A proto amalgamation of each scroll jank cause including cause name, sub
-  -- cause and the duration of the delay since the previous frame was presented.
-  scroll_jank_causes BYTES
-) AS
-SELECT
-  scroll_id,
-  max(1.0 * delay_since_last_frame / vsync_interval) AS max_delay_since_last_frame,
-  -- MAX does not matter, since `vsync_interval` is the computed as the
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  -- same value for a single trace.
-  max(vsync_interval) AS vsync_interval,
-  repeatedfield(
-    chromescrolljankv3_scroll_scrolljankcause(
-      'cause',
-      cause_of_jank,
-      'sub_cause',
-      sub_cause_of_jank,
-      'delay_since_last_frame',
-      1.0 * delay_since_last_frame / vsync_interval
-    )
-  ) AS scroll_jank_causes
-FROM chrome_janky_frames
-GROUP BY
-  scroll_id;
-
 )_d3l1m1t3r_"
 ;
 
@@ -17579,7 +19829,17 @@ SELECT
   'slow_input' AS tag
 FROM _chrome_janky_scroll_frames
 WHERE
-  abs(total_input_delta_y) <= 2.001;
+  abs(total_input_delta_y) <= 2.001
+UNION ALL
+-- According to the field traces, long_generation_to_dispatch_end_dur
+-- over 3 ms is correlated with janky frames
+-- (more details at http://b/401003093#comment15).
+SELECT
+  id AS frame_id,
+  'long_generation_to_dispatch_end_dur' AS tag
+FROM _chrome_janky_scroll_frames
+WHERE
+  input_reader_dur + input_dispatcher_dur > time_from_ms(3);
 
 -- Consolidated list of tags for each janky scroll frame.
 CREATE PERFETTO TABLE chrome_tagged_janky_scroll_frames (
@@ -17587,7 +19847,8 @@ CREATE PERFETTO TABLE chrome_tagged_janky_scroll_frames (
   frame_id LONG,
   -- Whether this frame has any tags or not.
   tagged BOOL,
-  -- Comma-separated list of tags for this frame.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- Comma-separated list of tags for this frame.
   tags STRING
 ) AS
 WITH
@@ -17601,8 +19862,7 @@ WITH
     WHERE
       frame.is_janky
     GROUP BY
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      frame_id
+      frame_id
   )
 SELECT
   frame_id,
@@ -18231,6 +20491,1240 @@ R"_d3l1m1t3r_(    'threads', json(_export_firefox_threads()),
 )_d3l1m1t3r_"
 ;
 
+const char kExportToSvg[] = R"_d3l1m1t3r_(--
+-- Copyright 2025 The Android Open Source Project
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     https://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
+-- Converts Perfetto trace data into interactive SVG timeline.
+-- Renders thread slices and thread states with time-proportional geometry
+-- and clickable links back to Perfetto UI embedded in the SVG.
+-- Enhanced with the following hierarchy:
+-- 1. svg_group_key - Creates separate SVG documents
+-- 2. track_group_key - Groups related tracks within an SVG (e.g., thread states + slices)
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(-- 3. track_group_order - Orders track groups within each SVG
+
+-- Escape XML special characters for safe embedding in SVG.
+CREATE PERFETTO FUNCTION _escape_xml(
+    text STRING
+)
+RETURNS STRING AS
+SELECT
+  replace(replace(replace($text, '&', '&amp;'), '<', '&lt;'), '>', '&gt;');
+
+-- Format nanosecond duration as human-readable string (ns/μs/ms/s).
+CREATE PERFETTO FUNCTION _format_duration(
+    dur LONG
+)
+RETURNS STRING AS
+SELECT
+  CASE
+    WHEN $dur >= 1000000000
+    THEN printf('%.1fs', CAST($dur AS DOUBLE) / 1000000000.0)
+    WHEN $dur >= 1000000
+    THEN printf('%.1fms', CAST($dur AS DOUBLE) / 1000000.0)
+    WHEN $dur >= 1000
+    THEN printf('%.1fμs', CAST($dur AS DOUBLE) / 1000.0)
+    ELSE printf('%dns', $dur)
+  END;
+
+-- Format large numbers with K, M, G, T suffixes to 2 decimal places.
+CREATE PERFETTO FUNCTION _format_large_number(
+    value DOUBLE
+)
+RETURNS STRING AS
+SELECT
+  CASE
+    WHEN abs($value) >= 1000000000000
+    THEN printf('%.2fT', $value / 1000000000000.0)
+    WHEN abs($value) >= 1000000000
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    THEN printf('%.2fG', $value / 1000000000.0)
+    WHEN abs($value) >= 1000000
+    THEN printf('%.2fM', $value / 1000000.0)
+    WHEN abs($value) >= 1000
+    THEN printf('%.2fK', $value / 1000.0)
+    ELSE printf('%.2f', $value)
+  END;
+
+-- Calculate pixels per nanosecond scaling factor for time-to-pixel conversion.
+CREATE PERFETTO FUNCTION _pixels_per_ns(
+    total_width LONG,
+    ts_min LONG,
+    ts_max LONG
+)
+RETURNS DOUBLE AS
+SELECT
+  CAST($total_width AS DOUBLE) / CAST($ts_max - $ts_min AS DOUBLE);
+
+-- Calculate optimal row height based on viewport width (minimum 2px).
+CREATE PERFETTO FUNCTION _row_height(
+    max_width LONG
+)
+RETURNS LONG AS
+SELECT
+  max(2, CAST($max_width * 0.008 AS INTEGER));
+
+-- Calculate counter track height (between slice height and double).
+CREATE PERFETTO FUNCTION _counter_height(
+    max_width LONG
+)
+RETURNS LONG AS
+SELECT
+  CAST(_row_height($max_width) * 1.5 AS INTEGER);
+
+-- Generate deterministic color from slice name hash.
+CREATE PERFETTO FUNCTION _slice_color(
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    name STRING
+)
+RETURNS STRING AS
+SELECT
+  'hsl(' || (
+    abs(hash($name)) % 12 * 30
+  ) || ',45%,78%)';
+
+-- Map thread state to semantic color (running=green, blocked=orange, etc.).
+CREATE PERFETTO FUNCTION _state_color(
+    state STRING,
+    io_wait LONG
+)
+RETURNS STRING AS
+SELECT
+  CASE
+    WHEN lower($state) = 'running'
+    THEN '#2f7d31'
+    WHEN lower($state) IN ('r', 'r+')
+    THEN '#99ba34'
+    WHEN CAST($io_wait AS INTEGER) = 1
+    THEN '#ff9800'
+    WHEN lower($state) = 's'
+    THEN '#a0a0a0'
+    WHEN lower($state) = 'd'
+    THEN '#a35b58'
+    WHEN lower($state) = 'z'
+    THEN '#8b5cf6'
+    WHEN lower($state) = 't'
+    THEN '#f97316'
+    ELSE '#9ca3af'
+  END;
+
+-- Truncate text with ellipsis to fit available pixel width.
+CREATE PERFETTO FUNCTION _fit_text(
+    text STRING,
+    available_width LONG
+)
+RETURNS STRING AS
+SELECT
+  CASE
+    WHEN $available_width < 12
+    THEN ''
+    WHEN length($text) * 6.5 <= $available_width
+    THEN $text
+    WHEN $available_width >= 25
+    THEN substr($text, 1, CAST((
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      $available_width - 18
+    ) / 6.5 AS INTEGER)) || '...'
+    ELSE substr($text, 1, CAST($available_width / 6.5 AS INTEGER))
+  END;
+
+-- Generate simple SVG rect element with optional hyperlink and text.
+CREATE PERFETTO FUNCTION _svg_rect(
+    x DOUBLE,
+    y DOUBLE,
+    width DOUBLE,
+    height DOUBLE,
+    fill STRING,
+    title STRING,
+    href STRING,
+    text_content STRING
+)
+RETURNS STRING AS
+SELECT
+  CASE
+    WHEN $href IS NOT NULL
+    THEN '<a href="' || _escape_xml($href) || '" target="_blank">'
+    ELSE ''
+  END || '<rect x="' || $x || '" y="' || $y || '" width="' || $width || '" height="' || $height || '" fill="' || $fill || '">' || CASE
+    WHEN $title IS NOT NULL
+    THEN '<title>' || _escape_xml($title) || '</title>'
+    ELSE ''
+  END || '</rect>' || coalesce($text_content, '') || CASE WHEN $href IS NOT NULL THEN '</a>' ELSE '' END;
+
+-- Generate minimal CSS styles.
+CREATE PERFETTO FUNCTION _svg_styles()
+RETURNS STRING AS
+SELECT
+  '<style>
+    rect { cursor: pointer; }
+    path { cursor: pointer; }
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    text { font-family: sans-serif; pointer-events: none; dominant-baseline: central; }
+    a { text-decoration: none !important; }
+    a:hover { text-decoration: none !important; }
+  </style>';
+
+-- Convert time intervals to pixel coordinates with grouping metadata.
+-- svg_group_key: separate SVG documents.
+-- track_group_key: related tracks within SVG.
+-- track_group_order: vertical ordering within track groups.
+CREATE PERFETTO MACRO _intervals_to_positions(
+    intervals_table TableOrSubquery,
+    svg_group_key_col ColumnName,
+    track_group_key_col ColumnName,
+    track_group_order_col ColumnName,
+    max_width Expr,
+    min_width Expr,
+    use_shared_counter_scale Expr
+)
+RETURNS Expr AS
+(
+  WITH
+    -- Calculate bounds per SVG group
+    bounds AS (
+      SELECT
+        $svg_group_key_col AS svg_group_key,
+        min(ts) AS ts_min,
+        max(ts + dur) AS ts_max,
+        max(coalesce(depth, 0)) AS max_depth
+      FROM $intervals_table
+      WHERE
+        dur > 0
+      GROUP BY
+        $svg_group_key_col
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    ),
+    -- Calculate counter bounds per individual counter
+    counter_bounds_individual AS (
+      SELECT
+        $svg_group_key_col AS svg_group_key,
+        $track_group_key_col AS track_group_key,
+        name AS counter_name,
+        min(counter_value) AS min_counter_value,
+        max(counter_value) AS max_counter_value
+      FROM $intervals_table
+      WHERE
+        dur > 0 AND element_type = 'counter'
+      GROUP BY
+        $svg_group_key_col,
+        $track_group_key_col,
+        name
+    ),
+    -- Calculate shared counter bounds across all counters in SVG
+    counter_bounds_shared AS (
+      SELECT
+        $svg_group_key_col AS svg_group_key,
+        min(counter_value) AS min_counter_value,
+        max(counter_value) AS max_counter_value
+      FROM $intervals_table
+      WHERE
+        dur > 0 AND element_type = 'counter'
+      GROUP BY
+        $svg_group_key_col
+    ),
+    -- Select the appropriate bounds based on shared counter scale setting
+    counter_bounds AS (
+      SELECT
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(        cbi.svg_group_key,
+        cbi.track_group_key,
+        cbi.counter_name,
+        CASE
+          WHEN $use_shared_counter_scale = 1
+          THEN cbs.min_counter_value
+          ELSE cbi.min_counter_value
+        END AS min_counter_value,
+        CASE
+          WHEN $use_shared_counter_scale = 1
+          THEN cbs.max_counter_value
+          ELSE cbi.max_counter_value
+        END AS max_counter_value
+      FROM counter_bounds_individual AS cbi
+      JOIN counter_bounds_shared AS cbs
+        ON cbi.svg_group_key = cbs.svg_group_key
+    ),
+    scale_params AS (
+      SELECT
+        b.svg_group_key,
+        CAST($max_width AS INTEGER) AS total_width,
+        _pixels_per_ns(CAST($max_width AS INTEGER), b.ts_min, b.ts_max) AS pixels_per_ns,
+        _row_height(CAST($max_width AS INTEGER)) AS row_height,
+        _counter_height(CAST($max_width AS INTEGER)) AS counter_height,
+        coalesce(CAST($min_width AS INTEGER), 2) AS min_cutoff,
+        b.ts_min,
+        b.ts_max
+      FROM bounds AS b
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    )
+  SELECT
+    $svg_group_key_col AS svg_group_key,
+    $svg_group_key_col,
+    $track_group_key_col AS track_group_key,
+    $track_group_key_col,
+    $track_group_order_col AS track_group_order,
+    $track_group_order_col,
+    i.*,
+    (
+      i.ts - sp.ts_min
+    ) * sp.pixels_per_ns AS x_pixel,
+    i.dur * sp.pixels_per_ns AS width_pixel,
+    CASE
+      WHEN i.element_type = 'slice'
+      THEN 5 + coalesce(i.depth, 0) * sp.row_height
+      WHEN i.element_type = 'thread_state'
+      THEN 2
+      WHEN i.element_type = 'counter'
+      THEN 5
+      ELSE 0
+    END AS y_pixel,
+    CASE
+      WHEN i.element_type = 'thread_state'
+      THEN CAST(sp.row_height / 2 AS INTEGER)
+      WHEN i.element_type = 'counter'
+      THEN sp.counter_height
+      ELSE sp.row_height
+    END AS height_pixel,
+    sp.ts_min,
+    sp.ts_max,
+    sp.pixels_per_ns,
+    sp.total_width,
+    sp.min_cutoff,
+    sp.counter_height,
+    coalesce(cb.min_counter_value, 0) AS min_counter_value,
+    coalesce(cb.max_counter_value, 1) AS max_counter_value
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  FROM $intervals_table AS i
+  JOIN scale_params AS sp
+    ON i.$svg_group_key_col = sp.svg_group_key
+  LEFT JOIN counter_bounds AS cb
+    ON i.$svg_group_key_col = cb.svg_group_key
+    AND i.$track_group_key_col = cb.track_group_key
+    AND i.name = cb.counter_name
+  WHERE
+    i.dur > 0 AND i.dur * sp.pixels_per_ns >= sp.min_cutoff
+);
+
+-- Render slice interval as simple SVG rect with text overlay when space permits.
+CREATE PERFETTO FUNCTION _slice_to_svg(
+    x_pixel DOUBLE,
+    y_pixel DOUBLE,
+    width_pixel DOUBLE,
+    height_pixel DOUBLE,
+    name STRING,
+    dur LONG,
+    href STRING,
+    min_pixel_width LONG
+)
+RETURNS STRING AS
+SELECT
+  CASE
+    WHEN $width_pixel < $min_pixel_width
+    THEN ''
+    ELSE _svg_rect(
+      $x_pixel,
+      $y_pixel,
+      $width_pixel,
+      $height_pixel,
+      _slice_color($name),
+      $name || ' (' || _format_duration($dur) || ')',
+      $href,
+      CASE
+        WHEN $width_pixel >= 15
+        THEN '<text x="' || (
+          $x_pixel + $width_pixel / 2
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(        ) || '" y="' || (
+          $y_pixel + $height_pixel / 2
+        ) || '" text-anchor="middle" font-size="11" fill="#333">' || _escape_xml(_fit_text($name, CAST($width_pixel AS INTEGER) - 4)) || '</text>'
+        ELSE ''
+      END
+    )
+  END;
+
+-- Render thread state interval as simple SVG rect.
+CREATE PERFETTO FUNCTION _thread_state_to_svg(
+    x_pixel DOUBLE,
+    y_pixel DOUBLE,
+    width_pixel DOUBLE,
+    height_pixel DOUBLE,
+    state STRING,
+    io_wait LONG,
+    blocked_function STRING,
+    dur LONG,
+    href STRING,
+    min_pixel_width LONG
+)
+RETURNS STRING AS
+SELECT
+  CASE
+    WHEN $width_pixel < $min_pixel_width
+    THEN ''
+    ELSE _svg_rect(
+      $x_pixel,
+      $y_pixel,
+      $width_pixel,
+      $height_pixel,
+      _state_color($state, $io_wait),
+      'Thread State: ' || $state || ' (' || _format_duration($dur) || ')',
+      $href,
+      NULL
+    )
+  END;
+
+-- Render counter value as step in filled area chart with proper negative value handling.
+CREATE PERFETTO FUNCTION _counter_to_svg(
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    x_pixel DOUBLE,
+    y_pixel DOUBLE,
+    width_pixel DOUBLE,
+    height_pixel DOUBLE,
+    value DOUBLE,
+    max_value DOUBLE,
+    min_value DOUBLE,
+    name STRING,
+    href STRING,
+    min_pixel_width LONG
+)
+RETURNS STRING AS
+SELECT
+  CASE
+    WHEN $width_pixel < $min_pixel_width
+    THEN ''
+    ELSE CASE
+      WHEN $href IS NOT NULL
+      THEN '<a href="' || _escape_xml($href) || '" target="_blank">'
+      ELSE ''
+    END || '<rect x="' || $x_pixel || '" y="' || CASE
+      WHEN $value >= 0
+      THEN CASE
+        WHEN $min_value >= 0
+        THEN $y_pixel + $height_pixel - (
+          $height_pixel * (
+            $value - $min_value
+          ) / (
+            $max_value - $min_value
+          )
+        )
+        ELSE $y_pixel + $height_pixel * (
+          $max_value / (
+            $max_value - $min_value
+          )
+        ) - (
+          $height_pixel * $value / (
+            $max_value - $min_value
+          )
+        )
+      END
+      ELSE CASE
+        WHEN $max_value <= 0
+        THEN $y_pixel
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(        ELSE $y_pixel + $height_pixel * (
+          $max_value / (
+            $max_value - $min_value
+          )
+        )
+      END
+    END || '" width="' || $width_pixel || '" height="' || CASE
+      WHEN $value >= 0
+      THEN CASE
+        WHEN $min_value >= 0
+        THEN $height_pixel * (
+          $value - $min_value
+        ) / (
+          $max_value - $min_value
+        )
+        ELSE $height_pixel * $value / (
+          $max_value - $min_value
+        )
+      END
+      ELSE CASE
+        WHEN $max_value <= 0
+        THEN $height_pixel * (
+          $value - $max_value
+        ) / (
+          $max_value - $min_value
+        )
+        ELSE $height_pixel * abs($value) / (
+          $max_value - $min_value
+        )
+      END
+    END || '" fill="' || CASE WHEN $value >= 0 THEN 'steelblue' ELSE 'coral' END || '">' || '<title>' || _escape_xml($name || ': ' || printf('%.1f', $value)) || '</title>' || '</rect>' || CASE WHEN $href IS NOT NULL THEN '</a>' ELSE '' END
+  END;
+
+-- Generate track SVG from positioned elements without labels.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(-- svg_group_key: separate SVG documents.
+-- track_group_key: related tracks within SVG.
+-- track_group_order: vertical ordering within track groups.
+CREATE PERFETTO MACRO _svg_from_positions(
+    positions_table TableOrSubquery,
+    svg_group_key_col ColumnName,
+    track_group_key_col ColumnName,
+    top_margin Expr
+)
+RETURNS Expr AS
+(
+  WITH
+    track_params AS (
+      SELECT
+        $svg_group_key_col AS svg_group_key,
+        $track_group_key_col AS track_group_key,
+        total_width,
+        min_cutoff,
+        min(y_pixel) AS track_top,
+        max(y_pixel + height_pixel) AS track_bottom,
+        CAST($top_margin AS INTEGER) AS top_margin
+      FROM $positions_table
+      GROUP BY
+        $svg_group_key_col,
+        $track_group_key_col
+      LIMIT 1
+    )
+  SELECT
+    tp.svg_group_key,
+    tp.track_group_key,
+    '<g transform="translate(0,' || tp.top_margin || ')">' || coalesce(
+      (
+        SELECT
+          GROUP_CONCAT(
+            CASE
+              WHEN p.element_type = 'thread_state'
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(              THEN _thread_state_to_svg(
+                p.x_pixel,
+                cast_double!(p.y_pixel),
+                p.width_pixel,
+                cast_double!(p.height_pixel),
+                p.state,
+                p.io_wait,
+                p.blocked_function,
+                p.dur,
+                p.href,
+                tp.min_cutoff
+              )
+              WHEN p.element_type = 'counter'
+              THEN _counter_to_svg(
+                p.x_pixel,
+                cast_double!(p.y_pixel),
+                p.width_pixel,
+                cast_double!(p.height_pixel),
+                p.counter_value,
+                p.max_counter_value,
+                p.min_counter_value,
+                p.name,
+                p.href,
+                tp.min_cutoff
+              )
+              ELSE _slice_to_svg(p.x_pixel, cast_double!(p.y_pixel), p.width_pixel, cast_double!(p.height_pixel), p.name, p.dur, p.href, tp.min_cutoff)
+            END,
+            ''
+          )
+        FROM $positions_table AS p
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(        WHERE
+          p.$svg_group_key_col = tp.svg_group_key
+          AND p.$track_group_key_col = tp.track_group_key
+        ORDER BY
+          p.ts,
+          p.depth,
+          p.dur DESC
+      ),
+      ''
+    ) || '</g>' AS track_svg,
+    tp.track_bottom + tp.top_margin AS track_height
+  FROM track_params AS tp
+);
+
+-- Generate track SVG from positioned elements with track labels.
+-- svg_group_key: separate SVG documents.
+-- track_group_key: related tracks within SVG.
+-- track_group_order: vertical ordering within track groups.
+CREATE PERFETTO MACRO _svg_from_positions_with_label(
+    positions_table TableOrSubquery,
+    svg_group_key_col ColumnName,
+    track_group_key_col ColumnName,
+    label_text ColumnName,
+    label_top_margin Expr,
+    label_gap Expr
+)
+RETURNS Expr AS
+(
+  WITH
+    track_params AS (
+      SELECT
+        $svg_group_key_col AS svg_group_key,
+        $track_group_key_col AS track_group_key,
+        $label_text AS label_text,
+        total_width,
+        min_cutoff,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(        min(y_pixel) AS track_top,
+        max(y_pixel + height_pixel) AS track_bottom,
+        -- Get counter-specific info for y-axis labels
+        max(CASE WHEN element_type = 'counter' THEN max_counter_value ELSE NULL END) AS max_counter_value,
+        max(CASE WHEN element_type = 'counter' THEN min_counter_value ELSE NULL END) AS min_counter_value,
+        max(CASE WHEN element_type = 'counter' THEN 1 ELSE 0 END) AS is_counter_track
+      FROM $positions_table
+      GROUP BY
+        $svg_group_key_col,
+        $track_group_key_col
+      LIMIT 1
+    ),
+    -- Generate counter path for counter tracks
+    counter_path AS (
+      SELECT
+        tp.svg_group_key,
+        tp.track_group_key,
+        CASE
+          WHEN tp.is_counter_track = 1
+          THEN (
+            -- Calculate zero line position
+            WITH
+              zero_calc AS (
+                SELECT
+                  CASE
+                    WHEN tp.min_counter_value >= 0
+                    THEN 5 + tp.track_bottom
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(                    WHEN tp.max_counter_value <= 0
+                    THEN 5
+                    ELSE 5 + tp.track_bottom * (
+                      tp.max_counter_value / (
+                        tp.max_counter_value - tp.min_counter_value
+                      )
+                    )
+                  END AS zero_y
+              ),
+              path_data AS (
+                SELECT
+                  'M0,' || zc.zero_y || ' ' || GROUP_CONCAT(
+                    'L' || p.x_pixel || ',' || CASE
+                      WHEN p.counter_value >= 0
+                      THEN CASE
+                        WHEN tp.min_counter_value >= 0
+                        THEN 5 + tp.track_bottom - (
+                          tp.track_bottom * (
+                            p.counter_value - tp.min_counter_value
+                          ) / (
+                            tp.max_counter_value - tp.min_counter_value
+                          )
+                        )
+                        ELSE zc.zero_y - (
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(                          tp.track_bottom * p.counter_value / (
+                            tp.max_counter_value - tp.min_counter_value
+                          )
+                        )
+                      END
+                      ELSE CASE
+                        WHEN tp.max_counter_value <= 0
+                        THEN 5 + (
+                          tp.track_bottom * (
+                            p.counter_value - tp.max_counter_value
+                          ) / (
+                            tp.max_counter_value - tp.min_counter_value
+                          )
+                        )
+                        ELSE zc.zero_y + (
+                          tp.track_bottom * abs(p.counter_value) / (
+                            tp.max_counter_value - tp.min_counter_value
+                          )
+                        )
+                      END
+                    END || ' L' || (
+                      p.x_pixel + p.width_pixel
+                    ) || ',' || CASE
+                      WHEN p.counter_value >= 0
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(                      THEN CASE
+                        WHEN tp.min_counter_value >= 0
+                        THEN 5 + tp.track_bottom - (
+                          tp.track_bottom * (
+                            p.counter_value - tp.min_counter_value
+                          ) / (
+                            tp.max_counter_value - tp.min_counter_value
+                          )
+                        )
+                        ELSE zc.zero_y - (
+                          tp.track_bottom * p.counter_value / (
+                            tp.max_counter_value - tp.min_counter_value
+                          )
+                        )
+                      END
+                      ELSE CASE
+                        WHEN tp.max_counter_value <= 0
+                        THEN 5 + (
+                          tp.track_bottom * (
+                            p.counter_value - tp.max_counter_value
+                          ) / (
+                            tp.max_counter_value - tp.min_counter_value
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(                          )
+                        )
+                        ELSE zc.zero_y + (
+                          tp.track_bottom * abs(p.counter_value) / (
+                            tp.max_counter_value - tp.min_counter_value
+                          )
+                        )
+                      END
+                    END,
+                    ' '
+                  ) || ' L' || tp.total_width || ',' || zc.zero_y || ' L0,' || zc.zero_y || ' Z' AS path_d
+                FROM $positions_table AS p, zero_calc AS zc
+                WHERE
+                  p.$svg_group_key_col = tp.svg_group_key
+                  AND p.$track_group_key_col = tp.track_group_key
+                  AND p.element_type = 'counter'
+                ORDER BY
+                  p.ts
+              )
+            SELECT
+              '<path d="' || pd.path_d || '" fill="steelblue" fill-opacity="0.7" stroke="steelblue" stroke-width="1"/>'
+            FROM path_data AS pd
+          )
+          ELSE ''
+        END AS counter_svg
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      FROM track_params AS tp
+    )
+  SELECT
+    tp.svg_group_key,
+    tp.track_group_key,
+    '<text x="5" y="15" font-size="11" fill="#333">' || _escape_xml(cast_string!(label_text)) || '</text>' || CASE
+      WHEN tp.is_counter_track = 1
+      THEN '<text x="5" y="30" font-size="9" fill="#000">' || _format_large_number(tp.max_counter_value) || '</text>' || CASE
+        WHEN tp.min_counter_value < 0
+        THEN '<text x="5" y="' || (
+          30 + tp.track_bottom
+        ) || '" font-size="9" fill="#000">' || _format_large_number(tp.min_counter_value) || '</text>'
+        ELSE ''
+      END
+      ELSE ''
+    END || '<g transform="translate(0,20)">' || CASE WHEN tp.is_counter_track = 1 THEN cp.counter_svg ELSE '' END || coalesce(
+      (
+        SELECT
+          GROUP_CONCAT(
+            CASE
+              WHEN p.element_type = 'thread_state'
+              THEN _thread_state_to_svg(
+                p.x_pixel,
+                cast_double!(p.y_pixel),
+                p.width_pixel,
+                cast_double!(p.height_pixel),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(                p.state,
+                p.io_wait,
+                p.blocked_function,
+                p.dur,
+                p.href,
+                tp.min_cutoff
+              )
+              WHEN p.element_type = 'counter'
+              THEN ''
+              ELSE _slice_to_svg(p.x_pixel, cast_double!(p.y_pixel), p.width_pixel, cast_double!(p.height_pixel), p.name, p.dur, p.href, tp.min_cutoff)
+            END,
+            ''
+          )
+        FROM $positions_table AS p
+        WHERE
+          p.$svg_group_key_col = tp.svg_group_key
+          AND p.$track_group_key_col = tp.track_group_key
+        ORDER BY
+          p.ts,
+          p.depth,
+          p.dur DESC
+      ),
+      ''
+    ) || '</g>' AS track_svg,
+    tp.track_bottom + 20 AS track_height
+  FROM track_params AS tp
+  LEFT JOIN counter_path AS cp
+    ON tp.svg_group_key = cp.svg_group_key AND tp.track_group_key = cp.track_group_key
+);
+
+-- Generate unlabeled tracks grouped by svg_group_key and track_group_key.
+-- svg_group_key: separate SVG documents.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(-- track_group_key: related tracks within SVG.
+-- track_group_order: vertical ordering within track groups.
+CREATE PERFETTO MACRO _generate_tracks_by_group(
+    positions_table TableOrSubquery,
+    svg_group_key_col ColumnName,
+    track_group_key_col ColumnName,
+    track_group_order_col ColumnName,
+    start_order Expr,
+    order_step Expr,
+    top_margin Expr
+)
+RETURNS Expr AS
+(
+  WITH
+    grouped_keys AS (
+      SELECT
+        $svg_group_key_col AS svg_group_key,
+        $track_group_key_col AS track_group_key,
+        min($track_group_order_col) AS track_group_order
+      FROM $positions_table
+      GROUP BY
+        $svg_group_key_col,
+        $track_group_key_col
+    ),
+    track_svgs_with_group AS (
+      SELECT
+        gk.svg_group_key,
+        gk.track_group_key,
+        gk.track_group_order AS track_order,
+        (
+          SELECT
+            track_svg
+          FROM _svg_from_positions!(
+              (SELECT * FROM $positions_table p WHERE p.$svg_group_key_col = gk.svg_group_key AND p.$track_group_key_col = gk.track_group_key),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(              $svg_group_key_col, $track_group_key_col, $top_margin)
+        ) AS track_svg,
+        (
+          SELECT
+            track_height
+          FROM _svg_from_positions!(
+              (SELECT * FROM $positions_table p WHERE p.$svg_group_key_col = gk.svg_group_key AND p.$track_group_key_col = gk.track_group_key),
+              $svg_group_key_col, $track_group_key_col, $top_margin)
+        ) AS track_height
+      FROM grouped_keys AS gk
+    )
+  SELECT
+    svg_group_key AS $svg_group_key_col,
+    svg_group_key,
+    track_group_key,
+    track_order,
+    track_svg,
+    track_height
+  FROM track_svgs_with_group
+);
+
+-- Generate labeled tracks grouped by svg_group_key and track_group_key.
+-- svg_group_key: separate SVG documents.
+-- track_group_key: related tracks within SVG.
+-- track_group_order: vertical ordering within track groups.
+CREATE PERFETTO MACRO _generate_tracks_by_group_with_label(
+    positions_table TableOrSubquery,
+    svg_group_key_col ColumnName,
+    track_group_key_col ColumnName,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    track_group_order_col ColumnName,
+    start_order Expr,
+    order_step Expr,
+    top_margin Expr,
+    label_text ColumnName,
+    label_gap Expr
+)
+RETURNS Expr AS
+(
+  WITH
+    grouped_keys AS (
+      SELECT
+        $svg_group_key_col AS svg_group_key,
+        $track_group_key_col AS track_group_key,
+        min($track_group_order_col) AS track_group_order,
+        min($label_text) AS label_text
+      FROM $positions_table
+      GROUP BY
+        $svg_group_key_col,
+        $track_group_key_col
+    ),
+    track_svgs_with_group AS (
+      SELECT
+        gk.svg_group_key,
+        gk.track_group_key,
+        gk.track_group_order AS track_order,
+        (
+          SELECT
+            track_svg
+          FROM _svg_from_positions_with_label!(
+              (SELECT * FROM $positions_table p WHERE p.$svg_group_key_col = gk.svg_group_key AND p.$track_group_key_col = gk.track_group_key),
+              $svg_group_key_col, $track_group_key_col, gk.label_text, $top_margin, $label_gap)
+        ) AS track_svg,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(        (
+          SELECT
+            track_height
+          FROM _svg_from_positions_with_label!(
+              (SELECT * FROM $positions_table p WHERE p.$svg_group_key_col = gk.svg_group_key AND p.$track_group_key_col = gk.track_group_key),
+              $svg_group_key_col, $track_group_key_col, gk.label_text, $top_margin, $label_gap)
+        ) AS track_height
+      FROM grouped_keys AS gk
+    )
+  SELECT
+    svg_group_key AS $svg_group_key_col,
+    svg_group_key,
+    track_group_key,
+    track_order,
+    track_svg,
+    track_height
+  FROM track_svgs_with_group
+);
+
+-- Combine track SVGs into complete SVG documents with layout and styling.
+-- svg_group_key: separate SVG documents.
+CREATE PERFETTO MACRO _combine_track_svgs(
+    track_svgs_table TableOrSubquery,
+    svg_group_key_col ColumnName,
+    total_width Expr,
+    left_margin Expr
+)
+RETURNS Expr AS
+(
+  WITH
+    ordered_tracks AS (
+      SELECT
+        $svg_group_key_col AS svg_group_key,
+        track_svg,
+        track_height,
+        coalesce(
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(          track_order,
+          row_number() OVER (PARTITION BY $svg_group_key_col ORDER BY track_order)
+        ) AS track_order
+      FROM $track_svgs_table
+    ),
+    positioned_tracks AS (
+      SELECT
+        svg_group_key,
+        track_svg,
+        track_height,
+        track_order,
+        sum(track_height) OVER (PARTITION BY svg_group_key ORDER BY track_order ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) - track_height AS y_offset
+      FROM ordered_tracks
+    ),
+    layout_params AS (
+      SELECT
+        svg_group_key,
+        CAST($total_width AS INTEGER) AS total_width,
+        CAST($left_margin AS INTEGER) AS left_margin,
+        max(track_height + y_offset) AS total_content_height
+      FROM positioned_tracks
+      GROUP BY
+        svg_group_key
+    )
+  SELECT
+    lp.svg_group_key,
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' || (
+      lp.total_width + lp.left_margin + 10
+    ) || ' ' || (
+      lp.total_content_height + 25
+    ) || '">' || _svg_styles() || '<g transform="translate(' || lp.left_margin || ',5)">' || coalesce(
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      (
+        SELECT
+          GROUP_CONCAT('<g transform="translate(0,' || pt.y_offset || ')">' || pt.track_svg || '</g>', '')
+        FROM positioned_tracks AS pt
+        WHERE
+          pt.svg_group_key = lp.svg_group_key
+        ORDER BY
+          pt.track_order
+      ),
+      ''
+    ) || '</g></svg>' AS svg
+  FROM layout_params AS lp
+);
+
+-- Convert slice data to positioned elements for rendering.
+-- svg_group_key: separate SVG documents.
+-- track_group_key: related tracks within SVG.
+-- track_group_order: vertical ordering within track groups.
+CREATE PERFETTO MACRO _slice_intervals_to_positions(
+    slice_table TableOrSubquery,
+    svg_group_key_col ColumnName,
+    track_group_key_col ColumnName,
+    track_group_order_col ColumnName,
+    max_width Expr,
+    min_width Expr
+)
+RETURNS Expr AS
+(
+  WITH
+    intervals_with_type AS (
+      SELECT
+        $svg_group_key_col AS svg_group_key,
+        $svg_group_key_col,
+        $track_group_key_col AS track_group_key,
+        $track_group_key_col,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(        $track_group_order_col AS track_group_order,
+        $track_group_order_col,
+        utid,
+        ts,
+        dur,
+        'slice' AS element_type,
+        name,
+        href,
+        depth,
+        NULL AS state,
+        NULL AS io_wait,
+        NULL AS blocked_function,
+        NULL AS counter_value
+      FROM $slice_table
+    )
+  SELECT
+    *
+  FROM _intervals_to_positions!(
+    intervals_with_type, $svg_group_key_col, $track_group_key_col, $track_group_order_col, $max_width, $min_width, 0
+  )
+);
+
+-- Convert thread state data to positioned elements for rendering.
+-- svg_group_key: separate SVG documents.
+-- track_group_key: related tracks within SVG.
+-- track_group_order: vertical ordering within track groups.
+CREATE PERFETTO MACRO _thread_state_intervals_to_positions(
+    thread_state_table TableOrSubquery,
+    svg_group_key_col ColumnName,
+    track_group_key_col ColumnName,
+    track_group_order_col ColumnName,
+    max_width Expr,
+    min_width Expr
+)
+RETURNS Expr AS
+(
+  WITH
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    intervals_with_type AS (
+      SELECT
+        $svg_group_key_col AS svg_group_key,
+        $svg_group_key_col,
+        $track_group_key_col AS track_group_key,
+        $track_group_key_col,
+        $track_group_order_col AS track_group_order,
+        $track_group_order_col,
+        utid,
+        ts,
+        dur,
+        'thread_state' AS element_type,
+        NULL AS name,
+        href,
+        NULL AS depth,
+        state,
+        io_wait,
+        blocked_function,
+        NULL AS counter_value
+      FROM $thread_state_table
+    )
+  SELECT
+    *
+  FROM _intervals_to_positions!(
+    intervals_with_type, $svg_group_key_col, $track_group_key_col, $track_group_order_col, $max_width, $min_width, 0
+  )
+);
+
+-- Convert counter data to positioned elements for rendering.
+-- svg_group_key: separate SVG documents.
+-- track_group_key: related tracks within SVG.
+-- track_group_order: vertical ordering within track groups.
+CREATE PERFETTO MACRO _counter_intervals_to_positions(
+    counter_table TableOrSubquery,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    svg_group_key_col ColumnName,
+    track_group_key_col ColumnName,
+    track_group_order_col ColumnName,
+    max_width Expr,
+    min_width Expr,
+    use_shared_counter_scale Expr
+)
+RETURNS Expr AS
+(
+  WITH
+    intervals_with_type AS (
+      SELECT
+        $svg_group_key_col AS svg_group_key,
+        $svg_group_key_col,
+        $track_group_key_col AS track_group_key,
+        $track_group_key_col,
+        $track_group_order_col AS track_group_order,
+        $track_group_order_col,
+        NULL AS utid,
+        ts,
+        dur,
+        'counter' AS element_type,
+        name,
+        href,
+        NULL AS depth,
+        NULL AS state,
+        NULL AS io_wait,
+        NULL AS blocked_function,
+        value AS counter_value
+      FROM $counter_table
+    )
+  SELECT
+    *
+  FROM _intervals_to_positions!(
+    intervals_with_type, $svg_group_key_col, $track_group_key_col, $track_group_order_col, $max_width, $min_width, $use_shared_counter_scale
+  )
+);
+
+-- Main convenience macro to create complete SVG timeline from slice and thread state tables.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(-- svg_group_key: separate SVG documents.
+-- track_group_key: related tracks within SVG.
+-- track_group_order: vertical ordering within track groups.
+CREATE PERFETTO MACRO _svg_timeline(
+    slice_table TableOrSubquery,
+    thread_state_table TableOrSubquery,
+    svg_group_key_col ColumnName,
+    track_group_key_col ColumnName,
+    track_group_order_col ColumnName,
+    max_width Expr,
+    left_margin Expr
+)
+RETURNS Expr AS
+(
+  WITH
+    slice_positions AS (
+      SELECT
+        *
+      FROM _slice_intervals_to_positions!(
+        $slice_table, $svg_group_key_col, $track_group_key_col, $track_group_order_col, $max_width, 2
+      )
+    ),
+    thread_state_positions AS (
+      SELECT
+        *
+      FROM _thread_state_intervals_to_positions!(
+        $thread_state_table, $svg_group_key_col, $track_group_key_col, $track_group_order_col, $max_width, 2
+      )
+    ),
+    slice_tracks AS (
+      SELECT
+        *
+      FROM _generate_tracks_by_group!(
+        slice_positions, $svg_group_key_col, $track_group_key_col, $track_group_order_col,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(        0, 1, 0
+      )
+    ),
+    thread_state_tracks AS (
+      SELECT
+        *
+      FROM _generate_tracks_by_group_with_label!(
+        thread_state_positions, $svg_group_key_col, $track_group_key_col, $track_group_order_col,
+        0, 1, 0, $track_group_key_col, 10
+      )
+    ),
+    all_tracks AS (
+      SELECT
+        *
+      FROM slice_tracks
+      UNION ALL
+      SELECT
+        *
+      FROM thread_state_tracks
+    )
+  SELECT
+    *
+  FROM _combine_track_svgs!(
+    all_tracks, $svg_group_key_col, $max_width, $left_margin
+  )
+);
+
+-- Enhanced main convenience macro to create complete SVG timeline from slice, thread state, and counter tables.
+-- svg_group_key: separate SVG documents.
+-- track_group_key: related tracks within SVG.
+-- track_group_order: vertical ordering within track groups.
+CREATE PERFETTO MACRO _svg_timeline_with_counters(
+    slice_table TableOrSubquery,
+    thread_state_table TableOrSubquery,
+    counter_table TableOrSubquery,
+    svg_group_key_col ColumnName,
+    track_group_key_col ColumnName,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    track_group_order_col ColumnName,
+    max_width Expr,
+    left_margin Expr,
+    use_shared_counter_scale Expr
+)
+RETURNS Expr AS
+(
+  WITH
+    slice_positions AS (
+      SELECT
+        *
+      FROM _slice_intervals_to_positions!(
+        $slice_table, $svg_group_key_col, $track_group_key_col, $track_group_order_col, $max_width, 2
+      )
+    ),
+    thread_state_positions AS (
+      SELECT
+        *
+      FROM _thread_state_intervals_to_positions!(
+        $thread_state_table, $svg_group_key_col, $track_group_key_col, $track_group_order_col, $max_width, 0
+      )
+    ),
+    counter_positions AS (
+      SELECT
+        *
+      FROM _counter_intervals_to_positions!(
+        $counter_table, $svg_group_key_col, $track_group_key_col, $track_group_order_col, $max_width, 1, $use_shared_counter_scale
+      )
+    ),
+    slice_tracks AS (
+      SELECT
+        *
+      FROM _generate_tracks_by_group!(
+        slice_positions, $svg_group_key_col, $track_group_key_col, $track_group_order_col,
+        0, 1, 0
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      )
+    ),
+    thread_state_tracks AS (
+      SELECT
+        *
+      FROM _generate_tracks_by_group_with_label!(
+        thread_state_positions, $svg_group_key_col, $track_group_key_col, $track_group_order_col,
+        0, 1, 0, $track_group_key_col, 10
+      )
+    ),
+    counter_tracks AS (
+      SELECT
+        *
+      FROM _generate_tracks_by_group_with_label!(
+        counter_positions, $svg_group_key_col, $track_group_key_col, $track_group_order_col,
+        0, 1, 0, $track_group_key_col, 10
+      )
+    ),
+    all_tracks AS (
+      SELECT
+        *
+      FROM slice_tracks
+      UNION ALL
+      SELECT
+        *
+      FROM thread_state_tracks
+      UNION ALL
+      SELECT
+        *
+      FROM counter_tracks
+    )
+  SELECT
+    *
+  FROM _combine_track_svgs!(
+    all_tracks, $svg_group_key_col, $max_width, $left_margin
+  )
+);
+
+)_d3l1m1t3r_"
+;
+
 const char kGraphsCriticalPath[] = R"_d3l1m1t3r_(--
 -- Copyright 2024 The Android Open Source Project
 --
@@ -18750,17 +22244,17 @@ R"_d3l1m1t3r_(
 -- details of what a scan means.
 CREATE PERFETTO MACRO _graph_scan(
   -- The table containing the edges of the graph. Needs to have the columns
-  -- `source_node_id` and `dest_node_id`.
+  -- `source_node_id` and `dest_node_id`. Should not contain nulls.
   graph_table TableOrSubquery,
   -- The table of nodes to start the scan from. Needs to have the column `id`
-  -- and all columns specified by `scan_columns`.
+  -- and all columns specified by `scan_columns`. Should not contain nulls.
   init_table TableOrSubquery,
   -- A parenthesised and comma separated list of columns which will be returned
   -- by the scan. Should match exactly both the names and order of the columns
   -- in both `init_table` and `step_query`.
   --
   -- Example: (cumulative_sum, cumulative_count).
-  scan_columns _ColumnNameList,
+  scan_columns ColumnNameList,
   -- A subquery which is reads all the data (from a variable table called $table)
   -- for a single step of the scan and performs some computation for each node in
 )_d3l1m1t3r_"
@@ -18823,7 +22317,7 @@ CREATE PERFETTO MACRO _graph_aggregating_scan(
   -- in both `init_table` and `agg_query`.
   --
   -- Example: (cumulative_sum, cumulative_count).
-  agg_columns _ColumnNameList,
+  agg_columns ColumnNameList,
   -- A subquery which aggregates the data for one step of the scan. Should contain
 )_d3l1m1t3r_"
 R"_d3l1m1t3r_(  -- the column `id` and all columns specified by `agg_columns`. Should read from
@@ -19225,7 +22719,7 @@ R"_d3l1m1t3r_(RETURNS Expr AS $x;
 
 CREATE PERFETTO MACRO _interval_agg(
   tab TableOrSubquery,
-  agg_columns _ColumnNameList
+  agg_columns ColumnNameList
 )
 RETURNS TableOrSubquery AS
 (
@@ -19244,7 +22738,7 @@ RETURNS TableOrSubquery AS
 
 CREATE PERFETTO MACRO _interval_intersect(
   tabs _TableNameList,
-  agg_columns _ColumnNameList
+  agg_columns ColumnNameList
 )
 RETURNS TableOrSubquery AS
 (
@@ -19322,15 +22816,16 @@ R"_d3l1m1t3r_(-- end points as well as the intervals that intersect with those p
 --             B|----------|
 --             20         45
 --
--- would generate the output
---
---   ts,dur,group_id,id,interval_ends_at_ts
---   10,10,1,A,0
---   20,10,2,A,0
---   20,10,2,B,0
---   30,15,3,A,1
---   30,15,3,B,0
---   45,0,4,B,1
+-- would generate the output:
+-- ```
+-- ts,dur,group_id,id,interval_ends_at_ts
+-- 10,10,1,A,0
+-- 20,10,2,A,0
+-- 20,10,2,B,0
+-- 30,15,3,A,1
+-- 30,15,3,B,0
+-- 45,0,4,B,1
+-- ```
 --
 -- Runtime is O(n log n + m), where n is the number of intervals and m
 -- is the size of the output.
@@ -19900,14 +23395,14 @@ R"_d3l1m1t3r_(      HAVING
   FROM _only_singleton
 );
 
--- Merge intervals intervals when they overlap to generate a minimum covering set of
--- intervals with no overlap. The intervals are closed (contain both endpoints) and
--- we consider two intervals overlapping
+-- Merge intervals when they overlap to generate a minimum covering set of
+-- intervals with no overlap. The intervals are closed (contain both endpoints)
+-- and we consider two intervals overlapping
 )_d3l1m1t3r_"
 R"_d3l1m1t3r_(--   (a) the intervals overlap or
---   (b) if the end point of one interval is within epsilon of the start point of
---       the other
-CREATE PERFETTO MACRO interval_remove_overlap(
+--   (b) if the end point of one interval is within epsilon of the start point
+--       of the other.
+CREATE PERFETTO MACRO interval_merge_overlapping(
     -- Table or subquery containing interval data.
     intervals TableOrSubquery,
     -- Constant expression for a tolerance in testing overlap (usually `0`)
@@ -20226,7 +23721,7 @@ CREATE PERFETTO TABLE cpu_cycles_per_process (
   megacycles LONG,
   -- Total runtime duration
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(  runtime LONG,
+R"_d3l1m1t3r_(  runtime DURATION,
   -- Minimum CPU frequency in kHz
   min_freq LONG,
   -- Maximum CPU frequency in kHz
@@ -20241,7 +23736,7 @@ SELECT
   sum(dur) AS runtime,
   min(freq) AS min_freq,
   max(freq) AS max_freq,
-  cast_int!(SUM((dur * freq / 1000)) / SUM(dur / 1000)) AS avg_freq
+  cast_int!(SUM((dur * freq / 1000)) / (SUM(dur) / 1000)) AS avg_freq
 FROM _cpu_freq_per_thread
 JOIN thread
   USING (utid)
@@ -20251,6 +23746,9 @@ GROUP BY
   upid;
 
 -- Aggregated CPU statistics for each process in a provided interval.
+--
+-- This function is only designed to run over a small number of intervals
+-- (10-100 at most). It will be *very slow* for large sets of intervals.
 CREATE PERFETTO FUNCTION cpu_cycles_per_process_in_interval(
     -- Start of the interval.
     ts TIMESTAMP,
@@ -20261,15 +23759,17 @@ RETURNS TABLE (
   -- Unique process id.
   upid JOINID(process.id),
   -- Sum of CPU millicycles
-  millicycles LONG,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  millicycles LONG,
   -- Sum of CPU megacycles
   megacycles LONG,
   -- Total runtime duration
-  runtime LONG,
+  runtime DURATION,
+  -- Total runtime duration, while 'awake' (CPUs not suspended).
+  awake_runtime DURATION,
   -- Minimum CPU frequency in kHz
   min_freq LONG,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  -- Maximum CPU frequency in kHz
+  -- Maximum CPU frequency in kHz
   max_freq LONG,
   -- Average CPU frequency in kHz
   avg_freq LONG
@@ -20291,14 +23791,66 @@ SELECT
   cast_int!(SUM(ii.dur * freq / 1000)) AS millicycles,
   cast_int!(SUM(ii.dur * freq / 1000) / 1e9) AS megacycles,
   sum(ii.dur) AS runtime,
+  sum(to_monotonic(ii.ts + ii.dur) - to_monotonic(ii.ts)) AS awake_runtime,
   min(freq) AS min_freq,
   max(freq) AS max_freq,
-  cast_int!(SUM((ii.dur * freq / 1000)) / SUM(ii.dur / 1000)) AS avg_freq
+  cast_int!(SUM((ii.dur * freq / 1000)) / (SUM(CASE WHEN freq IS NOT NULL THEN ii.dur END) / 1000)) AS avg_freq
 FROM _interval_intersect_single!($ts, $dur, threads_counters) AS ii
 JOIN threads_counters
-  USING (id)
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  USING (id)
 GROUP BY
   upid;
+
+-- Returns a table with process utilization over a given interval.
+--
+-- Utilization is computed as runtime over the duration of the interval, aggregated by process name.
+-- Utilization can be normalized (divide by number of cpus) or unnormalized.
+--
+-- This function is only designed to run over a small number of intervals
+-- (10-100 at most). It will be *very slow* for large sets of intervals.
+CREATE PERFETTO FUNCTION cpu_process_utilization_in_interval(
+    -- Start of the interval.
+    ts TIMESTAMP,
+    -- Duration of the interval.
+    dur LONG
+)
+RETURNS TABLE (
+  -- The name of the process
+  process_name STRING,
+  -- Total runtime of all processes with this name, while 'awake' (CPUs not suspended).
+  awake_dur LONG,
+  -- Percentage of 'awake_dur' over the 'awake' duration of the interval, normalized by the number of CPUs.
+  -- Values in [0.0, 100.0]
+  awake_utilization DOUBLE,
+  -- Percentage of 'awake_dur' over the 'awake' duration of the interval, unnormalized.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- Values in [0.0, 100.0 * <number_of_cpus>]
+  awake_unnormalized_utilization DOUBLE
+) AS
+SELECT
+  process.name AS process_name,
+  sum(awake_runtime) AS awake_dur,
+  round(
+    sum(awake_runtime) * 100.0 / (
+      to_monotonic($ts + $dur) - to_monotonic($ts)
+    ) / (
+      SELECT
+        max(cpu) + 1
+      FROM cpu
+    ),
+    2
+  ) AS awake_utilization,
+  round(sum(awake_runtime) * 100.0 / (
+    to_monotonic($ts + $dur) - to_monotonic($ts)
+  ), 2) AS awake_unnormalized_utilization
+FROM cpu_cycles_per_process_in_interval($ts, $dur)
+JOIN process
+  USING (upid)
+WHERE
+  process.name IS NOT NULL
+GROUP BY
+  process.name;
 
 )_d3l1m1t3r_"
 ;
@@ -20381,6 +23933,9 @@ LEFT JOIN intersected
   ON slice_id = ts.id AND ts.dur = intersected.dur;
 
 -- CPU cycles per each slice in interval.
+--
+-- This function is only designed to run over a small number of intervals
+-- (10-100 at most). It will be *very slow* for large sets of intervals.
 CREATE PERFETTO FUNCTION cpu_cycles_per_thread_slice_in_interval(
     -- Start of the interval.
     ts TIMESTAMP,
@@ -20404,14 +23959,14 @@ RETURNS TABLE (
   -- period during the runtime of the slice.
   millicycles LONG,
   -- Sum of CPU megacycles. Null if frequency couldn't be fetched for any
-  -- period during the runtime of the slice.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- period during the runtime of the slice.
   megacycles LONG
 ) AS
 WITH
   cut_thread_slice AS (
     SELECT
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      id,
+      id,
       ii.ts,
       ii.dur,
       thread_slice.*
@@ -20539,7 +24094,7 @@ CREATE PERFETTO TABLE cpu_cycles (
   -- Sum of CPU megacycles.
   megacycles LONG,
   -- Total runtime of all threads running on all CPUs.
-  runtime LONG,
+  runtime DURATION,
   -- Minimum CPU frequency in kHz.
   min_freq LONG,
   -- Maximum CPU frequency in kHz.
@@ -20547,17 +24102,20 @@ CREATE PERFETTO TABLE cpu_cycles (
   -- Average CPU frequency in kHz.
   avg_freq LONG
 ) AS
-SELECT
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(  cast_int!(SUM(dur * freq / 1000)) AS millicycles,
+R"_d3l1m1t3r_(SELECT
+  cast_int!(SUM(dur * freq / 1000)) AS millicycles,
   cast_int!(SUM(dur * freq / 1000) / 1e9) AS megacycles,
   sum(dur) AS runtime,
   min(freq) AS min_freq,
   max(freq) AS max_freq,
-  cast_int!(SUM((dur * freq / 1000)) / SUM(dur / 1000)) AS avg_freq
+  cast_int!(SUM((dur * freq / 1000)) / (SUM(dur) / 1000)) AS avg_freq
 FROM _cpu_freq_per_thread;
 
 -- Aggregated CPU statistics in a provided interval. Results in one row.
+--
+-- This function is only designed to run over a small number of intervals
+-- (10-100 at most). It will be *very slow* for large sets of intervals.
 CREATE PERFETTO FUNCTION cpu_cycles_in_interval(
     -- Start of the interval.
     ts TIMESTAMP,
@@ -20570,10 +24128,13 @@ RETURNS TABLE (
   -- Sum of CPU megacycles.
   megacycles LONG,
   -- Total runtime of all threads running on all CPUs.
-  runtime LONG,
+  runtime DURATION,
+  -- Total runtime of all threads running on all CPUs, while 'awake' (CPUs not suspended).
+  awake_runtime DURATION,
   -- Minimum CPU frequency in kHz.
   min_freq LONG,
-  -- Maximum CPU frequency in kHz.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- Maximum CPU frequency in kHz.
   max_freq LONG,
   -- Average CPU frequency in kHz.
   avg_freq LONG
@@ -20582,18 +24143,60 @@ SELECT
   cast_int!(SUM(ii.dur * freq / 1000)) AS millicycles,
   cast_int!(SUM(ii.dur * freq / 1000) / 1e9) AS megacycles,
   sum(ii.dur) AS runtime,
+  sum(to_monotonic(ii.ts + ii.dur) - to_monotonic(ii.ts)) AS awake_runtime,
   min(freq) AS min_freq,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  max(freq) AS max_freq,
-  cast_int!(SUM((ii.dur * freq / 1000)) / SUM(ii.dur / 1000)) AS avg_freq
+  max(freq) AS max_freq,
+  cast_int!(SUM((ii.dur * freq / 1000)) / (SUM(CASE WHEN freq IS NOT NULL THEN ii.dur END) / 1000)) AS avg_freq
 FROM _interval_intersect_single!($ts, $dur, _cpu_freq_per_thread) AS ii
 JOIN _cpu_freq_per_thread
   USING (id);
 
+-- Returns a table of CPU utilization over a given interval.
+--
+-- Utilization  is computed as runtime over the duration of the interval.
+-- Utilization can be normalized (divide by number of cores) or unnormalized.
+--
+-- This function is only designed to run over a small number of intervals
+-- (10-100 at most). It will be *very slow* for large sets of intervals.
+CREATE PERFETTO FUNCTION cpu_utilization_in_interval(
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    -- Start of the interval.
+    ts TIMESTAMP,
+    -- Duration of the interval.
+    dur LONG
+)
+RETURNS TABLE (
+  -- Total runtime of all threads running on all CPUs, while 'awake' (CPUs not suspended).
+  awake_dur LONG,
+  -- Percentage of 'awake_dur' over the 'awake' duration of the interval, normalized by the number of CPUs.
+  -- Values in [0.0, 100.0]
+  awake_utilization DOUBLE,
+  -- Percentage of 'awake_dur' over the 'awake' duration of the interval, unnormalized.
+  -- Values in [0.0, 100.0 * <number_of_cpus>]
+  awake_unnormalized_utilization DOUBLE
+) AS
+SELECT
+  awake_runtime AS awake_dur,
+  round(
+    awake_runtime * 100.0 / (
+      to_monotonic($ts + $dur) - to_monotonic($ts)
+    ) / (
+      SELECT
+        max(cpu) + 1
+      FROM cpu
+    ),
+    2
+  ) AS awake_utilization,
+  round(awake_runtime * 100.0 / (
+    to_monotonic($ts + $dur) - to_monotonic($ts)
+  ), 2) AS awake_unnormalized_utilization
+FROM cpu_cycles_in_interval($ts, $dur);
+
 -- Aggregated CPU statistics for each CPU.
 CREATE PERFETTO TABLE cpu_cycles_per_cpu (
-  -- Unique CPU id. Joinable with `cpu.id`.
-  ucpu LONG,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- Unique CPU id. Joinable with `cpu.id`.
+  ucpu JOINID(cpu.id),
   -- The number of the CPU. Might not be the same as ucpu in multi machine cases.
   cpu LONG,
   -- Sum of CPU millicycles.
@@ -20601,7 +24204,7 @@ CREATE PERFETTO TABLE cpu_cycles_per_cpu (
   -- Sum of CPU megacycles.
   megacycles LONG,
   -- Total runtime of all threads running on CPU.
-  runtime LONG,
+  runtime DURATION,
   -- Minimum CPU frequency in kHz.
   min_freq LONG,
   -- Maximum CPU frequency in kHz.
@@ -20617,14 +24220,17 @@ SELECT
   sum(dur) AS runtime,
   min(freq) AS min_freq,
   max(freq) AS max_freq,
-  cast_int!(SUM((dur * freq / 1000)) / SUM(dur / 1000)) AS avg_freq
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(FROM _cpu_freq_per_thread
+  cast_int!(SUM((dur * freq / 1000)) / (SUM(dur) / 1000)) AS avg_freq
+FROM _cpu_freq_per_thread
 GROUP BY
   ucpu;
 
 -- Aggregated CPU statistics for each CPU in a provided interval.
-CREATE PERFETTO FUNCTION cpu_cycles_per_cpu_in_interval(
+--
+-- This function is only designed to run over a small number of intervals
+-- (10-100 at most). It will be *very slow* for large sets of intervals.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(CREATE PERFETTO FUNCTION cpu_cycles_per_cpu_in_interval(
     -- Start of the interval.
     ts TIMESTAMP,
     -- Duration of the interval.
@@ -20632,7 +24238,7 @@ CREATE PERFETTO FUNCTION cpu_cycles_per_cpu_in_interval(
 )
 RETURNS TABLE (
   -- Unique CPU id. Joinable with `cpu.id`.
-  ucpu LONG,
+  ucpu JOINID(cpu.id),
   -- CPU number.
   cpu LONG,
   -- Sum of CPU millicycles.
@@ -20640,7 +24246,7 @@ RETURNS TABLE (
   -- Sum of CPU megacycles.
   megacycles LONG,
   -- Total runtime of all threads running on CPU.
-  runtime LONG,
+  runtime DURATION,
   -- Minimum CPU frequency in kHz.
   min_freq LONG,
   -- Maximum CPU frequency in kHz.
@@ -20656,11 +24262,11 @@ SELECT
   sum(ii.dur) AS runtime,
   min(freq) AS min_freq,
   max(freq) AS max_freq,
-  cast_int!(SUM((ii.dur * freq / 1000)) / SUM(ii.dur / 1000)) AS avg_freq
+  cast_int!(SUM((ii.dur * freq / 1000)) / (SUM(CASE WHEN freq IS NOT NULL THEN ii.dur END) / 1000)) AS avg_freq
 FROM _interval_intersect_single!($ts, $dur, _cpu_freq_per_thread) AS ii
+JOIN _cpu_freq_per_thread
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(JOIN _cpu_freq_per_thread
-  USING (id)
+R"_d3l1m1t3r_(  USING (id)
 GROUP BY
   ucpu;
 
@@ -20759,7 +24365,7 @@ CREATE PERFETTO TABLE cpu_cycles_per_thread (
   -- Sum of CPU megacycles
   megacycles LONG,
   -- Total runtime duration
-  runtime LONG,
+  runtime DURATION,
   -- Minimum CPU frequency in kHz
   min_freq LONG,
   -- Maximum CPU frequency in kHz
@@ -20775,12 +24381,15 @@ SELECT
   sum(dur) AS runtime,
   min(freq) AS min_freq,
   max(freq) AS max_freq,
-  cast_int!(SUM((dur * freq / 1000)) / SUM(dur / 1000)) AS avg_freq
+  cast_int!(SUM((dur * freq / 1000)) / (SUM(CASE WHEN freq IS NOT NULL THEN dur END) / 1000)) AS avg_freq
 FROM _cpu_freq_per_thread
 GROUP BY
   utid;
 
 -- Aggregated CPU statistics for each thread in a provided interval.
+--
+-- This function is only designed to run over a small number of intervals
+-- (10-100 at most). It will be *very slow* for large sets of intervals.
 CREATE PERFETTO FUNCTION cpu_cycles_per_thread_in_interval(
     -- Start of the interval.
     ts TIMESTAMP,
@@ -20795,7 +24404,10 @@ RETURNS TABLE (
   -- Sum of CPU megacycles
   megacycles LONG,
   -- Total runtime duration
-  runtime LONG,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  runtime DURATION,
+  -- Total runtime duration, while 'awake' (CPUs not suspended).
+  awake_runtime DURATION,
   -- Minimum CPU frequency in kHz
   min_freq LONG,
   -- Maximum CPU frequency in kHz
@@ -20804,19 +24416,68 @@ RETURNS TABLE (
   avg_freq LONG
 ) AS
 SELECT
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  utid,
+  utid,
   cast_int!(SUM(ii.dur * freq / 1000)) AS millicycles,
-  cast_int!(SUM(ii.dur * freq / 1000 )/ 1e9) AS megacycles,
+  cast_int!(SUM(ii.dur * freq / 1000) / 1e9) AS megacycles,
   sum(ii.dur) AS runtime,
+  sum(to_monotonic(ii.ts + ii.dur) - to_monotonic(ii.ts)) AS awake_runtime,
   min(freq) AS min_freq,
   max(freq) AS max_freq,
-  cast_int!(SUM((ii.dur * freq / 1000)) / SUM(ii.dur / 1000)) AS avg_freq
+  cast_int!(SUM((ii.dur * freq / 1000)) / (SUM(CASE WHEN freq IS NOT NULL THEN ii.dur END) / 1000)) AS avg_freq
 FROM _interval_intersect_single!($ts, $dur, _cpu_freq_per_thread) AS ii
 JOIN _cpu_freq_per_thread AS c
   USING (id)
 GROUP BY
   utid;
+
+-- Returns a table of thread utilization over a given interval.
+--
+-- Utilization is computed as runtime over the duration of the interval, aggregated by thread name.
+-- Utilization can be normalized (divide by number of CPUs) or unnormalized.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(--
+-- This function is only designed to run over a small number of intervals
+-- (10-100 at most). It will be *very slow* for large sets of intervals.
+CREATE PERFETTO FUNCTION cpu_thread_utilization_in_interval(
+    -- Start of the interval.
+    ts TIMESTAMP,
+    -- Duration of the interval.
+    dur LONG
+)
+RETURNS TABLE (
+  -- The name of the thread
+  thread_name STRING,
+  -- Total runtime of all threads with this name, while 'awake' (CPUs not suspended).
+  awake_dur LONG,
+  -- Percentage of 'awake_dur' over the 'awake' duration of the interval, normalized by the number of CPUs.
+  -- Values in [0.0, 100.0]
+  awake_utilization DOUBLE,
+  -- Percentage of 'awake_dur' over the 'awake' duration of the interval, unnormalized.
+  -- Values in [0.0, 100.0 * <number_of_cpus>]
+  awake_unnormalized_utilization DOUBLE
+) AS
+SELECT
+  thread.name AS thread_name,
+  sum(awake_runtime) AS awake_dur,
+  round(
+    sum(awake_runtime) * 100.0 / (
+      to_monotonic($ts + $dur) - to_monotonic($ts)
+    ) / (
+      SELECT
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(        max(cpu) + 1
+      FROM cpu
+    ),
+    2
+  ) AS awake_utilization,
+  round(sum(awake_runtime) * 100.0 / (
+    to_monotonic($ts + $dur) - to_monotonic($ts)
+  ), 2) AS awake_unnormalized_utilization
+FROM cpu_cycles_per_thread_in_interval($ts, $dur)
+JOIN thread
+  USING (utid)
+GROUP BY
+  thread.name;
 
 )_d3l1m1t3r_"
 ;
@@ -21441,13 +25102,15 @@ FROM _callstacks_for_callsites!((
 ORDER BY
   c.id;
 
+CREATE PERFETTO INDEX _linux_perf_raw_callstacks_parent_id_idx ON _linux_perf_raw_callstacks(parent_id);
+
 -- Table summarising the callstacks captured during all
 -- perf samples in the trace.
---
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(--
 -- Specifically, this table returns a tree containing all
 -- the callstacks seen during the trace with `self_count`
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(-- equal to the number of samples with that frame as the
+-- equal to the number of samples with that frame as the
 -- leaf and `cumulative_count` equal to the number of
 -- samples with the frame anywhere in the tree.
 CREATE PERFETTO TABLE linux_perf_samples_summary_tree (
@@ -21469,15 +25132,15 @@ CREATE PERFETTO TABLE linux_perf_samples_summary_tree (
   -- frame.
   self_count LONG,
   -- The number of samples with this function appearing
-  -- anywhere on the callstack.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- anywhere on the callstack.
   cumulative_count LONG
 ) AS
 SELECT
   r.*,
   a.cumulative_count
 FROM _callstacks_self_to_cumulative!((
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  SELECT id, parent_id, self_count
+  SELECT id, parent_id, self_count
   FROM _linux_perf_raw_callstacks
 )) AS a
 JOIN _linux_perf_raw_callstacks AS r
@@ -21702,6 +25365,61 @@ FROM __intrinsic_spe_record;
 )_d3l1m1t3r_"
 ;
 
+const char kLinuxPerfEtm[] = R"_d3l1m1t3r_(--
+-- Copyright 2025 The Android Open Source Project
+--
+-- Licensed under the Apache License, Version 2.0 (the 'License');
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     https://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an 'AS IS' BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
+-- TODO(fouly): elaborate on how to select chunk_id after chunk_id aggregates are created
+-- TODO(fouly): explain where chunk_id comes from after __intrinsic_etm_v4_chunk is no longer intrinsic
+
+-- This is a table that extracts the file_path for the binary and the relative address for each ETM instruction in a specific ETM chunk.
+-- The most common use case will be to use this data to help symbolize the addresses in order to map instructions back to the code that caused them.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(-- To get ETM data you need to have enabled enable_perfetto_etm_importer in your gn args.
+CREATE PERFETTO FUNCTION _linux_perf_etm_metadata(
+    -- ID of the chunk.
+    chunk_id LONG
+)
+RETURNS TABLE (
+  -- Name of the file containing the instruction.
+  file_name STRING,
+  -- Relative program counter of the instruction.
+  rel_pc LONG,
+  -- The mapping id of the instruction.
+  mapping_id LONG,
+  -- The address of the instruction.
+  address LONG
+) AS
+SELECT
+  __intrinsic_file.name AS file_name,
+  __intrinsic_etm_iterate_instruction_range.address - stack_profile_mapping.start + stack_profile_mapping.exact_offset + __intrinsic_elf_file.load_bias AS rel_pc,
+  __intrinsic_etm_decode_chunk.mapping_id AS mapping_id,
+  __intrinsic_etm_iterate_instruction_range.address AS address
+FROM __intrinsic_etm_decode_chunk($chunk_id)
+JOIN __intrinsic_etm_iterate_instruction_range
+  ON __intrinsic_etm_decode_chunk.instruction_range = __intrinsic_etm_iterate_instruction_range.instruction_range
+JOIN stack_profile_mapping
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  ON __intrinsic_etm_decode_chunk.mapping_id = stack_profile_mapping.id
+JOIN __intrinsic_elf_file
+  ON stack_profile_mapping.build_id = __intrinsic_elf_file.build_id
+JOIN __intrinsic_file
+  ON __intrinsic_elf_file.file_id = __intrinsic_file.id;
+
+)_d3l1m1t3r_"
+;
+
 const char kLinuxBlockIo[] = R"_d3l1m1t3r_(--
 -- Copyright 2024 The Android Open Source Project
 --
@@ -21851,7 +25569,114 @@ SELECT
   ts,
   dur,
   freq AS dsu_freq
-FROM _get_devfreq_counters("*devfreq_dsu");
+FROM _get_devfreq_counters('*devfreq_dsu')
+UNION ALL
+SELECT
+  id,
+  ts,
+  dur,
+  freq AS dsu_freq
+FROM _get_devfreq_counters('*dsufreq');
+
+)_d3l1m1t3r_"
+;
+
+const char kLinuxIrqs[] = R"_d3l1m1t3r_(--
+-- Copyright 2025 The Android Open Source Project
+--
+-- Licensed under the Apache License, Version 2.0 (the 'License');
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     https://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an 'AS IS' BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
+-- All hard IRQs of the trace represented as slices.
+CREATE PERFETTO VIEW linux_hard_irqs (
+  -- Starting timestamp of this IRQ.
+  ts TIMESTAMP,
+  -- Duration of this IRQ.
+  dur DURATION,
+  -- The name of the IRQ.
+  name STRING,
+  -- The id of the IRQ.
+  id JOINID(slice.id),
+  -- The id of this IRQ's parent IRQ (i.e. the IRQ that this IRQ preempted).
+  parent_id JOINID(slice.id)
+) AS
+SELECT
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  slices.ts,
+  slices.dur,
+  slices.name,
+  slices.id,
+  slices.parent_id
+FROM slices
+JOIN track
+  ON track.id = slices.track_id
+WHERE
+  track.type = 'cpu_irq';
+
+-- All soft IRQs of the trace represented as slices.
+CREATE PERFETTO VIEW linux_soft_irqs (
+  -- Starting timestamp of this IRQ.
+  ts TIMESTAMP,
+  -- Duration of this IRQ.
+  dur DURATION,
+  -- The name of the IRQ.
+  name STRING,
+  -- The id of the IRQ.
+  id JOINID(slice.id)
+) AS
+SELECT
+  slices.ts,
+  slices.dur,
+  slices.name,
+  slices.id
+FROM slices
+JOIN track
+  ON track.id = slices.track_id
+WHERE
+  track.type = 'cpu_softirq';
+
+-- All IRQs, including hard and soft IRQs, of the trace represented as slices.
+CREATE PERFETTO VIEW linux_irqs (
+  -- Starting timestamp of this IRQ.
+  ts TIMESTAMP,
+  -- Duration of this IRQ.
+  dur DURATION,
+  -- The name of the IRQ.
+  name STRING,
+  -- The id of the IRQ.
+  id JOINID(slice.id),
+  -- The id of this IRQ's parent IRQ (i.e. the IRQ that this IRQ preempted).
+  parent_id JOINID(slice.id),
+  -- Flag indicating if IRQ is soft IRQ
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  is_soft_irq BOOL
+) AS
+SELECT
+  ts,
+  dur,
+  name,
+  id,
+  parent_id,
+  0 AS is_soft_irq
+FROM linux_hard_irqs
+UNION ALL
+SELECT
+  ts,
+  dur,
+  name,
+  id,
+  NULL AS parent_id,
+  1 AS is_soft_irq
+FROM linux_soft_irqs;
 
 )_d3l1m1t3r_"
 ;
@@ -22090,6 +25915,33 @@ CAST($value AS TEXT);
 )_d3l1m1t3r_"
 ;
 
+const char kPreludeAfterEofIndexes[] = R"_d3l1m1t3r_(--
+-- Copyright 2025 The Android Open Source Project
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     https://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
+-- It's very typical to filter the flow table on either incoming or outgoing slice ids.
+CREATE PERFETTO INDEX flow_in ON flow(slice_in);
+
+CREATE PERFETTO INDEX flow_out ON flow(slice_out);
+
+CREATE PERFETTO INDEX slice_parent_id ON __intrinsic_slice(parent_id);
+
+CREATE PERFETTO INDEX slice_track_id ON __intrinsic_slice(track_id);
+
+)_d3l1m1t3r_"
+;
+
 const char kPreludeAfterEofSlices[] = R"_d3l1m1t3r_(--
 -- Copyright 2023 The Android Open Source Project
 --
@@ -22144,6 +25996,8 @@ const char kPreludeAfterEofTablesViews[] = R"_d3l1m1t3r_(--
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
+
+INCLUDE PERFETTO MODULE prelude.after_eof.indexes;
 
 INCLUDE PERFETTO MODULE prelude.after_eof.views;
 
@@ -22206,7 +26060,17 @@ R"_d3l1m1t3r_(  -- dimensions allow distinguishing between different tracks in t
   -- expand the args.
   source_arg_set_id ARGSETID,
   -- Machine identifier, non-null for tracks on a remote machine.
-  machine_id LONG
+  machine_id LONG,
+  -- An opaque key indicating that this track belongs to a group of tracks which
+  -- are "conceptually" the same track.
+  --
+  -- Tracks in trace processor don't allow overlapping events to allow for easy
+  -- analysis (i.e. SQL window functions, SPAN JOIN and other similar
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- operators). However, in visualization settings (e.g. the UI), the
+  -- distinction doesn't matter and all tracks with the same `track_group_id`
+  -- should be merged together into a single logical "UI track".
+  track_group_id LONG
 ) AS
 SELECT
   id,
@@ -22215,13 +26079,13 @@ SELECT
   dimension_arg_set_id,
   parent_id,
   source_arg_set_id,
-  machine_id
+  machine_id,
+  track_group_id
 FROM __intrinsic_track;
 
 -- Contains information about the CPUs on the device this trace was taken on.
 CREATE PERFETTO VIEW cpu (
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  -- Unique identifier for this CPU. Identical to |ucpu|, prefer using |ucpu|
+  -- Unique identifier for this CPU. Identical to |ucpu|, prefer using |ucpu|
   -- instead.
   id ID,
   -- Unique identifier for this CPU. Isn't equal to |cpu| for remote machines
@@ -22236,7 +26100,8 @@ R"_d3l1m1t3r_(  -- Unique identifier for this CPU. Identical to |ucpu|, prefer u
   -- Machine identifier, non-null for CPUs on a remote machine.
   machine_id LONG,
   -- Capacity of a CPU of a device, a metric which indicates the
-  -- relative performance of a CPU on a device
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- relative performance of a CPU on a device
   -- For details see:
   -- https://www.kernel.org/doc/Documentation/devicetree/bindings/arm/cpu-capacity.txt
   capacity LONG,
@@ -22257,8 +26122,7 @@ WHERE
   cpu IS NOT NULL;
 
 -- Contains the frequency values that the CPUs on the device are capable of
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(-- running at.
+-- running at.
 CREATE PERFETTO VIEW cpu_available_frequencies (
   -- Unique identifier for this cpu frequency.
   id ID,
@@ -22271,7 +26135,8 @@ CREATE PERFETTO VIEW cpu_available_frequencies (
   -- The CPU that the slice executed on (meaningful only in single machine
   -- traces). For multi-machine, join with the `cpu` table on `ucpu` to get the
   -- CPU identifier of each machine.
-  ucpu LONG
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  ucpu LONG
 ) AS
 SELECT
   id,
@@ -22287,8 +26152,7 @@ FROM __intrinsic_cpu_freq;
 -- The rows in this table will always have a matching row in the |thread_state|
 -- table with |thread_state.state| = 'Running'
 CREATE PERFETTO VIEW sched_slice (
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  --  Unique identifier for this scheduling slice.
+  --  Unique identifier for this scheduling slice.
   id ID,
   -- The timestamp at the start of the slice.
   ts TIMESTAMP,
@@ -22302,7 +26166,8 @@ R"_d3l1m1t3r_(  --  Unique identifier for this scheduling slice.
   utid JOINID(thread.id),
   -- A string representing the scheduling state of the kernel
   -- thread at the end of the slice.  The individual characters in
-  -- the string mean the following: R (runnable), S (awaiting a
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- the string mean the following: R (runnable), S (awaiting a
   -- wakeup), D (in an uninterruptible sleep), T (suspended),
   -- t (being traced), X (exiting), P (parked), W (waking),
   -- I (idle), N (not contributing to the load average),
@@ -22312,8 +26177,7 @@ R"_d3l1m1t3r_(  --  Unique identifier for this scheduling slice.
   -- The kernel priority that the thread ran at.
   priority LONG,
   -- The unique CPU identifier that the slice executed on.
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  ucpu LONG
+  ucpu LONG
 ) AS
 SELECT
   id,
@@ -22341,7 +26205,8 @@ CREATE PERFETTO VIEW sched (
   -- Alias for `sched_slice.end_state`.
   end_state STRING,
   -- Alias for `sched_slice.priority`.
-  priority LONG,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  priority LONG,
   -- Alias for `sched_slice.ucpu`.
   ucpu LONG,
   -- Legacy column, should no longer be used.
@@ -22359,8 +26224,7 @@ FROM sched_slice;
 -- corresponding row in the |sched_slice| table.
 CREATE PERFETTO VIEW thread_state (
   -- Unique identifier for this thread state.
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  id ID,
+  id ID,
   -- The timestamp at the start of the slice.
   ts TIMESTAMP,
   -- The duration of the slice.
@@ -22374,7 +26238,8 @@ R"_d3l1m1t3r_(  id ID,
   -- The scheduling state of the thread. Can be "Running" or any of the states
   -- described in |sched_slice.end_state|.
   state STRING,
-  -- Indicates whether this thread was blocked on IO.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- Indicates whether this thread was blocked on IO.
   io_wait LONG,
   -- The function in the kernel this thread was blocked on.
   blocked_function STRING,
@@ -22385,8 +26250,7 @@ R"_d3l1m1t3r_(  id ID,
   -- Whether the wakeup was from interrupt context or process context.
   irq_context LONG,
   -- The unique CPU identifier that the thread executed on.
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  ucpu LONG
+  ucpu LONG
 ) AS
 SELECT
   id,
@@ -22408,7 +26272,8 @@ FROM __intrinsic_thread_state;
 -- metrics, standard library etc). Note also that this table might be empty if
 -- raw ftrace parsing has been disabled.
 CREATE PERFETTO VIEW ftrace_event (
-  -- Unique identifier for this ftrace event.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- Unique identifier for this ftrace event.
   id ID,
   -- The timestamp of this event.
   ts TIMESTAMP,
@@ -22423,8 +26288,7 @@ CREATE PERFETTO VIEW ftrace_event (
   -- The set of key/value pairs associated with this event.
   arg_set_id ARGSETID,
   -- Ftrace event flags for this event. Currently only emitted for
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  -- sched_waking events.
+  -- sched_waking events.
   common_flags LONG,
   -- The unique CPU identifier that this event was emitted on.
   ucpu LONG
@@ -22444,7 +26308,8 @@ FROM __intrinsic_ftrace_event;
 -- rows; this table is simply a (badly named) alias.
 CREATE PERFETTO VIEW raw (
   -- Unique identifier for this raw event.
-  id ID,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  id ID,
   -- The timestamp of this event.
   ts TIMESTAMP,
   -- The name of the event. For ftrace events, this will be the ftrace event
@@ -22459,8 +26324,7 @@ CREATE PERFETTO VIEW raw (
   -- The set of key/value pairs associated with this event.
   arg_set_id ARGSETID,
   -- Ftrace event flags for this event. Currently only emitted for sched_waking
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  -- events.
+  -- events.
   common_flags LONG,
   -- The unique CPU identifier that this event was emitted on.
   ucpu LONG
@@ -22476,7 +26340,8 @@ CREATE PERFETTO TABLE thread_track (
   -- Name of the track.
   name STRING,
   -- The type of a track indicates the type of data the track contains.
-  --
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  --
   -- Every track is uniquely identified by the the combination of the
   -- type and a set of dimensions: type allow identifying a set of tracks
   -- with the same type of data within the whole universe of tracks while
@@ -22487,8 +26352,7 @@ CREATE PERFETTO TABLE thread_track (
   parent_id JOINID(track.id),
   -- Args for this track which store information about "source" of this track in
   -- the trace. For example: whether this track orginated from atrace, Chrome
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  -- tracepoints etc.
+  -- tracepoints etc.
   source_arg_set_id ARGSETID,
   -- Machine identifier, non-null for tracks on a remote machine.
   machine_id LONG,
@@ -22506,7 +26370,8 @@ SELECT
 FROM __intrinsic_track AS t
 JOIN args AS a
   ON t.dimension_arg_set_id = a.arg_set_id
-WHERE
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(WHERE
   t.event_type = 'slice' AND a.key = 'utid';
 
 -- Tracks which are associated to a single process.
@@ -22521,8 +26386,7 @@ CREATE PERFETTO TABLE process_track (
   -- type and a set of dimensions: type allow identifying a set of tracks
   -- with the same type of data within the whole universe of tracks while
   -- dimensions allow distinguishing between different tracks in that set.
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  type STRING,
+  type STRING,
   -- The track which is the "parent" of this track. Only non-null for tracks
   -- created using Perfetto's track_event API.
   parent_id JOINID(track.id),
@@ -22531,7 +26395,8 @@ R"_d3l1m1t3r_(  type STRING,
   -- tracepoints etc.
   source_arg_set_id ARGSETID,
   -- Machine identifier, non-null for tracks on a remote machine.
-  machine_id LONG,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  machine_id LONG,
   -- The upid that the track is associated with.
   upid JOINID(process.id)
 ) AS
@@ -22556,8 +26421,7 @@ CREATE PERFETTO TABLE cpu_track (
   -- Name of the track.
   name STRING,
   -- The type of a track indicates the type of data the track contains.
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  --
+  --
   -- Every track is uniquely identified by the the combination of the
   -- type and a set of dimensions: type allow identifying a set of tracks
   -- with the same type of data within the whole universe of tracks while
@@ -22565,7 +26429,8 @@ R"_d3l1m1t3r_(  --
   type STRING,
   -- The track which is the "parent" of this track. Only non-null for tracks
   -- created using Perfetto's track_event API.
-  parent_id JOINID(track.id),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  parent_id JOINID(track.id),
   -- Args for this track which store information about "source" of this track in
   -- the trace. For example: whether this track orginated from atrace, Chrome
   -- tracepoints etc.
@@ -22586,8 +26451,7 @@ SELECT
 FROM __intrinsic_track AS t
 JOIN args AS a
   ON t.dimension_arg_set_id = a.arg_set_id
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(WHERE
+WHERE
   t.event_type = 'slice' AND a.key = 'cpu';
 
 -- Table containing tracks which are loosely tied to a GPU.
@@ -22598,7 +26462,8 @@ R"_d3l1m1t3r_(WHERE
 -- instead.
 CREATE PERFETTO TABLE gpu_track (
   -- Unique identifier for this cpu track.
-  id ID(track.id),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  id ID(track.id),
   -- Name of the track.
   name STRING,
   -- The type of a track indicates the type of data the track contains.
@@ -22611,8 +26476,7 @@ CREATE PERFETTO TABLE gpu_track (
   -- The track which is the "parent" of this track. Only non-null for tracks
   -- created using Perfetto's track_event API.
   parent_id JOINID(track.id),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  -- Args for this track which store information about "source" of this track in
+  -- Args for this track which store information about "source" of this track in
   -- the trace. For example: whether this track orginated from atrace, Chrome
   -- tracepoints etc.
   source_arg_set_id ARGSETID,
@@ -22621,7 +26485,8 @@ R"_d3l1m1t3r_(  -- Args for this track which store information about "source" of
   dimension_arg_set_id ARGSETID,
   -- Machine identifier, non-null for tracks on a remote machine.
   machine_id LONG,
-  -- The source of the track. Deprecated.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- The source of the track. Deprecated.
   scope STRING,
   -- The description for the track.
   description STRING,
@@ -22642,8 +26507,7 @@ SELECT
 FROM __intrinsic_track
 WHERE
   type IN ('drm_vblank', 'drm_sched_ring', 'drm_fence', 'mali_mcu_state', 'gpu_render_stage', 'vulkan_events', 'gpu_log', 'graphics_frame_event');
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(
+
 -- Tracks containing counter-like events.
 CREATE PERFETTO VIEW counter_track (
   -- Unique identifier for this cpu counter track.
@@ -22654,7 +26518,8 @@ CREATE PERFETTO VIEW counter_track (
   -- created using Perfetto's track_event API.
   parent_id JOINID(track.id),
   -- The type of a track indicates the type of data the track contains.
-  --
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  --
   -- Every track is uniquely identified by the the combination of the
   -- type and a set of dimensions: type allow identifying a set of tracks
   -- with the same type of data within the whole universe of tracks while
@@ -22665,8 +26530,7 @@ CREATE PERFETTO VIEW counter_track (
   dimension_arg_set_id ARGSETID,
   -- Args for this track which store information about "source" of this track in
   -- the trace. For example: whether this track orginated from atrace, Chrome
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  -- tracepoints etc.
+  -- tracepoints etc.
   source_arg_set_id ARGSETID,
   -- Machine identifier, non-null for tracks on a remote machine.
   machine_id LONG,
@@ -22683,7 +26547,8 @@ SELECT
   dimension_arg_set_id,
   source_arg_set_id,
   machine_id,
-  counter_unit AS unit,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  counter_unit AS unit,
   extract_arg(source_arg_set_id, 'description') AS description
 FROM __intrinsic_track
 WHERE
@@ -22700,15 +26565,15 @@ CREATE PERFETTO TABLE cpu_counter_track (
   -- Every track is uniquely identified by the the combination of the
   -- type and a set of dimensions: type allow identifying a set of tracks
   -- with the same type of data within the whole universe of tracks while
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  -- dimensions allow distinguishing between different tracks in that set.
+  -- dimensions allow distinguishing between different tracks in that set.
   type STRING,
   -- The track which is the "parent" of this track. Only non-null for tracks
   -- created using Perfetto's track_event API.
   parent_id JOINID(track.id),
   -- Args for this track which store information about "source" of this track in
   -- the trace. For example: whether this track orginated from atrace, Chrome
-  -- tracepoints etc.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- tracepoints etc.
   source_arg_set_id ARGSETID,
   -- Machine identifier, non-null for tracks on a remote machine.
   machine_id LONG,
@@ -22733,151 +26598,11 @@ FROM counter_track AS ct
 JOIN args
   ON ct.dimension_arg_set_id = args.arg_set_id
 WHERE
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  args.key = 'cpu';
+  args.key = 'cpu';
 
 -- Tracks containing counter-like events associated to a GPU.
 CREATE PERFETTO TABLE gpu_counter_track (
   -- Unique identifier for this gpu counter track.
-  id ID(track.id),
-  -- Name of the track.
-  name STRING,
-  -- The type of a track indicates the type of data the track contains.
-  --
-  -- Every track is uniquely identified by the the combination of the
-  -- type and a set of dimensions: type allow identifying a set of tracks
-  -- with the same type of data within the whole universe of tracks while
-  -- dimensions allow distinguishing between different tracks in that set.
-  type STRING,
-  -- The track which is the "parent" of this track. Only non-null for tracks
-  -- created using Perfetto's track_event API.
-  parent_id JOINID(track.id),
-  -- Args for this track which store information about "source" of this track in
-  -- the trace. For example: whether this track orginated from atrace, Chrome
-  -- tracepoints etc.
-  source_arg_set_id ARGSETID,
-  -- Machine identifier, non-null for tracks on a remote machine.
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  machine_id LONG,
-  -- The units of the counter. This column is rarely filled.
-  unit STRING,
-  -- The description for this track. For debugging purposes only.
-  description STRING,
-  -- The GPU that the track is associated with.
-  gpu_id LONG
-) AS
-SELECT
-  ct.id,
-  ct.name,
-  ct.type,
-  ct.parent_id,
-  ct.source_arg_set_id,
-  ct.machine_id,
-  ct.unit,
-  ct.description,
-  args.int_value AS gpu_id
-FROM counter_track AS ct
-JOIN args
-  ON ct.dimension_arg_set_id = args.arg_set_id
-WHERE
-  args.key = 'gpu';
-
--- Tracks containing counter-like events associated to a process.
-CREATE PERFETTO TABLE process_counter_track (
-  -- Unique identifier for this process counter track.
-  id ID(track.id),
-  -- Name of the track.
-  name STRING,
-  -- The type of a track indicates the type of data the track contains.
-  --
-  -- Every track is uniquely identified by the the combination of the
-  -- type and a set of dimensions: type allow identifying a set of tracks
-  -- with the same type of data within the whole universe of tracks while
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  -- dimensions allow distinguishing between different tracks in that set.
-  type STRING,
-  -- The track which is the "parent" of this track. Only non-null for tracks
-  -- created using Perfetto's track_event API.
-  parent_id JOINID(track.id),
-  -- Args for this track which store information about "source" of this track in
-  -- the trace. For example: whether this track orginated from atrace, Chrome
-  -- tracepoints etc.
-  source_arg_set_id ARGSETID,
-  -- Machine identifier, non-null for tracks on a remote machine.
-  machine_id LONG,
-  -- The units of the counter. This column is rarely filled.
-  unit STRING,
-  -- The description for this track. For debugging purposes only.
-  description STRING,
-  -- The upid of the process that the track is associated with.
-  upid LONG
-) AS
-SELECT
-  ct.id,
-  ct.name,
-  ct.type,
-  ct.parent_id,
-  ct.source_arg_set_id,
-  ct.machine_id,
-  ct.unit,
-  ct.description,
-  args.int_value AS upid
-FROM counter_track AS ct
-JOIN args
-  ON ct.dimension_arg_set_id = args.arg_set_id
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(WHERE
-  args.key = 'upid';
-
--- Tracks containing counter-like events associated to a thread.
-CREATE PERFETTO TABLE thread_counter_track (
-  -- Unique identifier for this thread counter track.
-  id ID(track.id),
-  -- Name of the track.
-  name STRING,
-  -- The type of a track indicates the type of data the track contains.
-  --
-  -- Every track is uniquely identified by the the combination of the
-  -- type and a set of dimensions: type allow identifying a set of tracks
-  -- with the same type of data within the whole universe of tracks while
-  -- dimensions allow distinguishing between different tracks in that set.
-  type STRING,
-  -- The track which is the "parent" of this track. Only non-null for tracks
-  -- created using Perfetto's track_event API.
-  parent_id JOINID(track.id),
-  -- Args for this track which store information about "source" of this track in
-  -- the trace. For example: whether this track orginated from atrace, Chrome
-  -- tracepoints etc.
-  source_arg_set_id JOINID(track.id),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  -- Machine identifier, non-null for tracks on a remote machine.
-  machine_id LONG,
-  -- The units of the counter. This column is rarely filled.
-  unit STRING,
-  -- The description for this track. For debugging purposes only.
-  description STRING,
-  -- The utid of the thread that the track is associated with.
-  utid LONG
-) AS
-SELECT
-  ct.id,
-  ct.name,
-  ct.type,
-  ct.parent_id,
-  ct.source_arg_set_id,
-  ct.machine_id,
-  ct.unit,
-  ct.description,
-  args.int_value AS utid
-FROM counter_track AS ct
-JOIN args
-  ON ct.dimension_arg_set_id = args.arg_set_id
-WHERE
-  args.key = 'utid';
-
--- Tracks containing counter-like events collected from Linux perf.
-CREATE PERFETTO TABLE perf_counter_track (
-  -- Unique identifier for this thread counter track.
   id ID(track.id),
   -- Name of the track.
   name STRING,
@@ -22902,14 +26627,154 @@ R"_d3l1m1t3r_(  -- with the same type of data within the whole universe of track
   unit STRING,
   -- The description for this track. For debugging purposes only.
   description STRING,
+  -- The GPU that the track is associated with.
+  gpu_id LONG
+) AS
+SELECT
+  ct.id,
+  ct.name,
+  ct.type,
+  ct.parent_id,
+  ct.source_arg_set_id,
+  ct.machine_id,
+  ct.unit,
+  ct.description,
+  args.int_value AS gpu_id
+FROM counter_track AS ct
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(JOIN args
+  ON ct.dimension_arg_set_id = args.arg_set_id
+WHERE
+  args.key = 'gpu';
+
+-- Tracks containing counter-like events associated to a process.
+CREATE PERFETTO TABLE process_counter_track (
+  -- Unique identifier for this process counter track.
+  id ID(track.id),
+  -- Name of the track.
+  name STRING,
+  -- The type of a track indicates the type of data the track contains.
+  --
+  -- Every track is uniquely identified by the the combination of the
+  -- type and a set of dimensions: type allow identifying a set of tracks
+  -- with the same type of data within the whole universe of tracks while
+  -- dimensions allow distinguishing between different tracks in that set.
+  type STRING,
+  -- The track which is the "parent" of this track. Only non-null for tracks
+  -- created using Perfetto's track_event API.
+  parent_id JOINID(track.id),
+  -- Args for this track which store information about "source" of this track in
+  -- the trace. For example: whether this track orginated from atrace, Chrome
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- tracepoints etc.
+  source_arg_set_id ARGSETID,
+  -- Machine identifier, non-null for tracks on a remote machine.
+  machine_id LONG,
+  -- The units of the counter. This column is rarely filled.
+  unit STRING,
+  -- The description for this track. For debugging purposes only.
+  description STRING,
+  -- The upid of the process that the track is associated with.
+  upid LONG
+) AS
+SELECT
+  ct.id,
+  ct.name,
+  ct.type,
+  ct.parent_id,
+  ct.source_arg_set_id,
+  ct.machine_id,
+  ct.unit,
+  ct.description,
+  args.int_value AS upid
+FROM counter_track AS ct
+JOIN args
+  ON ct.dimension_arg_set_id = args.arg_set_id
+WHERE
+  args.key = 'upid';
+
+-- Tracks containing counter-like events associated to a thread.
+CREATE PERFETTO TABLE thread_counter_track (
+  -- Unique identifier for this thread counter track.
+  id ID(track.id),
+  -- Name of the track.
+  name STRING,
+  -- The type of a track indicates the type of data the track contains.
+  --
+  -- Every track is uniquely identified by the the combination of the
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- type and a set of dimensions: type allow identifying a set of tracks
+  -- with the same type of data within the whole universe of tracks while
+  -- dimensions allow distinguishing between different tracks in that set.
+  type STRING,
+  -- The track which is the "parent" of this track. Only non-null for tracks
+  -- created using Perfetto's track_event API.
+  parent_id JOINID(track.id),
+  -- Args for this track which store information about "source" of this track in
+  -- the trace. For example: whether this track orginated from atrace, Chrome
+  -- tracepoints etc.
+  source_arg_set_id JOINID(track.id),
+  -- Machine identifier, non-null for tracks on a remote machine.
+  machine_id LONG,
+  -- The units of the counter. This column is rarely filled.
+  unit STRING,
+  -- The description for this track. For debugging purposes only.
+  description STRING,
+  -- The utid of the thread that the track is associated with.
+  utid LONG
+) AS
+SELECT
+  ct.id,
+  ct.name,
+  ct.type,
+  ct.parent_id,
+  ct.source_arg_set_id,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  ct.machine_id,
+  ct.unit,
+  ct.description,
+  args.int_value AS utid
+FROM counter_track AS ct
+JOIN args
+  ON ct.dimension_arg_set_id = args.arg_set_id
+WHERE
+  args.key = 'utid';
+
+-- Tracks containing counter-like events collected from Linux perf.
+CREATE PERFETTO TABLE perf_counter_track (
+  -- Unique identifier for this thread counter track.
+  id ID(track.id),
+  -- Name of the track.
+  name STRING,
+  -- The type of a track indicates the type of data the track contains.
+  --
+  -- Every track is uniquely identified by the the combination of the
+  -- type and a set of dimensions: type allow identifying a set of tracks
+  -- with the same type of data within the whole universe of tracks while
+  -- dimensions allow distinguishing between different tracks in that set.
+  type STRING,
+  -- The track which is the "parent" of this track. Only non-null for tracks
+  -- created using Perfetto's track_event API.
+  parent_id JOINID(track.id),
+  -- Args for this track which store information about "source" of this track in
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- the trace. For example: whether this track orginated from atrace, Chrome
+  -- tracepoints etc.
+  source_arg_set_id ARGSETID,
+  -- Machine identifier, non-null for tracks on a remote machine.
+  machine_id LONG,
+  -- The units of the counter. This column is rarely filled.
+  unit STRING,
+  -- The description for this track. For debugging purposes only.
+  description STRING,
   -- The id of the perf session this counter was captured on.
   perf_session_id LONG,
-  -- The CPU the counter is associated with.
+  -- The CPU the counter is associated with. Can be null if the counter is not
+  -- associated with any CPU.
   cpu LONG,
   -- Whether this counter is the sampling timebase for the session.
   is_timebase BOOL
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_() AS
+) AS
 SELECT
   ct.id,
   ct.name,
@@ -22923,8 +26788,9 @@ SELECT
   extract_arg(ct.dimension_arg_set_id, 'cpu') AS cpu,
   extract_arg(ct.source_arg_set_id, 'is_timebase') AS is_timebase
 FROM counter_track AS ct
-WHERE
-  ct.type = 'perf_counter';
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(WHERE
+  ct.type IN ('perf_cpu_counter', 'perf_global_counter');
 
 -- Alias of the `counter` table.
 CREATE PERFETTO VIEW counters (
@@ -22955,8 +26821,7 @@ ORDER BY
 
 -- Table containing graphics frame events on Android.
 CREATE PERFETTO VIEW frame_slice (
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  -- Alias of `slice.id`.
+  -- Alias of `slice.id`.
   id ID(slice.id),
   -- Alias of `slice.ts`.
   ts TIMESTAMP,
@@ -22969,7 +26834,8 @@ R"_d3l1m1t3r_(  -- Alias of `slice.id`.
   -- Alias of `slice.name`.
   name STRING,
   -- Alias of `slice.depth`.
-  depth LONG,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  depth LONG,
   -- Alias of `slice.parent_id`.
   parent_id JOINID(frame_slice.id),
   -- Alias of `slice.arg_set_id`.
@@ -22995,13 +26861,13 @@ SELECT
   s.depth,
   s.parent_id,
   s.arg_set_id,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  extract_arg(s.arg_set_id, 'layer_name') AS layer_name,
+  extract_arg(s.arg_set_id, 'layer_name') AS layer_name,
   extract_arg(s.arg_set_id, 'frame_number') AS frame_number,
   extract_arg(s.arg_set_id, 'queue_to_acquire_time') AS queue_to_acquire_time,
   extract_arg(s.arg_set_id, 'acquire_to_latch_time') AS acquire_to_latch_time,
   extract_arg(s.arg_set_id, 'latch_to_present_time') AS latch_to_present_time
-FROM slice AS s
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(FROM slice AS s
 JOIN track AS t
   ON s.track_id = t.id
 WHERE
@@ -23028,8 +26894,7 @@ CREATE PERFETTO VIEW gpu_slice (
   -- Alias of `slice.arg_set_id`.
   arg_set_id LONG,
   -- Context ID.
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  context_id LONG,
+  context_id LONG,
   -- Render target ID.
   render_target LONG,
   -- The name of the render target.
@@ -23043,7 +26908,8 @@ R"_d3l1m1t3r_(  context_id LONG,
   -- The name of the command buffer.
   command_buffer_name STRING,
   -- Frame id.
-  frame_id LONG,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  frame_id LONG,
   -- The submission id.
   submission_id LONG,
   -- The hardware queue id.
@@ -23068,14 +26934,14 @@ SELECT
   extract_arg(s.arg_set_id, 'render_target_name') AS render_target_name,
   extract_arg(s.arg_set_id, 'render_pass') AS render_pass,
   extract_arg(s.arg_set_id, 'render_pass_name') AS render_pass_name,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  extract_arg(s.arg_set_id, 'command_buffer') AS command_buffer,
+  extract_arg(s.arg_set_id, 'command_buffer') AS command_buffer,
   extract_arg(s.arg_set_id, 'command_buffer_name') AS command_buffer_name,
   extract_arg(s.arg_set_id, 'frame_id') AS frame_id,
   extract_arg(s.arg_set_id, 'submission_id') AS submission_id,
   extract_arg(s.arg_set_id, 'hw_queue_id') AS hw_queue_id,
   extract_arg(s.arg_set_id, 'upid') AS upid,
-  extract_arg(s.arg_set_id, 'render_subpasses') AS render_subpasses
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  extract_arg(s.arg_set_id, 'render_subpasses') AS render_subpasses
 FROM slice AS s
 JOIN track AS t
   ON s.track_id = t.id
@@ -23085,59 +26951,6 @@ WHERE
 -- This table contains information on the expected timeline of either a display
 -- frame or a surface frame.
 CREATE PERFETTO TABLE expected_frame_timeline_slice (
-  -- Alias of `slice.id`.
-  id ID(slice.id),
-  -- Alias of `slice.ts`.
-  ts TIMESTAMP,
-  -- Alias of `slice.dur`.
-  dur DURATION,
-  -- Alias of `slice.track_id`.
-  track_id JOINID(track.id),
-  -- Alias of `slice.category`.
-  category STRING,
-  -- Alias of `slice.name`.
-  name STRING,
-  -- Alias of `slice.depth`.
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  depth LONG,
-  -- Alias of `slice.parent_id`.
-  parent_id JOINID(frame_slice.id),
-  -- Alias of `slice.arg_set_id`.
-  arg_set_id LONG,
-  -- Display frame token (vsync id).
-  display_frame_token LONG,
-  -- Surface frame token (vsync id), null if this is a display frame.
-  surface_frame_token LONG,
-  -- Unique process id of the app that generates the surface frame.
-  upid JOINID(process.id),
-  -- Layer name if this is a surface frame.
-  layer_name STRING
-) AS
-SELECT
-  s.id,
-  s.ts,
-  s.dur,
-  s.track_id,
-  s.category,
-  s.name,
-  s.depth,
-  s.parent_id,
-  s.arg_set_id,
-  extract_arg(s.arg_set_id, 'Display frame token') AS display_frame_token,
-  extract_arg(s.arg_set_id, 'Surface frame token') AS surface_frame_token,
-  t.upid,
-  extract_arg(s.arg_set_id, 'Layer name') AS layer_name
-FROM slice AS s
-JOIN process_track AS t
-  ON s.track_id = t.id
-WHERE
-  t.type = 'android_expected_frame_timeline';
-
--- This table contains information on the actual timeline and additional
--- analysis related to the performance of either a display frame or a surface
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(-- frame.
-CREATE PERFETTO TABLE actual_frame_timeline_slice (
   -- Alias of `slice.id`.
   id ID(slice.id),
   -- Alias of `slice.ts`.
@@ -23161,6 +26974,61 @@ CREATE PERFETTO TABLE actual_frame_timeline_slice (
   -- Surface frame token (vsync id), null if this is a display frame.
   surface_frame_token LONG,
   -- Unique process id of the app that generates the surface frame.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  upid JOINID(process.id),
+  -- Layer name if this is a surface frame.
+  layer_name STRING
+) AS
+SELECT
+  s.id,
+  s.ts,
+  s.dur,
+  s.track_id,
+  s.category,
+  s.name,
+  s.depth,
+  s.parent_id,
+  s.arg_set_id,
+  extract_arg(s.arg_set_id, 'Display frame token') AS display_frame_token,
+  extract_arg(s.arg_set_id, 'Surface frame token') AS surface_frame_token,
+  t.upid,
+  extract_arg(s.arg_set_id, 'Layer name') AS layer_name
+FROM slice AS s
+JOIN process_track AS t
+  ON s.track_id = t.id
+WHERE
+  t.type = 'android_expected_frame_timeline'
+ORDER BY
+  s.id;
+
+-- This table contains information on the actual timeline and additional
+-- analysis related to the performance of either a display frame or a surface
+-- frame.
+CREATE PERFETTO TABLE actual_frame_timeline_slice (
+  -- Alias of `slice.id`.
+  id ID(slice.id),
+  -- Alias of `slice.ts`.
+  ts TIMESTAMP,
+  -- Alias of `slice.dur`.
+  dur DURATION,
+  -- Alias of `slice.track_id`.
+  track_id JOINID(track.id),
+  -- Alias of `slice.category`.
+  category STRING,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- Alias of `slice.name`.
+  name STRING,
+  -- Alias of `slice.depth`.
+  depth LONG,
+  -- Alias of `slice.parent_id`.
+  parent_id JOINID(frame_slice.id),
+  -- Alias of `slice.arg_set_id`.
+  arg_set_id LONG,
+  -- Display frame token (vsync id).
+  display_frame_token LONG,
+  -- Surface frame token (vsync id), null if this is a display frame.
+  surface_frame_token LONG,
+  -- Unique process id of the app that generates the surface frame.
   upid JOINID(process.id),
   -- Layer name if this is a surface frame.
   layer_name STRING,
@@ -23169,8 +27037,7 @@ CREATE PERFETTO TABLE actual_frame_timeline_slice (
   -- Whether the frame finishes on time.
   on_time_finish LONG,
   -- Whether the frame used gpu composition.
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  gpu_composition LONG,
+  gpu_composition LONG,
   -- Specify the jank types for this frame if there's jank, or none if no jank
   -- occurred.
   jank_type STRING,
@@ -23178,7 +27045,8 @@ R"_d3l1m1t3r_(  gpu_composition LONG,
   jank_severity_type STRING,
   -- Frame's prediction type (eg. valid / expired).
   prediction_type STRING,
-  -- Jank tag based on jank type, used for slice visualization.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- Jank tag based on jank type, used for slice visualization.
   jank_tag STRING
 ) AS
 SELECT
@@ -23200,17 +27068,19 @@ SELECT
   extract_arg(s.arg_set_id, 'GPU composition') AS gpu_composition,
   extract_arg(s.arg_set_id, 'Jank type') AS jank_type,
   extract_arg(s.arg_set_id, 'Jank severity type') AS jank_severity_type,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  extract_arg(s.arg_set_id, 'Prediction type') AS prediction_type,
+  extract_arg(s.arg_set_id, 'Prediction type') AS prediction_type,
   extract_arg(s.arg_set_id, 'Jank tag') AS jank_tag
 FROM slice AS s
 JOIN process_track AS t
   ON s.track_id = t.id
 WHERE
-  t.type = 'android_actual_frame_timeline';
+  t.type = 'android_actual_frame_timeline'
+ORDER BY
+  s.id;
 
 -- Stores class information within ART heap graphs. It represents Java/Kotlin
--- classes that exist in the heap, including their names, inheritance
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(-- classes that exist in the heap, including their names, inheritance
 -- relationships, and loading context.
 CREATE PERFETTO VIEW heap_graph_class (
   -- Unique identifier for this heap graph class.
@@ -23233,8 +27103,7 @@ SELECT
   id,
   name,
   deobfuscated_name,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  location,
+  location,
   superclass_id,
   classloader_id,
   kind
@@ -23246,7 +27115,8 @@ FROM __intrinsic_heap_graph_class;
 CREATE PERFETTO VIEW heap_graph_object (
   -- Unique identifier for this heap graph object.
   id ID,
-  -- Unique PID of the target.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- Unique PID of the target.
   upid JOINID(process.id),
   -- Timestamp this dump was taken at.
   graph_sample_ts TIMESTAMP,
@@ -23257,14 +27127,13 @@ CREATE PERFETTO VIEW heap_graph_object (
   native_size LONG,
   -- Join key with heap_graph_reference containing all objects referred in this
   -- object's fields.
-  reference_set_id JOINID(heap_graph_reference.id),
+  reference_set_id JOINID(heap_graph_reference.reference_set_id),
   -- Bool whether this object is reachable from a GC root. If false, this object
   -- is uncollected garbage.
   reachable BOOL,
   -- The type of ART heap this object is stored on (app, zygote, boot image)
   heap_type STRING,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  -- Class this object is an instance of.
+  -- Class this object is an instance of.
   type_id JOINID(heap_graph_class.id),
   -- If not NULL, this object is a GC root.
   root_type STRING,
@@ -23277,7 +27146,8 @@ SELECT
   graph_sample_ts,
   self_size,
   native_size,
-  reference_set_id,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  reference_set_id,
   reachable,
   heap_type,
   type_id,
@@ -23292,23 +27162,23 @@ FROM __intrinsic_heap_graph_object;
 CREATE PERFETTO VIEW heap_graph_reference (
   -- Unique identifier for this heap graph reference.
   id ID,
-  -- Join key to heap_graph_object.
-  reference_set_id JOINID(heap_graph_object.id),
+  -- Join key to heap_graph_object reference_set_id.
+  reference_set_id JOINID(heap_graph_object.reference_set_id),
   -- Id of object that has this reference_set_id.
   owner_id JOINID(heap_graph_object.id),
   -- Id of object that is referred to.
   owned_id JOINID(heap_graph_object.id),
   -- The field that refers to the object. E.g. Foo.name.
   field_name STRING,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  -- The static type of the field. E.g. java.lang.String.
+  -- The static type of the field. E.g. java.lang.String.
   field_type_name STRING,
   -- The deobfuscated name, if field_name was obfuscated and a deobfuscation
   -- mapping was provided for it.
   deobfuscated_field_name STRING
 ) AS
 SELECT
-  id,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  id,
   reference_set_id,
   owner_id,
   owned_id,
@@ -23317,6 +27187,86 @@ SELECT
   deobfuscated_field_name
 FROM __intrinsic_heap_graph_reference;
 
+-- Table with memory snapshots.
+CREATE PERFETTO VIEW memory_snapshot (
+  -- Unique identifier for this snapshot.
+  id ID,
+  -- Time of the snapshot.
+  timestamp TIMESTAMP,
+  -- Track of this snapshot.
+  track_id JOINID(track.id),
+  -- Detail level of this snapshot.
+  detail_level STRING
+) AS
+SELECT
+  id,
+  timestamp,
+  track_id,
+  detail_level
+FROM __intrinsic_memory_snapshot;
+
+-- Table with process memory snapshots.
+CREATE PERFETTO VIEW process_memory_snapshot (
+  -- Unique identifier for this snapshot.
+  id ID,
+  -- Snapshot ID for this snapshot.
+  snapshot_id JOINID(memory_snapshot.id),
+  -- Process for this snapshot.
+  upid JOINID(process.id)
+) AS
+SELECT
+  id,
+  snapshot_id,
+  upid
+FROM __intrinsic_process_memory_snapshot;
+
+-- Table with memory snapshot nodes.
+CREATE PERFETTO VIEW memory_snapshot_node (
+  -- Unique identifier for this node.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  id ID,
+  -- Process snapshot ID for to this node.
+  process_snapshot_id JOINID(process_memory_snapshot.id),
+  -- Parent node for this node, optional.
+  parent_node_id JOINID(memory_snapshot_node.id),
+  -- Path for this node.
+  path STRING,
+  -- Size of the memory allocated to this node.
+  size LONG,
+  -- Effective size used by this node.
+  effective_size LONG,
+  -- Additional args of the node.
+  arg_set_id ARGSETID
+) AS
+SELECT
+  id,
+  process_snapshot_id,
+  parent_node_id,
+  path,
+  size,
+  effective_size,
+  arg_set_id
+FROM __intrinsic_memory_snapshot_node;
+
+-- Table with memory snapshot edge
+CREATE PERFETTO VIEW memory_snapshot_edge (
+  -- Unique identifier for this edge.
+  id ID,
+  -- Source node for this edge.
+  source_node_id JOINID(memory_snapshot_node.id),
+  -- Target node for this edge.
+  target_node_id JOINID(memory_snapshot_node.id),
+  -- Importance for this edge.
+  importance LONG
+) AS
+SELECT
+  id,
+  source_node_id,
+  target_node_id,
+  importance
+FROM __intrinsic_memory_snapshot_edge;
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(
 )_d3l1m1t3r_"
 ;
 
@@ -23678,9 +27628,6 @@ CREATE TABLE _trace_metrics (
   -- The name of the metric.
   name STRING
 );
-
--- Helper table to generate a time-interval.
-CREATE VIRTUAL TABLE window USING window ();
 
 )_d3l1m1t3r_"
 ;
@@ -24696,7 +28643,11 @@ FROM _critical_path_intervals
       ),
       _wakeup_intervals) AS cr
 JOIN _kernel_nodes
-  ON _kernel_nodes.id = cr.root_id;
+  ON _kernel_nodes.id = cr.root_id
+ORDER BY
+  -- Important to allow for fast lookup of the parent_id in
+  -- `_critical_path_kernel_adjusted`.
+  parent_id;
 
 CREATE PERFETTO TABLE _critical_path_userspace_adjusted AS
 SELECT DISTINCT
@@ -24707,10 +28658,10 @@ CREATE PERFETTO TABLE _critical_path_kernel_adjusted AS
 SELECT DISTINCT
   *
 FROM _critical_path_kernel_adjusted!(_critical_path_userspace_adjusted, _critical_path_kernel, _wakeup_graph);
-
-CREATE PERFETTO TABLE _critical_path_merged_adjusted AS
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(SELECT
+R"_d3l1m1t3r_(
+CREATE PERFETTO TABLE _critical_path_merged_adjusted AS
+SELECT
   root_id,
   parent_id,
   id,
@@ -24767,11 +28718,11 @@ GROUP BY
 CREATE PERFETTO TABLE _critical_path_all AS
 SELECT
   row_number() OVER (ORDER BY cr.ts) AS id,
-  cr.ts,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  cr.ts,
   cr.dur,
   cr.ts + cr.dur AS ts_end,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  id_graph.utid,
+  id_graph.utid,
   root_id_graph.utid AS root_utid
 FROM _critical_path_roots_and_merged AS cr
 JOIN _wakeup_graph AS id_graph
@@ -24809,10 +28760,10 @@ FROM _slice_flattened;
 CREATE VIRTUAL TABLE _span_thread_state_slice_sp USING SPAN_LEFT_JOIN (
     _span_thread_state_view PARTITIONED utid,
     _span_slice_view PARTITIONED utid);
-
-CREATE PERFETTO TABLE _span_thread_state_slice AS
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(SELECT
+R"_d3l1m1t3r_(
+CREATE PERFETTO TABLE _span_thread_state_slice AS
+SELECT
   row_number() OVER (ORDER BY ts) AS id,
   ts,
   dur,
@@ -24862,9 +28813,9 @@ JOIN _span_thread_state_slice AS th
 
 -- Flattened slices span joined with their thread_states. This contains the 'self' information
 -- without 'critical_path' (blocking) information.
-CREATE VIRTUAL TABLE _self_sp USING SPAN_LEFT_JOIN (thread_state PARTITIONED utid, _slice_flattened PARTITIONED utid);
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(
+R"_d3l1m1t3r_(CREATE VIRTUAL TABLE _self_sp USING SPAN_LEFT_JOIN (thread_state PARTITIONED utid, _slice_flattened PARTITIONED utid);
+
 -- Limited view of |_self_sp|.
 CREATE PERFETTO VIEW _self_view AS
 SELECT
@@ -24892,10 +28843,10 @@ CREATE VIRTUAL TABLE _self_and_critical_path_sp USING SPAN_JOIN (
 -- self thread_state.
 -- self blocked_function (if one exists).
 -- self process_name (enabled with |enable_process_name|).
--- self thread_name (enabled with |enable_thread_name|).
--- self slice_stack (enabled with |enable_self_slice|).
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(-- critical_path thread_state.
+R"_d3l1m1t3r_(-- self thread_name (enabled with |enable_thread_name|).
+-- self slice_stack (enabled with |enable_self_slice|).
+-- critical_path thread_state.
 -- critical_path process_name.
 -- critical_path thread_name.
 -- critical_path slice_stack (enabled with |enable_critical_path_slice|).
@@ -24923,12 +28874,12 @@ RETURNS TABLE (
 -- Spans filtered to the query time window and root_utid.
 -- This is a preliminary step that gets the start and end ts of all the rows
 -- so that we can chop the ends of each interval correctly if it overlaps with the query time interval.
-WITH
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(WITH
   relevant_spans_starts AS (
     SELECT
       self_thread_state_id,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      self_state,
+      self_state,
       self_slice_id,
       self_slice_name,
       self_slice_depth,
@@ -24963,12 +28914,12 @@ R"_d3l1m1t3r_(      self_state,
       self_slice_name,
       self_slice_depth,
       self_function,
-      self_io_wait,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      self_io_wait,
       thread_state_id,
       state,
       function,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      io_wait,
+      io_wait,
       slice_id,
       slice_name,
       slice_depth,
@@ -25008,11 +28959,11 @@ R"_d3l1m1t3r_(      io_wait,
       root_utid
     FROM relevant_spans
     UNION ALL
-    -- Builds the self kernel io_wait
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    -- Builds the self kernel io_wait
     SELECT
       self_thread_state_id AS id,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ts,
+      ts,
       dur,
       root_utid AS utid,
       2 AS stack_depth,
@@ -25047,12 +28998,12 @@ R"_d3l1m1t3r_(      ts,
       iif($enable_thread_name, 'thread_name: ' || thread.name, NULL) AS name,
       'thread_state' AS table_name,
       root_utid
-    FROM relevant_spans
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    FROM relevant_spans
     LEFT JOIN thread
       ON thread.utid = root_utid
     JOIN process
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      USING (upid)
+      USING (upid)
     UNION ALL
     -- Builds the self 'ancestor' slice stack
     SELECT
@@ -25085,9 +29036,9 @@ R"_d3l1m1t3r_(      USING (upid)
   -- Prepares for stage 2 in building the entire stack.
   -- Computes the starting depth for each stack. This is necessary because
   -- each self slice stack has variable depth and the depth in each stack
-  -- most be contiguous in order to efficiently generate a pprof in the future.
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(  critical_path_start_depth AS MATERIALIZED (
+R"_d3l1m1t3r_(  -- most be contiguous in order to efficiently generate a pprof in the future.
+  critical_path_start_depth AS MATERIALIZED (
     SELECT
       root_utid,
       ts,
@@ -25124,12 +29075,12 @@ R"_d3l1m1t3r_(  critical_path_start_depth AS MATERIALIZED (
     -- Builds the critical_path thread_state
     SELECT
       thread_state_id AS id,
-      ts,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ts,
       dur,
       utid,
       start_depth AS stack_depth,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      'blocking thread_state: ' || state AS name,
+      'blocking thread_state: ' || state AS name,
       'thread_state' AS table_name,
       root_utid
     FROM critical_path_span
@@ -25167,12 +29118,12 @@ R"_d3l1m1t3r_(      'blocking thread_state: ' || state AS name,
     -- Builds the critical_path kernel blocked_function
     SELECT
       thread_state_id AS id,
-      ts,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ts,
       dur,
       thread.utid,
       start_depth + 3 AS stack_depth,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      'blocking kernel_function: ' || function,
+      'blocking kernel_function: ' || function,
       'thread_state' AS table_name,
       root_utid
     FROM critical_path_span
@@ -25208,11 +29159,11 @@ R"_d3l1m1t3r_(      'blocking kernel_function: ' || function,
       anc.dur != -1
     UNION ALL
     -- Builds the critical_path 'deepest' slice
-    SELECT
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    SELECT
       slice_id AS id,
       ts,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      dur,
+      dur,
       utid,
       slice_depth + start_depth + 5 AS stack_depth,
       iif($enable_critical_path_slice, slice_name, NULL) AS name,
@@ -25250,9 +29201,9 @@ R"_d3l1m1t3r_(      dur,
       root_utid,
       ts
   ),
-  -- 3. Builds the 'CPU' stack for 'Running' states in either the self or critical path stack.
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(  cpu_stack AS (
+R"_d3l1m1t3r_(  -- 3. Builds the 'CPU' stack for 'Running' states in either the self or critical path stack.
+  cpu_stack AS (
     SELECT
       thread_state_id AS id,
       spans.ts,
@@ -25292,9 +29243,9 @@ WHERE
 -- Critical path stack of thread_executing_spans with the following entities in the critical path
 -- stacked from top to bottom: self thread_state, self blocked_function, self process_name,
 -- self thread_name, slice stack, critical_path thread_state, critical_path process_name,
--- critical_path thread_name, critical_path slice_stack, running_cpu.
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(CREATE PERFETTO FUNCTION _thread_executing_span_critical_path_stack(
+R"_d3l1m1t3r_(-- critical_path thread_name, critical_path slice_stack, running_cpu.
+CREATE PERFETTO FUNCTION _thread_executing_span_critical_path_stack(
     -- Thread utid to filter critical paths to.
     root_utid JOINID(thread.id),
     -- Timestamp of start of time range to filter critical paths to.
@@ -25317,10 +29268,10 @@ RETURNS TABLE (
   name STRING,
   -- Table name of entity in the critical path (could be either slice or thread_state).
   table_name STRING,
-  -- Utid of the thread the critical path was filtered to.
-  root_utid JOINID(thread.id)
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_() AS
+R"_d3l1m1t3r_(  -- Utid of the thread the critical path was filtered to.
+  root_utid JOINID(thread.id)
+) AS
 SELECT
   *
 FROM _critical_path_stack($root_utid, $ts, $dur, 1, 1, 1, 1);
@@ -25361,15 +29312,15 @@ WITH
   graph AS (
     SELECT
       cat_stacks($graph_title) AS stack
-  ),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  ),
   parent AS (
     SELECT
       cr.ts,
       cr.dur,
       cr.name,
       cr.utid,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      cr.stack_depth,
+      cr.stack_depth,
       cat_stacks(graph.stack, cr.name) AS stack,
       cr.root_utid
     FROM stack AS cr, graph
@@ -25405,10 +29356,10 @@ CREATE PERFETTO FUNCTION _thread_executing_span_critical_path_graph(
     -- Descriptive name for the graph.
     graph_title STRING,
     -- Thread utid to filter critical paths to.
-    root_utid JOINID(thread.id),
-    -- Timestamp of start of time range to filter critical paths to.
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(    ts TIMESTAMP,
+R"_d3l1m1t3r_(    root_utid JOINID(thread.id),
+    -- Timestamp of start of time range to filter critical paths to.
+    ts TIMESTAMP,
     -- Duration of time range to filter critical paths to.
     dur DURATION
 )
@@ -25916,12 +29867,15 @@ ORDER BY
   4 DESC;
 
 -- Time the thread spent each state and cpu in a given interval.
-CREATE PERFETTO FUNCTION sched_time_in_state_and_cpu_for_thread_in_interval(
+--
+-- This function is only designed to run over a small number of intervals
+-- (10-100 at most). It will be *very slow* for large sets of intervals.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(CREATE PERFETTO FUNCTION sched_time_in_state_and_cpu_for_thread_in_interval(
     -- The start of the interval.
     ts TIMESTAMP,
     -- The duration of the interval.
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(    dur DURATION,
+    dur DURATION,
     -- The utid of the thread.
     utid JOINID(thread.id)
 )
@@ -25956,7 +29910,8 @@ JOIN (
     WHERE utid = $utid AND dur > 0))
 ) AS ii
   USING (id)
-GROUP BY
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(GROUP BY
   1,
   2,
   3,
@@ -25965,9 +29920,11 @@ ORDER BY
   5 DESC;
 
 -- Time spent by CPU in each scheduling state in a provided interval.
+--
+-- This function is only designed to run over a small number of intervals
+-- (10-100 at most). It will be *very slow* for large sets of intervals.
 CREATE PERFETTO FUNCTION sched_time_in_state_for_cpu_in_interval(
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(    -- CPU id.
+    -- CPU id.
     cpu LONG,
     -- Interval start.
     ts TIMESTAMP,
@@ -26293,24 +30250,14 @@ const char kSlicesFlow[] = R"_d3l1m1t3r_(--
 
 INCLUDE PERFETTO MODULE graphs.search;
 
--- It's very typical to filter the flow table on either incoming or outgoing slice ids.
---
--- Ideally, this should be automatic and shouldn't require any additional imports, however we
--- can't add it to prelude (because it is initialised before the trace is loaded and the indexes
--- are not rebuilt when the new data is loaded), so the interested parties should remember to import
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(-- this module.
-CREATE PERFETTO INDEX flow_in ON flow(slice_in);
-
-CREATE PERFETTO INDEX flow_out ON flow(slice_out);
-
 -- Computes the "reachable" set of slices from the |flows| table, starting from slice ids
 -- specified in |source_table|. This provides a more efficient result than with the in-built
 -- following_flow operator.
 CREATE PERFETTO MACRO _slice_following_flow(
     -- A table/view/subquery corresponding to the nodes to start the reachability search.
     -- This table must have a uint32 "id" column.
-    source_table TableOrSubquery
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    source_table TableOrSubquery
 )
 -- The returned table has the schema (root_node_id, node_id LONG, parent_node_id LONG).
 -- |root_node_id| is the id of the starting node under which this edge was encountered.
@@ -26323,8 +30270,7 @@ RETURNS TableOrSubquery AS
     *
   FROM graph_reachable_weight_bounded_dfs
     !((SELECT slice_out AS source_node_id, slice_in AS dest_node_id, 0 AS edge_weight FROM flow),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      (
+      (
         SELECT slice_out AS root_node_id, 1 AS root_target_weight
         FROM flow
         JOIN (SELECT id FROM $source_table) source
@@ -26519,6 +30465,53 @@ RETURNS TableOrSubQuery AS
 )_d3l1m1t3r_"
 ;
 
+const char kSlicesSelfDur[] = R"_d3l1m1t3r_(--
+-- Copyright 2025 The Android Open Source Project
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     https://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
+CREATE PERFETTO TABLE _slice_children_dur AS
+SELECT
+  parent_id AS id,
+  sum(dur) AS child_dur_sum
+FROM slice
+WHERE
+  parent_id IS NOT NULL
+GROUP BY
+  parent_id
+ORDER BY
+  parent_id;
+
+-- For every slice in the `slice` table, computes the "self-duration": the time
+-- spent in the slice but *not* spent in any child slices.
+CREATE PERFETTO TABLE slice_self_dur (
+  -- The id of the slice.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  id ID(slice.id),
+  -- The self duration for the slice: the time spent in the slice but not any
+  -- child slices.
+  self_dur DURATION
+) AS
+SELECT
+  slice.id,
+  slice.dur - coalesce(child_dur_sum, 0) AS self_dur
+FROM slice
+LEFT JOIN _slice_children_dur
+  USING (id);
+
+)_d3l1m1t3r_"
+;
+
 const char kSlicesTimeInState[] = R"_d3l1m1t3r_(--
 -- Copyright 2024 The Android Open Source Project
 --
@@ -26571,7 +30564,7 @@ R"_d3l1m1t3r_(  utid JOINID(thread.id),
   -- If in uninterruptible sleep (D), the kernel function on which was blocked.
   -- Only available on userdebug Android builds when
   -- `sched/sched_blocked_reason` ftrace tracepoint is enabled.
-  blocked_function LONG,
+  blocked_function STRING,
   -- The duration of time the threads slice spent for each
   -- (state, io_wait, blocked_function) tuple.
 )_d3l1m1t3r_"
@@ -27248,6 +31241,99 @@ R"_d3l1m1t3r_(  );
 )_d3l1m1t3r_"
 ;
 
+const char kTracedStats[] = R"_d3l1m1t3r_(--
+-- Copyright 2025 The Android Open Source Project
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     https://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+--
+
+-- Reports the duration of the flush operation for cloned traces (for each
+-- buffer).
+CREATE PERFETTO TABLE traced_clone_flush_latency (
+  -- Id of the buffer (matches the config).
+  buffer_id LONG,
+  -- Interval from the start of the clone operation to the end of the flush for
+  -- this buffer.
+  duration_ns LONG
+) AS
+WITH
+  clone_started_ns AS (
+    SELECT
+      value
+    FROM stats
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    WHERE
+      name = 'traced_clone_started_timestamp_ns'
+    LIMIT 1
+  )
+SELECT
+  idx AS buffer_id,
+  value - (
+    SELECT
+      value
+    FROM clone_started_ns
+  ) AS duration_ns
+FROM stats
+WHERE
+  name = 'traced_buf_clone_done_timestamp_ns'
+  AND (
+    SELECT
+      value
+    FROM clone_started_ns
+  ) != 0
+ORDER BY
+  idx;
+
+-- Reports the delay in finalizing the trace from the trigger that causes the
+-- clone operation.
+CREATE PERFETTO TABLE traced_trigger_clone_flush_latency (
+  -- Id of the buffer.
+  buffer_id LONG,
+  -- Interval from the trigger that caused the clone operation to the end of
+  -- the flush for this buffer.
+  duration_ns LONG
+) AS
+WITH
+  clone_trigger_fired_ns AS (
+    SELECT
+      value
+    FROM stats
+    WHERE
+      name = 'traced_clone_trigger_timestamp_ns'
+    LIMIT 1
+  )
+SELECT
+  idx AS buffer_id,
+  value - (
+    SELECT
+      value
+    FROM clone_trigger_fired_ns
+  ) AS duration_ns
+FROM stats
+WHERE
+  name = 'traced_buf_clone_done_timestamp_ns'
+  AND (
+    SELECT
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      value
+    FROM clone_trigger_fired_ns
+  ) != 0
+ORDER BY
+  idx;
+
+)_d3l1m1t3r_"
+;
+
 const char kV8Jit[] = R"_d3l1m1t3r_(--
 -- Copyright 2024 The Android Open Source Project
 --
@@ -27359,15 +31445,18 @@ CREATE PERFETTO VIEW v8_wasm_script (
   internal_script_id LONG,
   -- URL of the source.
   url STRING,
-  -- Actual contents of the script.
+  -- Raw wire bytes of the script.
+  wire_bytes BYTES,
+  -- Actual source code of the script.
   source STRING
-) AS
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_() AS
 SELECT
   id AS v8_wasm_script_id,
   v8_isolate_id,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  internal_script_id,
+  internal_script_id,
   url,
+  base64_decode(wire_bytes_base64) AS wire_bytes,
   source
 FROM __intrinsic_v8_wasm_script;
 
@@ -27401,10 +31490,10 @@ FROM __intrinsic_v8_js_function;
 
 -- Represents a v8 code snippet for a Javascript function. A given function can
 -- have multiple code snippets (e.g. for different compilation tiers, or as the
--- function moves around the heap).
--- TODO(carlscab): Make public once `_jit_code` is public too
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(CREATE PERFETTO VIEW _v8_js_code (
+R"_d3l1m1t3r_(-- function moves around the heap).
+-- TODO(carlscab): Make public once `_jit_code` is public too
+CREATE PERFETTO VIEW _v8_js_code (
   -- Unique id
   id LONG,
   -- Associated jit code. Set for all tiers except IGNITION. Joinable with
@@ -27435,12 +31524,12 @@ CREATE PERFETTO VIEW _v8_internal_code (
   jit_code_id LONG,
   -- V8 Isolate this code was created in. Joinable with
   -- `v8_isolate.v8_isolate_id`.
-  v8_isolate_id LONG,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  v8_isolate_id LONG,
   -- Function name.
   function_name STRING,
   -- Type of internal code.
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  code_type STRING
+  code_type STRING
 ) AS
 SELECT
   id,
@@ -27478,11 +31567,11 @@ SELECT
   function_name,
   tier,
   code_offset_in_module
-FROM __intrinsic_v8_wasm_code;
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(FROM __intrinsic_v8_wasm_code;
 
 -- Represents the code associated to a regular expression
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(-- TODO(carlscab): Make public once `_jit_code` is public too
+-- TODO(carlscab): Make public once `_jit_code` is public too
 CREATE PERFETTO VIEW _v8_regexp_code (
   -- Unique id
   id LONG,
@@ -27814,79 +31903,6 @@ WHERE
 )_d3l1m1t3r_"
 ;
 
-const char kVizSummaryThreadsWProcesses[] = R"_d3l1m1t3r_(--
--- Copyright 2024 The Android Open Source Project
---
--- Licensed under the Apache License, Version 2.0 (the "License");
--- you may not use this file except in compliance with the License.
--- You may obtain a copy of the License at
---
---     https://www.apache.org/licenses/LICENSE-2.0
---
--- Unless required by applicable law or agreed to in writing, software
--- distributed under the License is distributed on an "AS IS" BASIS,
--- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
--- See the License for the specific language governing permissions and
--- limitations under the License.
-
-INCLUDE PERFETTO MODULE android.process_metadata;
-
--- Establish relationships between thread and process
-CREATE PERFETTO TABLE _thread_process_summary AS
-SELECT
-  thread.utid,
-  thread.upid,
-  thread.tid,
-  process.pid,
-  thread.name AS thread_name,
-  process.name AS process_name
-FROM thread
-LEFT JOIN process
-  USING (upid);
-
--- Add thread_state info to thread/process/package
-CREATE PERFETTO TABLE _state_w_thread_process_summary AS
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(SELECT
-  thread_state.ts,
-  thread_state.dur,
-  thread_state.cpu,
-  thread_state.state,
-  m.utid,
-  m.upid,
-  m.tid,
-  m.pid,
-  m.thread_name,
-  m.process_name
-FROM _thread_process_summary AS m
-JOIN thread_state
-  USING (utid);
-
--- Add scheduling slices info to thread/process/package
-CREATE PERFETTO TABLE _sched_w_thread_process_package_summary AS
-SELECT
-  sched.ts,
-  sched.dur,
-  sched.cpu,
-  m.utid,
-  m.upid,
-  m.tid,
-  m.pid,
-  package.uid,
-  m.thread_name,
-  m.process_name,
-  package.package_name
-FROM _thread_process_summary AS m
-JOIN sched
-  USING (utid)
-LEFT JOIN android_process_metadata AS package
-  USING (upid)
-WHERE
-  dur > 0;
-
-)_d3l1m1t3r_"
-;
-
 const char kVizSummaryTrace[] = R"_d3l1m1t3r_(--
 -- Copyright 2024 The Android Open Source Project
 --
@@ -27939,18 +31955,20 @@ WITH
       t.name,
       t.parent_id,
       extract_arg(t.source_arg_set_id, 'child_ordering') AS ordering,
-      extract_arg(t.source_arg_set_id, 'sibling_order_rank') AS rank
+      extract_arg(t.source_arg_set_id, 'sibling_order_rank') AS rank,
+      extract_arg(t.source_arg_set_id, 'description') AS description
     FROM track AS t
-    WHERE
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    WHERE
       t.type GLOB '*_track_event'
   )
 SELECT
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  t.id,
+  t.id,
   t.name,
   t.parent_id,
   p.ordering AS parent_ordering,
-  coalesce(t.rank, 0) AS rank
+  coalesce(t.rank, 0) AS rank,
+  t.description
 FROM extracted AS t
 LEFT JOIN extracted AS p
   ON t.parent_id = p.id;
@@ -27960,6 +31978,8 @@ SELECT
   track_id AS id,
   min(ts) AS min_ts
 FROM counter
+JOIN _track_event_tracks_unordered AS t
+  ON counter.track_id = t.id
 GROUP BY
   track_id
 UNION ALL
@@ -27967,6 +31987,8 @@ SELECT
   track_id AS id,
   min(ts) AS min_ts
 FROM slice
+JOIN _track_event_tracks_unordered AS t
+  ON slice.track_id = t.id
 GROUP BY
   track_id;
 
@@ -27986,14 +32008,14 @@ WITH
     FROM _track_event_tracks_unordered AS t
     WHERE
       t.parent_ordering = 'lexicographic' OR t.parent_ordering IS NULL
-  ),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  ),
   explicit AS (
     SELECT
       id,
       row_number() OVER (PARTITION BY parent_id ORDER BY rank) AS order_id
     FROM _track_event_tracks_unordered AS t
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(    WHERE
+    WHERE
       t.parent_ordering = 'explicit'
   ),
   chronological AS (
@@ -28028,13 +32050,15 @@ SELECT
   track.parent_id,
   track.type GLOB '*counter*' AS is_counter,
   track.name,
+  min(extract_arg(track.source_arg_set_id, 'description')) AS description,
   min(counter_track.unit) AS unit,
-  min(extract_arg(track.source_arg_set_id, 'builtin_counter_type')) AS builtin_counter_type,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  min(extract_arg(track.source_arg_set_id, 'builtin_counter_type')) AS builtin_counter_type,
+  min(extract_arg(track.source_arg_set_id, 'y_axis_share_key')) AS y_axis_share_key,
   max(m.id IS NOT NULL) AS has_data,
   max(c.id IS NOT NULL) AS has_children,
   GROUP_CONCAT(unioned.id) AS track_ids,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  min(unioned.order_id) AS order_id
+  min(unioned.order_id) AS order_id
 FROM unioned
 JOIN track
   USING (id)
@@ -28045,12 +32069,8 @@ LEFT JOIN _track_event_has_children AS c
 LEFT JOIN _min_ts_per_track AS m
   USING (id)
 GROUP BY
-  -- Merge by parent id if it exists or, if not, then by upid/utid scope.
-  coalesce('Tp' || track.parent_id, 'Pr' || upid, 'Th' || utid),
-  is_counter,
-  track.name,
-  -- Don't merge tracks by name which have children or are counters.
-  iif(NOT c.id IS NULL OR is_counter, track.id, NULL)
+  track.track_group_id,
+  coalesce(track.track_group_id, track.id)
 ORDER BY
   track.parent_id,
   unioned.order_id;
@@ -28093,7 +32113,7 @@ R"_d3l1m1t3r_(CREATE PERFETTO MACRO _viz_flamegraph_prepare_filter(
   hide_frame Expr,
   pivot Expr,
   impossible_stack_bits Expr,
-  grouping _ColumnNameList
+  grouping ColumnNameList
 )
 RETURNS TableOrSubquery
 AS (
@@ -28254,8 +32274,8 @@ CREATE PERFETTO MACRO _viz_flamegraph_upwards_hash(
   source TableOrSubquery,
   filtered TableOrSubquery,
   accumulated TableOrSubquery,
-  grouping _ColumnNameList,
-  grouped _ColumnNameList
+  grouping ColumnNameList,
+  grouped ColumnNameList
 )
 RETURNS TableOrSubquery
 AS (
@@ -28312,8 +32332,8 @@ CREATE PERFETTO MACRO _viz_flamegraph_downwards_hash(
   source TableOrSubquery,
   filtered TableOrSubquery,
   accumulated TableOrSubquery,
-  grouping _ColumnNameList,
-  grouped _ColumnNameList,
+  grouping ColumnNameList,
+  grouped ColumnNameList,
   showDownward Expr
 )
 RETURNS TableOrSubquery
@@ -28373,8 +32393,8 @@ RETURNS Expr AS $a;
 CREATE PERFETTO MACRO _viz_flamegraph_merge_hashes(
 )_d3l1m1t3r_"
 R"_d3l1m1t3r_(  hashed TableOrSubquery,
-  grouping _ColumnNameList,
-  grouped_agged_exprs _ColumnNameList
+  grouping ColumnNameList,
+  grouped_agged_exprs ColumnNameList
 )
 RETURNS TableOrSubquery
 AS (
@@ -28430,8 +32450,8 @@ R"_d3l1m1t3r_(    FROM $merged
 CREATE PERFETTO MACRO _viz_flamegraph_global_layout(
   merged TableOrSubquery,
   layout TableOrSubquery,
-  grouping _ColumnNameList,
-  grouped _ColumnNameList
+  grouping ColumnNameList,
+  grouped ColumnNameList
 )
 RETURNS TableOrSubquery
 AS (
@@ -28500,6 +32520,7 @@ const char kVizSlices[] = R"_d3l1m1t3r_(--
 -- This file is case-sensitive.
 
 INCLUDE PERFETTO MODULE graphs.scan;
+INCLUDE PERFETTO MODULE slices.with_context;
 
 CREATE PERFETTO MACRO _viz_slice_ancestor_agg(
   inits TableOrSubquery
@@ -28507,14 +32528,20 @@ CREATE PERFETTO MACRO _viz_slice_ancestor_agg(
 RETURNS TableOrSubquery
 AS
 (
-  SELECT id, parent_id AS parentId, name, self_dur, self_count
+  SELECT
+    id,
+    parent_id AS parentId,
+    name,
+    self_dur,
+    self_count,
+    1 AS simple_count
   FROM _graph_aggregating_scan!(
     (
       SELECT id AS source_node_id, parent_id AS dest_node_id
-      FROM slice
-      WHERE parent_id IS NOT NULL
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(    ),
+R"_d3l1m1t3r_(      FROM slice
+      WHERE parent_id IS NOT NULL
+    ),
     (SELECT id, dur, dur AS self_dur, 1 AS self_count FROM $inits),
     (dur, self_dur, self_count),
     (
@@ -28530,6 +32557,31 @@ R"_d3l1m1t3r_(    ),
   ) g
   JOIN slice s USING (id)
 );
+
+CREATE PERFETTO VIEW _viz_slices_for_ui_table AS
+SELECT * FROM thread_or_process_slice
+UNION ALL
+SELECT
+  slice.id,
+  slice.ts,
+  slice.dur,
+  slice.category,
+  slice.name,
+  slice.track_id,
+  track.name AS track_name,
+  NULL AS thread_name,
+  NULL AS utid,
+  NULL AS tid,
+  NULL AS process_name,
+  NULL AS upid,
+  NULL AS pid,
+  slice.depth,
+  slice.parent_id,
+  slice.arg_set_id
+FROM slice
+JOIN track ON slice.track_id = track.id
+WHERE NOT (slice.track_id IN (SELECT id FROM process_track))
+  AND NOT (slice.track_id IN (SELECT id FROM thread_track));
 
 )_d3l1m1t3r_"
 ;
@@ -28584,7 +32636,7 @@ FROM thread;
 )_d3l1m1t3r_"
 ;
 
-const char kWattsonArmDsu[] = R"_d3l1m1t3r_(--
+const char kWattsonCpuArmDsu[] = R"_d3l1m1t3r_(--
 -- Copyright 2024 The Android Open Source Project
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -28599,6 +32651,10 @@ const char kWattsonArmDsu[] = R"_d3l1m1t3r_(--
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+INCLUDE PERFETTO MODULE linux.devfreq;
+
+INCLUDE PERFETTO MODULE wattson.device_infos;
+
 -- Converts event counter from count to rate (num of accesses per ns).
 CREATE PERFETTO FUNCTION _get_rate(
     event STRING
@@ -28612,10 +32668,10 @@ SELECT
   ts,
   lead(ts) OVER (PARTITION BY track_id ORDER BY ts) - ts AS dur,
   -- Rate of event accesses in a section (i.e. count / dur).
-  value / (
-    lead(ts) OVER (PARTITION BY track_id ORDER BY ts) - ts
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(  ) AS access_rate
+R"_d3l1m1t3r_(  value / (
+    lead(ts) OVER (PARTITION BY track_id ORDER BY ts) - ts
+  ) AS access_rate
 FROM counter AS c
 JOIN counter_track AS t
   ON c.track_id = t.id
@@ -28643,6 +32699,163 @@ SELECT
   dur,
   access_rate AS l3_hit_rate
 FROM _get_rate("arm_dsu_0/l3d_cache/_cpu0");
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(
+-- Combine L3 hit and miss rates into a single table.
+CREATE VIRTUAL TABLE _arm_l3_rates USING SPAN_OUTER_JOIN (
+  _arm_l3_miss_rate,
+  _arm_l3_hit_rate
+);
+
+-- Get nominal devfreq_dsu counter, OR use a dummy one for Pixel 9 VM traces
+-- The VM doesn't have a DSU, so the placeholder value of FMin is put in. The
+-- DSU frequency is a prerequisite for power estimation on Pixel 9.
+CREATE PERFETTO TABLE _wattson_dsu_frequency AS
+WITH
+  base AS (
+    SELECT
+      *
+    FROM linux_devfreq_dsu_counter
+    UNION ALL
+    SELECT
+      0 AS id,
+      trace_start() AS ts,
+      trace_end() - trace_start() AS dur,
+      610000 AS dsu_freq
+    -- Only add this for traces from a VM on Pixel 9 where DSU values aren't present
+    WHERE
+      (
+        SELECT
+          str_value
+        FROM metadata
+        WHERE
+          name = 'android_guest_soc_model'
+      ) IN (
+        SELECT
+          device
+        FROM _use_devfreq
+      )
+      AND NOT EXISTS(
+        SELECT
+          1
+        FROM linux_devfreq_dsu_counter
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      )
+  )
+SELECT
+  id,
+  ts,
+  dur,
+  dsu_freq
+FROM _use_devfreq_for_calc
+CROSS JOIN base
+UNION ALL
+-- Create fake entry for use with ii()
+SELECT
+  0 AS id,
+  trace_start() AS ts,
+  trace_end() - trace_start() AS dur,
+  NULL AS dsu_freq
+FROM _skip_devfreq_for_calc;
+
+)_d3l1m1t3r_"
+;
+
+const char kWattsonCpuEstimates[] = R"_d3l1m1t3r_(--
+-- Copyright 2024 The Android Open Source Project
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     https://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
+INCLUDE PERFETTO MODULE wattson.cpu.pivot;
+
+INCLUDE PERFETTO MODULE wattson.curves.utils;
+
+INCLUDE PERFETTO MODULE wattson.device_infos;
+
+INCLUDE PERFETTO MODULE wattson.utils;
+
+-- The most basic components of Wattson, all normalized to be in mW on a per
+-- system state basis
+CREATE PERFETTO TABLE _cpu_estimates_mw AS
+SELECT
+  base.ts,
+  base.dur,
+  coalesce(base.cpu0_curve, lut0.curve_value) AS cpu0_mw,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  coalesce(base.cpu1_curve, lut1.curve_value) AS cpu1_mw,
+  coalesce(base.cpu2_curve, lut2.curve_value) AS cpu2_mw,
+  coalesce(base.cpu3_curve, lut3.curve_value) AS cpu3_mw,
+  coalesce(base.cpu4_curve, lut4.curve_value) AS cpu4_mw,
+  coalesce(base.cpu5_curve, lut5.curve_value) AS cpu5_mw,
+  coalesce(base.cpu6_curve, lut6.curve_value) AS cpu6_mw,
+  coalesce(base.cpu7_curve, lut7.curve_value) AS cpu7_mw,
+  iif(
+    no_static = 1,
+    0.0,
+    iif(0 IN _device_policies, coalesce(lut0.static, 0), 0) + iif(1 IN _device_policies, coalesce(lut1.static, 0), 0) + iif(2 IN _device_policies, coalesce(lut2.static, 0), 0) + iif(3 IN _device_policies, coalesce(lut3.static, 0), 0) + iif(4 IN _device_policies, coalesce(lut4.static, 0), 0) + iif(5 IN _device_policies, coalesce(lut5.static, 0), 0) + iif(6 IN _device_policies, coalesce(lut6.static, 0), 0) + iif(7 IN _device_policies, coalesce(lut7.static, 0), 0) + static_1d
+  ) + (
+    -- LUT for l3 is scaled by 10^6 to save resolution and in units of kWs. Scale
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    -- this by 10^3 so when divided by ns, result is in units of mW
+    coalesce(base.l3_hit_count * l3_lut.l3_hit, 0) + coalesce(base.l3_miss_count * l3_lut.l3_miss, 0)
+  ) * 1000 / dur AS dsu_scu_mw
+FROM _w_dependent_cpus_calc AS base
+-- LUT for 2D dependencies
+LEFT JOIN _filtered_curves_2d AS lut0
+  ON lut0.freq_khz = base.freq_0
+  AND lut0.dep_policy = base.dep_policy_0
+  AND lut0.dep_freq = base.dep_freq_0
+  AND lut0.idle = base.idle_0
+LEFT JOIN _filtered_curves_2d AS lut1
+  ON lut1.freq_khz = base.freq_1
+  AND lut1.dep_policy = base.dep_policy_1
+  AND lut1.dep_freq = base.dep_freq_1
+  AND lut1.idle = base.idle_1
+LEFT JOIN _filtered_curves_2d AS lut2
+  ON lut2.freq_khz = base.freq_2
+  AND lut2.dep_policy = base.dep_policy_2
+  AND lut2.dep_freq = base.dep_freq_2
+  AND lut2.idle = base.idle_2
+LEFT JOIN _filtered_curves_2d AS lut3
+  ON lut3.freq_khz = base.freq_3
+  AND lut3.dep_policy = base.dep_policy_3
+  AND lut3.dep_freq = base.dep_freq_3
+  AND lut3.idle = base.idle_3
+LEFT JOIN _filtered_curves_2d AS lut4
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  ON lut4.freq_khz = base.freq_4
+  AND lut4.dep_policy = base.dep_policy_4
+  AND lut4.dep_freq = base.dep_freq_4
+  AND lut4.idle = base.idle_4
+LEFT JOIN _filtered_curves_2d AS lut5
+  ON lut5.freq_khz = base.freq_5
+  AND lut5.dep_policy = base.dep_policy_5
+  AND lut5.dep_freq = base.dep_freq_5
+  AND lut5.idle = base.idle_5
+LEFT JOIN _filtered_curves_2d AS lut6
+  ON lut6.freq_khz = base.freq_6
+  AND lut6.dep_policy = base.dep_policy_6
+  AND lut6.dep_freq = base.dep_freq_6
+  AND lut6.idle = base.idle_6
+LEFT JOIN _filtered_curves_2d AS lut7
+  ON lut7.freq_khz = base.freq_7
+  AND lut7.dep_policy = base.dep_policy_7
+  AND lut7.dep_freq = base.dep_freq_7
+  AND lut7.idle = base.idle_7
+LEFT JOIN _filtered_curves_l3 AS l3_lut
+  ON l3_lut.freq_khz = base.freq_0
+  AND l3_lut.dep_policy = base.dep_policy_0
+  AND l3_lut.dep_freq = base.dep_freq_0;
 
 )_d3l1m1t3r_"
 ;
@@ -28700,8 +32913,6 @@ SELECT
 FROM first_cpu_freq_slices AS first_slices
 JOIN _dev_cpu_policy_map AS d_map
   ON first_slices.cpu = d_map.cpu
-WHERE
-  dur > 0
 UNION ALL
 SELECT
   ts,
@@ -28726,8 +32937,7 @@ WHERE
     SELECT
       cpu
     FROM first_cpu_freq_slices
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  );
+  );
 
 )_d3l1m1t3r_"
 ;
@@ -28749,32 +32959,22 @@ const char kWattsonCpuFreqIdle[] = R"_d3l1m1t3r_(--
 
 INCLUDE PERFETTO MODULE intervals.intersect;
 
-INCLUDE PERFETTO MODULE wattson.cpu_freq;
+INCLUDE PERFETTO MODULE wattson.cpu.freq;
 
-INCLUDE PERFETTO MODULE wattson.cpu_hotplug;
+INCLUDE PERFETTO MODULE wattson.cpu.hotplug;
 
-INCLUDE PERFETTO MODULE wattson.cpu_idle;
+INCLUDE PERFETTO MODULE wattson.cpu.idle;
 
 INCLUDE PERFETTO MODULE wattson.curves.utils;
 
 INCLUDE PERFETTO MODULE wattson.device_infos;
 
--- Helper macro for using Perfetto table with interval intersect
-CREATE PERFETTO MACRO _ii_subquery(
-    tab TableOrSubquery
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_()
-RETURNS TableOrSubquery AS
-(
-  SELECT
-    _auto_id AS id,
-    *
-  FROM $tab
-);
+INCLUDE PERFETTO MODULE wattson.utils;
 
 -- Wattson estimation is valid from when first CPU0 frequency appears
 CREATE PERFETTO TABLE _valid_window AS
-WITH
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(WITH
   window_start AS (
     SELECT
       ts AS start_ts
@@ -28784,52 +32984,13 @@ WITH
     ORDER BY
       ts ASC
     LIMIT 1
-  ),
-  window AS (
-    SELECT
-      start_ts AS ts,
-      trace_end() - start_ts AS dur
-    FROM window_start
   )
 SELECT
-  *,
-  0 AS cpu
-FROM window
-UNION ALL
-SELECT
-  *,
-  1 AS cpu
-FROM window
-UNION ALL
-SELECT
-  *,
-  2 AS cpu
-FROM window
-UNION ALL
-SELECT
-  *,
-  3 AS cpu
-FROM window
-UNION ALL
-SELECT
-  *,
-  4 AS cpu
-FROM window
-UNION ALL
-SELECT
-  *,
-  5 AS cpu
-FROM window
-UNION ALL
-SELECT
-  *,
-  6 AS cpu
-FROM window
-UNION ALL
-SELECT
-  *,
-  7 AS cpu
-FROM window;
+  start_ts AS ts,
+  trace_end() - start_ts AS dur,
+  cpu
+FROM window_start
+CROSS JOIN _dev_cpu_policy_map;
 
 -- Start matching CPUs with 1D curves based on combination of freq and idle
 CREATE PERFETTO TABLE _idle_freq_materialized AS
@@ -28838,8 +32999,7 @@ SELECT
   ii.dur,
   ii.cpu,
   freq.policy,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  freq.freq,
+  freq.freq,
   -- Set idle since subsequent calculations are based on number of idle/active
   -- CPUs. If offline/suspended, set the CPU to the device specific deepest idle
   -- state.
@@ -28853,9 +33013,11 @@ R"_d3l1m1t3r_(  freq.freq,
     idle.idle
   ) AS idle,
   -- If CPU is suspended or offline, set power estimate to 0
-  iif(suspend.suspended OR hotplug.offline, 0, lut.curve_value) AS curve_value
+  iif(suspend.suspended OR hotplug.offline, 0, lut.curve_value) AS curve_value,
+  iif(suspend.suspended OR hotplug.offline, 0, lut.static) AS static
 FROM _interval_intersect!(
-  (
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  (
     _ii_subquery!(_valid_window),
     _ii_subquery!(_adjusted_cpu_freq),
     _ii_subquery!(_adjusted_deep_idle),
@@ -28873,8 +33035,7 @@ JOIN _gapless_hotplug_slices AS hotplug
 JOIN _gapless_suspend_slices AS suspend
   ON suspend._auto_id = id_4
 -- Left join since some CPUs may only match the 2D LUT
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(LEFT JOIN _filtered_curves_1d AS lut
+LEFT JOIN _filtered_curves_1d AS lut
   ON freq.policy = lut.policy AND freq.freq = lut.freq_khz AND idle.idle = lut.idle;
 
 )_d3l1m1t3r_"
@@ -29138,8 +33299,6 @@ SELECT
   first_slices.cpu,
   NULL AS idle
 FROM first_cpu_idle_slices AS first_slices
-WHERE
-  dur > 0
 UNION ALL
 SELECT
   ts,
@@ -29147,17 +33306,13 @@ SELECT
   cpu,
   idle
 FROM _cpu_idle
--- Some durations are 0 post-adjustment and won't work with interval intersect
-WHERE
-  dur > 0
 UNION ALL
 -- Add empty cpu idle counters for CPUs that are physically present, but did not
 -- have a single idle event register. The time region needs to be defined so
 -- that interval_intersect doesn't remove the undefined time region.
 SELECT
   trace_start() AS ts,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  trace_dur() AS dur,
+  trace_dur() AS dur,
   cpu,
   NULL AS idle
 FROM _dev_cpu_policy_map
@@ -29165,13 +33320,14 @@ WHERE
   NOT cpu IN (
     SELECT
       cpu
-    FROM first_cpu_idle_slices
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    FROM first_cpu_idle_slices
   );
 
 )_d3l1m1t3r_"
 ;
 
-const char kWattsonCpuSplit[] = R"_d3l1m1t3r_(--
+const char kWattsonCpuPivot[] = R"_d3l1m1t3r_(--
 -- Copyright 2024 The Android Open Source Project
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -29186,105 +33342,112 @@ const char kWattsonCpuSplit[] = R"_d3l1m1t3r_(--
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE android.suspend;
-
 INCLUDE PERFETTO MODULE intervals.intersect;
 
 INCLUDE PERFETTO MODULE time.conversion;
 
-INCLUDE PERFETTO MODULE wattson.arm_dsu;
+INCLUDE PERFETTO MODULE wattson.cpu.arm_dsu;
 
-INCLUDE PERFETTO MODULE wattson.cpu_freq_idle;
+INCLUDE PERFETTO MODULE wattson.cpu.freq_idle;
 
 INCLUDE PERFETTO MODULE wattson.curves.utils;
 
 INCLUDE PERFETTO MODULE wattson.device_infos;
 
--- Helper macro to do pivot function without policy information
-CREATE PERFETTO MACRO _stats_wo_policy_subquery(
+INCLUDE PERFETTO MODULE wattson.utils;
+
+-- Helper macro to do pivot function
+CREATE PERFETTO MACRO _cpu_stats_subquery(
 )_d3l1m1t3r_"
 R"_d3l1m1t3r_(    cpu Expr,
     curve_col ColumnName,
+    static_col ColumnName,
     freq_col ColumnName,
-    idle_col ColumnName
+    idle_col ColumnName,
+    default_dep_policy ColumnName,
+    default_dep_freq ColumnName
 )
 RETURNS TableOrSubquery AS
 (
   SELECT
-    ts,
-    dur,
-    curve_value AS $curve_col,
-    freq AS $freq_col,
-    idle AS $idle_col
-  FROM _idle_freq_materialized
+    t1.ts,
+    t1.dur,
+    t1.curve_value AS $curve_col,
+    iif($cpu IN _device_policies, coalesce(t1.static, 0), 0) AS $static_col,
+    t1.freq AS $freq_col,
+    coalesce(t1.idle, deepest.idle) AS $idle_col,
+    t2.dep_policy AS $default_dep_policy,
+    t2.dep_freq AS $default_dep_freq
+  FROM _idle_freq_materialized AS t1
+  CROSS JOIN _deepest_idle AS deepest
+  LEFT JOIN _cpu_w_dependency_default_vote AS t2
+    USING (cpu)
   WHERE
     cpu = $cpu
-);
-
--- Helper macro to do pivot function with policy information
-CREATE PERFETTO MACRO _stats_w_policy_subquery(
-    cpu Expr,
-    policy_col ColumnName,
-    curve_col ColumnName,
-    freq_col ColumnName,
-    idle_col ColumnName
-)
-RETURNS TableOrSubquery AS
-(
+  UNION ALL
   SELECT
-    ts,
-    dur,
-    policy AS $policy_col,
-    curve_value AS $curve_col,
-    freq AS $freq_col,
-    idle AS $idle_col
-  FROM _idle_freq_materialized
+    trace_start(),
+    trace_dur(),
+    0,
+    0,
+    NULL,
+    idle,
+    NULL,
+    NULL
+  FROM _deepest_idle()
   WHERE
-    cpu = $cpu
+    NOT EXISTS(
+      SELECT
+        1
+      FROM _dev_cpu_policy_map
+      WHERE
+        cpu = $cpu
+    )
 );
 
 CREATE PERFETTO TABLE _stats_cpu0 AS
 SELECT
   *
-FROM _stats_wo_policy_subquery!(0, cpu0_curve, freq_0, idle_0);
-
+FROM _cpu_stats_subquery!(0, cpu0_curve, cpu0_static, freq_0, idle_0, default_dep_policy_0, default_dep_freq_0);
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(
 CREATE PERFETTO TABLE _stats_cpu1 AS
 SELECT
   *
-FROM _stats_wo_policy_subquery!(1, cpu1_curve, freq_1, idle_1);
+FROM _cpu_stats_subquery!(1, cpu1_curve, cpu1_static, freq_1, idle_1, default_dep_policy_1, default_dep_freq_1);
 
 CREATE PERFETTO TABLE _stats_cpu2 AS
 SELECT
   *
-FROM _stats_wo_policy_subquery!(2, cpu2_curve, freq_2, idle_2);
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(
+FROM _cpu_stats_subquery!(2, cpu2_curve, cpu2_static, freq_2, idle_2, default_dep_policy_2, default_dep_freq_2);
+
 CREATE PERFETTO TABLE _stats_cpu3 AS
 SELECT
   *
-FROM _stats_wo_policy_subquery!(3, cpu3_curve, freq_3, idle_3);
+FROM _cpu_stats_subquery!(3, cpu3_curve, cpu3_static, freq_3, idle_3, default_dep_policy_3, default_dep_freq_3);
 
 CREATE PERFETTO TABLE _stats_cpu4 AS
 SELECT
   *
-FROM _stats_w_policy_subquery!(4, policy_4, cpu4_curve, freq_4, idle_4);
+FROM _cpu_stats_subquery!(4, cpu4_curve, cpu4_static, freq_4, idle_4, default_dep_policy_4, default_dep_freq_4);
 
 CREATE PERFETTO TABLE _stats_cpu5 AS
 SELECT
   *
-FROM _stats_w_policy_subquery!(5, policy_5, cpu5_curve, freq_5, idle_5);
+FROM _cpu_stats_subquery!(5, cpu5_curve, cpu5_static, freq_5, idle_5, default_dep_policy_5, default_dep_freq_5);
 
 CREATE PERFETTO TABLE _stats_cpu6 AS
 SELECT
   *
-FROM _stats_w_policy_subquery!(6, policy_6, cpu6_curve, freq_6, idle_6);
+FROM _cpu_stats_subquery!(6, cpu6_curve, cpu6_static, freq_6, idle_6, default_dep_policy_6, default_dep_freq_6);
 
 CREATE PERFETTO TABLE _stats_cpu7 AS
-SELECT
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(SELECT
   *
-FROM _stats_w_policy_subquery!(7, policy_7, cpu7_curve, freq_7, idle_7);
+FROM _cpu_stats_subquery!(7, cpu7_curve, cpu7_static, freq_7, idle_7, default_dep_policy_7, default_dep_freq_7);
 
-CREATE PERFETTO TABLE _stats_cpu0123_suspend AS
+CREATE PERFETTO TABLE _stats_cpu0123 AS
 SELECT
   ii.ts,
   ii.dur,
@@ -29292,51 +33455,48 @@ SELECT
   id_1 AS cpu1_id,
   id_2 AS cpu2_id,
   id_3 AS cpu3_id,
-  ss.power_state = 'suspended' AS suspended
+  id_4 AS dsu_id
 FROM _interval_intersect!(
   (
     _ii_subquery!(_stats_cpu0),
     _ii_subquery!(_stats_cpu1),
     _ii_subquery!(_stats_cpu2),
     _ii_subquery!(_stats_cpu3),
-    -- Includes suspend AND awake portions, which will cover entire trace and
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(    -- allows us to use _interval_intersect instead of SPAN_OUTER_JOIN()
-    _ii_subquery!(android_suspend_state)
+    _ii_subquery!(_wattson_dsu_frequency)
   ),
   ()
-) AS ii
-JOIN android_suspend_state AS ss
-  ON ss._auto_id = id_4;
+) AS ii;
 
-CREATE PERFETTO TABLE _stats_cpu4567 AS
+CREATE PERFETTO TABLE _stats_cpu01234567 AS
 SELECT
   ii.ts,
   ii.dur,
-  id_0 AS cpu4_id,
-  id_1 AS cpu5_id,
-  id_2 AS cpu6_id,
-  id_3 AS cpu7_id
+  cpu0123.dsu_id,
+  cpu0123.cpu0_id,
+  cpu0123.cpu1_id,
+  cpu0123.cpu2_id,
+  cpu0123.cpu3_id,
+  id_1 AS cpu4_id,
+  id_2 AS cpu5_id,
+  id_3 AS cpu6_id,
+  id_4 AS cpu7_id
 FROM _interval_intersect!(
   (
+    _ii_subquery!(_stats_cpu0123),
     _ii_subquery!(_stats_cpu4),
     _ii_subquery!(_stats_cpu5),
     _ii_subquery!(_stats_cpu6),
     _ii_subquery!(_stats_cpu7)
   ),
   ()
-) AS ii;
-
--- SPAN OUTER JOIN because sometimes CPU4/5/6/7 are empty tables
-CREATE VIRTUAL TABLE _stats_cpu01234567_suspend USING SPAN_OUTER_JOIN (_stats_cpu0123_suspend, _stats_cpu4567);
-
--- Combine system state so that it has idle, freq, and L3 hit info.
-CREATE VIRTUAL TABLE _idle_freq_l3_hit_slice USING SPAN_OUTER_JOIN (_stats_cpu01234567_suspend, _arm_l3_hit_rate);
-
--- Combine system state so that it has idle, freq, L3 hit, and L3 miss info.
-CREATE VIRTUAL TABLE _idle_freq_l3_hit_l3_miss_slice USING SPAN_OUTER_JOIN (_idle_freq_l3_hit_slice, _arm_l3_miss_rate);
+) AS ii
+JOIN _stats_cpu0123 AS cpu0123
+  ON cpu0123._auto_id = id_0;
 )_d3l1m1t3r_"
 R"_d3l1m1t3r_(
+-- Combine system state so that it has idle, freq, and L3 hit info.
+CREATE VIRTUAL TABLE _idle_freq_l3_hit_l3_miss_slice USING SPAN_OUTER_JOIN (_stats_cpu01234567, _arm_l3_rates);
+
 -- Does calculations for CPUs that are independent of other CPUs or frequencies
 -- This is the last generic table before going to device specific table calcs
 CREATE PERFETTO TABLE _w_independent_cpus_calc AS
@@ -29361,31 +33521,48 @@ SELECT
   idle_6,
   freq_7,
   idle_7,
-  policy_4,
-  policy_5,
-  policy_6,
-  policy_7,
-  iif(
-    suspended,
-    1,
-    min(coalesce(idle_0, 1), coalesce(idle_1, 1), coalesce(idle_2, 1), coalesce(idle_3, 1))
-  ) AS no_static,
-  suspended,
-  cpu0_curve,
-  cpu1_curve,
-  cpu2_curve,
-  cpu3_curve,
-  cpu4_curve,
-  cpu5_curve,
-  cpu6_curve,
-  cpu7_curve,
-  -- If dependency CPUs are active, then that CPU could contribute static power
-  iif(idle_4 = -1, lut4.curve_value, -1) AS static_4,
-  iif(idle_5 = -1, lut5.curve_value, -1) AS static_5,
+  _stats_cpu0.cpu0_curve,
+  _stats_cpu1.cpu1_curve,
+  _stats_cpu2.cpu2_curve,
+  _stats_cpu3.cpu3_curve,
+  _stats_cpu4.cpu4_curve,
+  _stats_cpu5.cpu5_curve,
+  _stats_cpu6.cpu6_curve,
+  _stats_cpu7.cpu7_curve,
+  _stats_cpu0.default_dep_policy_0,
+  _stats_cpu1.default_dep_policy_1,
+  _stats_cpu2.default_dep_policy_2,
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(  iif(idle_6 = -1, lut6.curve_value, -1) AS static_6,
-  iif(idle_7 = -1, lut7.curve_value, -1) AS static_7
+R"_d3l1m1t3r_(  _stats_cpu3.default_dep_policy_3,
+  _stats_cpu4.default_dep_policy_4,
+  _stats_cpu5.default_dep_policy_5,
+  _stats_cpu6.default_dep_policy_6,
+  _stats_cpu7.default_dep_policy_7,
+  _stats_cpu0.default_dep_freq_0,
+  _stats_cpu1.default_dep_freq_1,
+  _stats_cpu2.default_dep_freq_2,
+  _stats_cpu3.default_dep_freq_3,
+  _stats_cpu4.default_dep_freq_4,
+  _stats_cpu5.default_dep_freq_5,
+  _stats_cpu6.default_dep_freq_6,
+  _stats_cpu7.default_dep_freq_7,
+  _wattson_dsu_frequency.dsu_freq,
+  cpu0_static + cpu1_static + cpu2_static + cpu3_static + cpu4_static + cpu5_static + cpu6_static + cpu7_static AS static_1d,
+  min(idle_0, idle_1, idle_2, idle_3, idle_4, idle_5, idle_6, idle_7) AS all_cpu_deep_idle,
+  min(
+    iif(0 IN _cpus_for_static, idle_0, 1),
+    iif(1 IN _cpus_for_static, idle_1, 1),
+    iif(2 IN _cpus_for_static, idle_2, 1),
+    iif(3 IN _cpus_for_static, idle_3, 1),
+    iif(4 IN _cpus_for_static, idle_4, 1),
+    iif(5 IN _cpus_for_static, idle_5, 1),
+    iif(6 IN _cpus_for_static, idle_6, 1),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    iif(7 IN _cpus_for_static, idle_7, 1)
+  ) AS no_static
 FROM _idle_freq_l3_hit_l3_miss_slice AS base
+JOIN _wattson_dsu_frequency
+  ON _wattson_dsu_frequency._auto_id = base.dsu_id
 JOIN _stats_cpu0
   ON _stats_cpu0._auto_id = base.cpu0_id
 JOIN _stats_cpu1
@@ -29403,37 +33580,197 @@ LEFT JOIN _stats_cpu6
   ON _stats_cpu6._auto_id = base.cpu6_id
 LEFT JOIN _stats_cpu7
   ON _stats_cpu7._auto_id = base.cpu7_id
--- Match power curves if possible on CPUs that decide 2D dependence
-LEFT JOIN _filtered_curves_2d AS lut4
-  ON _stats_cpu0.freq_0 = lut4.freq_khz
-  AND _stats_cpu4.policy_4 = lut4.other_policy
-  AND _stats_cpu4.freq_4 = lut4.other_freq_khz
-  AND lut4.idle = 255
-LEFT JOIN _filtered_curves_2d AS lut5
-  ON _stats_cpu0.freq_0 = lut5.freq_khz
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  AND _stats_cpu5.policy_5 = lut5.other_policy
-  AND _stats_cpu5.freq_5 = lut5.other_freq_khz
-  AND lut5.idle = 255
-LEFT JOIN _filtered_curves_2d AS lut6
-  ON _stats_cpu0.freq_0 = lut6.freq_khz
-  AND _stats_cpu6.policy_6 = lut6.other_policy
-  AND _stats_cpu6.freq_6 = lut6.other_freq_khz
-  AND lut6.idle = 255
-LEFT JOIN _filtered_curves_2d AS lut7
-  ON _stats_cpu0.freq_0 = lut7.freq_khz
-  AND _stats_cpu7.policy_7 = lut7.other_policy
-  AND _stats_cpu7.freq_7 = lut7.other_freq_khz
-  AND lut7.idle = 255
 -- Needs to be at least 1us to reduce inconsequential rows.
 WHERE
   base.dur > time_from_us(1);
 
+-- Slices based table with all independent and dependent CPU data
+CREATE PERFETTO TABLE _w_dependent_cpus_calc AS
+WITH
+  -- Only unpivot the necessary columns for dependency calculation.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  -- Additionally, only unpivot the necessary rows for dependency calculation
+  -- based off of _cpu_lut_dependencies. The superset of the CROSS JOIN will be
+  -- CPU (x0, y0), ..., (x0, yN), ..., (xN, yN). The _cpu_lut_dependencies will
+  -- eliminate any possible CPU-pairing that are not possible dependencies.
+  unpivoted_deps AS (
+    SELECT
+      i.ts,
+      d.cpu,
+      d.dep_cpu,
+      CASE d.dep_cpu
+        WHEN 0
+        THEN i.cpu0_curve
+        WHEN 1
+        THEN i.cpu1_curve
+        WHEN 2
+        THEN i.cpu2_curve
+        WHEN 3
+        THEN i.cpu3_curve
+        WHEN 4
+        THEN i.cpu4_curve
+        WHEN 5
+        THEN i.cpu5_curve
+        WHEN 6
+        THEN i.cpu6_curve
+        WHEN 7
+        THEN i.cpu7_curve
+      END AS curve,
+      CASE d.dep_cpu
+        WHEN 0
+        THEN i.freq_0
+        WHEN 1
+        THEN i.freq_1
+        WHEN 2
+        THEN i.freq_2
+        WHEN 3
+        THEN i.freq_3
+        WHEN 4
+        THEN i.freq_4
+        WHEN 5
+        THEN i.freq_5
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(        WHEN 6
+        THEN i.freq_6
+        WHEN 7
+        THEN i.freq_7
+      END AS freq,
+      CASE d.dep_cpu
+        WHEN 0
+        THEN i.idle_0
+        WHEN 1
+        THEN i.idle_1
+        WHEN 2
+        THEN i.idle_2
+        WHEN 3
+        THEN i.idle_3
+        WHEN 4
+        THEN i.idle_4
+        WHEN 5
+        THEN i.idle_5
+        WHEN 6
+        THEN i.idle_6
+        WHEN 7
+        THEN i.idle_7
+      END AS idle
+    FROM _w_independent_cpus_calc AS i
+    CROSS JOIN _cpu_lut_dependencies AS d
+  ),
+  -- For each CPU, find the dependent CPU with the highest "vote"
+  ranked_voters AS (
+    SELECT
+      u.ts,
+      u.cpu,
+      u.dep_cpu,
+      u.freq,
+      -- Rank dependencies by curve value or frequency
+      row_number() OVER (PARTITION BY u.ts, u.cpu ORDER BY CASE WHEN vote.vote_by_freq = 1 THEN u.freq ELSE NULL END DESC, CASE WHEN vote.vote_by_freq = 0 THEN u.curve ELSE NULL END DESC) AS rn
+    FROM unpivoted_deps AS u
+    JOIN _dev_vote_by_freq AS vote
+      ON u.cpu = vote.cpu
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    WHERE
+      u.idle = -1
+  ),
+  max_voters AS (
+    SELECT
+      ts,
+      cpu,
+      dep_cpu,
+      freq
+    FROM ranked_voters
+    -- Keep only the top-ranked dependency.
+    WHERE
+      rn = 1
+  ),
+  -- Pivot the results back into new columns.
+  pivoted_results AS (
+    SELECT
+      m.ts,
+      max(CASE WHEN m.cpu = 0 THEN m.freq END) AS dep_freq_0,
+      max(CASE WHEN m.cpu = 0 THEN p.policy END) AS dep_policy_0,
+      max(CASE WHEN m.cpu = 1 THEN m.freq END) AS dep_freq_1,
+      max(CASE WHEN m.cpu = 1 THEN p.policy END) AS dep_policy_1,
+      max(CASE WHEN m.cpu = 2 THEN m.freq END) AS dep_freq_2,
+      max(CASE WHEN m.cpu = 2 THEN p.policy END) AS dep_policy_2,
+      max(CASE WHEN m.cpu = 3 THEN m.freq END) AS dep_freq_3,
+      max(CASE WHEN m.cpu = 3 THEN p.policy END) AS dep_policy_3,
+      max(CASE WHEN m.cpu = 4 THEN m.freq END) AS dep_freq_4,
+      max(CASE WHEN m.cpu = 4 THEN p.policy END) AS dep_policy_4,
+      max(CASE WHEN m.cpu = 5 THEN m.freq END) AS dep_freq_5,
+      max(CASE WHEN m.cpu = 5 THEN p.policy END) AS dep_policy_5,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      max(CASE WHEN m.cpu = 6 THEN m.freq END) AS dep_freq_6,
+      max(CASE WHEN m.cpu = 6 THEN p.policy END) AS dep_policy_6,
+      max(CASE WHEN m.cpu = 7 THEN m.freq END) AS dep_freq_7,
+      max(CASE WHEN m.cpu = 7 THEN p.policy END) AS dep_policy_7
+    FROM max_voters AS m
+    JOIN _dev_cpu_policy_map AS p
+      ON m.dep_cpu = p.cpu
+    GROUP BY
+      m.ts
+  )
+-- Join the calculated dependencies back to the original data.
+SELECT
+  base.ts,
+  base.dur,
+  base.freq_0,
+  base.idle_0,
+  base.freq_1,
+  base.idle_1,
+  base.freq_2,
+  base.idle_2,
+  base.freq_3,
+  base.idle_3,
+  base.freq_4,
+  base.idle_4,
+  base.freq_5,
+  base.idle_5,
+  base.freq_6,
+  base.idle_6,
+  base.freq_7,
+  base.idle_7,
+  base.cpu0_curve,
+  base.cpu1_curve,
+  base.cpu2_curve,
+  base.cpu3_curve,
+  base.cpu4_curve,
+  base.cpu5_curve,
+  base.cpu6_curve,
+  base.cpu7_curve,
+  iif(base.all_cpu_deep_idle = 1, 0, base.l3_hit_count) AS l3_hit_count,
+  iif(base.all_cpu_deep_idle = 1, 0, base.l3_miss_count) AS l3_miss_count,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  base.no_static,
+  base.static_1d,
+  -- Use DSU frequency if required, else use the calculated dependency
+  -- frequency, else use the fallback default frequency
+  iif(0 IN _cpu_w_dsu_dependency, dsu_freq, coalesce(dep_freq_0, default_dep_freq_0)) AS dep_freq_0,
+  iif(0 IN _cpu_w_dsu_dependency, 255, coalesce(dep_policy_0, default_dep_policy_0)) AS dep_policy_0,
+  iif(1 IN _cpu_w_dsu_dependency, dsu_freq, coalesce(dep_freq_1, default_dep_freq_1)) AS dep_freq_1,
+  iif(1 IN _cpu_w_dsu_dependency, 255, coalesce(dep_policy_1, default_dep_policy_1)) AS dep_policy_1,
+  iif(2 IN _cpu_w_dsu_dependency, dsu_freq, coalesce(dep_freq_2, default_dep_freq_2)) AS dep_freq_2,
+  iif(2 IN _cpu_w_dsu_dependency, 255, coalesce(dep_policy_2, default_dep_policy_2)) AS dep_policy_2,
+  iif(3 IN _cpu_w_dsu_dependency, dsu_freq, coalesce(dep_freq_3, default_dep_freq_3)) AS dep_freq_3,
+  iif(3 IN _cpu_w_dsu_dependency, 255, coalesce(dep_policy_3, default_dep_policy_3)) AS dep_policy_3,
+  iif(4 IN _cpu_w_dsu_dependency, dsu_freq, coalesce(dep_freq_4, default_dep_freq_4)) AS dep_freq_4,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  iif(4 IN _cpu_w_dsu_dependency, 255, coalesce(dep_policy_4, default_dep_policy_4)) AS dep_policy_4,
+  iif(5 IN _cpu_w_dsu_dependency, dsu_freq, coalesce(dep_freq_5, default_dep_freq_5)) AS dep_freq_5,
+  iif(5 IN _cpu_w_dsu_dependency, 255, coalesce(dep_policy_5, default_dep_policy_5)) AS dep_policy_5,
+  iif(6 IN _cpu_w_dsu_dependency, dsu_freq, coalesce(dep_freq_6, default_dep_freq_6)) AS dep_freq_6,
+  iif(6 IN _cpu_w_dsu_dependency, 255, coalesce(dep_policy_6, default_dep_policy_6)) AS dep_policy_6,
+  iif(7 IN _cpu_w_dsu_dependency, dsu_freq, coalesce(dep_freq_7, default_dep_freq_7)) AS dep_freq_7,
+  iif(7 IN _cpu_w_dsu_dependency, 255, coalesce(dep_policy_7, default_dep_policy_7)) AS dep_policy_7
+FROM _w_independent_cpus_calc AS base
+LEFT JOIN pivoted_results AS pivoted
+  USING (ts);
+
 )_d3l1m1t3r_"
 ;
 
-const char kWattsonCurvesDevice[] = R"_d3l1m1t3r_(--
--- Copyright 2024 The Android Open Source Project
+const char kWattsonCurvesDeviceCpu1d[] = R"_d3l1m1t3r_(--
+-- Copyright 2025 The Android Open Source Project
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
@@ -29446,6 +33783,7 @@ const char kWattsonCurvesDevice[] = R"_d3l1m1t3r_(--
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
+INCLUDE PERFETTO MODULE wattson.curves.tg5_cpu_1d;
 
 -- Device specific device curves with 1D dependency (i.e. curve characteristics
 -- are dependent only on one CPU policy). See go/wattson for more info.
@@ -29456,11 +33794,29 @@ WITH
       *
     FROM (VALUES
       ("monaco", 0, 614400, 4.8, 9.41, 0.76, 0),
-      ("monaco", 0, 864000, 6.68, 13.64, 0.83, 0),
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("monaco", 0, 1363200, 12.6, 24.83, 1.1, 0),
+R"_d3l1m1t3r_(      ("monaco", 0, 864000, 6.68, 13.64, 0.83, 0),
+      ("monaco", 0, 1363200, 12.6, 24.83, 1.1, 0),
       ("monaco", 0, 1708800, 18.39, 39.69, 1.34, 0),
-      ("Tensor", 4, 400000, 0, 28.51, 5.24, 0),
+      ("neo", 0, 691200, 3.1, 19.54, 0.61, 0),
+      ("neo", 0, 940800, 4.33, 26.65, 0.79, 0),
+      ("neo", 0, 1113600, 5.65, 32.33, 0.99, 0),
+      ("neo", 0, 1497600, 7.19, 45.89, 1.51, 0),
+      ("neo", 0, 1804800, 11.7, 99.98, 2.22, 0),
+      ("neo", 0, 1996800, 12.5, 101.04, 2.62, 0),
+      ("SXR2230P", 2, 691200, 3.76, 65.57, 3.98, 0),
+      ("SXR2230P", 2, 960000, 5.44, 98.39, 4.11, 0),
+      ("SXR2230P", 2, 1094400, 6.05, 115.23, 4.79, 0),
+      ("SXR2230P", 2, 1228800, 6.35, 134.18, 5.24, 0),
+      ("SXR2230P", 2, 1382400, 8.54, 157.71, 5.15, 0),
+      ("SXR2230P", 2, 1516800, 9.25, 184.53, 5.85, 0),
+      ("SXR2230P", 2, 1651200, 10.4, 212.52, 6.91, 0),
+      ("SXR2230P", 2, 1920000, 13.83, 341.62, 11.75, 0),
+      ("SXR2230P", 2, 2054400, 17.58, 392.53, 12.91, 0),
+      ("SXR2230P", 2, 2208000, 20.74, 447.06, 16.72, 0),
+      ("SXR2230P", 2, 2361600, 23.88, 529.69, 22.69, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor", 4, 400000, 0, 28.51, 5.24, 0),
       ("Tensor", 4, 553000, 0, 43.63, 6.1, 0),
       ("Tensor", 4, 696000, 0, 54.73, 6.76, 0),
       ("Tensor", 4, 799000, 0, 65.01, 6.89, 0),
@@ -29479,10 +33835,10 @@ R"_d3l1m1t3r_(      ("monaco", 0, 1363200, 12.6, 24.83, 1.1, 0),
       ("Tensor", 6, 984000, 0, 207.43, 20.55, 0),
       ("Tensor", 6, 1106000, 0, 251.88, 23.06, 0),
       ("Tensor", 6, 1277000, 0, 306.57, 25.12, 0),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor", 6, 1426000, 0, 382.61, 26.76, 0),
+      ("Tensor", 6, 1426000, 0, 382.61, 26.76, 0),
       ("Tensor", 6, 1582000, 0, 465.9, 29.74, 0),
-      ("Tensor", 6, 1745000, 0, 556.25, 32.87, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor", 6, 1745000, 0, 556.25, 32.87, 0),
       ("Tensor", 6, 1826000, 0, 613.51, 36.01, 0),
       ("Tensor", 6, 2048000, 0, 758.89, 41.67, 0),
       ("Tensor", 6, 2188000, 0, 874.03, 47.92, 0),
@@ -29500,10 +33856,10 @@ R"_d3l1m1t3r_(      ("Tensor", 6, 1426000, 0, 382.61, 26.76, 0),
       ("Tensor G4", 4, 1065000, 0, 116.15, 7.9, 0),
       ("Tensor G4", 4, 1221000, 0, 138.37, 8.47, 0),
       ("Tensor G4", 4, 1328000, 0, 155.59, 8.94, 0),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor G4", 4, 1418000, 0, 172.52, 9.37, 0),
+      ("Tensor G4", 4, 1418000, 0, 172.52, 9.37, 0),
       ("Tensor G4", 4, 1549000, 0, 200.69, 10.21, 0),
-      ("Tensor G4", 4, 1795000, 0, 267.18, 11.89, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G4", 4, 1795000, 0, 267.18, 11.89, 0),
       ("Tensor G4", 4, 1945000, 0, 317.06, 13.58, 0),
       ("Tensor G4", 4, 2130000, 0, 388.15, 16.02, 0),
       ("Tensor G4", 4, 2245000, 0, 430.4, 17.54, 0),
@@ -29520,476 +33876,691 @@ R"_d3l1m1t3r_(      ("Tensor G4", 4, 1418000, 0, 172.52, 9.37, 0),
       ("Tensor G4", 7, 2147000, 0, 1136.58, 32.65, 0),
       ("Tensor G4", 7, 2294000, 0, 1309.39, 35.62, 0),
       ("Tensor G4", 7, 2363000, 0, 1415.82, 37.93, 0),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor G4", 7, 2499000, 0, 1669.61, 42.96, 0),
+      ("Tensor G4", 7, 2499000, 0, 1669.61, 42.96, 0),
       ("Tensor G4", 7, 2687000, 0, 2052.32, 52.16, 0),
-      ("Tensor G4", 7, 2802000, 0, 2354.18, 60.2, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G4", 7, 2802000, 0, 2354.18, 60.2, 0),
       ("Tensor G4", 7, 2914000, 0, 2789.17, 77.16, 0),
       ("Tensor G4", 7, 2943000, 0, 2840.06, 79.64, 0),
       ("Tensor G4", 7, 2970000, 0, 2949.03, 84.78, 0),
       ("Tensor G4", 7, 3015000, 0, 3029.38, 87.22, 0),
-      ("Tensor G4", 7, 3105000, 0, 3327.56, 99.47, 0),
-      ("neo", 0, 691200, 3.1, 19.54, 0.61, 0),
-      ("neo", 0, 940800, 4.33, 26.65, 0.79, 0),
-      ("neo", 0, 1113600, 5.65, 32.33, 0.99, 0),
-      ("neo", 0, 1497600, 7.19, 45.89, 1.51, 0),
-      ("neo", 0, 1804800, 11.7, 99.98, 2.22, 0),
-      ("neo", 0, 1996800, 12.5, 101.04, 2.62, 0)) AS _values
+      ("Tensor G4", 7, 3105000, 0, 3327.56, 99.47, 0)) AS _values
+  )
+SELECT
+  *
+FROM data
+UNION ALL
+SELECT
+  *
+FROM _tg5_1d_lut;
+
+)_d3l1m1t3r_"
+;
+
+const char kWattsonCurvesDeviceCpu2d[] = R"_d3l1m1t3r_(--
+-- Copyright 2025 The Android Open Source Project
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     https://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+-- Device specific device curves with 2D dependency (i.e. curve characteristics
+-- are dependent on another CPU policy). See go/wattson for more info.
+INCLUDE PERFETTO MODULE wattson.curves.tg5_cpu_2d;
+
+CREATE PERFETTO TABLE _device_curves_2d AS
+WITH
+  data(device, policy, freq_khz, dep_policy, dep_freq, static, active, idle0, idle1) AS (
+    SELECT
+      *
+    FROM (VALUES
+      ("SXR2230P", 0, 691200, 2, 691200, 5.34, 73.1, 4.23, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("SXR2230P", 0, 691200, 2, 960000, 6.7, 83.35, 3.49, 0),
+      ("SXR2230P", 0, 691200, 2, 1094400, 7.42, 86.89, 3.18, 0),
+      ("SXR2230P", 0, 691200, 2, 1228800, 6.29, 89.16, 3.96, 0),
+      ("SXR2230P", 0, 691200, 2, 1382400, 7.4, 93.91, 3.61, 0),
+      ("SXR2230P", 0, 691200, 2, 1516800, 5.02, 96.56, 4.33, 0),
+      ("SXR2230P", 0, 691200, 2, 1651200, 7.95, 114.92, 3.23, 0),
+      ("SXR2230P", 0, 691200, 2, 1920000, 5.23, 142.71, 4.86, 0),
+      ("SXR2230P", 0, 691200, 2, 2054400, 7.42, 147.29, 3.42, 0),
+      ("SXR2230P", 0, 691200, 2, 2208000, 6.0, 153.88, 4.15, 0),
+      ("SXR2230P", 0, 691200, 2, 2361600, 5.47, 158.24, 4.7, 0),
+      ("SXR2230P", 0, 960000, 2, 691200, 4.43, 112.69, 5.76, 0),
+      ("SXR2230P", 0, 960000, 2, 960000, 7.97, 119.75, 3.93, 0),
+      ("SXR2230P", 0, 960000, 2, 1094400, 7.95, 127.6, 4.3, 0),
+      ("SXR2230P", 0, 960000, 2, 1228800, 7.82, 127.88, 4.13, 0),
+      ("SXR2230P", 0, 960000, 2, 1382400, 8.95, 132.33, 3.57, 0),
+      ("SXR2230P", 0, 960000, 2, 1516800, 8.5, 139.06, 3.34, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("SXR2230P", 0, 960000, 2, 1651200, 7.89, 145.34, 4.46, 0),
+      ("SXR2230P", 0, 960000, 2, 1920000, 9.37, 105.38, 3.49, 0),
+      ("SXR2230P", 0, 960000, 2, 2054400, 10.28, 168.55, 3.23, 0),
+      ("SXR2230P", 0, 960000, 2, 2208000, 7.63, 178.74, 4.68, 0),
+      ("SXR2230P", 0, 960000, 2, 2361600, 9.65, 184.9, 3.74, 0),
+      ("SXR2230P", 0, 1094400, 2, 691200, 5.8, 113.33, 5.92, 0),
+      ("SXR2230P", 0, 1094400, 2, 960000, 9.25, 122.61, 4.16, 0),
+      ("SXR2230P", 0, 1094400, 2, 1094400, 9.25, 140.83, 4.07, 0),
+      ("SXR2230P", 0, 1094400, 2, 1228800, 8.5, 146.5, 4.94, 0),
+      ("SXR2230P", 0, 1094400, 2, 1382400, 8.0, 151.15, 5.13, 0),
+      ("SXR2230P", 0, 1094400, 2, 1516800, 8.9, 155.82, 4.71, 0),
+      ("SXR2230P", 0, 1094400, 2, 1651200, 8.99, 160.4, 4.72, 0),
+      ("SXR2230P", 0, 1094400, 2, 1920000, 8.16, 151.02, 5.6, 0),
+      ("SXR2230P", 0, 1094400, 2, 2054400, 10.33, 181.34, 3.76, 0),
+      ("SXR2230P", 0, 1094400, 2, 2208000, 9.23, 190.48, 4.7, 0),
+      ("SXR2230P", 0, 1094400, 2, 2361600, 10.46, 199.27, 3.99, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("SXR2230P", 0, 1228800, 2, 691200, 10.06, 174.09, 4.73, 0),
+      ("SXR2230P", 0, 1228800, 2, 960000, 10.44, 151.01, 4.34, 0),
+      ("SXR2230P", 0, 1228800, 2, 1094400, 9.46, 179.44, 4.86, 0),
+      ("SXR2230P", 0, 1228800, 2, 1228800, 9.55, 179.64, 4.6, 0),
+      ("SXR2230P", 0, 1228800, 2, 1382400, 9.37, 183.18, 4.83, 0),
+      ("SXR2230P", 0, 1228800, 2, 1516800, 10.14, 186.37, 4.49, 0),
+      ("SXR2230P", 0, 1228800, 2, 1651200, 8.23, 194.77, 5.79, 0),
+      ("SXR2230P", 0, 1228800, 2, 1920000, 11.1, 207.61, 4.54, 0),
+      ("SXR2230P", 0, 1228800, 2, 2054400, 11.51, 202.23, 3.71, 0),
+      ("SXR2230P", 0, 1228800, 2, 2208000, 9.88, 211.16, 5.16, 0),
+      ("SXR2230P", 0, 1228800, 2, 2361600, 10.42, 223.38, 4.36, 0),
+      ("SXR2230P", 0, 1382400, 2, 691200, 11.41, 208.76, 4.51, 0),
+      ("SXR2230P", 0, 1382400, 2, 960000, 12.92, 223.28, 3.84, 0),
+      ("SXR2230P", 0, 1382400, 2, 1094400, 9.82, 216.2, 5.66, 0),
+      ("SXR2230P", 0, 1382400, 2, 1228800, 11.52, 215.85, 4.66, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("SXR2230P", 0, 1382400, 2, 1382400, 12.27, 216.04, 4.15, 0),
+      ("SXR2230P", 0, 1382400, 2, 1516800, 12.37, 217.03, 4.48, 0),
+      ("SXR2230P", 0, 1382400, 2, 1651200, 12.33, 220.17, 4.74, 0),
+      ("SXR2230P", 0, 1382400, 2, 1920000, 11.71, 175.68, 4.67, 0),
+      ("SXR2230P", 0, 1382400, 2, 2054400, 12.0, 225.95, 4.62, 0),
+      ("SXR2230P", 0, 1382400, 2, 2208000, 11.25, 235.89, 5.0, 0),
+      ("SXR2230P", 0, 1382400, 2, 2361600, 16.02, 241.14, 0.31, 0),
+      ("SXR2230P", 0, 1516800, 2, 691200, 16.17, 249.02, 2.22, 0),
+      ("SXR2230P", 0, 1516800, 2, 960000, 13.86, 262.22, 4.48, 0),
+      ("SXR2230P", 0, 1516800, 2, 1094400, 14.58, 250.77, 4.36, 0),
+      ("SXR2230P", 0, 1516800, 2, 1228800, 13.69, 252.42, 5.01, 0),
+      ("SXR2230P", 0, 1516800, 2, 1382400, 14.65, 253.06, 3.98, 0),
+      ("SXR2230P", 0, 1516800, 2, 1516800, 13.83, 252.54, 5.12, 0),
+      ("SXR2230P", 0, 1516800, 2, 1651200, 13.83, 257.63, 4.78, 0),
+      ("SXR2230P", 0, 1516800, 2, 1920000, 10.22, 273.89, 7.5, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("SXR2230P", 0, 1516800, 2, 2054400, 15.56, 259.65, 3.9, 0),
+      ("SXR2230P", 0, 1516800, 2, 2208000, 16.29, 266.37, 3.53, 0),
+      ("SXR2230P", 0, 1516800, 2, 2361600, 12.06, 269.13, 6.78, 0),
+      ("SXR2230P", 0, 1651200, 2, 691200, 4.86, 314.16, 11.42, 0),
+      ("SXR2230P", 0, 1651200, 2, 960000, 16.05, 308.85, 5.66, 0),
+      ("SXR2230P", 0, 1651200, 2, 1094400, 15.7, 308.84, 5.79, 0),
+      ("SXR2230P", 0, 1651200, 2, 1228800, 10.62, 309.05, 8.69, 0),
+      ("SXR2230P", 0, 1651200, 2, 1382400, 13.54, 305.82, 7.02, 0),
+      ("SXR2230P", 0, 1651200, 2, 1516800, 15.22, 310.24, 6.22, 0),
+      ("SXR2230P", 0, 1651200, 2, 1651200, 9.84, 299.11, 9.09, 0),
+      ("SXR2230P", 0, 1651200, 2, 1920000, 13.47, 308.14, 7.36, 0),
+      ("SXR2230P", 0, 1651200, 2, 2054400, 9.97, 307.97, 9.37, 0),
+      ("SXR2230P", 0, 1651200, 2, 2208000, 12.16, 310.25, 8.74, 0),
+      ("SXR2230P", 0, 1651200, 2, 2361600, 12.83, 316.8, 8.04, 0),
+      ("SXR2230P", 0, 1920000, 2, 691200, 18.27, 446.95, 10.87, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("SXR2230P", 0, 1920000, 2, 960000, 20.99, 442.55, 9.57, 0),
+      ("SXR2230P", 0, 1920000, 2, 1094400, 21.94, 440.41, 8.98, 0),
+      ("SXR2230P", 0, 1920000, 2, 1228800, 20.64, 438.2, 9.58, 0),
+      ("SXR2230P", 0, 1920000, 2, 1382400, 21.27, 438.35, 9.3, 0),
+      ("SXR2230P", 0, 1920000, 2, 1516800, 23.18, 440.48, 8.4, 0),
+      ("SXR2230P", 0, 1920000, 2, 1651200, 21.64, 445.15, 9.2, 0),
+      ("SXR2230P", 0, 1920000, 2, 1920000, 20.92, 446.87, 9.9, 0),
+      ("SXR2230P", 0, 1920000, 2, 2054400, 18.88, 449.33, 10.92, 0),
+      ("SXR2230P", 0, 1920000, 2, 2208000, 17.67, 452.42, 12.19, 0),
+      ("SXR2230P", 0, 1920000, 2, 2361600, 20.34, 446.46, 10.13, 0),
+      ("SXR2230P", 0, 2054400, 2, 691200, 25.29, 487.7, 11.34, 0),
+      ("SXR2230P", 0, 2054400, 2, 960000, 21.23, 498.35, 13.13, 0),
+      ("SXR2230P", 0, 2054400, 2, 1094400, 22.14, 499.03, 12.87, 0),
+      ("SXR2230P", 0, 2054400, 2, 1228800, 25.15, 501.82, 10.88, 0),
+      ("SXR2230P", 0, 2054400, 2, 1382400, 26.74, 494.33, 10.41, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("SXR2230P", 0, 2054400, 2, 1516800, 23.5, 496.78, 11.63, 0),
+      ("SXR2230P", 0, 2054400, 2, 1651200, 21.63, 497.24, 13.17, 0),
+      ("SXR2230P", 0, 2054400, 2, 1920000, 25.96, 509.92, 9.92, 0),
+      ("SXR2230P", 0, 2054400, 2, 2054400, 24.33, 505.24, 11.43, 0),
+      ("SXR2230P", 0, 2054400, 2, 2208000, 21.87, 493.99, 13.22, 0),
+      ("SXR2230P", 0, 2054400, 2, 2361600, 21.86, 500.45, 14.98, 0),
+      ("SXR2230P", 0, 2208000, 2, 691200, 25.26, 574.75, 17.27, 0),
+      ("SXR2230P", 0, 2208000, 2, 960000, 23.23, 584.93, 16.36, 0),
+      ("SXR2230P", 0, 2208000, 2, 1094400, 30.38, 583.05, 13.17, 0),
+      ("SXR2230P", 0, 2208000, 2, 1228800, 30.02, 584.26, 13.14, 0),
+      ("SXR2230P", 0, 2208000, 2, 1382400, 24.91, 586.68, 15.8, 0),
+      ("SXR2230P", 0, 2208000, 2, 1516800, 29.21, 583.11, 13.16, 0),
+      ("SXR2230P", 0, 2208000, 2, 1651200, 29.1, 591.9, 13.36, 0),
+      ("SXR2230P", 0, 2208000, 2, 1920000, 24.37, 583.06, 16.55, 0),
+      ("SXR2230P", 0, 2208000, 2, 2054400, 28.96, 584.9, 14.02, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("SXR2230P", 0, 2208000, 2, 2208000, 26.58, 571.14, 15.65, 0),
+      ("SXR2230P", 0, 2208000, 2, 2361600, 29.37, 597.33, 13.77, 0),
+      ("SXR2230P", 0, 2361600, 2, 691200, 37.04, 647.09, 15.06, 0),
+      ("SXR2230P", 0, 2361600, 2, 960000, 36.23, 678.92, 15.13, 0),
+      ("SXR2230P", 0, 2361600, 2, 1094400, 30.92, 674.54, 19.06, 0),
+      ("SXR2230P", 0, 2361600, 2, 1228800, 36.11, 681.8, 14.71, 0),
+      ("SXR2230P", 0, 2361600, 2, 1382400, 36.57, 687.57, 15.02, 0),
+      ("SXR2230P", 0, 2361600, 2, 1516800, 31.04, 685.31, 18.26, 0),
+      ("SXR2230P", 0, 2361600, 2, 1651200, 33.82, 685.91, 17.14, 0),
+      ("SXR2230P", 0, 2361600, 2, 1920000, 32.44, 690.61, 18.78, 0),
+      ("SXR2230P", 0, 2361600, 2, 2054400, 32.02, 685.81, 18.99, 0),
+      ("SXR2230P", 0, 2361600, 2, 2208000, 28.21, 686.98, 21.17, 0),
+      ("SXR2230P", 0, 2361600, 2, 2361600, 34.34, 682.86, 17.29, 0),
+      ("Tensor", 0, 300000, 4, 400000, 3.73, 21.84, 0.47, 0),
+      ("Tensor", 0, 300000, 4, 553000, 5.66, 18.97, 0.99, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor", 0, 300000, 6, 500000, 2.61, 22.89, 0.76, 0),
+      ("Tensor", 0, 574000, 4, 400000, 5.73, 35.85, 0.93, 0),
+      ("Tensor", 0, 574000, 4, 553000, 5.41, 36.54, 0.98, 0),
+      ("Tensor", 0, 574000, 4, 696000, 5.61, 32.98, 0.99, 0),
+      ("Tensor", 0, 574000, 4, 799000, 9.7, 40.29, 1.33, 0),
+      ("Tensor", 0, 574000, 4, 910000, 9.81, 44.42, 1.24, 0),
+      ("Tensor", 0, 574000, 4, 1024000, 9.71, 43.95, 1.31, 0),
+      ("Tensor", 0, 574000, 6, 500000, 5.6, 34.69, 1.03, 0),
+      ("Tensor", 0, 574000, 6, 851000, 5.57, 33.66, 1.02, 0),
+      ("Tensor", 0, 574000, 6, 984000, 5.68, 36.2, 0.98, 0),
+      ("Tensor", 0, 574000, 6, 1106000, 5.59, 36.27, 1.02, 0),
+      ("Tensor", 0, 738000, 4, 400000, 6.62, 47.66, 1.08, 0),
+      ("Tensor", 0, 738000, 4, 553000, 6.7, 45.71, 1.03, 0),
+      ("Tensor", 0, 738000, 4, 696000, 6.7, 46.21, 1.04, 0),
+      ("Tensor", 0, 738000, 4, 799000, 9.8, 55.47, 1.23, 0),
+      ("Tensor", 0, 738000, 4, 910000, 9.69, 52.58, 1.31, 0),
+      ("Tensor", 0, 738000, 4, 1024000, 9.77, 54.81, 1.3, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor", 0, 738000, 4, 1197000, 18.75, 75.3, 2.05, 0),
+      ("Tensor", 0, 738000, 4, 1328000, 18.98, 75.84, 1.91, 0),
+      ("Tensor", 0, 738000, 6, 500000, 6.63, 44.56, 1.11, 0),
+      ("Tensor", 0, 738000, 6, 851000, 6.65, 46.62, 1.08, 0),
+      ("Tensor", 0, 738000, 6, 984000, 6.63, 50.28, 1.08, 0),
+      ("Tensor", 0, 738000, 6, 1106000, 6.74, 44.83, 1.07, 0),
+      ("Tensor", 0, 738000, 6, 1277000, 6.6, 44.15, 1.09, 0),
+      ("Tensor", 0, 738000, 6, 1426000, 18.97, 74.73, 1.94, 0),
+      ("Tensor", 0, 930000, 4, 400000, 9.64, 81.16, 1.27, 0),
+      ("Tensor", 0, 930000, 4, 553000, 9.88, 67.4, 1.28, 0),
+      ("Tensor", 0, 930000, 4, 696000, 9.69, 67.33, 1.3, 0),
+      ("Tensor", 0, 930000, 4, 799000, 9.69, 67.82, 1.3, 0),
+      ("Tensor", 0, 930000, 4, 910000, 9.79, 67.52, 1.29, 0),
+      ("Tensor", 0, 930000, 4, 1024000, 9.75, 65.44, 1.28, 0),
+      ("Tensor", 0, 930000, 4, 1197000, 18.84, 83.73, 2.0, 0),
+      ("Tensor", 0, 930000, 4, 1328000, 18.88, 101.57, 1.97, 0),
+      ("Tensor", 0, 930000, 4, 1491000, 18.86, 94.45, 1.99, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor", 0, 930000, 4, 1663000, 35.46, 134.93, 3.29, 0),
+      ("Tensor", 0, 930000, 4, 1836000, 35.34, 135.55, 3.36, 0),
+      ("Tensor", 0, 930000, 6, 500000, 9.76, 66.0, 1.28, 0),
+      ("Tensor", 0, 930000, 6, 851000, 9.8, 73.08, 1.24, 0),
+      ("Tensor", 0, 930000, 6, 984000, 9.75, 74.87, 1.25, 0),
+      ("Tensor", 0, 930000, 6, 1106000, 9.68, 77.31, 1.3, 0),
+      ("Tensor", 0, 930000, 6, 1277000, 9.83, 80.03, 1.25, 0),
+      ("Tensor", 0, 930000, 6, 1426000, 19.01, 98.31, 1.94, 0),
+      ("Tensor", 0, 930000, 6, 1582000, 18.94, 94.51, 1.98, 0),
+      ("Tensor", 0, 930000, 6, 1745000, 19.0, 94.38, 1.93, 0),
+      ("Tensor", 0, 930000, 6, 1826000, 18.98, 100.84, 1.92, 0),
+      ("Tensor", 0, 1098000, 4, 400000, 12.93, 109.45, 1.47, 0),
+      ("Tensor", 0, 1098000, 4, 553000, 12.92, 120.82, 1.48, 0),
+      ("Tensor", 0, 1098000, 4, 696000, 13.09, 107.17, 1.41, 0),
+      ("Tensor", 0, 1098000, 4, 799000, 12.82, 91.84, 1.56, 0),
+      ("Tensor", 0, 1098000, 4, 910000, 12.88, 99.1, 1.52, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor", 0, 1098000, 4, 1024000, 12.81, 87.32, 1.57, 0),
+      ("Tensor", 0, 1098000, 4, 1197000, 18.92, 115.83, 1.97, 0),
+      ("Tensor", 0, 1098000, 4, 1328000, 18.97, 137.08, 1.93, 0),
+      ("Tensor", 0, 1098000, 4, 1491000, 18.94, 120.36, 1.94, 0),
+      ("Tensor", 0, 1098000, 4, 1663000, 35.21, 156.0, 3.43, 0),
+      ("Tensor", 0, 1098000, 4, 1836000, 35.21, 155.3, 3.42, 0),
+      ("Tensor", 0, 1098000, 4, 1999000, 35.49, 157.04, 3.24, 0),
+      ("Tensor", 0, 1098000, 4, 2130000, 35.17, 156.91, 3.41, 0),
+      ("Tensor", 0, 1098000, 6, 500000, 13.0, 93.54, 1.45, 0),
+      ("Tensor", 0, 1098000, 6, 851000, 13.12, 104.28, 1.4, 0),
+      ("Tensor", 0, 1098000, 6, 984000, 12.85, 94.73, 1.52, 0),
+      ("Tensor", 0, 1098000, 6, 1106000, 12.68, 95.73, 1.6, 0),
+      ("Tensor", 0, 1098000, 6, 1277000, 12.94, 92.78, 1.46, 0),
+      ("Tensor", 0, 1098000, 6, 1426000, 18.81, 128.5, 2.03, 0),
+      ("Tensor", 0, 1098000, 6, 1582000, 19.0, 124.51, 1.89, 0),
+      ("Tensor", 0, 1098000, 6, 1745000, 18.75, 121.84, 2.0, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor", 0, 1098000, 6, 1826000, 19.01, 117.69, 1.9, 0),
+      ("Tensor", 0, 1098000, 6, 2048000, 18.97, 107.49, 1.89, 0),
+      ("Tensor", 0, 1098000, 6, 2188000, 18.95, 124.24, 1.92, 0),
+      ("Tensor", 0, 1197000, 4, 400000, 14.5, 128.64, 1.54, 0),
+      ("Tensor", 0, 1197000, 4, 553000, 14.41, 126.94, 1.58, 0),
+      ("Tensor", 0, 1197000, 4, 696000, 14.43, 123.96, 1.63, 0),
+      ("Tensor", 0, 1197000, 4, 799000, 14.39, 125.32, 1.59, 0),
+      ("Tensor", 0, 1197000, 4, 910000, 14.42, 126.37, 1.55, 0),
+      ("Tensor", 0, 1197000, 4, 1024000, 14.5, 110.43, 1.54, 0),
+      ("Tensor", 0, 1197000, 4, 1197000, 19.0, 121.68, 1.9, 222.0),
+      ("Tensor", 0, 1197000, 4, 1328000, 18.88, 122.27, 1.96, 0),
+      ("Tensor", 0, 1197000, 4, 1491000, 18.84, 118.62, 1.98, 0),
+      ("Tensor", 0, 1197000, 4, 1663000, 35.35, 175.31, 3.32, 0),
+      ("Tensor", 0, 1197000, 4, 1836000, 35.37, 178.17, 3.38, 0),
+      ("Tensor", 0, 1197000, 4, 1999000, 35.34, 186.68, 3.38, 0),
+      ("Tensor", 0, 1197000, 4, 2130000, 35.37, 176.06, 3.34, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor", 0, 1197000, 4, 2253000, 35.29, 169.24, 3.38, 111.0),
+      ("Tensor", 0, 1197000, 6, 500000, 14.47, 95.77, 1.55, 0),
+      ("Tensor", 0, 1197000, 6, 851000, 14.42, 101.17, 1.6, 0),
+      ("Tensor", 0, 1197000, 6, 984000, 14.21, 116.52, 1.68, 0),
+      ("Tensor", 0, 1197000, 6, 1106000, 14.32, 111.16, 1.62, 0),
+      ("Tensor", 0, 1197000, 6, 1277000, 14.42, 84.46, 1.6, 0),
+      ("Tensor", 0, 1197000, 6, 1426000, 18.83, 130.44, 2.01, 0),
+      ("Tensor", 0, 1197000, 6, 1582000, 18.98, 140.9, 1.9, 0),
+      ("Tensor", 0, 1197000, 6, 1745000, 18.82, 143.87, 1.94, 0),
+      ("Tensor", 0, 1197000, 6, 1826000, 18.91, 131.75, 1.96, 0),
+      ("Tensor", 0, 1197000, 6, 2048000, 18.99, 128.36, 1.96, 0),
+      ("Tensor", 0, 1197000, 6, 2188000, 18.71, 132.46, 2.07, 0),
+      ("Tensor", 0, 1197000, 6, 2252000, 18.82, 130.95, 2.0, 0),
+      ("Tensor", 0, 1328000, 4, 400000, 17.0, 135.89, 1.84, 0),
+      ("Tensor", 0, 1328000, 4, 553000, 17.1, 161.84, 1.78, 0),
+      ("Tensor", 0, 1328000, 4, 696000, 16.99, 142.03, 1.87, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor", 0, 1328000, 4, 799000, 17.07, 169.36, 1.83, 0),
+      ("Tensor", 0, 1328000, 4, 910000, 17.19, 111.73, 1.81, 0),
+      ("Tensor", 0, 1328000, 4, 1024000, 17.21, 128.66, 1.78, 0),
+      ("Tensor", 0, 1328000, 4, 1197000, 18.83, 129.66, 2.02, 0),
+      ("Tensor", 0, 1328000, 4, 1328000, 18.88, 132.55, 1.96, 0),
+      ("Tensor", 0, 1328000, 4, 1491000, 18.87, 146.14, 2.0, 0),
+      ("Tensor", 0, 1328000, 4, 1663000, 35.43, 185.94, 3.27, 0),
+      ("Tensor", 0, 1328000, 4, 1836000, 35.46, 165.55, 3.27, 0),
+      ("Tensor", 0, 1328000, 4, 1999000, 35.37, 186.76, 3.29, 0),
+      ("Tensor", 0, 1328000, 4, 2130000, 35.35, 207.2, 3.34, 0),
+      ("Tensor", 0, 1328000, 4, 2253000, 35.31, 209.73, 3.42, 0),
+      ("Tensor", 0, 1328000, 6, 500000, 17.15, 130.76, 1.77, 0),
+      ("Tensor", 0, 1328000, 6, 851000, 17.06, 123.6, 1.84, 0),
+      ("Tensor", 0, 1328000, 6, 984000, 17.21, 130.23, 1.77, 0),
+      ("Tensor", 0, 1328000, 6, 1106000, 17.16, 139.65, 1.84, 0),
+      ("Tensor", 0, 1328000, 6, 1277000, 17.14, 123.95, 1.83, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor", 0, 1328000, 6, 1426000, 19.15, 141.04, 1.91, 0),
+      ("Tensor", 0, 1328000, 6, 1582000, 19.13, 108.29, 1.91, 0),
+      ("Tensor", 0, 1328000, 6, 1745000, 19.12, 133.38, 1.9, 0),
+      ("Tensor", 0, 1328000, 6, 1826000, 18.87, 137.51, 2.06, 0),
+      ("Tensor", 0, 1328000, 6, 2048000, 19.02, 145.9, 1.96, 0),
+      ("Tensor", 0, 1328000, 6, 2188000, 19.06, 129.5, 1.94, 0),
+      ("Tensor", 0, 1328000, 6, 2252000, 19.05, 125.72, 1.91, 0),
+      ("Tensor", 0, 1328000, 6, 2401000, 35.57, 187.29, 3.33, 0),
+      ("Tensor", 0, 1328000, 6, 2507000, 35.38, 213.14, 3.44, 0),
+      ("Tensor", 0, 1328000, 6, 2630000, 35.47, 181.15, 3.41, 0),
+      ("Tensor", 0, 1401000, 4, 400000, 18.85, 184.12, 2.06, 0),
+      ("Tensor", 0, 1401000, 4, 553000, 18.91, 168.23, 1.98, 0),
+      ("Tensor", 0, 1401000, 4, 696000, 19.11, 184.69, 1.92, 0),
+      ("Tensor", 0, 1401000, 4, 799000, 19.16, 175.13, 1.91, 0),
+      ("Tensor", 0, 1401000, 4, 910000, 19.02, 161.7, 1.97, 0),
+      ("Tensor", 0, 1401000, 4, 1024000, 18.97, 156.68, 2.01, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor", 0, 1401000, 4, 1197000, 19.07, 155.0, 1.97, 0),
+      ("Tensor", 0, 1401000, 4, 1328000, 18.95, 159.64, 1.96, 0),
+      ("Tensor", 0, 1401000, 4, 1491000, 19.13, 136.78, 1.95, 0),
+      ("Tensor", 0, 1401000, 4, 1663000, 35.67, 186.73, 3.29, 0),
+      ("Tensor", 0, 1401000, 4, 1836000, 35.51, 220.26, 3.45, 0),
+      ("Tensor", 0, 1401000, 4, 1999000, 35.75, 249.18, 3.3, 0),
+      ("Tensor", 0, 1401000, 4, 2130000, 35.65, 217.48, 3.4, 0),
+      ("Tensor", 0, 1401000, 4, 2253000, 35.66, 248.9, 3.41, 0),
+      ("Tensor", 0, 1401000, 6, 500000, 19.05, 152.39, 1.98, 0),
+      ("Tensor", 0, 1401000, 6, 851000, 19.0, 148.12, 2.03, 0),
+      ("Tensor", 0, 1401000, 6, 984000, 19.01, 128.71, 2.0, 0),
+      ("Tensor", 0, 1401000, 6, 1106000, 18.18, 132.83, 2.01, 0),
+      ("Tensor", 0, 1401000, 6, 1277000, 19.07, 138.09, 1.95, 0),
+      ("Tensor", 0, 1401000, 6, 1426000, 18.92, 144.69, 2.05, 0),
+      ("Tensor", 0, 1401000, 6, 1582000, 18.95, 151.34, 2.05, 0),
+      ("Tensor", 0, 1401000, 6, 1745000, 18.98, 152.04, 2.01, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor", 0, 1401000, 6, 1826000, 19.11, 151.71, 1.95, 0),
+      ("Tensor", 0, 1401000, 6, 2048000, 19.04, 136.69, 1.98, 0),
+      ("Tensor", 0, 1401000, 6, 2188000, 18.97, 152.56, 2.0, 0),
+      ("Tensor", 0, 1401000, 6, 2252000, 19.09, 149.02, 1.97, 0),
+      ("Tensor", 0, 1401000, 6, 2401000, 35.91, 210.3, 3.23, 0),
+      ("Tensor", 0, 1401000, 6, 2507000, 35.64, 188.64, 3.32, 0),
+      ("Tensor", 0, 1401000, 6, 2630000, 35.41, 202.75, 3.5, 0),
+      ("Tensor", 0, 1401000, 6, 2704000, 35.69, 204.49, 3.4, 0),
+      ("Tensor", 0, 1401000, 6, 2802000, 35.64, 208.14, 3.45, 0),
+      ("Tensor", 0, 1598000, 4, 400000, 24.83, 196.05, 2.36, 0),
+      ("Tensor", 0, 1598000, 4, 553000, 24.68, 234.53, 2.37, 0),
+      ("Tensor", 0, 1598000, 4, 696000, 24.71, 230.15, 2.34, 0),
+      ("Tensor", 0, 1598000, 4, 799000, 24.87, 175.64, 2.34, 0),
+      ("Tensor", 0, 1598000, 4, 910000, 24.76, 228.23, 2.36, 0),
+      ("Tensor", 0, 1598000, 4, 1024000, 24.6, 228.37, 2.47, 0),
+      ("Tensor", 0, 1598000, 4, 1197000, 24.77, 201.12, 2.43, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor", 0, 1598000, 4, 1328000, 24.68, 202.37, 2.41, 0),
+      ("Tensor", 0, 1598000, 4, 1491000, 24.58, 199.78, 2.52, 0),
+      ("Tensor", 0, 1598000, 4, 1663000, 35.59, 210.2, 3.46, 0),
+      ("Tensor", 0, 1598000, 4, 1836000, 35.74, 315.02, 3.33, 0),
+      ("Tensor", 0, 1598000, 4, 1999000, 35.65, 285.37, 3.44, 0),
+      ("Tensor", 0, 1598000, 4, 2130000, 35.31, 256.84, 3.7, 0),
+      ("Tensor", 0, 1598000, 4, 2253000, 35.91, 255.65, 3.37, 0),
+      ("Tensor", 0, 1598000, 6, 500000, 24.78, 184.21, 2.34, 0),
+      ("Tensor", 0, 1598000, 6, 851000, 24.73, 175.69, 2.41, 0),
+      ("Tensor", 0, 1598000, 6, 984000, 24.68, 195.14, 2.43, 0),
+      ("Tensor", 0, 1598000, 6, 1106000, 24.65, 194.89, 2.46, 0),
+      ("Tensor", 0, 1598000, 6, 1277000, 24.63, 167.1, 2.49, 0),
+      ("Tensor", 0, 1598000, 6, 1426000, 24.7, 190.42, 2.45, 0),
+      ("Tensor", 0, 1598000, 6, 1582000, 24.79, 190.72, 2.39, 0),
+      ("Tensor", 0, 1598000, 6, 1745000, 24.73, 180.52, 2.44, 0),
+      ("Tensor", 0, 1598000, 6, 1826000, 24.72, 203.15, 2.4, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor", 0, 1598000, 6, 2048000, 24.82, 197.7, 2.39, 0),
+      ("Tensor", 0, 1598000, 6, 2188000, 24.7, 185.45, 2.47, 0),
+      ("Tensor", 0, 1598000, 6, 2252000, 24.83, 155.38, 2.35, 0),
+      ("Tensor", 0, 1598000, 6, 2401000, 36.0, 237.12, 3.25, 0),
+      ("Tensor", 0, 1598000, 6, 2507000, 35.89, 253.55, 3.34, 0),
+      ("Tensor", 0, 1598000, 6, 2630000, 35.76, 208.38, 3.45, 0),
+      ("Tensor", 0, 1598000, 6, 2704000, 35.7, 218.73, 3.46, 0),
+      ("Tensor", 0, 1598000, 6, 2802000, 35.65, 248.51, 3.47, 0),
+      ("Tensor", 0, 1704000, 4, 400000, 28.98, 234.84, 2.73, 0),
+      ("Tensor", 0, 1704000, 4, 553000, 29.01, 210.31, 2.66, 0),
+      ("Tensor", 0, 1704000, 4, 696000, 28.95, 300.74, 2.73, 0),
+      ("Tensor", 0, 1704000, 4, 799000, 28.77, 270.96, 2.79, 0),
+      ("Tensor", 0, 1704000, 4, 910000, 28.84, 284.84, 2.76, 0),
+      ("Tensor", 0, 1704000, 4, 1024000, 28.76, 251.86, 2.85, 0),
+      ("Tensor", 0, 1704000, 4, 1197000, 28.75, 256.3, 2.78, 0),
+      ("Tensor", 0, 1704000, 4, 1328000, 28.65, 246.88, 2.86, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor", 0, 1704000, 4, 1491000, 28.73, 267.07, 2.88, 0),
+      ("Tensor", 0, 1704000, 4, 1663000, 35.81, 266.03, 3.49, 0),
+      ("Tensor", 0, 1704000, 4, 1836000, 35.78, 274.06, 3.35, 0),
+      ("Tensor", 0, 1704000, 4, 1999000, 35.67, 268.14, 3.46, 0),
+      ("Tensor", 0, 1704000, 4, 2130000, 35.75, 273.4, 3.41, 0),
+      ("Tensor", 0, 1704000, 4, 2253000, 35.42, 276.92, 3.72, 0),
+      ("Tensor", 0, 1704000, 6, 500000, 29.1, 239.74, 2.65, 0),
+      ("Tensor", 0, 1704000, 6, 851000, 28.79, 216.53, 2.74, 0),
+      ("Tensor", 0, 1704000, 6, 984000, 28.9, 259.03, 2.76, 0),
+      ("Tensor", 0, 1704000, 6, 1106000, 28.71, 211.76, 2.82, 0),
+      ("Tensor", 0, 1704000, 6, 1277000, 28.79, 216.77, 2.8, 0),
+      ("Tensor", 0, 1704000, 6, 1426000, 28.94, 207.8, 2.71, 0),
+      ("Tensor", 0, 1704000, 6, 1582000, 28.96, 232.83, 2.67, 0),
+      ("Tensor", 0, 1704000, 6, 1745000, 28.67, 237.37, 2.85, 0),
+      ("Tensor", 0, 1704000, 6, 1826000, 29.0, 224.71, 2.71, 0),
+      ("Tensor", 0, 1704000, 6, 2048000, 28.86, 239.69, 2.73, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor", 0, 1704000, 6, 2188000, 28.88, 218.8, 2.76, 0),
+      ("Tensor", 0, 1704000, 6, 2252000, 28.87, 272.23, 2.76, 0),
+      ("Tensor", 0, 1704000, 6, 2401000, 35.74, 258.98, 3.33, 0),
+      ("Tensor", 0, 1704000, 6, 2507000, 35.74, 276.92, 3.4, 0),
+      ("Tensor", 0, 1704000, 6, 2630000, 35.71, 249.7, 3.45, 0),
+      ("Tensor", 0, 1704000, 6, 2704000, 36.01, 253.04, 3.29, 0),
+      ("Tensor", 0, 1704000, 6, 2802000, 35.91, 266.15, 3.4, 0),
+      ("Tensor", 0, 1803000, 4, 400000, 35.71, 342.95, 3.49, 0),
+      ("Tensor", 0, 1803000, 4, 553000, 35.76, 330.57, 3.41, 0),
+      ("Tensor", 0, 1803000, 4, 696000, 35.71, 355.0, 3.41, 0),
+      ("Tensor", 0, 1803000, 4, 799000, 35.67, 310.42, 3.45, 0),
+      ("Tensor", 0, 1803000, 4, 910000, 35.95, 309.22, 3.38, 0),
+      ("Tensor", 0, 1803000, 4, 1024000, 35.6, 303.94, 3.55, 0),
+      ("Tensor", 0, 1803000, 4, 1197000, 36.0, 346.31, 3.26, 0),
+      ("Tensor", 0, 1803000, 4, 1328000, 35.9, 300.16, 3.36, 0),
+      ("Tensor", 0, 1803000, 4, 1491000, 35.88, 215.33, 3.33, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor", 0, 1803000, 4, 1663000, 35.72, 284.35, 3.47, 0),
+      ("Tensor", 0, 1803000, 4, 1836000, 35.9, 289.0, 3.32, 0),
+      ("Tensor", 0, 1803000, 4, 1999000, 34.96, 293.38, 3.33, 0),
+      ("Tensor", 0, 1803000, 4, 2130000, 35.07, 359.86, 3.19, 0),
+      ("Tensor", 0, 1803000, 4, 2253000, 35.07, 295.24, 3.23, 0),
+      ("Tensor", 0, 1803000, 6, 500000, 34.68, 223.89, 3.4, 0),
+      ("Tensor", 0, 1803000, 6, 851000, 34.74, 261.39, 3.4, 0),
+      ("Tensor", 0, 1803000, 6, 984000, 35.08, 269.51, 3.26, 0),
+      ("Tensor", 0, 1803000, 6, 1106000, 35.06, 269.58, 3.21, 0),
+      ("Tensor", 0, 1803000, 6, 1277000, 34.87, 218.3, 3.39, 0),
+      ("Tensor", 0, 1803000, 6, 1426000, 34.86, 264.34, 3.36, 0),
+      ("Tensor", 0, 1803000, 6, 1582000, 34.9, 263.56, 3.36, 0),
+      ("Tensor", 0, 1803000, 6, 1745000, 35.09, 210.36, 3.29, 0),
+      ("Tensor", 0, 1803000, 6, 1826000, 35.06, 256.1, 3.34, 0),
+      ("Tensor", 0, 1803000, 6, 2048000, 35.18, 269.91, 3.16, 0),
+      ("Tensor", 0, 1803000, 6, 2188000, 35.16, 261.04, 3.25, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor", 0, 1803000, 6, 2252000, 34.84, 272.92, 3.49, 0),
+      ("Tensor", 0, 1803000, 6, 2401000, 35.2, 260.24, 3.38, 0),
+      ("Tensor", 0, 1803000, 6, 2507000, 34.89, 240.7, 3.58, 0),
+      ("Tensor", 0, 1803000, 6, 2630000, 35.21, 150.76, 3.42, 0),
+      ("Tensor", 0, 1803000, 6, 2704000, 35.2, 277.28, 3.44, 0),
+      ("Tensor", 0, 1803000, 6, 2802000, 35.12, 269.2, 3.62, 0),
+      ("Tensor G4", 0, 820000, 255, 610000, 3.3, 47.6, 1.04, 0),
+      ("Tensor G4", 0, 820000, 255, 820000, 6.77, 65.48, 1.17, 0),
+      ("Tensor G4", 0, 820000, 255, 970000, 8.61, 78.56, 1.28, 0),
+      ("Tensor G4", 0, 820000, 255, 1098000, 12.5, 92.7, 1.28, 0),
+      ("Tensor G4", 0, 820000, 255, 1197000, 15.24, 110.72, 1.46, 0),
+      ("Tensor G4", 0, 820000, 255, 1328000, 21.73, 134.04, 1.58, 0),
+      ("Tensor G4", 0, 820000, 255, 1444000, 26.89, 151.02, 1.75, 0),
+      ("Tensor G4", 0, 820000, 255, 1548000, 31.53, 164.93, 1.8, 0),
+      ("Tensor G4", 0, 820000, 255, 1704000, 43.86, 157.18, 2.24, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G4", 0, 820000, 255, 1800000, 52.1, 137.62, 2.64, 0),
+      ("Tensor G4", 0, 820000, 255, 1880000, 59.74, 145.28, 2.44, 0),
+      ("Tensor G4", 0, 820000, 255, 1950000, 71.34, 156.19, 3.12, 0),
+      ("Tensor G4", 0, 820000, 255, 2024000, 86.3, 155.05, 3.53, 0),
+      ("Tensor G4", 0, 820000, 255, 2120000, 112.45, 176.15, 4.74, 0),
+      ("Tensor G4", 0, 820000, 255, 2150000, 112.1, 155.11, 4.69, 0),
+      ("Tensor G4", 0, 955000, 255, 610000, 6.18, 56.03, 0.68, 0),
+      ("Tensor G4", 0, 955000, 255, 820000, 6.39, 74.22, 1.21, 0),
+      ("Tensor G4", 0, 955000, 255, 970000, 9.18, 82.2, 1.26, 0),
+      ("Tensor G4", 0, 955000, 255, 1098000, 12.62, 98.11, 1.34, 0),
+      ("Tensor G4", 0, 955000, 255, 1197000, 15.72, 117.95, 1.41, 0),
+      ("Tensor G4", 0, 955000, 255, 1328000, 21.94, 141.91, 1.57, 0),
+      ("Tensor G4", 0, 955000, 255, 1444000, 27.38, 162.99, 1.85, 0),
+      ("Tensor G4", 0, 955000, 255, 1548000, 31.94, 175.19, 1.72, 0),
+      ("Tensor G4", 0, 955000, 255, 1704000, 43.84, 130.38, 2.44, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G4", 0, 955000, 255, 1800000, 52.67, 117.99, 2.5, 0),
+      ("Tensor G4", 0, 955000, 255, 1880000, 59.69, 145.08, 2.91, 0),
+      ("Tensor G4", 0, 955000, 255, 1950000, 73.33, 141.24, 3.23, 0),
+      ("Tensor G4", 0, 955000, 255, 2024000, 86.96, 171.19, 3.7, 0),
+      ("Tensor G4", 0, 955000, 255, 2120000, 112.7, 188.38, 5.0, 0),
+      ("Tensor G4", 0, 955000, 255, 2150000, 111.86, 179.34, 5.53, 0),
+      ("Tensor G4", 0, 1098000, 255, 610000, 7.23, 66.6, 1.26, 0),
+      ("Tensor G4", 0, 1098000, 255, 820000, 8.04, 80.19, 1.21, 0),
+      ("Tensor G4", 0, 1098000, 255, 970000, 9.56, 90.34, 1.22, 0),
+      ("Tensor G4", 0, 1098000, 255, 1098000, 12.86, 109.5, 1.33, 0),
+      ("Tensor G4", 0, 1098000, 255, 1197000, 16.57, 120.41, 1.07, 0),
+      ("Tensor G4", 0, 1098000, 255, 1328000, 22.15, 145.31, 1.54, 0),
+      ("Tensor G4", 0, 1098000, 255, 1444000, 27.91, 163.9, 1.68, 0),
+      ("Tensor G4", 0, 1098000, 255, 1548000, 32.01, 174.89, 1.87, 0),
+      ("Tensor G4", 0, 1098000, 255, 1704000, 44.5, 139.63, 2.24, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G4", 0, 1098000, 255, 1800000, 53.21, 140.32, 2.52, 0),
+      ("Tensor G4", 0, 1098000, 255, 1880000, 60.44, 157.97, 2.83, 0),
+      ("Tensor G4", 0, 1098000, 255, 1950000, 73.65, 169.76, 3.28, 0),
+      ("Tensor G4", 0, 1098000, 255, 2024000, 87.15, 182.83, 3.98, 0),
+      ("Tensor G4", 0, 1098000, 255, 2120000, 114.08, 187.49, 4.17, 0),
+      ("Tensor G4", 0, 1098000, 255, 2150000, 113.79, 189.6, 4.65, 0),
+      ("Tensor G4", 0, 1197000, 255, 610000, 8.34, 75.11, 1.27, 0),
+      ("Tensor G4", 0, 1197000, 255, 820000, 9.54, 84.82, 1.14, 0),
+      ("Tensor G4", 0, 1197000, 255, 970000, 10.37, 89.93, 1.18, 0),
+      ("Tensor G4", 0, 1197000, 255, 1098000, 12.81, 104.44, 1.37, 0),
+      ("Tensor G4", 0, 1197000, 255, 1197000, 16.36, 129.81, 1.39, 0),
+      ("Tensor G4", 0, 1197000, 255, 1328000, 22.4, 145.01, 1.64, 0),
+      ("Tensor G4", 0, 1197000, 255, 1444000, 28.1, 170.53, 1.61, 0),
+      ("Tensor G4", 0, 1197000, 255, 1548000, 32.23, 186.28, 1.91, 0),
+      ("Tensor G4", 0, 1197000, 255, 1704000, 44.93, 156.69, 2.32, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G4", 0, 1197000, 255, 1800000, 53.17, 151.91, 2.43, 0),
+      ("Tensor G4", 0, 1197000, 255, 1880000, 60.94, 141.69, 2.72, 0),
+      ("Tensor G4", 0, 1197000, 255, 1950000, 73.72, 189.86, 3.42, 0),
+      ("Tensor G4", 0, 1197000, 255, 2024000, 87.87, 158.58, 3.7, 0),
+      ("Tensor G4", 0, 1197000, 255, 2120000, 114.16, 193.12, 4.81, 0),
+      ("Tensor G4", 0, 1197000, 255, 2150000, 113.59, 191.22, 4.8, 0),
+      ("Tensor G4", 0, 1328000, 255, 610000, 10.73, 90.03, 1.33, 0),
+      ("Tensor G4", 0, 1328000, 255, 820000, 11.88, 99.06, 1.31, 0),
+      ("Tensor G4", 0, 1328000, 255, 970000, 12.77, 106.72, 1.33, 0),
+      ("Tensor G4", 0, 1328000, 255, 1098000, 13.12, 110.06, 1.39, 0),
+      ("Tensor G4", 0, 1328000, 255, 1197000, 16.68, 127.98, 1.33, 0),
+      ("Tensor G4", 0, 1328000, 255, 1328000, 22.66, 154.27, 1.68, 0),
+      ("Tensor G4", 0, 1328000, 255, 1444000, 28.49, 174.25, 1.72, 0),
+      ("Tensor G4", 0, 1328000, 255, 1548000, 32.16, 191.25, 1.73, 0),
+      ("Tensor G4", 0, 1328000, 255, 1704000, 44.27, 129.41, 2.25, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G4", 0, 1328000, 255, 1800000, 53.79, 154.61, 2.51, 0),
+      ("Tensor G4", 0, 1328000, 255, 1880000, 61.04, 163.47, 2.68, 0),
+      ("Tensor G4", 0, 1328000, 255, 1950000, 75.05, 189.16, 3.08, 0),
+      ("Tensor G4", 0, 1328000, 255, 2024000, 89.05, 204.54, 3.43, 0),
+      ("Tensor G4", 0, 1328000, 255, 2120000, 115.33, 210.24, 4.36, 0),
+      ("Tensor G4", 0, 1328000, 255, 2150000, 114.98, 206.93, 4.34, 0),
+      ("Tensor G4", 0, 1425000, 255, 610000, 13.32, 101.33, 1.43, 0),
+      ("Tensor G4", 0, 1425000, 255, 820000, 14.56, 111.02, 1.46, 0),
+      ("Tensor G4", 0, 1425000, 255, 970000, 15.11, 121.09, 1.47, 0),
+      ("Tensor G4", 0, 1425000, 255, 1098000, 16.25, 128.03, 1.41, 0),
+      ("Tensor G4", 0, 1425000, 255, 1197000, 16.68, 127.43, 1.45, 0),
+      ("Tensor G4", 0, 1425000, 255, 1328000, 22.57, 156.98, 1.68, 0),
+      ("Tensor G4", 0, 1425000, 255, 1444000, 28.81, 182.29, 1.72, 0),
+      ("Tensor G4", 0, 1425000, 255, 1548000, 33.08, 198.0, 1.83, 0),
+      ("Tensor G4", 0, 1425000, 255, 1704000, 45.21, 162.21, 2.12, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G4", 0, 1425000, 255, 1800000, 54.37, 167.27, 2.5, 0),
+      ("Tensor G4", 0, 1425000, 255, 1880000, 61.48, 116.14, 2.89, 0),
+      ("Tensor G4", 0, 1425000, 255, 1950000, 74.85, 180.6, 3.49, 0),
+      ("Tensor G4", 0, 1425000, 255, 2024000, 89.32, 187.51, 3.6, 0),
+      ("Tensor G4", 0, 1425000, 255, 2120000, 115.2, 203.97, 4.57, 0),
+      ("Tensor G4", 0, 1425000, 255, 2150000, 115.53, 210.01, 4.25, 0),
+      ("Tensor G4", 0, 1548000, 255, 610000, 16.36, 123.83, 1.45, 0),
+      ("Tensor G4", 0, 1548000, 255, 820000, 17.5, 128.9, 1.62, 0),
+      ("Tensor G4", 0, 1548000, 255, 970000, 18.34, 139.52, 1.58, 0),
+      ("Tensor G4", 0, 1548000, 255, 1098000, 19.32, 149.77, 1.53, 0),
+      ("Tensor G4", 0, 1548000, 255, 1197000, 19.8, 152.01, 1.43, 0),
+      ("Tensor G4", 0, 1548000, 255, 1328000, 22.59, 159.55, 1.61, 0),
+      ("Tensor G4", 0, 1548000, 255, 1444000, 28.75, 198.79, 1.86, 0),
+      ("Tensor G4", 0, 1548000, 255, 1548000, 33.46, 211.95, 1.77, 0),
+      ("Tensor G4", 0, 1548000, 255, 1704000, 46.36, 169.26, 2.11, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G4", 0, 1548000, 255, 1800000, 54.71, 177.24, 2.42, 0),
+      ("Tensor G4", 0, 1548000, 255, 1880000, 62.25, 145.44, 2.76, 0),
+      ("Tensor G4", 0, 1548000, 255, 1950000, 75.84, 191.27, 3.09, 0),
+      ("Tensor G4", 0, 1548000, 255, 2024000, 88.97, 198.32, 3.86, 0),
+      ("Tensor G4", 0, 1548000, 255, 2120000, 115.79, 232.48, 4.72, 0),
+      ("Tensor G4", 0, 1548000, 255, 2150000, 115.31, 222.76, 4.71, 0),
+      ("Tensor G4", 0, 1696000, 255, 610000, 19.61, 132.84, 1.68, 0),
+      ("Tensor G4", 0, 1696000, 255, 820000, 21.09, 151.29, 1.59, 0),
+      ("Tensor G4", 0, 1696000, 255, 970000, 21.92, 157.59, 1.75, 0),
+      ("Tensor G4", 0, 1696000, 255, 1098000, 22.76, 163.33, 1.59, 0),
+      ("Tensor G4", 0, 1696000, 255, 1197000, 23.53, 173.96, 1.67, 0),
+      ("Tensor G4", 0, 1696000, 255, 1328000, 24.28, 184.05, 1.58, 0),
+      ("Tensor G4", 0, 1696000, 255, 1444000, 29.47, 203.99, 1.77, 0),
+      ("Tensor G4", 0, 1696000, 255, 1548000, 33.94, 225.78, 1.7, 0),
+      ("Tensor G4", 0, 1696000, 255, 1704000, 46.92, 171.8, 2.16, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G4", 0, 1696000, 255, 1800000, 55.32, 217.17, 2.38, 0),
+      ("Tensor G4", 0, 1696000, 255, 1880000, 62.55, 224.61, 2.77, 0),
+      ("Tensor G4", 0, 1696000, 255, 1950000, 76.98, 204.48, 2.82, 0),
+      ("Tensor G4", 0, 1696000, 255, 2024000, 90.13, 226.98, 3.76, 0),
+      ("Tensor G4", 0, 1696000, 255, 2120000, 116.77, 245.48, 4.52, 0),
+      ("Tensor G4", 0, 1696000, 255, 2150000, 112.69, 222.79, 6.43, 0),
+      ("Tensor G4", 0, 1849000, 255, 610000, 29.35, 176.28, 1.8, 0),
+      ("Tensor G4", 0, 1849000, 255, 820000, 30.31, 187.61, 1.94, 0),
+      ("Tensor G4", 0, 1849000, 255, 970000, 31.7, 202.99, 2.05, 0),
+      ("Tensor G4", 0, 1849000, 255, 1098000, 32.48, 207.22, 2.01, 0),
+      ("Tensor G4", 0, 1849000, 255, 1197000, 33.7, 222.81, 1.9, 0),
+      ("Tensor G4", 0, 1849000, 255, 1328000, 34.79, 229.5, 1.9, 0),
+      ("Tensor G4", 0, 1849000, 255, 1444000, 35.97, 228.13, 1.91, 0),
+      ("Tensor G4", 0, 1849000, 255, 1548000, 36.59, 235.62, 2.01, 0),
+      ("Tensor G4", 0, 1849000, 255, 1704000, 47.47, 233.89, 2.16, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G4", 0, 1849000, 255, 1800000, 55.69, 211.69, 2.53, 0),
+      ("Tensor G4", 0, 1849000, 255, 1880000, 63.47, 225.85, 2.39, 0),
+      ("Tensor G4", 0, 1849000, 255, 1950000, 77.22, 209.34, 3.0, 0),
+      ("Tensor G4", 0, 1849000, 255, 2024000, 90.92, 230.3, 3.48, 0),
+      ("Tensor G4", 0, 1849000, 255, 2120000, 117.19, 247.78, 4.49, 0),
+      ("Tensor G4", 0, 1849000, 255, 2150000, 117.53, 239.55, 4.32, 0),
+      ("Tensor G4", 0, 1950000, 255, 610000, 40.27, 197.26, 2.54, 0),
+      ("Tensor G4", 0, 1950000, 255, 820000, 41.93, 221.2, 2.67, 0),
+      ("Tensor G4", 0, 1950000, 255, 970000, 43.45, 239.45, 2.56, 0),
+      ("Tensor G4", 0, 1950000, 255, 1098000, 44.27, 240.43, 2.64, 0),
+      ("Tensor G4", 0, 1950000, 255, 1197000, 45.84, 259.94, 2.42, 0),
+      ("Tensor G4", 0, 1950000, 255, 1328000, 47.03, 273.66, 2.55, 0),
+      ("Tensor G4", 0, 1950000, 255, 1444000, 48.53, 267.32, 2.32, 0),
+      ("Tensor G4", 0, 1950000, 255, 1548000, 49.59, 232.85, 2.35, 0),
+      ("Tensor G4", 0, 1950000, 255, 1704000, 51.2, 234.87, 2.23, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G4", 0, 1950000, 255, 1800000, 55.47, 205.6, 2.67, 0),
+      ("Tensor G4", 0, 1950000, 255, 1880000, 63.68, 201.13, 2.59, 0),
+      ("Tensor G4", 0, 1950000, 255, 1950000, 77.22, 201.28, 3.13, 0),
+      ("Tensor G4", 0, 1950000, 255, 2024000, 90.93, 230.61, 3.81, 0),
+      ("Tensor G4", 0, 1950000, 255, 2120000, 118.19, 233.8, 4.28, 0),
+      ("Tensor G4", 0, 1950000, 255, 2150000, 118.61, 240.57, 4.6, 0)) AS _values
+  )
+SELECT
+  *
+FROM data
+UNION ALL
+SELECT
+  *
+FROM _tg5_2d_lut;
+
+)_d3l1m1t3r_"
+;
+
+const char kWattsonCurvesDeviceGpu[] = R"_d3l1m1t3r_(--
+-- Copyright 2024 The Android Open Source Project
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     https://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
+-- Device specific device curves with 1D dependency (i.e. curve characteristics
+-- are dependent only on one CPU policy). See go/wattson for more info.
+CREATE PERFETTO TABLE _gpu_device_curves AS
+WITH
+  data(device, freq_khz, active, idle1, idle2) AS (
+    SELECT
+      *
+    FROM (VALUES
+      ("Tensor", 0, 0, 0, 0),
+      ("Tensor", 151000, 88.44, 15.68, 0),
+      ("Tensor", 202000, 100.09, 15.97, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor", 251000, 136.38, 23.34, 0),
+      ("Tensor", 302000, 146.19, 23.62, 0),
+      ("Tensor", 351000, 210.35, 34.16, 0),
+      ("Tensor", 400000, 221.89, 34.51, 0),
+      ("Tensor", 471000, 233.40, 35.10, 0),
+      ("Tensor", 510000, 259.44, 41.19, 0),
+      ("Tensor", 572000, 268.65, 41.59, 0),
+      ("Tensor", 701000, 332.84, 54.65, 0),
+      ("Tensor", 762000, 352.48, 59.98, 0),
+      ("Tensor", 848000, 358.19, 60.72, 0)) AS _values
   )
 SELECT
   *
 FROM data;
 
--- Device specific device curves with 2D dependency (i.e. curve characteristics
--- are dependent on another CPU policy). See go/wattson for more info.
-CREATE PERFETTO TABLE _device_curves_2d AS
-WITH
-  data(device, freq_khz, other_policy, other_freq_khz, static, active, idle0, idle1) AS (
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(    SELECT
-      *
-    FROM (VALUES
-      ("Tensor", 300000, 4, 400000, 3.73, 21.84, 0.47, 0),
-      ("Tensor", 300000, 4, 553000, 5.66, 18.97, 0.99, 0),
-      ("Tensor", 300000, 6, 500000, 2.61, 22.89, 0.76, 0),
-      ("Tensor", 574000, 4, 400000, 5.73, 35.85, 0.93, 0),
-      ("Tensor", 574000, 4, 553000, 5.41, 36.54, 0.98, 0),
-      ("Tensor", 574000, 4, 696000, 5.61, 32.98, 0.99, 0),
-      ("Tensor", 574000, 4, 799000, 9.7, 40.29, 1.33, 0),
-      ("Tensor", 574000, 4, 910000, 9.81, 44.42, 1.24, 0),
-      ("Tensor", 574000, 4, 1024000, 9.71, 43.95, 1.31, 0),
-      ("Tensor", 574000, 6, 500000, 5.6, 34.69, 1.03, 0),
-      ("Tensor", 574000, 6, 851000, 5.57, 33.66, 1.02, 0),
-      ("Tensor", 574000, 6, 984000, 5.68, 36.2, 0.98, 0),
-      ("Tensor", 574000, 6, 1106000, 5.59, 36.27, 1.02, 0),
-      ("Tensor", 738000, 4, 400000, 6.62, 47.66, 1.08, 0),
-      ("Tensor", 738000, 4, 553000, 6.7, 45.71, 1.03, 0),
-      ("Tensor", 738000, 4, 696000, 6.7, 46.21, 1.04, 0),
-      ("Tensor", 738000, 4, 799000, 9.8, 55.47, 1.23, 0),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor", 738000, 4, 910000, 9.69, 52.58, 1.31, 0),
-      ("Tensor", 738000, 4, 1024000, 9.77, 54.81, 1.3, 0),
-      ("Tensor", 738000, 4, 1197000, 18.75, 75.3, 2.05, 0),
-      ("Tensor", 738000, 4, 1328000, 18.98, 75.84, 1.91, 0),
-      ("Tensor", 738000, 6, 500000, 6.63, 44.56, 1.11, 0),
-      ("Tensor", 738000, 6, 851000, 6.65, 46.62, 1.08, 0),
-      ("Tensor", 738000, 6, 984000, 6.63, 50.28, 1.08, 0),
-      ("Tensor", 738000, 6, 1106000, 6.74, 44.83, 1.07, 0),
-      ("Tensor", 738000, 6, 1277000, 6.6, 44.15, 1.09, 0),
-      ("Tensor", 738000, 6, 1426000, 18.97, 74.73, 1.94, 0),
-      ("Tensor", 930000, 4, 400000, 9.64, 81.16, 1.27, 0),
-      ("Tensor", 930000, 4, 553000, 9.88, 67.4, 1.28, 0),
-      ("Tensor", 930000, 4, 696000, 9.69, 67.33, 1.3, 0),
-      ("Tensor", 930000, 4, 799000, 9.69, 67.82, 1.3, 0),
-      ("Tensor", 930000, 4, 910000, 9.79, 67.52, 1.29, 0),
-      ("Tensor", 930000, 4, 1024000, 9.75, 65.44, 1.28, 0),
-      ("Tensor", 930000, 4, 1197000, 18.84, 83.73, 2.0, 0),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor", 930000, 4, 1328000, 18.88, 101.57, 1.97, 0),
-      ("Tensor", 930000, 4, 1491000, 18.86, 94.45, 1.99, 0),
-      ("Tensor", 930000, 4, 1663000, 35.46, 134.93, 3.29, 0),
-      ("Tensor", 930000, 4, 1836000, 35.34, 135.55, 3.36, 0),
-      ("Tensor", 930000, 6, 500000, 9.76, 66.0, 1.28, 0),
-      ("Tensor", 930000, 6, 851000, 9.8, 73.08, 1.24, 0),
-      ("Tensor", 930000, 6, 984000, 9.75, 74.87, 1.25, 0),
-      ("Tensor", 930000, 6, 1106000, 9.68, 77.31, 1.3, 0),
-      ("Tensor", 930000, 6, 1277000, 9.83, 80.03, 1.25, 0),
-      ("Tensor", 930000, 6, 1426000, 19.01, 98.31, 1.94, 0),
-      ("Tensor", 930000, 6, 1582000, 18.94, 94.51, 1.98, 0),
-      ("Tensor", 930000, 6, 1745000, 19.0, 94.38, 1.93, 0),
-      ("Tensor", 930000, 6, 1826000, 18.98, 100.84, 1.92, 0),
-      ("Tensor", 1098000, 4, 400000, 12.93, 109.45, 1.47, 0),
-      ("Tensor", 1098000, 4, 553000, 12.92, 120.82, 1.48, 0),
-      ("Tensor", 1098000, 4, 696000, 13.09, 107.17, 1.41, 0),
-      ("Tensor", 1098000, 4, 799000, 12.82, 91.84, 1.56, 0),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor", 1098000, 4, 910000, 12.88, 99.1, 1.52, 0),
-      ("Tensor", 1098000, 4, 1024000, 12.81, 87.32, 1.57, 0),
-      ("Tensor", 1098000, 4, 1197000, 18.92, 115.83, 1.97, 0),
-      ("Tensor", 1098000, 4, 1328000, 18.97, 137.08, 1.93, 0),
-      ("Tensor", 1098000, 4, 1491000, 18.94, 120.36, 1.94, 0),
-      ("Tensor", 1098000, 4, 1663000, 35.21, 156.0, 3.43, 0),
-      ("Tensor", 1098000, 4, 1836000, 35.21, 155.3, 3.42, 0),
-      ("Tensor", 1098000, 4, 1999000, 35.49, 157.04, 3.24, 0),
-      ("Tensor", 1098000, 4, 2130000, 35.17, 156.91, 3.41, 0),
-      ("Tensor", 1098000, 6, 500000, 13.0, 93.54, 1.45, 0),
-      ("Tensor", 1098000, 6, 851000, 13.12, 104.28, 1.4, 0),
-      ("Tensor", 1098000, 6, 984000, 12.85, 94.73, 1.52, 0),
-      ("Tensor", 1098000, 6, 1106000, 12.68, 95.73, 1.6, 0),
-      ("Tensor", 1098000, 6, 1277000, 12.94, 92.78, 1.46, 0),
-      ("Tensor", 1098000, 6, 1426000, 18.81, 128.5, 2.03, 0),
-      ("Tensor", 1098000, 6, 1582000, 19.0, 124.51, 1.89, 0),
-      ("Tensor", 1098000, 6, 1745000, 18.75, 121.84, 2.0, 0),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor", 1098000, 6, 1826000, 19.01, 117.69, 1.9, 0),
-      ("Tensor", 1098000, 6, 2048000, 18.97, 107.49, 1.89, 0),
-      ("Tensor", 1098000, 6, 2188000, 18.95, 124.24, 1.92, 0),
-      ("Tensor", 1197000, 4, 400000, 14.5, 128.64, 1.54, 0),
-      ("Tensor", 1197000, 4, 553000, 14.41, 126.94, 1.58, 0),
-      ("Tensor", 1197000, 4, 696000, 14.43, 123.96, 1.63, 0),
-      ("Tensor", 1197000, 4, 799000, 14.39, 125.32, 1.59, 0),
-      ("Tensor", 1197000, 4, 910000, 14.42, 126.37, 1.55, 0),
-      ("Tensor", 1197000, 4, 1024000, 14.5, 110.43, 1.54, 0),
-      ("Tensor", 1197000, 4, 1197000, 19.0, 121.68, 1.9, 222.0),
-      ("Tensor", 1197000, 4, 1328000, 18.88, 122.27, 1.96, 0),
-      ("Tensor", 1197000, 4, 1491000, 18.84, 118.62, 1.98, 0),
-      ("Tensor", 1197000, 4, 1663000, 35.35, 175.31, 3.32, 0),
-      ("Tensor", 1197000, 4, 1836000, 35.37, 178.17, 3.38, 0),
-      ("Tensor", 1197000, 4, 1999000, 35.34, 186.68, 3.38, 0),
-      ("Tensor", 1197000, 4, 2130000, 35.37, 176.06, 3.34, 0),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor", 1197000, 4, 2253000, 35.29, 169.24, 3.38, 111.0),
-      ("Tensor", 1197000, 6, 500000, 14.47, 95.77, 1.55, 0),
-      ("Tensor", 1197000, 6, 851000, 14.42, 101.17, 1.6, 0),
-      ("Tensor", 1197000, 6, 984000, 14.21, 116.52, 1.68, 0),
-      ("Tensor", 1197000, 6, 1106000, 14.32, 111.16, 1.62, 0),
-      ("Tensor", 1197000, 6, 1277000, 14.42, 84.46, 1.6, 0),
-      ("Tensor", 1197000, 6, 1426000, 18.83, 130.44, 2.01, 0),
-      ("Tensor", 1197000, 6, 1582000, 18.98, 140.9, 1.9, 0),
-      ("Tensor", 1197000, 6, 1745000, 18.82, 143.87, 1.94, 0),
-      ("Tensor", 1197000, 6, 1826000, 18.91, 131.75, 1.96, 0),
-      ("Tensor", 1197000, 6, 2048000, 18.99, 128.36, 1.96, 0),
-      ("Tensor", 1197000, 6, 2188000, 18.71, 132.46, 2.07, 0),
-      ("Tensor", 1197000, 6, 2252000, 18.82, 130.95, 2.0, 0),
-      ("Tensor", 1328000, 4, 400000, 17.0, 135.89, 1.84, 0),
-      ("Tensor", 1328000, 4, 553000, 17.1, 161.84, 1.78, 0),
-      ("Tensor", 1328000, 4, 696000, 16.99, 142.03, 1.87, 0),
-      ("Tensor", 1328000, 4, 799000, 17.07, 169.36, 1.83, 0),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor", 1328000, 4, 910000, 17.19, 111.73, 1.81, 0),
-      ("Tensor", 1328000, 4, 1024000, 17.21, 128.66, 1.78, 0),
-      ("Tensor", 1328000, 4, 1197000, 18.83, 129.66, 2.02, 0),
-      ("Tensor", 1328000, 4, 1328000, 18.88, 132.55, 1.96, 0),
-      ("Tensor", 1328000, 4, 1491000, 18.87, 146.14, 2.0, 0),
-      ("Tensor", 1328000, 4, 1663000, 35.43, 185.94, 3.27, 0),
-      ("Tensor", 1328000, 4, 1836000, 35.46, 165.55, 3.27, 0),
-      ("Tensor", 1328000, 4, 1999000, 35.37, 186.76, 3.29, 0),
-      ("Tensor", 1328000, 4, 2130000, 35.35, 207.2, 3.34, 0),
-      ("Tensor", 1328000, 4, 2253000, 35.31, 209.73, 3.42, 0),
-      ("Tensor", 1328000, 6, 500000, 17.15, 130.76, 1.77, 0),
-      ("Tensor", 1328000, 6, 851000, 17.06, 123.6, 1.84, 0),
-      ("Tensor", 1328000, 6, 984000, 17.21, 130.23, 1.77, 0),
-      ("Tensor", 1328000, 6, 1106000, 17.16, 139.65, 1.84, 0),
-      ("Tensor", 1328000, 6, 1277000, 17.14, 123.95, 1.83, 0),
-      ("Tensor", 1328000, 6, 1426000, 19.15, 141.04, 1.91, 0),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor", 1328000, 6, 1582000, 19.13, 108.29, 1.91, 0),
-      ("Tensor", 1328000, 6, 1745000, 19.12, 133.38, 1.9, 0),
-      ("Tensor", 1328000, 6, 1826000, 18.87, 137.51, 2.06, 0),
-      ("Tensor", 1328000, 6, 2048000, 19.02, 145.9, 1.96, 0),
-      ("Tensor", 1328000, 6, 2188000, 19.06, 129.5, 1.94, 0),
-      ("Tensor", 1328000, 6, 2252000, 19.05, 125.72, 1.91, 0),
-      ("Tensor", 1328000, 6, 2401000, 35.57, 187.29, 3.33, 0),
-      ("Tensor", 1328000, 6, 2507000, 35.38, 213.14, 3.44, 0),
-      ("Tensor", 1328000, 6, 2630000, 35.47, 181.15, 3.41, 0),
-      ("Tensor", 1401000, 4, 400000, 18.85, 184.12, 2.06, 0),
-      ("Tensor", 1401000, 4, 553000, 18.91, 168.23, 1.98, 0),
-      ("Tensor", 1401000, 4, 696000, 19.11, 184.69, 1.92, 0),
-      ("Tensor", 1401000, 4, 799000, 19.16, 175.13, 1.91, 0),
-      ("Tensor", 1401000, 4, 910000, 19.02, 161.7, 1.97, 0),
-      ("Tensor", 1401000, 4, 1024000, 18.97, 156.68, 2.01, 0),
-      ("Tensor", 1401000, 4, 1197000, 19.07, 155.0, 1.97, 0),
-      ("Tensor", 1401000, 4, 1328000, 18.95, 159.64, 1.96, 0),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor", 1401000, 4, 1491000, 19.13, 136.78, 1.95, 0),
-      ("Tensor", 1401000, 4, 1663000, 35.67, 186.73, 3.29, 0),
-      ("Tensor", 1401000, 4, 1836000, 35.51, 220.26, 3.45, 0),
-      ("Tensor", 1401000, 4, 1999000, 35.75, 249.18, 3.3, 0),
-      ("Tensor", 1401000, 4, 2130000, 35.65, 217.48, 3.4, 0),
-      ("Tensor", 1401000, 4, 2253000, 35.66, 248.9, 3.41, 0),
-      ("Tensor", 1401000, 6, 500000, 19.05, 152.39, 1.98, 0),
-      ("Tensor", 1401000, 6, 851000, 19.0, 148.12, 2.03, 0),
-      ("Tensor", 1401000, 6, 984000, 19.01, 128.71, 2.0, 0),
-      ("Tensor", 1401000, 6, 1106000, 18.18, 132.83, 2.01, 0),
-      ("Tensor", 1401000, 6, 1277000, 19.07, 138.09, 1.95, 0),
-      ("Tensor", 1401000, 6, 1426000, 18.92, 144.69, 2.05, 0),
-      ("Tensor", 1401000, 6, 1582000, 18.95, 151.34, 2.05, 0),
-      ("Tensor", 1401000, 6, 1745000, 18.98, 152.04, 2.01, 0),
-      ("Tensor", 1401000, 6, 1826000, 19.11, 151.71, 1.95, 0),
-      ("Tensor", 1401000, 6, 2048000, 19.04, 136.69, 1.98, 0),
-      ("Tensor", 1401000, 6, 2188000, 18.97, 152.56, 2.0, 0),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor", 1401000, 6, 2252000, 19.09, 149.02, 1.97, 0),
-      ("Tensor", 1401000, 6, 2401000, 35.91, 210.3, 3.23, 0),
-      ("Tensor", 1401000, 6, 2507000, 35.64, 188.64, 3.32, 0),
-      ("Tensor", 1401000, 6, 2630000, 35.41, 202.75, 3.5, 0),
-      ("Tensor", 1401000, 6, 2704000, 35.69, 204.49, 3.4, 0),
-      ("Tensor", 1401000, 6, 2802000, 35.64, 208.14, 3.45, 0),
-      ("Tensor", 1598000, 4, 400000, 24.83, 196.05, 2.36, 0),
-      ("Tensor", 1598000, 4, 553000, 24.68, 234.53, 2.37, 0),
-      ("Tensor", 1598000, 4, 696000, 24.71, 230.15, 2.34, 0),
-      ("Tensor", 1598000, 4, 799000, 24.87, 175.64, 2.34, 0),
-      ("Tensor", 1598000, 4, 910000, 24.76, 228.23, 2.36, 0),
-      ("Tensor", 1598000, 4, 1024000, 24.6, 228.37, 2.47, 0),
-      ("Tensor", 1598000, 4, 1197000, 24.77, 201.12, 2.43, 0),
-      ("Tensor", 1598000, 4, 1328000, 24.68, 202.37, 2.41, 0),
-      ("Tensor", 1598000, 4, 1491000, 24.58, 199.78, 2.52, 0),
-      ("Tensor", 1598000, 4, 1663000, 35.59, 210.2, 3.46, 0),
-      ("Tensor", 1598000, 4, 1836000, 35.74, 315.02, 3.33, 0),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor", 1598000, 4, 1999000, 35.65, 285.37, 3.44, 0),
-      ("Tensor", 1598000, 4, 2130000, 35.31, 256.84, 3.7, 0),
-      ("Tensor", 1598000, 4, 2253000, 35.91, 255.65, 3.37, 0),
-      ("Tensor", 1598000, 6, 500000, 24.78, 184.21, 2.34, 0),
-      ("Tensor", 1598000, 6, 851000, 24.73, 175.69, 2.41, 0),
-      ("Tensor", 1598000, 6, 984000, 24.68, 195.14, 2.43, 0),
-      ("Tensor", 1598000, 6, 1106000, 24.65, 194.89, 2.46, 0),
-      ("Tensor", 1598000, 6, 1277000, 24.63, 167.1, 2.49, 0),
-      ("Tensor", 1598000, 6, 1426000, 24.7, 190.42, 2.45, 0),
-      ("Tensor", 1598000, 6, 1582000, 24.79, 190.72, 2.39, 0),
-      ("Tensor", 1598000, 6, 1745000, 24.73, 180.52, 2.44, 0),
-      ("Tensor", 1598000, 6, 1826000, 24.72, 203.15, 2.4, 0),
-      ("Tensor", 1598000, 6, 2048000, 24.82, 197.7, 2.39, 0),
-      ("Tensor", 1598000, 6, 2188000, 24.7, 185.45, 2.47, 0),
-      ("Tensor", 1598000, 6, 2252000, 24.83, 155.38, 2.35, 0),
-      ("Tensor", 1598000, 6, 2401000, 36.0, 237.12, 3.25, 0),
-      ("Tensor", 1598000, 6, 2507000, 35.89, 253.55, 3.34, 0),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor", 1598000, 6, 2630000, 35.76, 208.38, 3.45, 0),
-      ("Tensor", 1598000, 6, 2704000, 35.7, 218.73, 3.46, 0),
-      ("Tensor", 1598000, 6, 2802000, 35.65, 248.51, 3.47, 0),
-      ("Tensor", 1704000, 4, 400000, 28.98, 234.84, 2.73, 0),
-      ("Tensor", 1704000, 4, 553000, 29.01, 210.31, 2.66, 0),
-      ("Tensor", 1704000, 4, 696000, 28.95, 300.74, 2.73, 0),
-      ("Tensor", 1704000, 4, 799000, 28.77, 270.96, 2.79, 0),
-      ("Tensor", 1704000, 4, 910000, 28.84, 284.84, 2.76, 0),
-      ("Tensor", 1704000, 4, 1024000, 28.76, 251.86, 2.85, 0),
-      ("Tensor", 1704000, 4, 1197000, 28.75, 256.3, 2.78, 0),
-      ("Tensor", 1704000, 4, 1328000, 28.65, 246.88, 2.86, 0),
-      ("Tensor", 1704000, 4, 1491000, 28.73, 267.07, 2.88, 0),
-      ("Tensor", 1704000, 4, 1663000, 35.81, 266.03, 3.49, 0),
-      ("Tensor", 1704000, 4, 1836000, 35.78, 274.06, 3.35, 0),
-      ("Tensor", 1704000, 4, 1999000, 35.67, 268.14, 3.46, 0),
-      ("Tensor", 1704000, 4, 2130000, 35.75, 273.4, 3.41, 0),
-      ("Tensor", 1704000, 4, 2253000, 35.42, 276.92, 3.72, 0),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor", 1704000, 6, 500000, 29.1, 239.74, 2.65, 0),
-      ("Tensor", 1704000, 6, 851000, 28.79, 216.53, 2.74, 0),
-      ("Tensor", 1704000, 6, 984000, 28.9, 259.03, 2.76, 0),
-      ("Tensor", 1704000, 6, 1106000, 28.71, 211.76, 2.82, 0),
-      ("Tensor", 1704000, 6, 1277000, 28.79, 216.77, 2.8, 0),
-      ("Tensor", 1704000, 6, 1426000, 28.94, 207.8, 2.71, 0),
-      ("Tensor", 1704000, 6, 1582000, 28.96, 232.83, 2.67, 0),
-      ("Tensor", 1704000, 6, 1745000, 28.67, 237.37, 2.85, 0),
-      ("Tensor", 1704000, 6, 1826000, 29.0, 224.71, 2.71, 0),
-      ("Tensor", 1704000, 6, 2048000, 28.86, 239.69, 2.73, 0),
-      ("Tensor", 1704000, 6, 2188000, 28.88, 218.8, 2.76, 0),
-      ("Tensor", 1704000, 6, 2252000, 28.87, 272.23, 2.76, 0),
-      ("Tensor", 1704000, 6, 2401000, 35.74, 258.98, 3.33, 0),
-      ("Tensor", 1704000, 6, 2507000, 35.74, 276.92, 3.4, 0),
-      ("Tensor", 1704000, 6, 2630000, 35.71, 249.7, 3.45, 0),
-      ("Tensor", 1704000, 6, 2704000, 36.01, 253.04, 3.29, 0),
-      ("Tensor", 1704000, 6, 2802000, 35.91, 266.15, 3.4, 0),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor", 1803000, 4, 400000, 35.71, 342.95, 3.49, 0),
-      ("Tensor", 1803000, 4, 553000, 35.76, 330.57, 3.41, 0),
-      ("Tensor", 1803000, 4, 696000, 35.71, 355.0, 3.41, 0),
-      ("Tensor", 1803000, 4, 799000, 35.67, 310.42, 3.45, 0),
-      ("Tensor", 1803000, 4, 910000, 35.95, 309.22, 3.38, 0),
-      ("Tensor", 1803000, 4, 1024000, 35.6, 303.94, 3.55, 0),
-      ("Tensor", 1803000, 4, 1197000, 36.0, 346.31, 3.26, 0),
-      ("Tensor", 1803000, 4, 1328000, 35.9, 300.16, 3.36, 0),
-      ("Tensor", 1803000, 4, 1491000, 35.88, 215.33, 3.33, 0),
-      ("Tensor", 1803000, 4, 1663000, 35.72, 284.35, 3.47, 0),
-      ("Tensor", 1803000, 4, 1836000, 35.9, 289.0, 3.32, 0),
-      ("Tensor", 1803000, 4, 1999000, 34.96, 293.38, 3.33, 0),
-      ("Tensor", 1803000, 4, 2130000, 35.07, 359.86, 3.19, 0),
-      ("Tensor", 1803000, 4, 2253000, 35.07, 295.24, 3.23, 0),
-      ("Tensor", 1803000, 6, 500000, 34.68, 223.89, 3.4, 0),
-      ("Tensor", 1803000, 6, 851000, 34.74, 261.39, 3.4, 0),
-      ("Tensor", 1803000, 6, 984000, 35.08, 269.51, 3.26, 0),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor", 1803000, 6, 1106000, 35.06, 269.58, 3.21, 0),
-      ("Tensor", 1803000, 6, 1277000, 34.87, 218.3, 3.39, 0),
-      ("Tensor", 1803000, 6, 1426000, 34.86, 264.34, 3.36, 0),
-      ("Tensor", 1803000, 6, 1582000, 34.9, 263.56, 3.36, 0),
-      ("Tensor", 1803000, 6, 1745000, 35.09, 210.36, 3.29, 0),
-      ("Tensor", 1803000, 6, 1826000, 35.06, 256.1, 3.34, 0),
-      ("Tensor", 1803000, 6, 2048000, 35.18, 269.91, 3.16, 0),
-      ("Tensor", 1803000, 6, 2188000, 35.16, 261.04, 3.25, 0),
-      ("Tensor", 1803000, 6, 2252000, 34.84, 272.92, 3.49, 0),
-      ("Tensor", 1803000, 6, 2401000, 35.2, 260.24, 3.38, 0),
-      ("Tensor", 1803000, 6, 2507000, 34.89, 240.7, 3.58, 0),
-      ("Tensor", 1803000, 6, 2630000, 35.21, 150.76, 3.42, 0),
-      ("Tensor", 1803000, 6, 2704000, 35.2, 277.28, 3.44, 0),
-      ("Tensor", 1803000, 6, 2802000, 35.12, 269.2, 3.62, 0),
-      ("Tensor G4", 820000, 255, 610000, 3.3, 47.6, 1.04, 0),
-      ("Tensor G4", 820000, 255, 820000, 6.77, 65.48, 1.17, 0),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor G4", 820000, 255, 970000, 8.61, 78.56, 1.28, 0),
-      ("Tensor G4", 820000, 255, 1098000, 12.5, 92.7, 1.28, 0),
-      ("Tensor G4", 820000, 255, 1197000, 15.24, 110.72, 1.46, 0),
-      ("Tensor G4", 820000, 255, 1328000, 21.73, 134.04, 1.58, 0),
-      ("Tensor G4", 820000, 255, 1444000, 26.89, 151.02, 1.75, 0),
-      ("Tensor G4", 820000, 255, 1548000, 31.53, 164.93, 1.8, 0),
-      ("Tensor G4", 820000, 255, 1704000, 43.86, 157.18, 2.24, 0),
-      ("Tensor G4", 820000, 255, 1800000, 52.1, 137.62, 2.64, 0),
-      ("Tensor G4", 820000, 255, 1880000, 59.74, 145.28, 2.44, 0),
-      ("Tensor G4", 820000, 255, 1950000, 71.34, 156.19, 3.12, 0),
-      ("Tensor G4", 820000, 255, 2024000, 86.3, 155.05, 3.53, 0),
-      ("Tensor G4", 820000, 255, 2120000, 112.45, 176.15, 4.74, 0),
-      ("Tensor G4", 820000, 255, 2150000, 112.1, 155.11, 4.69, 0),
-      ("Tensor G4", 955000, 255, 610000, 6.18, 56.03, 0.68, 0),
-      ("Tensor G4", 955000, 255, 820000, 6.39, 74.22, 1.21, 0),
-      ("Tensor G4", 955000, 255, 970000, 9.18, 82.2, 1.26, 0),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor G4", 955000, 255, 1098000, 12.62, 98.11, 1.34, 0),
-      ("Tensor G4", 955000, 255, 1197000, 15.72, 117.95, 1.41, 0),
-      ("Tensor G4", 955000, 255, 1328000, 21.94, 141.91, 1.57, 0),
-      ("Tensor G4", 955000, 255, 1444000, 27.38, 162.99, 1.85, 0),
-      ("Tensor G4", 955000, 255, 1548000, 31.94, 175.19, 1.72, 0),
-      ("Tensor G4", 955000, 255, 1704000, 43.84, 130.38, 2.44, 0),
-      ("Tensor G4", 955000, 255, 1800000, 52.67, 117.99, 2.5, 0),
-      ("Tensor G4", 955000, 255, 1880000, 59.69, 145.08, 2.91, 0),
-      ("Tensor G4", 955000, 255, 1950000, 73.33, 141.24, 3.23, 0),
-      ("Tensor G4", 955000, 255, 2024000, 86.96, 171.19, 3.7, 0),
-      ("Tensor G4", 955000, 255, 2120000, 112.7, 188.38, 5.0, 0),
-      ("Tensor G4", 955000, 255, 2150000, 111.86, 179.34, 5.53, 0),
-      ("Tensor G4", 1098000, 255, 610000, 7.23, 66.6, 1.26, 0),
-      ("Tensor G4", 1098000, 255, 820000, 8.04, 80.19, 1.21, 0),
-      ("Tensor G4", 1098000, 255, 970000, 9.56, 90.34, 1.22, 0),
-      ("Tensor G4", 1098000, 255, 1098000, 12.86, 109.5, 1.33, 0),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor G4", 1098000, 255, 1197000, 16.57, 120.41, 1.07, 0),
-      ("Tensor G4", 1098000, 255, 1328000, 22.15, 145.31, 1.54, 0),
-      ("Tensor G4", 1098000, 255, 1444000, 27.91, 163.9, 1.68, 0),
-      ("Tensor G4", 1098000, 255, 1548000, 32.01, 174.89, 1.87, 0),
-      ("Tensor G4", 1098000, 255, 1704000, 44.5, 139.63, 2.24, 0),
-      ("Tensor G4", 1098000, 255, 1800000, 53.21, 140.32, 2.52, 0),
-      ("Tensor G4", 1098000, 255, 1880000, 60.44, 157.97, 2.83, 0),
-      ("Tensor G4", 1098000, 255, 1950000, 73.65, 169.76, 3.28, 0),
-      ("Tensor G4", 1098000, 255, 2024000, 87.15, 182.83, 3.98, 0),
-      ("Tensor G4", 1098000, 255, 2120000, 114.08, 187.49, 4.17, 0),
-      ("Tensor G4", 1098000, 255, 2150000, 113.79, 189.6, 4.65, 0),
-      ("Tensor G4", 1197000, 255, 610000, 8.34, 75.11, 1.27, 0),
-      ("Tensor G4", 1197000, 255, 820000, 9.54, 84.82, 1.14, 0),
-      ("Tensor G4", 1197000, 255, 970000, 10.37, 89.93, 1.18, 0),
-      ("Tensor G4", 1197000, 255, 1098000, 12.81, 104.44, 1.37, 0),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor G4", 1197000, 255, 1197000, 16.36, 129.81, 1.39, 0),
-      ("Tensor G4", 1197000, 255, 1328000, 22.4, 145.01, 1.64, 0),
-      ("Tensor G4", 1197000, 255, 1444000, 28.1, 170.53, 1.61, 0),
-      ("Tensor G4", 1197000, 255, 1548000, 32.23, 186.28, 1.91, 0),
-      ("Tensor G4", 1197000, 255, 1704000, 44.93, 156.69, 2.32, 0),
-      ("Tensor G4", 1197000, 255, 1800000, 53.17, 151.91, 2.43, 0),
-      ("Tensor G4", 1197000, 255, 1880000, 60.94, 141.69, 2.72, 0),
-      ("Tensor G4", 1197000, 255, 1950000, 73.72, 189.86, 3.42, 0),
-      ("Tensor G4", 1197000, 255, 2024000, 87.87, 158.58, 3.7, 0),
-      ("Tensor G4", 1197000, 255, 2120000, 114.16, 193.12, 4.81, 0),
-      ("Tensor G4", 1197000, 255, 2150000, 113.59, 191.22, 4.8, 0),
-      ("Tensor G4", 1328000, 255, 610000, 10.73, 90.03, 1.33, 0),
-      ("Tensor G4", 1328000, 255, 820000, 11.88, 99.06, 1.31, 0),
-      ("Tensor G4", 1328000, 255, 970000, 12.77, 106.72, 1.33, 0),
-      ("Tensor G4", 1328000, 255, 1098000, 13.12, 110.06, 1.39, 0),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor G4", 1328000, 255, 1197000, 16.68, 127.98, 1.33, 0),
-      ("Tensor G4", 1328000, 255, 1328000, 22.66, 154.27, 1.68, 0),
-      ("Tensor G4", 1328000, 255, 1444000, 28.49, 174.25, 1.72, 0),
-      ("Tensor G4", 1328000, 255, 1548000, 32.16, 191.25, 1.73, 0),
-      ("Tensor G4", 1328000, 255, 1704000, 44.27, 129.41, 2.25, 0),
-      ("Tensor G4", 1328000, 255, 1800000, 53.79, 154.61, 2.51, 0),
-      ("Tensor G4", 1328000, 255, 1880000, 61.04, 163.47, 2.68, 0),
-      ("Tensor G4", 1328000, 255, 1950000, 75.05, 189.16, 3.08, 0),
-      ("Tensor G4", 1328000, 255, 2024000, 89.05, 204.54, 3.43, 0),
-      ("Tensor G4", 1328000, 255, 2120000, 115.33, 210.24, 4.36, 0),
-      ("Tensor G4", 1328000, 255, 2150000, 114.98, 206.93, 4.34, 0),
-      ("Tensor G4", 1425000, 255, 610000, 13.32, 101.33, 1.43, 0),
-      ("Tensor G4", 1425000, 255, 820000, 14.56, 111.02, 1.46, 0),
-      ("Tensor G4", 1425000, 255, 970000, 15.11, 121.09, 1.47, 0),
-      ("Tensor G4", 1425000, 255, 1098000, 16.25, 128.03, 1.41, 0),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor G4", 1425000, 255, 1197000, 16.68, 127.43, 1.45, 0),
-      ("Tensor G4", 1425000, 255, 1328000, 22.57, 156.98, 1.68, 0),
-      ("Tensor G4", 1425000, 255, 1444000, 28.81, 182.29, 1.72, 0),
-      ("Tensor G4", 1425000, 255, 1548000, 33.08, 198.0, 1.83, 0),
-      ("Tensor G4", 1425000, 255, 1704000, 45.21, 162.21, 2.12, 0),
-      ("Tensor G4", 1425000, 255, 1800000, 54.37, 167.27, 2.5, 0),
-      ("Tensor G4", 1425000, 255, 1880000, 61.48, 116.14, 2.89, 0),
-      ("Tensor G4", 1425000, 255, 1950000, 74.85, 180.6, 3.49, 0),
-      ("Tensor G4", 1425000, 255, 2024000, 89.32, 187.51, 3.6, 0),
-      ("Tensor G4", 1425000, 255, 2120000, 115.2, 203.97, 4.57, 0),
-      ("Tensor G4", 1425000, 255, 2150000, 115.53, 210.01, 4.25, 0),
-      ("Tensor G4", 1548000, 255, 610000, 16.36, 123.83, 1.45, 0),
-      ("Tensor G4", 1548000, 255, 820000, 17.5, 128.9, 1.62, 0),
-      ("Tensor G4", 1548000, 255, 970000, 18.34, 139.52, 1.58, 0),
-      ("Tensor G4", 1548000, 255, 1098000, 19.32, 149.77, 1.53, 0),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor G4", 1548000, 255, 1197000, 19.8, 152.01, 1.43, 0),
-      ("Tensor G4", 1548000, 255, 1328000, 22.59, 159.55, 1.61, 0),
-      ("Tensor G4", 1548000, 255, 1444000, 28.75, 198.79, 1.86, 0),
-      ("Tensor G4", 1548000, 255, 1548000, 33.46, 211.95, 1.77, 0),
-      ("Tensor G4", 1548000, 255, 1704000, 46.36, 169.26, 2.11, 0),
-      ("Tensor G4", 1548000, 255, 1800000, 54.71, 177.24, 2.42, 0),
-      ("Tensor G4", 1548000, 255, 1880000, 62.25, 145.44, 2.76, 0),
-      ("Tensor G4", 1548000, 255, 1950000, 75.84, 191.27, 3.09, 0),
-      ("Tensor G4", 1548000, 255, 2024000, 88.97, 198.32, 3.86, 0),
-      ("Tensor G4", 1548000, 255, 2120000, 115.79, 232.48, 4.72, 0),
-      ("Tensor G4", 1548000, 255, 2150000, 115.31, 222.76, 4.71, 0),
-      ("Tensor G4", 1696000, 255, 610000, 19.61, 132.84, 1.68, 0),
-      ("Tensor G4", 1696000, 255, 820000, 21.09, 151.29, 1.59, 0),
-      ("Tensor G4", 1696000, 255, 970000, 21.92, 157.59, 1.75, 0),
-      ("Tensor G4", 1696000, 255, 1098000, 22.76, 163.33, 1.59, 0),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor G4", 1696000, 255, 1197000, 23.53, 173.96, 1.67, 0),
-      ("Tensor G4", 1696000, 255, 1328000, 24.28, 184.05, 1.58, 0),
-      ("Tensor G4", 1696000, 255, 1444000, 29.47, 203.99, 1.77, 0),
-      ("Tensor G4", 1696000, 255, 1548000, 33.94, 225.78, 1.7, 0),
-      ("Tensor G4", 1696000, 255, 1704000, 46.92, 171.8, 2.16, 0),
-      ("Tensor G4", 1696000, 255, 1800000, 55.32, 217.17, 2.38, 0),
-      ("Tensor G4", 1696000, 255, 1880000, 62.55, 224.61, 2.77, 0),
-      ("Tensor G4", 1696000, 255, 1950000, 76.98, 204.48, 2.82, 0),
-      ("Tensor G4", 1696000, 255, 2024000, 90.13, 226.98, 3.76, 0),
-      ("Tensor G4", 1696000, 255, 2120000, 116.77, 245.48, 4.52, 0),
-      ("Tensor G4", 1696000, 255, 2150000, 112.69, 222.79, 6.43, 0),
-      ("Tensor G4", 1849000, 255, 610000, 29.35, 176.28, 1.8, 0),
-      ("Tensor G4", 1849000, 255, 820000, 30.31, 187.61, 1.94, 0),
-      ("Tensor G4", 1849000, 255, 970000, 31.7, 202.99, 2.05, 0),
-      ("Tensor G4", 1849000, 255, 1098000, 32.48, 207.22, 2.01, 0),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor G4", 1849000, 255, 1197000, 33.7, 222.81, 1.9, 0),
-      ("Tensor G4", 1849000, 255, 1328000, 34.79, 229.5, 1.9, 0),
-      ("Tensor G4", 1849000, 255, 1444000, 35.97, 228.13, 1.91, 0),
-      ("Tensor G4", 1849000, 255, 1548000, 36.59, 235.62, 2.01, 0),
-      ("Tensor G4", 1849000, 255, 1704000, 47.47, 233.89, 2.16, 0),
-      ("Tensor G4", 1849000, 255, 1800000, 55.69, 211.69, 2.53, 0),
-      ("Tensor G4", 1849000, 255, 1880000, 63.47, 225.85, 2.39, 0),
-      ("Tensor G4", 1849000, 255, 1950000, 77.22, 209.34, 3.0, 0),
-      ("Tensor G4", 1849000, 255, 2024000, 90.92, 230.3, 3.48, 0),
-      ("Tensor G4", 1849000, 255, 2120000, 117.19, 247.78, 4.49, 0),
-      ("Tensor G4", 1849000, 255, 2150000, 117.53, 239.55, 4.32, 0),
-      ("Tensor G4", 1950000, 255, 610000, 40.27, 197.26, 2.54, 0),
-      ("Tensor G4", 1950000, 255, 820000, 41.93, 221.2, 2.67, 0),
-      ("Tensor G4", 1950000, 255, 970000, 43.45, 239.45, 2.56, 0),
-      ("Tensor G4", 1950000, 255, 1098000, 44.27, 240.43, 2.64, 0),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor G4", 1950000, 255, 1197000, 45.84, 259.94, 2.42, 0),
-      ("Tensor G4", 1950000, 255, 1328000, 47.03, 273.66, 2.55, 0),
-      ("Tensor G4", 1950000, 255, 1444000, 48.53, 267.32, 2.32, 0),
-      ("Tensor G4", 1950000, 255, 1548000, 49.59, 232.85, 2.35, 0),
-      ("Tensor G4", 1950000, 255, 1704000, 51.2, 234.87, 2.23, 0),
-      ("Tensor G4", 1950000, 255, 1800000, 55.47, 205.6, 2.67, 0),
-      ("Tensor G4", 1950000, 255, 1880000, 63.68, 201.13, 2.59, 0),
-      ("Tensor G4", 1950000, 255, 1950000, 77.22, 201.28, 3.13, 0),
-      ("Tensor G4", 1950000, 255, 2024000, 90.93, 230.61, 3.81, 0),
-      ("Tensor G4", 1950000, 255, 2120000, 118.19, 233.8, 4.28, 0),
-      ("Tensor G4", 1950000, 255, 2150000, 118.61, 240.57, 4.6, 0)) AS _values
-  )
-SELECT
-  *
-FROM data;
+;
+
+const char kWattsonCurvesDeviceL3[] = R"_d3l1m1t3r_(--
+-- Copyright 2025 The Android Open Source Project
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     https://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+INCLUDE PERFETTO MODULE wattson.curves.tg5_l3;
 
 CREATE PERFETTO TABLE _device_curves_l3 AS
 WITH
-  data(device, freq_khz, other_policy, other_freq_khz, l3_hit, l3_miss) AS (
+  data(device, freq_khz, dep_policy, dep_freq, l3_hit, l3_miss) AS (
     SELECT
       *
     FROM (VALUES
       ("Tensor", 300000, 4, 400000, 0.3989, 0.0629),
       ("Tensor", 300000, 4, 553000, 0.4119, 0.0656),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor", 300000, 6, 500000, 0.3298, 0.1029),
+      ("Tensor", 300000, 6, 500000, 0.3298, 0.1029),
       ("Tensor", 574000, 4, 400000, 0.4894, 0.0239),
-      ("Tensor", 574000, 4, 553000, 0.4991, 0.0960),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor", 574000, 4, 553000, 0.4991, 0.0960),
       ("Tensor", 574000, 4, 696000, 0.4949, 0.0971),
       ("Tensor", 574000, 4, 799000, 0.6116, 0.1266),
       ("Tensor", 574000, 4, 910000, 0.5897, 0.1385),
@@ -30006,10 +34577,10 @@ R"_d3l1m1t3r_(      ("Tensor", 300000, 6, 500000, 0.3298, 0.1029),
       ("Tensor", 738000, 4, 1024000, 0.6999, 0.1143),
       ("Tensor", 738000, 4, 1197000, 0.9076, 0.1960),
       ("Tensor", 738000, 4, 1328000, 0.9708, 0.1953),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor", 738000, 6, 500000, 0.6437, 0.2086),
+      ("Tensor", 738000, 6, 500000, 0.6437, 0.2086),
       ("Tensor", 738000, 6, 851000, 0.6274, 0.1852),
-      ("Tensor", 738000, 6, 984000, 0.6231, 0.2066),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor", 738000, 6, 984000, 0.6231, 0.2066),
       ("Tensor", 738000, 6, 1106000, 0.6256, 0.2199),
       ("Tensor", 738000, 6, 1277000, 0.6719, 0.2485),
       ("Tensor", 738000, 6, 1426000, 1.1072, 0.3483),
@@ -30026,10 +34597,10 @@ R"_d3l1m1t3r_(      ("Tensor", 738000, 6, 500000, 0.6437, 0.2086),
       ("Tensor", 930000, 4, 1836000, 1.5561, 0.3407),
       ("Tensor", 930000, 6, 500000, 0.8530, 0.4182),
       ("Tensor", 930000, 6, 851000, 0.8694, 0.2854),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor", 930000, 6, 984000, 0.8620, 0.2568),
+      ("Tensor", 930000, 6, 984000, 0.8620, 0.2568),
       ("Tensor", 930000, 6, 1106000, 0.8763, 0.2336),
-      ("Tensor", 930000, 6, 1277000, 0.8717, 0.3756),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor", 930000, 6, 1277000, 0.8717, 0.3756),
       ("Tensor", 930000, 6, 1426000, 1.1774, 0.5021),
       ("Tensor", 930000, 6, 1582000, 1.1264, 0.5799),
       ("Tensor", 930000, 6, 1745000, 1.2303, 0.5421),
@@ -30046,10 +34617,10 @@ R"_d3l1m1t3r_(      ("Tensor", 930000, 6, 984000, 0.8620, 0.2568),
       ("Tensor", 1098000, 4, 1663000, 1.6941, 0.4295),
       ("Tensor", 1098000, 4, 1836000, 1.7152, 0.4610),
       ("Tensor", 1098000, 4, 1999000, 1.7941, 0.4293),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor", 1098000, 4, 2130000, 1.6758, 0.4437),
+      ("Tensor", 1098000, 4, 2130000, 1.6758, 0.4437),
       ("Tensor", 1098000, 6, 500000, 1.0485, 0.4038),
-      ("Tensor", 1098000, 6, 851000, 1.0510, 0.2815),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor", 1098000, 6, 851000, 1.0510, 0.2815),
       ("Tensor", 1098000, 6, 984000, 1.0785, 0.4137),
       ("Tensor", 1098000, 6, 1106000, 1.0909, 0.3933),
       ("Tensor", 1098000, 6, 1277000, 1.1533, 0.3811),
@@ -30066,10 +34637,10 @@ R"_d3l1m1t3r_(      ("Tensor", 1098000, 4, 2130000, 1.6758, 0.4437),
       ("Tensor", 1197000, 4, 910000, 1.0555, 0.0966),
       ("Tensor", 1197000, 4, 1024000, 1.0663, 0.0987),
       ("Tensor", 1197000, 4, 1197000, 1.1885, 0.2852),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor", 1197000, 4, 1328000, 1.2442, 0.2724),
+      ("Tensor", 1197000, 4, 1328000, 1.2442, 0.2724),
       ("Tensor", 1197000, 4, 1491000, 1.2474, 0.3269),
-      ("Tensor", 1197000, 4, 1663000, 1.8142, 0.3429),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor", 1197000, 4, 1663000, 1.8142, 0.3429),
       ("Tensor", 1197000, 4, 1836000, 1.7692, 1.0737),
       ("Tensor", 1197000, 4, 1999000, 1.7939, 0.1120),
       ("Tensor", 1197000, 4, 2130000, 1.8126, 0.3744),
@@ -30086,10 +34657,10 @@ R"_d3l1m1t3r_(      ("Tensor", 1197000, 4, 1328000, 1.2442, 0.2724),
       ("Tensor", 1197000, 6, 2048000, 1.3335, 0.5443),
       ("Tensor", 1197000, 6, 2188000, 1.4382, 0.5255),
       ("Tensor", 1197000, 6, 2252000, 1.3961, 0.5423),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor", 1328000, 4, 400000, 1.2307, 0.5565),
+      ("Tensor", 1328000, 4, 400000, 1.2307, 0.5565),
       ("Tensor", 1328000, 4, 553000, 1.2186, 0.2366),
-      ("Tensor", 1328000, 4, 696000, 1.2243, 0.4145),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor", 1328000, 4, 696000, 1.2243, 0.4145),
       ("Tensor", 1328000, 4, 799000, 1.2620, 0.0973),
       ("Tensor", 1328000, 4, 910000, 1.2462, 0.5669),
       ("Tensor", 1328000, 4, 1024000, 1.2787, 0.2332),
@@ -30106,10 +34677,10 @@ R"_d3l1m1t3r_(      ("Tensor", 1328000, 4, 400000, 1.2307, 0.5565),
       ("Tensor", 1328000, 6, 984000, 1.3933, 0.5311),
       ("Tensor", 1328000, 6, 1106000, 1.3932, 0.4567),
       ("Tensor", 1328000, 6, 1277000, 1.3984, 0.6616),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor", 1328000, 6, 1426000, 1.5067, 0.5776),
+      ("Tensor", 1328000, 6, 1426000, 1.5067, 0.5776),
       ("Tensor", 1328000, 6, 1582000, 1.5167, 1.0309),
-      ("Tensor", 1328000, 6, 1745000, 1.5021, 0.6845),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor", 1328000, 6, 1745000, 1.5021, 0.6845),
       ("Tensor", 1328000, 6, 1826000, 1.4775, 0.6285),
       ("Tensor", 1328000, 6, 2048000, 1.5237, 0.5402),
       ("Tensor", 1328000, 6, 2188000, 1.5349, 0.7490),
@@ -30126,10 +34697,10 @@ R"_d3l1m1t3r_(      ("Tensor", 1328000, 6, 1426000, 1.5067, 0.5776),
       ("Tensor", 1401000, 4, 1197000, 1.3920, 0.3614),
       ("Tensor", 1401000, 4, 1328000, 1.3752, 0.3310),
       ("Tensor", 1401000, 4, 1491000, 1.4015, 0.6546),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor", 1401000, 4, 1663000, 1.8982, 1.0324),
+      ("Tensor", 1401000, 4, 1663000, 1.8982, 1.0324),
       ("Tensor", 1401000, 4, 1836000, 1.9447, 0.5336),
-      ("Tensor", 1401000, 4, 1999000, 2.1219, 0.0662),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor", 1401000, 4, 1999000, 2.1219, 0.0662),
       ("Tensor", 1401000, 4, 2130000, 1.9576, 0.5584),
       ("Tensor", 1401000, 4, 2253000, 2.0221, 0.1254),
       ("Tensor", 1401000, 6, 500000, 1.5283, 0.5764),
@@ -30146,10 +34717,10 @@ R"_d3l1m1t3r_(      ("Tensor", 1401000, 4, 1663000, 1.8982, 1.0324),
       ("Tensor", 1401000, 6, 2252000, 1.5908, 0.6087),
       ("Tensor", 1401000, 6, 2401000, 2.2693, 0.8953),
       ("Tensor", 1401000, 6, 2507000, 2.3182, 1.2289),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor", 1401000, 6, 2630000, 2.3090, 1.0687),
+      ("Tensor", 1401000, 6, 2630000, 2.3090, 1.0687),
       ("Tensor", 1401000, 6, 2704000, 2.2751, 0.9966),
-      ("Tensor", 1401000, 6, 2802000, 2.3278, 0.9065),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor", 1401000, 6, 2802000, 2.3278, 0.9065),
       ("Tensor", 1598000, 4, 400000, 1.7424, 0.8926),
       ("Tensor", 1598000, 4, 553000, 1.7003, 0.4482),
       ("Tensor", 1598000, 4, 696000, 1.6099, 0.5281),
@@ -30166,10 +34737,10 @@ R"_d3l1m1t3r_(      ("Tensor", 1401000, 6, 2630000, 2.3090, 1.0687),
       ("Tensor", 1598000, 4, 2253000, 2.1703, 0.5427),
       ("Tensor", 1598000, 6, 500000, 1.9632, 0.9534),
       ("Tensor", 1598000, 6, 851000, 1.9820, 0.9433),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor", 1598000, 6, 984000, 1.9745, 0.8002),
+      ("Tensor", 1598000, 6, 984000, 1.9745, 0.8002),
       ("Tensor", 1598000, 6, 1106000, 1.9514, 0.8323),
-      ("Tensor", 1598000, 6, 1277000, 1.9796, 1.1016),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor", 1598000, 6, 1277000, 1.9796, 1.1016),
       ("Tensor", 1598000, 6, 1426000, 1.9432, 0.8556),
       ("Tensor", 1598000, 6, 1582000, 2.0700, 0.8211),
       ("Tensor", 1598000, 6, 1745000, 2.0052, 0.9492),
@@ -30186,10 +34757,10 @@ R"_d3l1m1t3r_(      ("Tensor", 1598000, 6, 984000, 1.9745, 0.8002),
       ("Tensor", 1704000, 4, 553000, 1.9336, 1.0846),
       ("Tensor", 1704000, 4, 696000, 1.9280, 0.2116),
       ("Tensor", 1704000, 4, 799000, 1.9616, 0.4219),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor", 1704000, 4, 910000, 1.9627, 0.1957),
+      ("Tensor", 1704000, 4, 910000, 1.9627, 0.1957),
       ("Tensor", 1704000, 4, 1024000, 1.9763, 0.5599),
-      ("Tensor", 1704000, 4, 1197000, 1.9514, 0.4326),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor", 1704000, 4, 1197000, 1.9514, 0.4326),
       ("Tensor", 1704000, 4, 1328000, 2.0093, 0.4861),
       ("Tensor", 1704000, 4, 1491000, 1.9438, 0.1584),
       ("Tensor", 1704000, 4, 1663000, 2.3012, 0.6019),
@@ -30206,10 +34777,10 @@ R"_d3l1m1t3r_(      ("Tensor", 1704000, 4, 910000, 1.9627, 0.1957),
       ("Tensor", 1704000, 6, 1582000, 2.3125, 0.8402),
       ("Tensor", 1704000, 6, 1745000, 2.3199, 0.7728),
       ("Tensor", 1704000, 6, 1826000, 2.3633, 0.8597),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor", 1704000, 6, 2048000, 2.2779, 0.6885),
+      ("Tensor", 1704000, 6, 2048000, 2.2779, 0.6885),
       ("Tensor", 1704000, 6, 2188000, 2.2575, 1.0289),
-      ("Tensor", 1704000, 6, 2252000, 2.2798, 0.9689),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor", 1704000, 6, 2252000, 2.2798, 0.9689),
       ("Tensor", 1704000, 6, 2401000, 2.5202, 1.0626),
       ("Tensor", 1704000, 6, 2507000, 2.4070, 0.8463),
       ("Tensor", 1704000, 6, 2630000, 2.5998, 1.0795),
@@ -30226,10 +34797,10 @@ R"_d3l1m1t3r_(      ("Tensor", 1704000, 6, 2048000, 2.2779, 0.6885),
       ("Tensor", 1803000, 4, 1491000, 2.1449, 1.4705),
       ("Tensor", 1803000, 4, 1663000, 2.3243, 0.6256),
       ("Tensor", 1803000, 4, 1836000, 2.1328, 0.6293),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor", 1803000, 4, 1999000, 2.3165, 0.5265),
+      ("Tensor", 1803000, 4, 1999000, 2.3165, 0.5265),
       ("Tensor", 1803000, 4, 2130000, 2.2775, 0.6412),
-      ("Tensor", 1803000, 4, 2253000, 2.4124, 0.5151),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor", 1803000, 4, 2253000, 2.4124, 0.5151),
       ("Tensor", 1803000, 6, 500000, 2.5536, 1.5678),
       ("Tensor", 1803000, 6, 851000, 2.5831, 1.1737),
       ("Tensor", 1803000, 6, 984000, 2.6063, 1.0591),
@@ -30246,10 +34817,10 @@ R"_d3l1m1t3r_(      ("Tensor", 1803000, 4, 1999000, 2.3165, 0.5265),
       ("Tensor", 1803000, 6, 2507000, 2.6630, 1.2641),
       ("Tensor", 1803000, 6, 2630000, 2.7385, 2.3263),
       ("Tensor", 1803000, 6, 2704000, 2.6901, 1.0629),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor", 1803000, 6, 2802000, 2.7476, 1.0673),
+      ("Tensor", 1803000, 6, 2802000, 2.7476, 1.0673),
       ("Tensor G4", 820000, 255, 610000, 0.4824, 0.8357),
-      ("Tensor G4", 955000, 255, 610000, 0.4801, 0.852),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G4", 955000, 255, 610000, 0.4801, 0.852),
       ("Tensor G4", 1098000, 255, 610000, 0.4988, 0.8219),
       ("Tensor G4", 1197000, 255, 610000, 0.5025, 0.8369),
       ("Tensor G4", 1328000, 255, 610000, 0.516, 0.8928),
@@ -30265,10 +34836,10 @@ R"_d3l1m1t3r_(      ("Tensor", 1803000, 6, 2802000, 2.7476, 1.0673),
       ("Tensor G4", 1328000, 255, 820000, 0.5228, 0.8895),
       ("Tensor G4", 1425000, 255, 820000, 0.5309, 0.9692),
       ("Tensor G4", 1548000, 255, 820000, 0.5461, 0.9987),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor G4", 1696000, 255, 820000, 0.564, 1.053),
+      ("Tensor G4", 1696000, 255, 820000, 0.564, 1.053),
       ("Tensor G4", 1849000, 255, 820000, 0.5649, 0.9087),
-      ("Tensor G4", 1950000, 255, 820000, 0.5737, 1.0893),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G4", 1950000, 255, 820000, 0.5737, 1.0893),
       ("Tensor G4", 820000, 255, 970000, 0.4923, 0.852),
       ("Tensor G4", 955000, 255, 970000, 0.5014, 0.8357),
       ("Tensor G4", 1098000, 255, 970000, 0.4952, 1.0169),
@@ -30284,10 +34855,10 @@ R"_d3l1m1t3r_(      ("Tensor G4", 1696000, 255, 820000, 0.564, 1.053),
       ("Tensor G4", 1098000, 255, 1098000, 0.5284, 0.763),
       ("Tensor G4", 1197000, 255, 1098000, 0.596, 0.8633),
       ("Tensor G4", 1328000, 255, 1098000, 0.596, 0.8633),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor G4", 1425000, 255, 1098000, 0.5373, 0.7504),
+      ("Tensor G4", 1425000, 255, 1098000, 0.5373, 0.7504),
       ("Tensor G4", 1548000, 255, 1098000, 0.5186, 0.8604),
-      ("Tensor G4", 1696000, 255, 1098000, 0.5772, 89.73),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G4", 1696000, 255, 1098000, 0.5772, 89.73),
       ("Tensor G4", 1849000, 255, 1098000, 0.5758, 0.9588),
       ("Tensor G4", 1950000, 255, 1098000, 0.5904, 1.1074),
       ("Tensor G4", 820000, 255, 1197000, 0.5105, 0.866),
@@ -30302,10 +34873,10 @@ R"_d3l1m1t3r_(      ("Tensor G4", 1425000, 255, 1098000, 0.5373, 0.7504),
       ("Tensor G4", 1950000, 255, 1197000, 0.5888, 0.9738),
       ("Tensor G4", 820000, 255, 1328000, 0.534, 0.9162),
       ("Tensor G4", 955000, 255, 1328000, 0.5551, 0.9499),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor G4", 1098000, 255, 1328000, 0.556, 0.954),
+      ("Tensor G4", 1098000, 255, 1328000, 0.556, 0.954),
       ("Tensor G4", 1197000, 255, 1328000, 0.5711, 0.9117),
-      ("Tensor G4", 1328000, 255, 1328000, 0.5372, 0.956),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G4", 1328000, 255, 1328000, 0.5372, 0.956),
       ("Tensor G4", 1425000, 255, 1328000, 0.5482, 0.934),
       ("Tensor G4", 1548000, 255, 1328000, 0.5615, 0.7495),
       ("Tensor G4", 1696000, 255, 1328000, 0.53, 0.9145),
@@ -30320,10 +34891,10 @@ R"_d3l1m1t3r_(      ("Tensor G4", 1098000, 255, 1328000, 0.556, 0.954),
       ("Tensor G4", 1548000, 255, 1444000, 0.5535, 0.8986),
       ("Tensor G4", 1696000, 255, 1444000, 0.507, 0.9369),
       ("Tensor G4", 1849000, 255, 1444000, 0.628, 0.8878),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor G4", 1950000, 255, 1444000, 0.658, 1.0974),
+      ("Tensor G4", 1950000, 255, 1444000, 0.658, 1.0974),
       ("Tensor G4", 820000, 255, 1548000, 0.578, 0.8322),
-      ("Tensor G4", 955000, 255, 1548000, 0.603, 0.9371),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G4", 955000, 255, 1548000, 0.603, 0.9371),
       ("Tensor G4", 1098000, 255, 1548000, 0.6163, 0.962),
       ("Tensor G4", 1197000, 255, 1548000, 0.6105, 0.9323),
       ("Tensor G4", 1328000, 255, 1548000, 0.589, 0.8355),
@@ -30338,10 +34909,10 @@ R"_d3l1m1t3r_(      ("Tensor G4", 1950000, 255, 1444000, 0.658, 1.0974),
       ("Tensor G4", 1197000, 255, 1704000, 1.9947, 1.318),
       ("Tensor G4", 1328000, 255, 1704000, 1.6701, 1.178),
       ("Tensor G4", 1425000, 255, 1704000, 1.5944, 1.3017),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor G4", 1548000, 255, 1704000, 1.6769, 1.6058),
+      ("Tensor G4", 1548000, 255, 1704000, 1.6769, 1.6058),
       ("Tensor G4", 1696000, 255, 1704000, 1.7215, 1.8),
-      ("Tensor G4", 1849000, 255, 1704000, 1.9143, 2.0842),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G4", 1849000, 255, 1704000, 1.9143, 2.0842),
       ("Tensor G4", 1950000, 255, 1704000, 1.932, 2.8572),
       ("Tensor G4", 820000, 255, 1800000, 1.575, 1.5401),
       ("Tensor G4", 955000, 255, 1800000, 1.6833, 1.5087),
@@ -30356,10 +34927,10 @@ R"_d3l1m1t3r_(      ("Tensor G4", 1548000, 255, 1704000, 1.6769, 1.6058),
       ("Tensor G4", 820000, 255, 1880000, 1.7249, 1.7787),
       ("Tensor G4", 955000, 255, 1880000, 1.7635, 2.0677),
       ("Tensor G4", 1098000, 255, 1880000, 1.805, 1.5907),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor G4", 1197000, 255, 1880000, 1.7293, 2.0645),
+      ("Tensor G4", 1197000, 255, 1880000, 1.7293, 2.0645),
       ("Tensor G4", 1328000, 255, 1880000, 1.918, 1.9844),
-      ("Tensor G4", 1425000, 255, 1880000, 2.0013, 1.5541),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G4", 1425000, 255, 1880000, 2.0013, 1.5541),
       ("Tensor G4", 1548000, 255, 1880000, 2.0504, 1.9877),
       ("Tensor G4", 1696000, 255, 1880000, 1.9603, 1.8955),
       ("Tensor G4", 1849000, 255, 1880000, 2.1168, 1.9674),
@@ -30374,10 +34945,10 @@ R"_d3l1m1t3r_(      ("Tensor G4", 1197000, 255, 1880000, 1.7293, 2.0645),
       ("Tensor G4", 1696000, 255, 1950000, 2.8677, 2.2737),
       ("Tensor G4", 1849000, 255, 1950000, 2.6123, 2.5181),
       ("Tensor G4", 1950000, 255, 1950000, 2.7293, 2.5798),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor G4", 820000, 255, 2024000, 2.0136, 1.7557),
+      ("Tensor G4", 820000, 255, 2024000, 2.0136, 1.7557),
       ("Tensor G4", 955000, 255, 2024000, 1.9834, 1.6844),
-      ("Tensor G4", 1098000, 255, 2024000, 2.1129, 1.8735),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G4", 1098000, 255, 2024000, 2.1129, 1.8735),
       ("Tensor G4", 1197000, 255, 2024000, 2.5894, 2.2185),
       ("Tensor G4", 1328000, 255, 2024000, 2.6949, 2.1905),
       ("Tensor G4", 1425000, 255, 2024000, 2.8143, 2.7641),
@@ -30392,10 +34963,10 @@ R"_d3l1m1t3r_(      ("Tensor G4", 820000, 255, 2024000, 2.0136, 1.7557),
       ("Tensor G4", 1328000, 255, 2120000, 2.9797, 3.1899),
       ("Tensor G4", 1425000, 255, 2120000, 3.176, 3.069),
       ("Tensor G4", 1548000, 255, 2120000, 3.1105, 2.2982),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("Tensor G4", 1696000, 255, 2120000, 2.9221, 3.2752),
+      ("Tensor G4", 1696000, 255, 2120000, 2.9221, 3.2752),
       ("Tensor G4", 1849000, 255, 2120000, 3.2659, 3.0112),
-      ("Tensor G4", 1950000, 255, 2120000, 3.1351, 3.5576),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G4", 1950000, 255, 2120000, 3.1351, 3.5576),
       ("Tensor G4", 820000, 255, 2150000, 2.9947, 2.6827),
       ("Tensor G4", 955000, 255, 2150000, 2.9357, 2.5455),
       ("Tensor G4", 1098000, 255, 2150000, 3.1562, 2.8923),
@@ -30409,13 +34980,659 @@ R"_d3l1m1t3r_(      ("Tensor G4", 1696000, 255, 2120000, 2.9221, 3.2752),
   )
 SELECT
   *
+FROM data
+UNION ALL
+SELECT
+  *
+FROM _tg5_l3_lut;
+
+)_d3l1m1t3r_"
+;
+
+const char kWattsonCurvesTg5Cpu1d[] = R"_d3l1m1t3r_(--
+-- Copyright 2025 The Android Open Source Project
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     https://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
+CREATE PERFETTO TABLE _tg5_1d_lut AS
+WITH
+  data(device, policy, freq_khz, static, active, idle0, idle1) AS (
+    SELECT
+      *
+    FROM (VALUES
+      ("Tensor G5", 2, 177000, 0.96, 14.44, 3.57, 0),
+      ("Tensor G5", 2, 266000, 1.36, 18.96, 3.25, 0),
+      ("Tensor G5", 2, 400000, 1.08, 24.2, 3.47, 0),
+      ("Tensor G5", 2, 533000, 1.62, 30.95, 3.36, 0),
+      ("Tensor G5", 2, 652000, 1.82, 36.84, 3.55, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 2, 729000, 2.05, 39.49, 3.58, 0),
+      ("Tensor G5", 2, 921000, 1.99, 49.74, 4.28, 0),
+      ("Tensor G5", 2, 1075000, 2.61, 60.67, 4.19, 0),
+      ("Tensor G5", 2, 1267000, 2.95, 70.2, 4.54, 0),
+      ("Tensor G5", 2, 1401000, 3.56, 79.7, 4.83, 0),
+      ("Tensor G5", 2, 1536000, 3.73, 90.73, 4.94, 0),
+      ("Tensor G5", 2, 1670000, 4.17, 98.93, 5.2, 0),
+      ("Tensor G5", 2, 1785000, 4.5, 102.32, 5.32, 0),
+      ("Tensor G5", 2, 1862000, 4.73, 119.87, 5.83, 0),
+      ("Tensor G5", 2, 1939000, 5.6, 122.11, 5.7, 0),
+      ("Tensor G5", 2, 2092000, 5.05, 147.96, 7.62, 0),
+      ("Tensor G5", 2, 2188000, 6.94, 150.24, 6.78, 0),
+      ("Tensor G5", 2, 2284000, 7.28, 170.33, 7.31, 0),
+      ("Tensor G5", 2, 2400000, 8.62, 187.18, 7.67, 0),
+      ("Tensor G5", 2, 2534000, 9.81, 207.25, 8.63, 0),
+      ("Tensor G5", 2, 2688000, 11.57, 242.0, 9.78, 0),
+      ("Tensor G5", 2, 2841000, 13.91, 301.26, 12.95, 0),
+      ("Tensor G5", 2, 2937000, 16.43, 321.24, 16.69, 0),
+      ("Tensor G5", 2, 3052000, 19.67, 394.63, 21.27, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 5, 177000, 0.50, 36.77, 3.71, 0),
+      ("Tensor G5", 5, 266000, 0.55, 47.58, 3.95, 0),
+      ("Tensor G5", 5, 400000, 0.52, 63.9, 3.82, 0),
+      ("Tensor G5", 5, 533000, 1.05, 76.19, 3.83, 0),
+      ("Tensor G5", 5, 652000, 1.03, 87.0, 4.09, 0),
+      ("Tensor G5", 5, 729000, 1.16, 92.62, 4.17, 0),
+      ("Tensor G5", 5, 921000, 2.32, 104.2, 3.77, 0),
+      ("Tensor G5", 5, 1075000, 2.32, 115.81, 4.46, 0),
+      ("Tensor G5", 5, 1267000, 3.08, 125.34, 4.49, 0),
+      ("Tensor G5", 5, 1401000, 3.24, 133.75, 4.91, 0),
+      ("Tensor G5", 5, 1536000, 3.85, 129.66, 4.87, 0),
+      ("Tensor G5", 5, 1670000, 4.43, 144.89, 4.92, 0),
+      ("Tensor G5", 5, 1785000, 3.99, 100.98, 5.77, 0),
+      ("Tensor G5", 5, 1862000, 4.62, 112.9, 5.93, 0),
+      ("Tensor G5", 5, 1939000, 5.68, 155.26, 5.81, 0),
+      ("Tensor G5", 5, 2092000, 5.3, 158.22, 7.57, 0),
+      ("Tensor G5", 5, 2188000, 6.11, 151.92, 7.58, 0),
+      ("Tensor G5", 5, 2284000, 7.51, 166.41, 7.27, 0),
+      ("Tensor G5", 5, 2400000, 8.25, 178.02, 7.46, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 5, 2534000, 9.81, 201.87, 8.62, 0),
+      ("Tensor G5", 5, 2688000, 11.72, 224.77, 9.16, 0),
+      ("Tensor G5", 5, 2841000, 15.26, 275.02, 11.7, 0),
+      ("Tensor G5", 5, 2937000, 17.53, 312.73, 14.57, 0),
+      ("Tensor G5", 5, 3052000, 21.91, 350.82, 17.71, 0),
+      ("Tensor G5", 7, 266000, 0, 216.31, 121.03, 0),
+      ("Tensor G5", 7, 400000, 0, 250.98, 121.33, 0),
+      ("Tensor G5", 7, 533000, 0, 297.17, 121.35, 0),
+      ("Tensor G5", 7, 800000, 0, 350.45, 122.76, 0),
+      ("Tensor G5", 7, 883000, 0, 383.04, 124.32, 0),
+      ("Tensor G5", 7, 1036000, 0, 416.16, 124.02, 0),
+      ("Tensor G5", 7, 1152000, 0, 480.2, 124.85, 0),
+      ("Tensor G5", 7, 1305000, 0, 500.13, 125.29, 0),
+      ("Tensor G5", 7, 1420000, 0, 535.12, 123.07, 0),
+      ("Tensor G5", 7, 1593000, 0, 593.57, 126.79, 0),
+      ("Tensor G5", 7, 1766000, 0, 608.48, 126.56, 0),
+      ("Tensor G5", 7, 1920000, 0, 697.2, 121.76, 0),
+      ("Tensor G5", 7, 2073000, 0, 732.46, 129.22, 0),
+      ("Tensor G5", 7, 2208000, 0, 829.3, 120.37, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 7, 2342000, 0, 836.04, 121.35, 0),
+      ("Tensor G5", 7, 2457000, 0, 811.25, 124.3, 0),
+      ("Tensor G5", 7, 2592000, 0, 908.99, 121.28, 0),
+      ("Tensor G5", 7, 2707000, 0, 958.66, 121.96, 0),
+      ("Tensor G5", 7, 2937000, 0, 935.13, 125.07, 0),
+      ("Tensor G5", 7, 3168000, 0, 1026.54, 122.36, 0),
+      ("Tensor G5", 7, 3398000, 0, 1126.84, 122.06, 0),
+      ("Tensor G5", 7, 3590000, 0, 1167.35, 122.55, 0),
+      ("Tensor G5", 7, 3782000, 0, 1959.07, 122.68, 0)) AS _values
+  )
+SELECT
+  *
 FROM data;
 
 )_d3l1m1t3r_"
 ;
 
-const char kWattsonCurvesEstimates[] = R"_d3l1m1t3r_(--
--- Copyright 2024 The Android Open Source Project
+const char kWattsonCurvesTg5Cpu2d[] = R"_d3l1m1t3r_(--
+-- Copyright 2025 The Android Open Source Project
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     https://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+-- Device specific device curves with 2D dependency (i.e. curve characteristics
+-- are dependent on another CPU policy). See go/wattson for more info.
+INCLUDE PERFETTO MODULE wattson.curves.tg5_cpu_2d_1;
+
+INCLUDE PERFETTO MODULE wattson.curves.tg5_cpu_2d_2;
+
+CREATE PERFETTO TABLE _tg5_2d_lut AS
+WITH
+  data(device, policy, freq_khz, dep_policy, dep_freq, static, active, idle0, idle1) AS (
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    SELECT
+      *
+    FROM (VALUES
+      ("Tensor G5", 0, 268000, 255, 115000000, 15.38, 7.88, 0.11, 0),
+      ("Tensor G5", 0, 268000, 255, 268000000, 14.63, 14.04, 1.89, 0),
+      ("Tensor G5", 0, 268000, 255, 400000000, 16.55, 20.75, 1.1, 0),
+      ("Tensor G5", 0, 268000, 255, 537000000, 19.11, 25.02, 1.01, 0),
+      ("Tensor G5", 0, 268000, 255, 691000000, 23.19, 34.83, 1.34, 0),
+      ("Tensor G5", 0, 268000, 255, 768000000, 26.06, 38.12, 1.14, 0),
+      ("Tensor G5", 0, 268000, 255, 844000000, 28.85, 10.76, 1.22, 0),
+      ("Tensor G5", 0, 268000, 255, 960000000, 32.34, 52.63, 1.27, 0),
+      ("Tensor G5", 0, 268000, 255, 1056000000, 38.77, 52.47, 1.24, 0),
+      ("Tensor G5", 0, 268000, 255, 1132000000, 37.64, 62.55, 1.23, 0),
+      ("Tensor G5", 0, 268000, 255, 1228000000, 41.25, 68.97, 1.17, 0),
+      ("Tensor G5", 0, 268000, 255, 1324000000, 44.53, 74.26, 1.2, 0),
+      ("Tensor G5", 0, 268000, 255, 1420000000, 48.28, 85.23, 1.45, 0),
+      ("Tensor G5", 0, 268000, 255, 1516000000, 52.09, 90.09, 1.35, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 0, 268000, 255, 1612000000, 54.77, 95.13, 1.33, 0),
+      ("Tensor G5", 0, 268000, 255, 1728000000, 65.3, 109.03, 1.53, 0),
+      ("Tensor G5", 0, 268000, 255, 1843000000, 68.93, 130.0, 1.05, 0),
+      ("Tensor G5", 0, 268000, 255, 1920000000, 78.89, 131.44, 1.92, 0),
+      ("Tensor G5", 0, 268000, 255, 1996000000, 85.37, 139.68, 1.36, 0),
+      ("Tensor G5", 0, 268000, 255, 2092000000, 96.41, 167.55, 1.66, 0),
+      ("Tensor G5", 0, 268000, 255, 2188000000, 103.8, 186.28, 2.36, 0),
+      ("Tensor G5", 0, 345000, 255, 115000000, 13.03, 9.71, 0.94, 0),
+      ("Tensor G5", 0, 345000, 255, 268000000, 15.56, 16.65, 1.61, 0),
+      ("Tensor G5", 0, 345000, 255, 400000000, 17.81, 20.36, 0.35, 0),
+      ("Tensor G5", 0, 345000, 255, 537000000, 20.02, 29.11, 0.93, 0),
+      ("Tensor G5", 0, 345000, 255, 691000000, 24.83, 35.59, 0.46, 0),
+      ("Tensor G5", 0, 345000, 255, 768000000, 26.79, 40.61, 0.79, 0),
+      ("Tensor G5", 0, 345000, 255, 844000000, 29.23, 46.36, 1.03, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 0, 345000, 255, 960000000, 33.26, 54.77, 0.57, 0),
+      ("Tensor G5", 0, 345000, 255, 1056000000, 35.24, 63.16, 0.87, 0),
+      ("Tensor G5", 0, 345000, 255, 1132000000, 38.1, 68.68, 0.93, 0),
+      ("Tensor G5", 0, 345000, 255, 1228000000, 40.04, 76.41, 2.53, 0),
+      ("Tensor G5", 0, 345000, 255, 1324000000, 44.69, 78.79, 1.15, 0),
+      ("Tensor G5", 0, 345000, 255, 1420000000, 48.98, 94.16, 1.08, 0),
+      ("Tensor G5", 0, 345000, 255, 1516000000, 52.4, 100.6, 1.11, 0),
+      ("Tensor G5", 0, 345000, 255, 1612000000, 58.33, 110.56, 1.07, 0),
+      ("Tensor G5", 0, 345000, 255, 1728000000, 91.97, 104.29, 0.9, 0),
+      ("Tensor G5", 0, 345000, 255, 1843000000, 73.52, 142.75, 0.98, 0),
+      ("Tensor G5", 0, 345000, 255, 1920000000, 79.46, 158.68, 1.57, 0),
+      ("Tensor G5", 0, 345000, 255, 1996000000, 85.61, 167.47, 1.41, 0),
+      ("Tensor G5", 0, 345000, 255, 2092000000, 97.08, 188.3, 1.24, 0),
+      ("Tensor G5", 0, 345000, 255, 2188000000, 104.12, 201.35, 0.55, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 0, 422000, 255, 115000000, 14.26, 10.39, 0.56, 0),
+      ("Tensor G5", 0, 422000, 255, 268000000, 15.58, 17.03, 0.64, 0),
+      ("Tensor G5", 0, 422000, 255, 400000000, 18.04, 22.22, 0.90, 0),
+      ("Tensor G5", 0, 422000, 255, 537000000, 20.33, 32.69, 0.87, 0),
+      ("Tensor G5", 0, 422000, 255, 691000000, 22.57, 40.93, 0.99, 0),
+      ("Tensor G5", 0, 422000, 255, 768000000, 27.44, 47.9, 1.11, 0),
+      ("Tensor G5", 0, 422000, 255, 844000000, 29.86, 48.01, 0.62, 0),
+      ("Tensor G5", 0, 422000, 255, 960000000, 31.79, 58.2, 1.08, 0),
+      ("Tensor G5", 0, 422000, 255, 1056000000, 34.03, 69.79, 1.26, 0),
+      ("Tensor G5", 0, 422000, 255, 1132000000, 38.34, 71.23, 0.78, 0),
+      ("Tensor G5", 0, 422000, 255, 1228000000, 41.75, 76.41, 0.96, 0),
+      ("Tensor G5", 0, 422000, 255, 1324000000, 44.81, 84.19, 1.09, 0),
+      ("Tensor G5", 0, 422000, 255, 1420000000, 46.34, 93.12, 1.84, 0),
+      ("Tensor G5", 0, 422000, 255, 1516000000, 52.79, 109.98, 1.02, 0),
+      ("Tensor G5", 0, 422000, 255, 1612000000, 58.92, 121.77, 1.78, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 0, 422000, 255, 1728000000, 66.4, 125.05, 1.0, 0),
+      ("Tensor G5", 0, 422000, 255, 1843000000, 73.24, 155.18, 1.27, 0),
+      ("Tensor G5", 0, 422000, 255, 1920000000, 79.7, 169.78, 1.52, 0),
+      ("Tensor G5", 0, 422000, 255, 1996000000, 85.83, 169.27, 1.37, 0),
+      ("Tensor G5", 0, 422000, 255, 2092000000, 97.68, 198.51, 1.01, 0),
+      ("Tensor G5", 0, 422000, 255, 2188000000, 108.82, 219.75, 1.1, 0),
+      ("Tensor G5", 0, 460000, 255, 115000000, 14.4, 10.87, 0.3, 0),
+      ("Tensor G5", 0, 460000, 255, 268000000, 16.12, 20.76, 0.51, 0),
+      ("Tensor G5", 0, 460000, 255, 400000000, 18.59, 27.03, 0.63, 0),
+      ("Tensor G5", 0, 460000, 255, 537000000, 20.5, 32.26, 0.67, 0),
+      ("Tensor G5", 0, 460000, 255, 691000000, 15.76, 42.04, 1.34, 0),
+      ("Tensor G5", 0, 460000, 255, 768000000, 26.92, 45.26, 0.81, 0),
+      ("Tensor G5", 0, 460000, 255, 844000000, 29.65, 51.15, 0.84, 0),
+      ("Tensor G5", 0, 460000, 255, 960000000, 33.22, 64.57, 0.76, 0),
+      ("Tensor G5", 0, 460000, 255, 1056000000, 35.32, 72.52, 0.91, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 0, 460000, 255, 1132000000, 38.8, 79.61, 0.49, 0),
+      ("Tensor G5", 0, 460000, 255, 1228000000, 42.32, 88.23, 0.6, 0),
+      ("Tensor G5", 0, 460000, 255, 1324000000, 45.29, 94.03, 0.8, 0),
+      ("Tensor G5", 0, 460000, 255, 1420000000, 49.15, 102.06, 0.93, 0),
+      ("Tensor G5", 0, 460000, 255, 1516000000, 52.59, 100.8, 1.16, 0),
+      ("Tensor G5", 0, 460000, 255, 1612000000, 58.83, 112.1, 0.85, 0),
+      ("Tensor G5", 0, 460000, 255, 1728000000, 66.13, 127.77, 1.24, 0),
+      ("Tensor G5", 0, 460000, 255, 1843000000, 73.7, 154.89, 0.93, 0),
+      ("Tensor G5", 0, 460000, 255, 1920000000, 79.8, 171.36, 1.67, 0),
+      ("Tensor G5", 0, 460000, 255, 1996000000, 86.18, 167.59, 1.12, 0),
+      ("Tensor G5", 0, 460000, 255, 2092000000, 97.45, 185.37, 1.27, 0),
+      ("Tensor G5", 0, 460000, 255, 2188000000, 108.94, 203.97, 1.04, 0),
+      ("Tensor G5", 0, 533000, 255, 115000000, 14.3, 11.55, 0.64, 0),
+      ("Tensor G5", 0, 533000, 255, 268000000, 16.65, 20.88, 0.42, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 0, 533000, 255, 400000000, 18.35, 29.02, 0.59, 0),
+      ("Tensor G5", 0, 533000, 255, 537000000, 19.83, 38.27, 1.36, 0),
+      ("Tensor G5", 0, 533000, 255, 691000000, 24.29, 46.66, 0.46, 0),
+      ("Tensor G5", 0, 533000, 255, 768000000, 27.09, 48.99, 0.52, 0),
+      ("Tensor G5", 0, 533000, 255, 844000000, 28.18, 51.64, 1.05, 0),
+      ("Tensor G5", 0, 533000, 255, 960000000, 31.37, 61.18, 1.45, 0),
+      ("Tensor G5", 0, 533000, 255, 1056000000, 35.72, 73.64, 0.55, 0),
+      ("Tensor G5", 0, 533000, 255, 1132000000, 38.17, 72.72, 0.77, 0),
+      ("Tensor G5", 0, 533000, 255, 1228000000, 41.76, 83.2, 0.81, 0),
+      ("Tensor G5", 0, 533000, 255, 1324000000, 44.91, 98.8, 0.9, 0),
+      ("Tensor G5", 0, 533000, 255, 1420000000, 49.19, 111.71, 0.77, 0),
+      ("Tensor G5", 0, 533000, 255, 1516000000, 52.54, 114.06, 0.96, 0),
+      ("Tensor G5", 0, 533000, 255, 1612000000, 58.69, 129.09, 0.72, 0),
+      ("Tensor G5", 0, 533000, 255, 1728000000, 66.35, 133.39, 0.81, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 0, 533000, 255, 1843000000, 69.46, 158.55, 1.9, 0),
+      ("Tensor G5", 0, 533000, 255, 1920000000, 80.14, 160.82, 1.01, 0),
+      ("Tensor G5", 0, 533000, 255, 1996000000, 85.93, 176.23, 1.14, 0),
+      ("Tensor G5", 0, 533000, 255, 2092000000, 96.43, 206.06, 1.61, 0),
+      ("Tensor G5", 0, 533000, 255, 2188000000, 107.77, 221.39, 1.52, 0),
+      ("Tensor G5", 0, 729000, 255, 115000000, 15.92, 15.42, 1.23, 0),
+      ("Tensor G5", 0, 729000, 255, 268000000, 18.31, 28.5, 0.86, 0),
+      ("Tensor G5", 0, 729000, 255, 400000000, 20.51, 37.87, 0.74, 0),
+      ("Tensor G5", 0, 729000, 255, 537000000, 22.42, 44.91, 0.72, 0),
+      ("Tensor G5", 0, 729000, 255, 691000000, 23.82, 51.09, 1.63, 0),
+      ("Tensor G5", 0, 729000, 255, 768000000, 27.02, 60.86, 1.27, 0),
+      ("Tensor G5", 0, 729000, 255, 844000000, 30.12, 64.8, 0.77, 0),
+      ("Tensor G5", 0, 729000, 255, 960000000, 33.05, 72.37, 1.54, 0),
+      ("Tensor G5", 0, 729000, 255, 1056000000, 36.2, 83.3, 0.91, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 0, 729000, 255, 1132000000, 37.15, 88.36, 1.52, 0),
+      ("Tensor G5", 0, 729000, 255, 1228000000, 41.42, 102.86, 1.02, 0),
+      ("Tensor G5", 0, 729000, 255, 1324000000, 44.41, 112.95, 1.25, 0),
+      ("Tensor G5", 0, 729000, 255, 1420000000, 50.58, 126.07, 0.47, 0),
+      ("Tensor G5", 0, 729000, 255, 1516000000, 54.01, 139.42, 0.51, 0),
+      ("Tensor G5", 0, 729000, 255, 1612000000, 59.5, 146.77, 0.78, 0),
+      ("Tensor G5", 0, 729000, 255, 1728000000, 67.14, 168.02, 1.02, 0),
+      ("Tensor G5", 0, 729000, 255, 1843000000, 74.48, 181.33, 0.97, 0),
+      ("Tensor G5", 0, 729000, 255, 1920000000, 85.8, 222.78, 0.72, 0),
+      ("Tensor G5", 0, 729000, 255, 1996000000, 87.08, 226.78, 1.16, 0),
+      ("Tensor G5", 0, 729000, 255, 2092000000, 98.98, 254.91, 0.8, 0),
+      ("Tensor G5", 0, 729000, 255, 2188000000, 103.8, 290.34, 1.07, 0),
+      ("Tensor G5", 0, 883000, 255, 115000000, 19.46, 17.48, 0.12, 0),
+      ("Tensor G5", 0, 883000, 255, 268000000, 21.3, 32.12, 0.18, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 0, 883000, 255, 400000000, 22.68, 43.41, 0.59, 0),
+      ("Tensor G5", 0, 883000, 255, 537000000, 24.87, 51.34, 0.47, 0),
+      ("Tensor G5", 0, 883000, 255, 691000000, 26.93, 59.0, 0.56, 0),
+      ("Tensor G5", 0, 883000, 255, 768000000, 29.44, 60.66, 0.09, 0),
+      ("Tensor G5", 0, 883000, 255, 844000000, 29.33, 70.19, 0.84, 0),
+      ("Tensor G5", 0, 883000, 255, 960000000, 33.06, 83.65, 0.71, 0),
+      ("Tensor G5", 0, 883000, 255, 1056000000, 36.2, 90.53, 0.92, 0),
+      ("Tensor G5", 0, 883000, 255, 1132000000, 39.04, 103.09, 0.78, 0),
+      ("Tensor G5", 0, 883000, 255, 1228000000, 46.04, 114.89, 0.8, 0),
+      ("Tensor G5", 0, 883000, 255, 1324000000, 46.13, 115.45, 0.87, 0),
+      ("Tensor G5", 0, 883000, 255, 1420000000, 48.66, 133.67, 1.47, 0),
+      ("Tensor G5", 0, 883000, 255, 1516000000, 54.16, 143.27, 0.77, 0),
+      ("Tensor G5", 0, 883000, 255, 1612000000, 57.49, 150.15, 1.21, 0),
+      ("Tensor G5", 0, 883000, 255, 1728000000, 67.93, 188.21, 0.71, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 0, 883000, 255, 1843000000, 72.55, 199.99, 1.38, 0),
+      ("Tensor G5", 0, 883000, 255, 1920000000, 82.1, 228.38, 0.84, 0),
+      ("Tensor G5", 0, 883000, 255, 1996000000, 84.13, 225.51, 1.47, 0),
+      ("Tensor G5", 0, 883000, 255, 2092000000, 98.82, 264.64, 1.26, 0),
+      ("Tensor G5", 0, 883000, 255, 2188000000, 105.97, 283.71, 5.98, 0),
+      ("Tensor G5", 0, 1036000, 255, 115000000, 19.27, 20.49, 0.54, 0),
+      ("Tensor G5", 0, 1036000, 255, 268000000, 21.28, 33.3, 0.67, 0),
+      ("Tensor G5", 0, 1036000, 255, 400000000, 23.61, 44.45, 0.73, 0),
+      ("Tensor G5", 0, 1036000, 255, 537000000, 26.03, 55.75, 0.54, 0),
+      ("Tensor G5", 0, 1036000, 255, 691000000, 28.27, 67.73, 0.6, 0),
+      ("Tensor G5", 0, 1036000, 255, 768000000, 29.73, 72.22, 0.63, 0),
+      ("Tensor G5", 0, 1036000, 255, 844000000, 31.23, 74.49, 0.44, 0),
+      ("Tensor G5", 0, 1036000, 255, 960000000, 40.33, 85.06, 0.38, 0),
+      ("Tensor G5", 0, 1036000, 255, 1056000000, 36.75, 95.54, 0.72, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 0, 1036000, 255, 1132000000, 40.35, 107.32, 0.36, 0),
+      ("Tensor G5", 0, 1036000, 255, 1228000000, 43.56, 115.64, 0.66, 0),
+      ("Tensor G5", 0, 1036000, 255, 1324000000, 46.58, 130.94, 0.9, 0),
+      ("Tensor G5", 0, 1036000, 255, 1420000000, 50.64, 151.0, 0.91, 0),
+      ("Tensor G5", 0, 1036000, 255, 1516000000, 54.06, 145.58, 0.95, 0),
+      ("Tensor G5", 0, 1036000, 255, 1612000000, 60.43, 172.93, 0.73, 0),
+      ("Tensor G5", 0, 1036000, 255, 1728000000, 68.19, 185.82, 0.89, 0),
+      ("Tensor G5", 0, 1036000, 255, 1843000000, 75.43, 211.12, 0.95, 0),
+      ("Tensor G5", 0, 1036000, 255, 1920000000, 75.64, 228.31, 1.33, 0),
+      ("Tensor G5", 0, 1036000, 255, 1996000000, 88.17, 250.07, 1.18, 0),
+      ("Tensor G5", 0, 1036000, 255, 2092000000, 100.08, 274.23, 0.87, 0),
+      ("Tensor G5", 0, 1036000, 255, 2188000000, 111.22, 322.66, 1.03, 0),
+      ("Tensor G5", 0, 1190000, 255, 115000000, 20.35, 22.29, 0.56, 0),
+      ("Tensor G5", 0, 1190000, 255, 268000000, 22.92, 42.08, 0.73, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 0, 1190000, 255, 400000000, 25.66, 50.48, 0.38, 0),
+      ("Tensor G5", 0, 1190000, 255, 537000000, 27.58, 58.6, 0.62, 0),
+      ("Tensor G5", 0, 1190000, 255, 691000000, 29.84, 71.45, 0.8, 0),
+      ("Tensor G5", 0, 1190000, 255, 768000000, 30.93, 79.32, 1.34, 0),
+      ("Tensor G5", 0, 1190000, 255, 844000000, 31.84, 80.86, 1.76, 0),
+      ("Tensor G5", 0, 1190000, 255, 960000000, 34.43, 89.45, 0.93, 0),
+      ("Tensor G5", 0, 1190000, 255, 1056000000, 36.96, 101.52, 0.81, 0),
+      ("Tensor G5", 0, 1190000, 255, 1132000000, 40.1, 109.06, 0.64, 0),
+      ("Tensor G5", 0, 1190000, 255, 1228000000, 43.66, 133.21, 0.83, 0),
+      ("Tensor G5", 0, 1190000, 255, 1324000000, 47.3, 138.71, 0.56, 0),
+      ("Tensor G5", 0, 1190000, 255, 1420000000, 51.13, 147.79, 0.87, 0),
+      ("Tensor G5", 0, 1190000, 255, 1516000000, 55.16, 161.04, 0.53, 0),
+      ("Tensor G5", 0, 1190000, 255, 1612000000, 54.08, 178.54, 5.18, 0),
+      ("Tensor G5", 0, 1190000, 255, 1728000000, 69.73, 193.32, 1.84, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 0, 1190000, 255, 1843000000, 75.0, 221.8, 1.83, 0),
+      ("Tensor G5", 0, 1190000, 255, 1920000000, 82.32, 241.49, 1.29, 0),
+      ("Tensor G5", 0, 1190000, 255, 1996000000, 88.62, 264.4, 1.18, 0),
+      ("Tensor G5", 0, 1190000, 255, 2092000000, 100.23, 297.33, 1.11, 0),
+      ("Tensor G5", 0, 1190000, 255, 2188000000, 111.75, 338.84, 1.22, 0),
+      ("Tensor G5", 0, 1286000, 255, 115000000, 21.61, 29.39, 1.21, 0),
+      ("Tensor G5", 0, 1286000, 255, 268000000, 25.28, 44.57, 0.36, 0),
+      ("Tensor G5", 0, 1286000, 255, 400000000, 28.12, 56.33, 0.29, 0),
+      ("Tensor G5", 0, 1286000, 255, 537000000, 29.55, 71.13, 0.78, 0),
+      ("Tensor G5", 0, 1286000, 255, 691000000, 32.11, 78.96, 0.79, 0),
+      ("Tensor G5", 0, 1286000, 255, 768000000, 26.37, 76.42, 8.34, 0),
+      ("Tensor G5", 0, 1286000, 255, 844000000, 28.68, 69.5, 1.26, 0),
+      ("Tensor G5", 0, 1286000, 255, 960000000, 36.88, 107.59, 1.13, 0),
+      ("Tensor G5", 0, 1286000, 255, 1056000000, 37.82, 106.56, 0.83, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 0, 1286000, 255, 1132000000, 39.79, 112.11, 1.09, 0),
+      ("Tensor G5", 0, 1286000, 255, 1228000000, 43.5, 129.42, 1.02, 0),
+      ("Tensor G5", 0, 1286000, 255, 1324000000, 468.82, 140.63, 0.74, 0),
+      ("Tensor G5", 0, 1286000, 255, 1420000000, 185.39, 164.73, 0.81, 0),
+      ("Tensor G5", 0, 1286000, 255, 1516000000, 282.14, 182.65, 0.7, 0),
+      ("Tensor G5", 0, 1286000, 255, 1612000000, 298.78, 190.35, 0.96, 0),
+      ("Tensor G5", 0, 1286000, 255, 1728000000, 422.42, 205.29, 0.86, 0),
+      ("Tensor G5", 0, 1286000, 255, 1843000000, 77.84, 227.42, 0.15, 0),
+      ("Tensor G5", 0, 1286000, 255, 1920000000, 84.4, 249.93, 0.27, 0),
+      ("Tensor G5", 0, 1286000, 255, 1996000000, 90.1, 274.36, 0.61, 0),
+      ("Tensor G5", 0, 1286000, 255, 2092000000, 101.23, 315.63, 0.86, 0),
+      ("Tensor G5", 0, 1286000, 255, 2188000000, 112.88, 339.0, 0.79, 0),
+      ("Tensor G5", 0, 1363000, 255, 115000000, 22.78, 30.64, 0.67, 0),
+      ("Tensor G5", 0, 1363000, 255, 268000000, 26.61, 46.13, 0.25, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 0, 1363000, 255, 400000000, 28.62, 56.41, 0.58, 0),
+      ("Tensor G5", 0, 1363000, 255, 537000000, 31.0, 71.3, 0.65, 0),
+      ("Tensor G5", 0, 1363000, 255, 691000000, 33.59, 86.05, 0.75, 0),
+      ("Tensor G5", 0, 1363000, 255, 768000000, 35.42, 95.78, 0.66, 0),
+      ("Tensor G5", 0, 1363000, 255, 844000000, 35.25, 93.0, 0.68, 0),
+      ("Tensor G5", 0, 1363000, 255, 960000000, 40.43, 105.52, 0.67, 0),
+      ("Tensor G5", 0, 1363000, 255, 1056000000, 39.58, 109.81, 0.62, 0),
+      ("Tensor G5", 0, 1363000, 255, 1132000000, 41.12, 115.72, 0.69, 0),
+      ("Tensor G5", 0, 1363000, 255, 1228000000, 42.13, 127.16, 1.53, 0),
+      ("Tensor G5", 0, 1363000, 255, 1324000000, 47.56, 139.5, 0.75, 0),
+      ("Tensor G5", 0, 1363000, 255, 1420000000, 52.38, 156.85, 0.39, 0),
+      ("Tensor G5", 0, 1363000, 255, 1516000000, 53.61, 162.52, 1.46, 0),
+      ("Tensor G5", 0, 1363000, 255, 1612000000, 61.48, 183.97, 0.59, 0),
+      ("Tensor G5", 0, 1363000, 255, 1728000000, 69.42, 210.05, 0.86, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 0, 1363000, 255, 1843000000, 76.17, 234.68, 1.37, 0),
+      ("Tensor G5", 0, 1363000, 255, 1920000000, 82.86, 258.92, 1.23, 0),
+      ("Tensor G5", 0, 1363000, 255, 1996000000, 89.89, 297.04, 0.77, 0),
+      ("Tensor G5", 0, 1363000, 255, 2092000000, 101.61, 308.49, 0.78, 0),
+      ("Tensor G5", 0, 1363000, 255, 2188000000, 108.47, 332.08, 1.22, 0),
+      ("Tensor G5", 0, 1459000, 255, 115000000, 25.02, 32.49, 0.38, 0),
+      ("Tensor G5", 0, 1459000, 255, 268000000, 28.45, 48.13, 0.3, 0),
+      ("Tensor G5", 0, 1459000, 255, 400000000, 30.78, 66.35, 0.55, 0),
+      ("Tensor G5", 0, 1459000, 255, 537000000, 32.6, 76.75, 1.17, 0),
+      ("Tensor G5", 0, 1459000, 255, 691000000, 36.24, 94.36, 0.62, 0),
+      ("Tensor G5", 0, 1459000, 255, 768000000, 37.69, 100.45, 0.78, 0),
+      ("Tensor G5", 0, 1459000, 255, 844000000, 39.37, 105.59, 0.71, 0),
+      ("Tensor G5", 0, 1459000, 255, 960000000, 41.63, 122.39, 0.7, 0),
+      ("Tensor G5", 0, 1459000, 255, 1056000000, 42.52, 125.65, 0.64, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 0, 1459000, 255, 1132000000, 44.07, 130.33, 0.65, 0),
+      ("Tensor G5", 0, 1459000, 255, 1228000000, 45.76, 139.21, 0.95, 0),
+      ("Tensor G5", 0, 1459000, 255, 1324000000, 47.31, 148.74, 0.85, 0),
+      ("Tensor G5", 0, 1459000, 255, 1420000000, 53.2, 162.42, 0.11, 0),
+      ("Tensor G5", 0, 1459000, 255, 1516000000, 55.3, 177.22, 0.87, 0),
+      ("Tensor G5", 0, 1459000, 255, 1612000000, 61.69, 194.55, 0.7, 0),
+      ("Tensor G5", 0, 1459000, 255, 1728000000, 69.63, 214.84, 0.79, 0),
+      ("Tensor G5", 0, 1459000, 255, 1843000000, 76.84, 237.31, 0.94, 0),
+      ("Tensor G5", 0, 1459000, 255, 1920000000, 83.6, 269.29, 1.05, 0),
+      ("Tensor G5", 0, 1459000, 255, 1996000000, 90.18, 288.85, 0.78, 0),
+      ("Tensor G5", 0, 1459000, 255, 2092000000, 101.79, 343.02, 0.86, 0),
+      ("Tensor G5", 0, 1459000, 255, 2188000000, 112.96, 375.32, 0.96, 0),
+      ("Tensor G5", 0, 1555000, 255, 115000000, 25.81, 33.24, 0.78, 0),
+      ("Tensor G5", 0, 1555000, 255, 268000000, 29.88, 57.31, 0.4, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 0, 1555000, 255, 400000000, 31.54, 69.2, 1.09, 0),
+      ("Tensor G5", 0, 1555000, 255, 537000000, 35.15, 83.66, 0.6, 0),
+      ("Tensor G5", 0, 1555000, 255, 691000000, 37.77, 96.68, 0.87, 0),
+      ("Tensor G5", 0, 1555000, 255, 768000000, 39.08, 105.1, 1.93, 0),
+      ("Tensor G5", 0, 1555000, 255, 844000000, 41.72, 117.06, 0.56, 0),
+      ("Tensor G5", 0, 1555000, 255, 960000000, 44.12, 125.35, 0.55, 0),
+      ("Tensor G5", 0, 1555000, 255, 1056000000, 44.67, 133.17, 0.68, 0),
+      ("Tensor G5", 0, 1555000, 255, 1132000000, 46.67, 135.44, 0.57, 0),
+      ("Tensor G5", 0, 1555000, 255, 1228000000, 47.89, 151.1, 0.95, 0),
+      ("Tensor G5", 0, 1555000, 255, 1324000000, 50.34, 158.81, 0.74, 0),
+      ("Tensor G5", 0, 1555000, 255, 1420000000, 52.28, 162.93, 0.73, 0),
+      ("Tensor G5", 0, 1555000, 255, 1516000000, 56.05, 175.57, 0.62, 0),
+      ("Tensor G5", 0, 1555000, 255, 1612000000, 59.86, 191.93, 2.7, 0),
+      ("Tensor G5", 0, 1555000, 255, 1728000000, 71.5, 230.99, 1.77, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 0, 1555000, 255, 1843000000, 77.48, 244.05, 0.62, 0),
+      ("Tensor G5", 0, 1555000, 255, 1920000000, 84.48, 270.05, 0.78, 0),
+      ("Tensor G5", 0, 1555000, 255, 1996000000, 89.7, 290.99, 1.2, 0),
+      ("Tensor G5", 0, 1555000, 255, 2092000000, 101.61, 331.63, 1.2, 0),
+      ("Tensor G5", 0, 1555000, 255, 2188000000, 113.01, 374.24, 1.12, 0),
+      ("Tensor G5", 0, 1632000, 255, 115000000, 28.25, 36.62, 0.01, 0),
+      ("Tensor G5", 0, 1632000, 255, 268000000, 30.28, 58.2, 0.76, 0),
+      ("Tensor G5", 0, 1632000, 255, 400000000, 33.89, 76.04, 0.3, 0),
+      ("Tensor G5", 0, 1632000, 255, 537000000, 36.11, 84.16, 0.88, 0),
+      ("Tensor G5", 0, 1632000, 255, 691000000, 40.44, 105.97, 0.79, 0),
+      ("Tensor G5", 0, 1632000, 255, 768000000, 41.68, 120.82, 0.52, 0),
+      ("Tensor G5", 0, 1632000, 255, 844000000, 43.07, 119.68, 0.71, 0),
+      ("Tensor G5", 0, 1632000, 255, 960000000, 45.15, 131.08, 0.92, 0),
+      ("Tensor G5", 0, 1632000, 255, 1056000000, 46.16, 139.07, 0.72, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 0, 1632000, 255, 1132000000, 46.46, 146.5, 1.22, 0),
+      ("Tensor G5", 0, 1632000, 255, 1228000000, 49.99, 157.13, 0.72, 0),
+      ("Tensor G5", 0, 1632000, 255, 1324000000, 51.75, 164.34, 1.05, 0),
+      ("Tensor G5", 0, 1632000, 255, 1420000000, 54.29, 173.74, 0.62, 0),
+      ("Tensor G5", 0, 1632000, 255, 1516000000, 56.69, 185.94, 0.0, 0),
+      ("Tensor G5", 0, 1632000, 255, 1612000000, 61.72, 203.28, 0.99, 0),
+      ("Tensor G5", 0, 1632000, 255, 1728000000, 69.77, 241.15, 1.06, 0),
+      ("Tensor G5", 0, 1632000, 255, 1843000000, 77.12, 269.15, 1.05, 0),
+      ("Tensor G5", 0, 1632000, 255, 1920000000, 83.99, 285.59, 1.27, 0),
+      ("Tensor G5", 0, 1632000, 255, 1996000000, 96.73, 303.74, 1.1, 0),
+      ("Tensor G5", 0, 1632000, 255, 2092000000, 102.17, 336.84, 0.86, 0),
+      ("Tensor G5", 0, 1632000, 255, 2188000000, 111.49, 371.95, 1.22, 0),
+      ("Tensor G5", 0, 1766000, 255, 115000000, 28.83, 39.78, 1.04, 0),
+      ("Tensor G5", 0, 1766000, 255, 268000000, 32.14, 62.72, 1.66, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 0, 1766000, 255, 400000000, 36.53, 81.64, 0.76, 0),
+      ("Tensor G5", 0, 1766000, 255, 537000000, 39.54, 96.57, 0.88, 0),
+      ("Tensor G5", 0, 1766000, 255, 691000000, 42.74, 115.72, 1.05, 0),
+      ("Tensor G5", 0, 1766000, 255, 768000000, 45.06, 126.78, 0.85, 0),
+      ("Tensor G5", 0, 1766000, 255, 844000000, 47.09, 133.63, 0.72, 0),
+      ("Tensor G5", 0, 1766000, 255, 960000000, 49.04, 145.75, 1.06, 0),
+      ("Tensor G5", 0, 1766000, 255, 1056000000, 50.36, 175.74, 0.85, 0),
+      ("Tensor G5", 0, 1766000, 255, 1132000000, 50.45, 164.82, 0.83, 0),
+      ("Tensor G5", 0, 1766000, 255, 1228000000, 54.76, 177.83, 0.81, 0),
+      ("Tensor G5", 0, 1766000, 255, 1324000000, 56.73, 186.14, 0.83, 0),
+      ("Tensor G5", 0, 1766000, 255, 1420000000, 60.62, 195.35, 0.0, 0),
+      ("Tensor G5", 0, 1766000, 255, 1516000000, 60.49, 216.61, 1.09, 0),
+      ("Tensor G5", 0, 1766000, 255, 1612000000, 63.81, 203.86, 0.61, 0),
+      ("Tensor G5", 0, 1766000, 255, 1728000000, 70.61, 237.14, 0.56, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 0, 1766000, 255, 1843000000, 74.41, 252.18, 1.25, 0),
+      ("Tensor G5", 0, 1766000, 255, 1920000000, 86.28, 282.05, 1.6, 0),
+      ("Tensor G5", 0, 1766000, 255, 1996000000, 91.18, 310.57, 0.68, 0),
+      ("Tensor G5", 0, 1766000, 255, 2092000000, 102.74, 344.05, 0.89, 0),
+      ("Tensor G5", 0, 1766000, 255, 2188000000, 113.23, 396.02, 1.45, 0),
+      ("Tensor G5", 0, 1881000, 255, 115000000, 31.65, 44.25, 0.81, 0),
+      ("Tensor G5", 0, 1881000, 255, 268000000, 35.73, 69.99, 0.59, 0),
+      ("Tensor G5", 0, 1881000, 255, 400000000, 39.31, 85.52, 0.7, 0),
+      ("Tensor G5", 0, 1881000, 255, 537000000, 42.38, 102.24, 0.92, 0),
+      ("Tensor G5", 0, 1881000, 255, 691000000, 46.12, 120.67, 0.79, 0),
+      ("Tensor G5", 0, 1881000, 255, 768000000, 48.01, 142.64, 1.01, 0),
+      ("Tensor G5", 0, 1881000, 255, 844000000, 47.93, 155.88, 1.04, 0),
+      ("Tensor G5", 0, 1881000, 255, 960000000, 52.63, 162.54, 1.17, 0),
+      ("Tensor G5", 0, 1881000, 255, 1056000000, 53.94, 172.98, 0.84, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 0, 1881000, 255, 1132000000, 56.33, 180.7, 0.68, 0),
+      ("Tensor G5", 0, 1881000, 255, 1228000000, 58.35, 191.56, 0.84, 0),
+      ("Tensor G5", 0, 1881000, 255, 1324000000, 60.94, 197.53, 0.71, 0),
+      ("Tensor G5", 0, 1881000, 255, 1420000000, 63.56, 220.68, 0.39, 0),
+      ("Tensor G5", 0, 1881000, 255, 1516000000, 63.6, 222.55, 1.52, 0),
+      ("Tensor G5", 0, 1881000, 255, 1612000000, 68.76, 243.96, 0.34, 0),
+      ("Tensor G5", 0, 1881000, 255, 1728000000, 70.9, 252.42, 0.74, 0),
+      ("Tensor G5", 0, 1881000, 255, 1843000000, 73.76, 270.62, 1.24, 0),
+      ("Tensor G5", 0, 1881000, 255, 1920000000, 84.64, 288.52, 1.23, 0),
+      ("Tensor G5", 0, 1881000, 255, 1996000000, 91.7, 316.34, 0.67, 0),
+      ("Tensor G5", 0, 1881000, 255, 2092000000, 103.14, 355.3, 0.91, 0),
+      ("Tensor G5", 0, 1881000, 255, 2188000000, 114.68, 390.88, 0.97, 0),
+      ("Tensor G5", 0, 1996000, 255, 115000000, 35.86, 49.93, 0.74, 0),
+      ("Tensor G5", 0, 1996000, 255, 268000000, 38.38, 77.71, 0.63, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 0, 1996000, 255, 400000000, 42.03, 99.62, 0.93, 0),
+      ("Tensor G5", 0, 1996000, 255, 537000000, 45.66, 118.99, 0.73, 0),
+      ("Tensor G5", 0, 1996000, 255, 691000000, 47.66, 134.24, 1.41, 0),
+      ("Tensor G5", 0, 1996000, 255, 768000000, 51.67, 145.17, 0.94, 0),
+      ("Tensor G5", 0, 1996000, 255, 844000000, 53.54, 164.1, 1.04, 0),
+      ("Tensor G5", 0, 1996000, 255, 960000000, 56.94, 186.09, 0.72, 0),
+      ("Tensor G5", 0, 1996000, 255, 1056000000, 58.01, 182.51, 0.73, 0),
+      ("Tensor G5", 0, 1996000, 255, 1132000000, 59.73, 200.04, 1.01, 0),
+      ("Tensor G5", 0, 1996000, 255, 1228000000, 62.81, 213.61, 0.68, 0),
+      ("Tensor G5", 0, 1996000, 255, 1324000000, 65.4, 225.19, 0.61, 0),
+      ("Tensor G5", 0, 1996000, 255, 1420000000, 67.42, 228.54, 0.85, 0),
+      ("Tensor G5", 0, 1996000, 255, 1516000000, 69.73, 240.23, 0.89, 0),
+      ("Tensor G5", 0, 1996000, 255, 1612000000, 73.04, 250.67, 0.62, 0),
+      ("Tensor G5", 0, 1996000, 255, 1728000000, 75.73, 263.9, 0.65, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 0, 1996000, 255, 1843000000, 78.8, 274.24, 0.66, 0),
+      ("Tensor G5", 0, 1996000, 255, 1920000000, 85.72, 299.41, 0.75, 0),
+      ("Tensor G5", 0, 1996000, 255, 1996000000, 91.2, 332.3, 1.18, 0),
+      ("Tensor G5", 0, 1996000, 255, 2092000000, 101.06, 359.95, 1.36, 0),
+      ("Tensor G5", 0, 1996000, 255, 2188000000, 115.01, 419.31, 1.07, 0),
+      ("Tensor G5", 0, 2016000, 255, 115000000, 31.62, 55.5, 1.49, 0),
+      ("Tensor G5", 0, 2016000, 255, 268000000, 39.39, 85.13, 0.83, 0),
+      ("Tensor G5", 0, 2016000, 255, 400000000, 43.29, 96.41, 0.88, 0),
+      ("Tensor G5", 0, 2016000, 255, 537000000, 45.91, 115.47, 1.07, 0),
+      ("Tensor G5", 0, 2016000, 255, 691000000, 51.08, 141.38, 0.86, 0),
+      ("Tensor G5", 0, 2016000, 255, 768000000, 53.55, 150.9, 0.81, 0),
+      ("Tensor G5", 0, 2016000, 255, 844000000, 55.76, 161.46, 0.72, 0),
+      ("Tensor G5", 0, 2016000, 255, 960000000, 58.66, 191.14, 0.9, 0),
+      ("Tensor G5", 0, 2016000, 255, 1056000000, 59.96, 193.8, 0.61, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 0, 2016000, 255, 1132000000, 60.26, 202.23, 0.58, 0),
+      ("Tensor G5", 0, 2016000, 255, 1228000000, 64.55, 220.67, 0.84, 0),
+      ("Tensor G5", 0, 2016000, 255, 1324000000, 67.23, 223.1, 0.63, 0),
+      ("Tensor G5", 0, 2016000, 255, 1420000000, 69.75, 233.77, 0.7, 0),
+      ("Tensor G5", 0, 2016000, 255, 1516000000, 71.9, 246.63, 0.97, 0),
+      ("Tensor G5", 0, 2016000, 255, 1612000000, 74.84, 263.37, 0.85, 0),
+      ("Tensor G5", 0, 2016000, 255, 1728000000, 78.11, 276.42, 0.78, 0),
+      ("Tensor G5", 0, 2016000, 255, 1843000000, 82.33, 294.76, 1.29, 0),
+      ("Tensor G5", 0, 2016000, 255, 1920000000, 81.9, 299.3, 1.55, 0),
+      ("Tensor G5", 0, 2016000, 255, 1996000000, 91.67, 322.26, 0.91, 0),
+      ("Tensor G5", 0, 2016000, 255, 2092000000, 104.11, 358.2, 0.61, 0),
+      ("Tensor G5", 0, 2016000, 255, 2188000000, 114.88, 405.19, 1.22, 0),
+      ("Tensor G5", 0, 2054000, 255, 115000000, 36.6, 52.82, 0.93, 0),
+      ("Tensor G5", 0, 2054000, 255, 268000000, 41.46, 83.98, 0.84, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 0, 2054000, 255, 400000000, 45.31, 104.78, 1.11, 0),
+      ("Tensor G5", 0, 2054000, 255, 537000000, 49.6, 125.88, 0.81, 0),
+      ("Tensor G5", 0, 2054000, 255, 691000000, 53.74, 158.67, 0.86, 0),
+      ("Tensor G5", 0, 2054000, 255, 768000000, 54.47, 169.14, 2.61, 0),
+      ("Tensor G5", 0, 2054000, 255, 844000000, 58.3, 172.99, 0.86, 0),
+      ("Tensor G5", 0, 2054000, 255, 960000000, 62.79, 195.93, 0.18, 0),
+      ("Tensor G5", 0, 2054000, 255, 1056000000, 60.41, 201.47, 1.08, 0),
+      ("Tensor G5", 0, 2054000, 255, 1132000000, 64.96, 210.42, 0.97, 0),
+      ("Tensor G5", 0, 2054000, 255, 1228000000, 68.71, 228.57, 1.01, 0),
+      ("Tensor G5", 0, 2054000, 255, 1324000000, 68.3, 227.14, 1.92, 0),
+      ("Tensor G5", 0, 2054000, 255, 1420000000, 73.05, 245.3, 0.84, 0),
+      ("Tensor G5", 0, 2054000, 255, 1516000000, 75.94, 260.46, 0.6, 0),
+      ("Tensor G5", 0, 2054000, 255, 1612000000, 78.65, 264.24, 0.75, 0),
+      ("Tensor G5", 0, 2054000, 255, 1728000000, 84.04, 291.13, 1.0, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 0, 2054000, 255, 1843000000, 85.21, 302.95, 0.73, 0),
+      ("Tensor G5", 0, 2054000, 255, 1920000000, 87.3, 311.8, 0.86, 0),
+      ("Tensor G5", 0, 2054000, 255, 1996000000, 90.45, 316.78, 2.52, 0),
+      ("Tensor G5", 0, 2054000, 255, 2092000000, 104.03, 361.54, 0.77, 0),
+      ("Tensor G5", 0, 2054000, 255, 2188000000, 115.09, 426.55, 1.15, 0),
+      ("Tensor G5", 0, 2092000, 255, 115000000, 39.1, 56.49, 1.03, 0),
+      ("Tensor G5", 0, 2092000, 255, 268000000, 36.42, 84.78, 1.4, 0),
+      ("Tensor G5", 0, 2092000, 255, 400000000, 48.88, 109.91, 1.02, 0),
+      ("Tensor G5", 0, 2092000, 255, 537000000, 51.16, 130.06, 0.81, 0),
+      ("Tensor G5", 0, 2092000, 255, 691000000, 55.61, 160.42, 0.78, 0),
+      ("Tensor G5", 0, 2092000, 255, 768000000, 56.42, 157.73, 2.7, 0),
+      ("Tensor G5", 0, 2092000, 255, 844000000, 60.2, 189.98, 0.97, 0),
+      ("Tensor G5", 0, 2092000, 255, 960000000, 63.5, 200.08, 1.03, 0),
+      ("Tensor G5", 0, 2092000, 255, 1056000000, 65.36, 218.11, 0.41, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 0, 2092000, 255, 1132000000, 66.94, 231.3, 1.24, 0),
+      ("Tensor G5", 0, 2092000, 255, 1228000000, 70.27, 232.3, 0.78, 0),
+      ("Tensor G5", 0, 2092000, 255, 1324000000, 70.11, 245.3, 1.58, 0),
+      ("Tensor G5", 0, 2092000, 255, 1420000000, 75.26, 257.22, 1.01, 0),
+      ("Tensor G5", 0, 2092000, 255, 1516000000, 77.89, 277.04, 0.92, 0),
+      ("Tensor G5", 0, 2092000, 255, 1612000000, 82.16, 292.1, 0.23, 0),
+      ("Tensor G5", 0, 2092000, 255, 1728000000, 84.57, 295.18, 0.88, 0),
+      ("Tensor G5", 0, 2092000, 255, 1843000000, 87.98, 308.21, 0.66, 0),
+      ("Tensor G5", 0, 2092000, 255, 1920000000, 90.16, 322.65, 0.74, 0),
+      ("Tensor G5", 0, 2092000, 255, 1996000000, 92.65, 352.28, 0.56, 0),
+      ("Tensor G5", 0, 2092000, 255, 2092000000, 105.23, 370.03, 0.16, 0),
+      ("Tensor G5", 0, 2092000, 255, 2188000000, 115.87, 411.54, 0.85, 0),
+      ("Tensor G5", 0, 2169000, 255, 115000000, 42.62, 60.74, 0.77, 0),
+      ("Tensor G5", 0, 2169000, 255, 268000000, 43.69, 102.88, 2.88, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 0, 2169000, 255, 400000000, 50.61, 119.86, 2.35, 0),
+      ("Tensor G5", 0, 2169000, 255, 537000000, 54.62, 142.5, 2.85, 0),
+      ("Tensor G5", 0, 2169000, 255, 691000000, 60.28, 168.92, 1.7, 0),
+      ("Tensor G5", 0, 2169000, 255, 768000000, 63.92, 196.16, 1.14, 0),
+      ("Tensor G5", 0, 2169000, 255, 844000000, 66.68, 195.66, 0.87, 0),
+      ("Tensor G5", 0, 2169000, 255, 960000000, 70.49, 216.61, 0.73, 0),
+      ("Tensor G5", 0, 2169000, 255, 1056000000, 70.77, 244.97, 1.52, 0),
+      ("Tensor G5", 0, 2169000, 255, 1132000000, 74.14, 237.56, 0.96, 0),
+      ("Tensor G5", 0, 2169000, 255, 1228000000, 77.04, 278.22, 0.99, 0),
+      ("Tensor G5", 0, 2169000, 255, 1324000000, 80.22, 273.2, 0.87, 0),
+      ("Tensor G5", 0, 2169000, 255, 1420000000, 77.82, 287.03, 1.55, 0),
+      ("Tensor G5", 0, 2169000, 255, 1516000000, 85.41, 291.57, 1.36, 0),
+      ("Tensor G5", 0, 2169000, 255, 1612000000, 89.28, 325.21, 1.02, 0),
+      ("Tensor G5", 0, 2169000, 255, 1728000000, 94.06, 331.6, 0.35, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 0, 2169000, 255, 1843000000, 96.8, 342.11, 0.85, 0),
+      ("Tensor G5", 0, 2169000, 255, 1920000000, 98.83, 356.44, 1.09, 0),
+      ("Tensor G5", 0, 2169000, 255, 1996000000, 101.05, 352.73, 1.16, 0),
+      ("Tensor G5", 0, 2169000, 255, 2092000000, 104.74, 378.28, 0.65, 0),
+      ("Tensor G5", 0, 2169000, 255, 2188000000, 115.9, 413.13, 0.99, 0),
+      ("Tensor G5", 0, 2246000, 255, 115000000, 46.17, 65.62, 0.99, 0),
+      ("Tensor G5", 0, 2246000, 255, 268000000, 51.7, 109.99, 1.05, 0),
+      ("Tensor G5", 0, 2246000, 255, 400000000, 52.75, 130.87, 0.9, 0),
+      ("Tensor G5", 0, 2246000, 255, 537000000, 63.14, 166.48, 0.9, 0),
+      ("Tensor G5", 0, 2246000, 255, 691000000, 66.56, 185.35, 0.91, 0),
+      ("Tensor G5", 0, 2246000, 255, 768000000, 69.84, 213.57, 0.9, 0),
+      ("Tensor G5", 0, 2246000, 255, 844000000, 72.44, 209.96, 0.92, 0),
+      ("Tensor G5", 0, 2246000, 255, 960000000, 76.31, 244.77, 0.88, 0),
+      ("Tensor G5", 0, 2246000, 255, 1056000000, 77.19, 253.25, 1.15, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 0, 2246000, 255, 1132000000, 80.51, 269.49, 0.94, 0),
+      ("Tensor G5", 0, 2246000, 255, 1228000000, 86.15, 279.13, 1.28, 0),
+      ("Tensor G5", 0, 2246000, 255, 1324000000, 86.89, 298.88, 0.98, 0),
+      ("Tensor G5", 0, 2246000, 255, 1420000000, 87.36, 321.84, 1.2, 0),
+      ("Tensor G5", 0, 2246000, 255, 1516000000, 93.03, 322.88, 1.18, 0),
+      ("Tensor G5", 0, 2246000, 255, 1612000000, 96.83, 348.28, 1.16, 0),
+      ("Tensor G5", 0, 2246000, 255, 1728000000, 100.03, 359.41, 1.49, 0),
+      ("Tensor G5", 0, 2246000, 255, 1843000000, 104.83, 374.2, 0.96, 0),
+      ("Tensor G5", 0, 2246000, 255, 1920000000, 107.22, 382.67, 1.17, 0),
+      ("Tensor G5", 0, 2246000, 255, 1996000000, 110.02, 397.06, 0.87, 0),
+      ("Tensor G5", 0, 2246000, 255, 2092000000, 113.37, 443.7, 0.8, 0),
+      ("Tensor G5", 0, 2246000, 255, 2188000000, 116.14, 423.27, 1.22, 0)) AS _values
+  )
+SELECT
+  *
+FROM data
+UNION ALL
+SELECT
+  *
+FROM _tg5_2d_lut_1
+UNION ALL
+SELECT
+  *
+FROM _tg5_2d_lut_2;
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(
+)_d3l1m1t3r_"
+;
+
+const char kWattsonCurvesTg5Cpu2d1[] = R"_d3l1m1t3r_(--
+-- Copyright 2025 The Android Open Source Project
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
@@ -30429,183 +35646,614 @@ const char kWattsonCurvesEstimates[] = R"_d3l1m1t3r_(--
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE wattson.cpu_split;
+-- Device specific device curves with 2D dependency (i.e. curve characteristics
+-- are dependent on another CPU policy). See go/wattson for more info.
 
-INCLUDE PERFETTO MODULE wattson.curves.utils;
-
-INCLUDE PERFETTO MODULE wattson.curves.w_cpu_dependence;
-
-INCLUDE PERFETTO MODULE wattson.curves.w_dsu_dependence;
-
-INCLUDE PERFETTO MODULE wattson.device_infos;
-
--- One of the two tables will be empty, depending on whether the device is
--- dependent on devfreq or a different CPU's frequency
-CREATE PERFETTO VIEW _curves_w_dependencies (
+CREATE PERFETTO TABLE _tg5_2d_lut_1 AS
+WITH
+  data(device, policy, freq_khz, dep_policy, dep_freq, static, active, idle0, idle1) AS (
+    SELECT
+      *
+    FROM (VALUES
+      ("Tensor G5", 5, 177000, 7, 266000, 1.02, 14.54, 3.51, 0),
+      ("Tensor G5", 5, 177000, 7, 400000, 1.25, 14.47, 3.36, 0),
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(  ts TIMESTAMP,
-  dur DURATION,
-  freq_0 LONG,
-  idle_0 LONG,
-  freq_1 LONG,
-  idle_1 LONG,
-  freq_2 LONG,
-  idle_2 LONG,
-  freq_3 LONG,
-  idle_3 LONG,
-  cpu0_curve DOUBLE,
-  cpu1_curve DOUBLE,
-  cpu2_curve DOUBLE,
-  cpu3_curve DOUBLE,
-  cpu4_curve DOUBLE,
-  cpu5_curve DOUBLE,
-  cpu6_curve DOUBLE,
-  cpu7_curve DOUBLE,
-  l3_hit_count LONG,
-  l3_miss_count LONG,
-  suspended BOOL,
-  no_static LONG,
-  all_cpu_deep_idle LONG,
-  dependent_freq LONG,
-  dependent_policy LONG
-) AS
--- Table that is dependent on differet CPU's frequency
+R"_d3l1m1t3r_(      ("Tensor G5", 5, 177000, 7, 533000, 1.21, 13.41, 3.37, 0),
+      ("Tensor G5", 5, 177000, 7, 800000, 1.39, 15.38, 3.52, 0),
+      ("Tensor G5", 5, 177000, 7, 883000, 1.87, 15.52, 3.6, 0),
+      ("Tensor G5", 5, 177000, 7, 1036000, 2.13, 16.46, 3.77, 0),
+      ("Tensor G5", 5, 177000, 7, 1152000, 2.34, 16.14, 3.96, 0),
+      ("Tensor G5", 5, 177000, 7, 1305000, 2.67, 18.64, 4.2, 0),
+      ("Tensor G5", 5, 177000, 7, 1420000, 3.01, 19.32, 4.43, 0),
+      ("Tensor G5", 5, 177000, 7, 1593000, 3.34, 20.83, 4.63, 0),
+      ("Tensor G5", 5, 177000, 7, 1766000, 3.71, 22.46, 4.88, 0),
+      ("Tensor G5", 5, 177000, 7, 1920000, 4.19, 22.6, 5.0, 0),
+      ("Tensor G5", 5, 177000, 7, 2073000, 4.87, 23.15, 5.01, 0),
+      ("Tensor G5", 5, 177000, 7, 2208000, 5.56, 25.4, 5.35, 0),
+      ("Tensor G5", 5, 177000, 7, 2342000, 5.79, 26.76, 5.98, 0),
+      ("Tensor G5", 5, 177000, 7, 2457000, 6.38, 29.89, 6.52, 0),
+      ("Tensor G5", 5, 177000, 7, 2592000, 7.18, 31.03, 6.89, 0),
+      ("Tensor G5", 5, 177000, 7, 2707000, 7.91, 33.45, 7.35, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 5, 177000, 7, 2937000, 9.29, 37.21, 8.4, 0),
+      ("Tensor G5", 5, 177000, 7, 3168000, 12.92, 46.4, 11.23, 0),
+      ("Tensor G5", 5, 177000, 7, 3398000, 12.78, 59.13, 11.35, 0),
+      ("Tensor G5", 5, 177000, 7, 3590000, 12.95, 79.35, 11.26, 0),
+      ("Tensor G5", 5, 177000, 7, 3782000, 12.99, 119.28, 11.23, 0),
+      ("Tensor G5", 5, 266000, 7, 266000, 1.11, 19.21, 3.41, 0),
+      ("Tensor G5", 5, 266000, 7, 400000, 1.57, 17.67, 3.09, 0),
+      ("Tensor G5", 5, 266000, 7, 533000, 1.28, 19.32, 3.31, 0),
+      ("Tensor G5", 5, 266000, 7, 800000, 1.52, 20.25, 3.43, 0),
+      ("Tensor G5", 5, 266000, 7, 883000, 1.96, 20.93, 3.54, 0),
+      ("Tensor G5", 5, 266000, 7, 1036000, 2.28, 20.44, 3.68, 0),
+      ("Tensor G5", 5, 266000, 7, 1152000, 2.5, 22.79, 3.86, 0),
+      ("Tensor G5", 5, 266000, 7, 1305000, 2.76, 24.57, 4.17, 0),
+      ("Tensor G5", 5, 266000, 7, 1420000, 3.16, 26.34, 4.35, 0),
+      ("Tensor G5", 5, 266000, 7, 1593000, 3.54, 25.53, 4.55, 0),
+      ("Tensor G5", 5, 266000, 7, 1766000, 3.94, 28.32, 4.71, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 5, 266000, 7, 1920000, 4.35, 30.15, 4.95, 0),
+      ("Tensor G5", 5, 266000, 7, 2073000, 4.63, 31.43, 5.12, 0),
+      ("Tensor G5", 5, 266000, 7, 2208000, 5.25, 32.77, 5.5, 0),
+      ("Tensor G5", 5, 266000, 7, 2342000, 5.87, 36.3, 5.95, 0),
+      ("Tensor G5", 5, 266000, 7, 2457000, 6.53, 38.2, 6.45, 0),
+      ("Tensor G5", 5, 266000, 7, 2592000, 7.25, 41.67, 6.86, 0),
+      ("Tensor G5", 5, 266000, 7, 2707000, 8.02, 44.19, 7.31, 0),
+      ("Tensor G5", 5, 266000, 7, 2937000, 9.46, 49.05, 8.31, 0),
+      ("Tensor G5", 5, 266000, 7, 3168000, 13.0, 61.37, 11.23, 0),
+      ("Tensor G5", 5, 266000, 7, 3398000, 13.05, 80.88, 11.28, 0),
+      ("Tensor G5", 5, 266000, 7, 3590000, 12.82, 102.88, 11.46, 0),
+      ("Tensor G5", 5, 266000, 7, 3782000, 12.98, 160.36, 11.33, 0),
+      ("Tensor G5", 5, 400000, 7, 266000, 1.46, 25.15, 3.13, 0),
+      ("Tensor G5", 5, 400000, 7, 400000, 1.38, 25.23, 3.19, 0),
+      ("Tensor G5", 5, 400000, 7, 533000, 1.18, 25.22, 3.27, 0),
+      ("Tensor G5", 5, 400000, 7, 800000, 1.56, 26.05, 3.39, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 5, 400000, 7, 883000, 1.94, 27.7, 3.53, 0),
+      ("Tensor G5", 5, 400000, 7, 1036000, 2.15, 29.7, 3.73, 0),
+      ("Tensor G5", 5, 400000, 7, 1152000, 2.35, 30.09, 3.92, 0),
+      ("Tensor G5", 5, 400000, 7, 1305000, 2.91, 32.61, 4.0, 0),
+      ("Tensor G5", 5, 400000, 7, 1420000, 3.23, 33.57, 4.24, 0),
+      ("Tensor G5", 5, 400000, 7, 1593000, 3.52, 36.51, 4.55, 0),
+      ("Tensor G5", 5, 400000, 7, 1766000, 3.78, 37.98, 4.8, 0),
+      ("Tensor G5", 5, 400000, 7, 1920000, 4.26, 40.01, 4.96, 0),
+      ("Tensor G5", 5, 400000, 7, 2073000, 4.54, 41.65, 5.1, 0),
+      ("Tensor G5", 5, 400000, 7, 2208000, 5.2, 44.69, 5.49, 0),
+      ("Tensor G5", 5, 400000, 7, 2342000, 5.85, 45.53, 5.93, 0),
+      ("Tensor G5", 5, 400000, 7, 2457000, 6.58, 51.21, 6.39, 0),
+      ("Tensor G5", 5, 400000, 7, 2592000, 7.27, 53.96, 6.79, 0),
+      ("Tensor G5", 5, 400000, 7, 2707000, 8.01, 58.64, 7.23, 0),
+      ("Tensor G5", 5, 400000, 7, 2937000, 9.46, 65.75, 8.26, 0),
+      ("Tensor G5", 5, 400000, 7, 3168000, 12.89, 79.34, 11.22, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 5, 400000, 7, 3398000, 18.6, 96.14, 8.41, 0),
+      ("Tensor G5", 5, 400000, 7, 3590000, 16.6, 130.76, 9.43, 0),
+      ("Tensor G5", 5, 400000, 7, 3782000, 13.88, 201.2, 10.78, 0),
+      ("Tensor G5", 5, 533000, 7, 266000, 1.87, 31.9, 3.22, 0),
+      ("Tensor G5", 5, 533000, 7, 400000, 1.46, 11.08, 3.51, 0),
+      ("Tensor G5", 5, 533000, 7, 533000, 1.68, 32.06, 3.21, 0),
+      ("Tensor G5", 5, 533000, 7, 800000, 1.37, 10.16, 3.55, 0),
+      ("Tensor G5", 5, 533000, 7, 883000, 2.2, 33.31, 3.34, 0),
+      ("Tensor G5", 5, 533000, 7, 1036000, 2.29, 35.09, 3.61, 0),
+      ("Tensor G5", 5, 533000, 7, 1152000, 2.96, 36.55, 3.56, 0),
+      ("Tensor G5", 5, 533000, 7, 1305000, 3.18, 40.11, 3.91, 0),
+      ("Tensor G5", 5, 533000, 7, 1420000, 3.51, 12.57, 4.17, 0),
+      ("Tensor G5", 5, 533000, 7, 1593000, 3.45, 45.95, 4.57, 0),
+      ("Tensor G5", 5, 533000, 7, 1766000, 4.28, 46.61, 4.57, 0),
+      ("Tensor G5", 5, 533000, 7, 1920000, 4.57, 49.18, 4.91, 0),
+      ("Tensor G5", 5, 533000, 7, 2073000, 4.86, 50.3, 5.09, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 5, 533000, 7, 2208000, 5.59, 56.63, 5.31, 0),
+      ("Tensor G5", 5, 533000, 7, 2342000, 6.2, 59.1, 5.87, 0),
+      ("Tensor G5", 5, 533000, 7, 2457000, 6.89, 65.16, 6.35, 0),
+      ("Tensor G5", 5, 533000, 7, 2592000, 7.69, 66.62, 6.72, 0),
+      ("Tensor G5", 5, 533000, 7, 2707000, 8.33, 21.93, 7.28, 0),
+      ("Tensor G5", 5, 533000, 7, 2937000, 9.95, 77.61, 8.16, 0),
+      ("Tensor G5", 5, 533000, 7, 3168000, 13.52, 97.08, 11.11, 0),
+      ("Tensor G5", 5, 533000, 7, 3398000, 13.65, 131.36, 11.04, 0),
+      ("Tensor G5", 5, 533000, 7, 3590000, 13.57, 168.07, 11.03, 0),
+      ("Tensor G5", 5, 533000, 7, 3782000, 13.78, 248.18, 10.99, 0),
+      ("Tensor G5", 5, 652000, 7, 266000, 2.36, 37.81, 3.23, 0),
+      ("Tensor G5", 5, 652000, 7, 400000, 2.35, 37.32, 3.24, 0),
+      ("Tensor G5", 5, 652000, 7, 533000, 1.93, 39.06, 3.49, 0),
+      ("Tensor G5", 5, 652000, 7, 800000, 2.28, 38.26, 3.27, 0),
+      ("Tensor G5", 5, 652000, 7, 883000, 2.81, 37.5, 3.21, 0),
+      ("Tensor G5", 5, 652000, 7, 1036000, 2.85, 41.43, 3.6, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 5, 652000, 7, 1152000, 3.31, 42.46, 3.6, 0),
+      ("Tensor G5", 5, 652000, 7, 1305000, 3.2, 45.43, 4.12, 0),
+      ("Tensor G5", 5, 652000, 7, 1420000, 3.88, 48.57, 4.24, 0),
+      ("Tensor G5", 5, 652000, 7, 1593000, 4.51, 49.59, 4.19, 0),
+      ("Tensor G5", 5, 652000, 7, 1766000, 4.63, 53.39, 4.67, 0),
+      ("Tensor G5", 5, 652000, 7, 1920000, 5.25, 55.3, 4.76, 0),
+      ("Tensor G5", 5, 652000, 7, 2073000, 5.72, 58.48, 4.8, 0),
+      ("Tensor G5", 5, 652000, 7, 2208000, 6.3, 64.14, 5.21, 0),
+      ("Tensor G5", 5, 652000, 7, 2342000, 7.16, 66.57, 5.57, 0),
+      ("Tensor G5", 5, 652000, 7, 2457000, 8.0, 70.42, 5.92, 0),
+      ("Tensor G5", 5, 652000, 7, 2592000, 8.8, 78.07, 6.28, 0),
+      ("Tensor G5", 5, 652000, 7, 2707000, 9.56, 79.4, 6.94, 0),
+      ("Tensor G5", 5, 652000, 7, 2937000, 11.45, 90.3, 7.61, 0),
+      ("Tensor G5", 5, 652000, 7, 3168000, 15.24, 108.3, 10.57, 0),
+      ("Tensor G5", 5, 652000, 7, 3398000, 14.93, 155.84, 10.94, 0),
+      ("Tensor G5", 5, 652000, 7, 3590000, 14.82, 199.68, 11.03, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 5, 652000, 7, 3782000, 14.92, 318.38, 10.91, 0),
+      ("Tensor G5", 5, 729000, 7, 266000, 2.63, 42.01, 3.15, 0),
+      ("Tensor G5", 5, 729000, 7, 400000, 2.45, 41.83, 3.38, 0),
+      ("Tensor G5", 5, 729000, 7, 533000, 2.22, 11.83, 3.36, 0),
+      ("Tensor G5", 5, 729000, 7, 800000, 2.28, 42.86, 3.41, 0),
+      ("Tensor G5", 5, 729000, 7, 883000, 2.95, 40.9, 3.13, 0),
+      ("Tensor G5", 5, 729000, 7, 1036000, 2.99, 44.52, 3.38, 0),
+      ("Tensor G5", 5, 729000, 7, 1152000, 3.24, 44.78, 3.67, 0),
+      ("Tensor G5", 5, 729000, 7, 1305000, 3.55, 50.01, 3.85, 0),
+      ("Tensor G5", 5, 729000, 7, 1420000, 4.16, 51.51, 4.1, 0),
+      ("Tensor G5", 5, 729000, 7, 1593000, 4.7, 54.42, 4.05, 0),
+      ("Tensor G5", 5, 729000, 7, 1766000, 5.2, 57.24, 4.29, 0),
+      ("Tensor G5", 5, 729000, 7, 1920000, 5.29, 60.56, 4.64, 0),
+      ("Tensor G5", 5, 729000, 7, 2073000, 5.74, 61.79, 4.87, 0),
+      ("Tensor G5", 5, 729000, 7, 2208000, 6.66, 18.58, 5.11, 0),
+      ("Tensor G5", 5, 729000, 7, 2342000, 7.08, 70.71, 5.71, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 5, 729000, 7, 2457000, 8.06, 77.7, 6.08, 0),
+      ("Tensor G5", 5, 729000, 7, 2592000, 9.37, 79.4, 6.0, 0),
+      ("Tensor G5", 5, 729000, 7, 2707000, 10.27, 87.67, 6.41, 0),
+      ("Tensor G5", 5, 729000, 7, 2937000, 11.04, 98.55, 7.96, 0),
+      ("Tensor G5", 5, 729000, 7, 3168000, 15.34, 120.85, 10.63, 0),
+      ("Tensor G5", 5, 729000, 7, 3398000, 15.34, 156.54, 10.75, 0),
+      ("Tensor G5", 5, 729000, 7, 3590000, 15.55, 205.86, 10.6, 0),
+      ("Tensor G5", 5, 729000, 7, 3782000, 15.44, 317.31, 10.67, 0),
+      ("Tensor G5", 5, 921000, 7, 266000, 2.95, 52.8, 3.58, 0),
+      ("Tensor G5", 5, 921000, 7, 400000, 2.87, 53.57, 3.56, 0),
+      ("Tensor G5", 5, 921000, 7, 533000, 2.78, 53.89, 3.56, 0),
+      ("Tensor G5", 5, 921000, 7, 800000, 3.41, 53.54, 3.25, 0),
+      ("Tensor G5", 5, 921000, 7, 883000, 3.78, 52.99, 3.29, 0),
+      ("Tensor G5", 5, 921000, 7, 1036000, 3.94, 51.59, 3.25, 0),
+      ("Tensor G5", 5, 921000, 7, 1152000, 3.78, 52.54, 3.54, 0),
+      ("Tensor G5", 5, 921000, 7, 1305000, 3.99, 56.51, 3.73, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 5, 921000, 7, 1420000, 4.87, 58.65, 3.77, 0),
+      ("Tensor G5", 5, 921000, 7, 1593000, 5.08, 62.89, 4.18, 0),
+      ("Tensor G5", 5, 921000, 7, 1766000, 5.88, 65.67, 4.01, 0),
+      ("Tensor G5", 5, 921000, 7, 1920000, 6.16, 67.33, 4.34, 0),
+      ("Tensor G5", 5, 921000, 7, 2073000, 6.41, 74.21, 4.55, 0),
+      ("Tensor G5", 5, 921000, 7, 2208000, 7.43, 77.51, 4.73, 0),
+      ("Tensor G5", 5, 921000, 7, 2342000, 7.69, 85.15, 5.6, 0),
+      ("Tensor G5", 5, 921000, 7, 2457000, 8.82, 89.98, 5.71, 0),
+      ("Tensor G5", 5, 921000, 7, 2592000, 9.99, 97.28, 5.92, 0),
+      ("Tensor G5", 5, 921000, 7, 2707000, 10.45, 100.97, 6.74, 0),
+      ("Tensor G5", 5, 921000, 7, 2937000, 11.92, 113.9, 7.78, 0),
+      ("Tensor G5", 5, 921000, 7, 3168000, 16.29, 137.18, 10.52, 0),
+      ("Tensor G5", 5, 921000, 7, 3398000, 16.27, 187.48, 10.58, 0),
+      ("Tensor G5", 5, 921000, 7, 3590000, 16.08, 232.56, 10.73, 0),
+      ("Tensor G5", 5, 921000, 7, 3782000, 16.52, 352.5, 10.32, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 5, 1075000, 7, 266000, 3.54, 61.34, 3.56, 0),
+      ("Tensor G5", 5, 1075000, 7, 400000, 3.13, 63.53, 4.03, 0),
+      ("Tensor G5", 5, 1075000, 7, 533000, 3.17, 61.23, 3.78, 0),
+      ("Tensor G5", 5, 1075000, 7, 800000, 3.55, 62.84, 3.8, 0),
+      ("Tensor G5", 5, 1075000, 7, 883000, 3.86, 64.23, 3.7, 0),
+      ("Tensor G5", 5, 1075000, 7, 1036000, 1.88, 63.26, 5.77, 0),
+      ("Tensor G5", 5, 1075000, 7, 1152000, 4.11, 61.19, 3.7, 0),
+      ("Tensor G5", 5, 1075000, 7, 1305000, 4.37, 62.61, 3.6, 0),
+      ("Tensor G5", 5, 1075000, 7, 1420000, 5.03, 65.08, 3.75, 0),
+      ("Tensor G5", 5, 1075000, 7, 1593000, 5.63, 69.13, 3.85, 0),
+      ("Tensor G5", 5, 1075000, 7, 1766000, 5.45, 71.61, 4.37, 0),
+      ("Tensor G5", 5, 1075000, 7, 1920000, 6.06, 74.78, 4.82, 0),
+      ("Tensor G5", 5, 1075000, 7, 2073000, 6.02, 77.55, 5.04, 0),
+      ("Tensor G5", 5, 1075000, 7, 2208000, 7.28, 85.27, 5.19, 0),
+      ("Tensor G5", 5, 1075000, 7, 2342000, 8.26, 89.34, 5.23, 0),
+      ("Tensor G5", 5, 1075000, 7, 2457000, 8.81, 99.61, 5.96, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 5, 1075000, 7, 2592000, 10.64, 105.73, 5.71, 0),
+      ("Tensor G5", 5, 1075000, 7, 2707000, 11.63, 111.1, 6.09, 0),
+      ("Tensor G5", 5, 1075000, 7, 2937000, 12.58, 125.8, 7.71, 0),
+      ("Tensor G5", 5, 1075000, 7, 3168000, 17.28, 150.49, 10.16, 0),
+      ("Tensor G5", 5, 1075000, 7, 3398000, 17.69, 189.76, 9.77, 0),
+      ("Tensor G5", 5, 1075000, 7, 3590000, 17.18, 251.42, 10.23, 0),
+      ("Tensor G5", 5, 1075000, 7, 3782000, 17.69, 374.3, 9.8, 0),
+      ("Tensor G5", 5, 1267000, 7, 266000, 4.39, 72.07, 3.68, 0),
+      ("Tensor G5", 5, 1267000, 7, 400000, 3.84, 71.45, 4.05, 0),
+      ("Tensor G5", 5, 1267000, 7, 533000, 4.23, 71.43, 3.86, 0),
+      ("Tensor G5", 5, 1267000, 7, 800000, 3.95, 70.95, 3.95, 0),
+      ("Tensor G5", 5, 1267000, 7, 883000, 4.39, 72.31, 4.05, 0),
+      ("Tensor G5", 5, 1267000, 7, 1036000, 4.98, 70.96, 3.85, 0),
+      ("Tensor G5", 5, 1267000, 7, 1152000, 4.73, 73.57, 3.9, 0),
+      ("Tensor G5", 5, 1267000, 7, 1305000, 5.3, 70.43, 3.77, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 5, 1267000, 7, 1420000, 5.58, 73.61, 3.62, 0),
+      ("Tensor G5", 5, 1267000, 7, 1593000, 6.15, 72.2, 3.71, 0),
+      ("Tensor G5", 5, 1267000, 7, 1766000, 6.03, 79.79, 4.48, 0),
+      ("Tensor G5", 5, 1267000, 7, 1920000, 6.85, 81.15, 4.38, 0),
+      ("Tensor G5", 5, 1267000, 7, 2073000, 7.57, 86.21, 4.19, 0),
+      ("Tensor G5", 5, 1267000, 7, 2208000, 7.82, 91.55, 4.8, 0),
+      ("Tensor G5", 5, 1267000, 7, 2342000, 9.42, 99.49, 4.84, 0),
+      ("Tensor G5", 5, 1267000, 7, 2457000, 10.36, 103.61, 5.25, 0),
+      ("Tensor G5", 5, 1267000, 7, 2592000, 10.86, 113.02, 5.88, 0),
+      ("Tensor G5", 5, 1267000, 7, 2707000, 11.47, 120.51, 6.74, 0),
+      ("Tensor G5", 5, 1267000, 7, 2937000, 13.87, 138.75, 7.05, 0),
+      ("Tensor G5", 5, 1267000, 7, 3168000, 18.18, 162.12, 10.12, 0),
+      ("Tensor G5", 5, 1267000, 7, 3398000, 17.69, 218.77, 10.62, 0),
+      ("Tensor G5", 5, 1267000, 7, 3590000, 18.43, 272.7, 9.81, 0),
+      ("Tensor G5", 5, 1267000, 7, 3782000, 18.37, 420.98, 9.85, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 5, 1401000, 7, 266000, 5.06, 78.88, 3.71, 0),
+      ("Tensor G5", 5, 1401000, 7, 400000, 4.96, 80.57, 3.93, 0),
+      ("Tensor G5", 5, 1401000, 7, 533000, 4.56, 78.41, 3.94, 0),
+      ("Tensor G5", 5, 1401000, 7, 800000, 4.55, 83.21, 4.03, 0),
+      ("Tensor G5", 5, 1401000, 7, 883000, 5.56, 77.32, 3.83, 0),
+      ("Tensor G5", 5, 1401000, 7, 1036000, 5.45, 81.45, 4.07, 0),
+      ("Tensor G5", 5, 1401000, 7, 1152000, 5.28, 80.46, 4.09, 0),
+      ("Tensor G5", 5, 1401000, 7, 1305000, 6.04, 82.52, 3.77, 0),
+      ("Tensor G5", 5, 1401000, 7, 1420000, 5.05, 78.68, 4.51, 0),
+      ("Tensor G5", 5, 1401000, 7, 1593000, 5.81, 81.65, 4.03, 0),
+      ("Tensor G5", 5, 1401000, 7, 1766000, 6.28, 83.08, 4.19, 0),
+      ("Tensor G5", 5, 1401000, 7, 1920000, 7.47, 89.32, 4.03, 0),
+      ("Tensor G5", 5, 1401000, 7, 2073000, 7.74, 91.49, 4.37, 0),
+      ("Tensor G5", 5, 1401000, 7, 2208000, 8.81, 95.82, 4.45, 0),
+      ("Tensor G5", 5, 1401000, 7, 2342000, 9.04, 100.46, 5.17, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 5, 1401000, 7, 2457000, 9.92, 117.59, 5.65, 0),
+      ("Tensor G5", 5, 1401000, 7, 2592000, 11.03, 118.37, 5.98, 0),
+      ("Tensor G5", 5, 1401000, 7, 2707000, 11.33, 131.34, 6.94, 0),
+      ("Tensor G5", 5, 1401000, 7, 2937000, 14.47, 138.99, 7.08, 0),
+      ("Tensor G5", 5, 1401000, 7, 3168000, 18.75, 172.92, 9.92, 0),
+      ("Tensor G5", 5, 1401000, 7, 3398000, 17.53, 231.81, 10.92, 0),
+      ("Tensor G5", 5, 1401000, 7, 3590000, 18.85, 292.08, 9.87, 0),
+      ("Tensor G5", 5, 1401000, 7, 3782000, 18.21, 423.86, 10.47, 0),
+      ("Tensor G5", 5, 1536000, 7, 266000, 4.88, 91.32, 4.26, 0),
+      ("Tensor G5", 5, 1536000, 7, 400000, 4.44, 87.37, 4.8, 0),
+      ("Tensor G5", 5, 1536000, 7, 533000, 5.35, 89.62, 4.03, 0),
+      ("Tensor G5", 5, 1536000, 7, 800000, 5.66, 85.83, 3.94, 0),
+      ("Tensor G5", 5, 1536000, 7, 883000, 6.18, 87.75, 3.96, 0),
+      ("Tensor G5", 5, 1536000, 7, 1036000, 5.57, 84.98, 4.63, 0),
+      ("Tensor G5", 5, 1536000, 7, 1152000, 6.29, 89.1, 4.16, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 5, 1536000, 7, 1305000, 5.72, 92.82, 4.41, 0),
+      ("Tensor G5", 5, 1536000, 7, 1420000, 6.13, 88.62, 4.23, 0),
+      ("Tensor G5", 5, 1536000, 7, 1593000, 6.95, 86.06, 3.92, 0),
+      ("Tensor G5", 5, 1536000, 7, 1766000, 7.14, 88.5, 3.88, 0),
+      ("Tensor G5", 5, 1536000, 7, 1920000, 7.01, 93.42, 4.43, 0),
+      ("Tensor G5", 5, 1536000, 7, 2073000, 7.37, 95.39, 4.57, 0),
+      ("Tensor G5", 5, 1536000, 7, 2208000, 8.6, 100.41, 4.93, 0),
+      ("Tensor G5", 5, 1536000, 7, 2342000, 9.98, 116.87, 4.9, 0),
+      ("Tensor G5", 5, 1536000, 7, 2457000, 10.85, 116.27, 5.29, 0),
+      ("Tensor G5", 5, 1536000, 7, 2592000, 11.19, 129.71, 6.14, 0),
+      ("Tensor G5", 5, 1536000, 7, 2707000, 12.3, 132.09, 6.7, 0),
+      ("Tensor G5", 5, 1536000, 7, 2937000, 13.9, 156.25, 7.59, 0),
+      ("Tensor G5", 5, 1536000, 7, 3168000, 19.21, 181.15, 9.93, 0),
+      ("Tensor G5", 5, 1536000, 7, 3398000, 18.66, 245.2, 10.61, 0),
+      ("Tensor G5", 5, 1536000, 7, 3590000, 19.4, 297.18, 9.88, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 5, 1536000, 7, 3782000, 18.37, 442.99, 10.87, 0),
+      ("Tensor G5", 5, 1670000, 7, 266000, 5.19, 98.62, 4.67, 0),
+      ("Tensor G5", 5, 1670000, 7, 400000, 6.0, 98.81, 4.2, 0),
+      ("Tensor G5", 5, 1670000, 7, 533000, 5.38, 97.16, 4.46, 0),
+      ("Tensor G5", 5, 1670000, 7, 800000, 6.29, 98.72, 4.09, 0),
+      ("Tensor G5", 5, 1670000, 7, 883000, 6.86, 91.72, 4.08, 0),
+      ("Tensor G5", 5, 1670000, 7, 1036000, 6.83, 98.16, 4.24, 0),
+      ("Tensor G5", 5, 1670000, 7, 1152000, 6.52, 97.1, 4.39, 0),
+      ("Tensor G5", 5, 1670000, 7, 1305000, 6.51, 98.86, 4.47, 0),
+      ("Tensor G5", 5, 1670000, 7, 1420000, 6.85, 98.88, 4.6, 0),
+      ("Tensor G5", 5, 1670000, 7, 1593000, 6.78, 97.06, 4.51, 0),
+      ("Tensor G5", 5, 1670000, 7, 1766000, 7.08, 96.1, 4.48, 0),
+      ("Tensor G5", 5, 1670000, 7, 1920000, 6.98, 100.67, 4.66, 0),
+      ("Tensor G5", 5, 1670000, 7, 2073000, 8.26, 97.09, 4.31, 0),
+      ("Tensor G5", 5, 1670000, 7, 2208000, 8.7, 114.7, 4.92, 0),
+      ("Tensor G5", 5, 1670000, 7, 2342000, 9.9, 113.34, 5.09, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 5, 1670000, 7, 2457000, 11.37, 130.66, 5.3, 0),
+      ("Tensor G5", 5, 1670000, 7, 2592000, 12.05, 132.5, 5.97, 0),
+      ("Tensor G5", 5, 1670000, 7, 2707000, 13.3, 147.45, 6.16, 0),
+      ("Tensor G5", 5, 1670000, 7, 2937000, 14.48, 152.42, 7.9, 0),
+      ("Tensor G5", 5, 1670000, 7, 3168000, 19.03, 196.69, 10.79, 0),
+      ("Tensor G5", 5, 1670000, 7, 3398000, 18.81, 260.47, 10.76, 0),
+      ("Tensor G5", 5, 1670000, 7, 3590000, 19.28, 324.66, 10.14, 0),
+      ("Tensor G5", 5, 1670000, 7, 3782000, 18.92, 462.56, 10.69, 0),
+      ("Tensor G5", 5, 1785000, 7, 266000, 5.92, 106.41, 4.54, 0),
+      ("Tensor G5", 5, 1785000, 7, 400000, 6.12, 106.39, 4.48, 0),
+      ("Tensor G5", 5, 1785000, 7, 533000, 6.48, 104.64, 4.33, 0),
+      ("Tensor G5", 5, 1785000, 7, 800000, 5.93, 102.85, 4.65, 0),
+      ("Tensor G5", 5, 1785000, 7, 883000, 7.42, 105.6, 4.09, 0),
+      ("Tensor G5", 5, 1785000, 7, 1036000, 6.54, 106.22, 4.71, 0),
+      ("Tensor G5", 5, 1785000, 7, 1152000, 7.63, 103.97, 4.19, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 5, 1785000, 7, 1305000, 7.75, 100.33, 4.22, 0),
+      ("Tensor G5", 5, 1785000, 7, 1420000, 7.96, 107.52, 4.17, 0),
+      ("Tensor G5", 5, 1785000, 7, 1593000, 8.07, 109.33, 4.28, 0),
+      ("Tensor G5", 5, 1785000, 7, 1766000, 8.17, 103.42, 4.26, 0),
+      ("Tensor G5", 5, 1785000, 7, 1920000, 7.31, 104.43, 4.96, 0),
+      ("Tensor G5", 5, 1785000, 7, 2073000, 7.9, 106.62, 4.78, 0),
+      ("Tensor G5", 5, 1785000, 7, 2208000, 9.48, 110.92, 4.61, 0),
+      ("Tensor G5", 5, 1785000, 7, 2342000, 10.0, 122.33, 5.4, 0),
+      ("Tensor G5", 5, 1785000, 7, 2457000, 11.04, 125.94, 5.63, 0),
+      ("Tensor G5", 5, 1785000, 7, 2592000, 12.7, 140.06, 5.62, 0),
+      ("Tensor G5", 5, 1785000, 7, 2707000, 12.78, 145.79, 6.47, 0),
+      ("Tensor G5", 5, 1785000, 7, 2937000, 15.76, 162.81, 6.91, 0),
+      ("Tensor G5", 5, 1785000, 7, 3168000, 18.91, 196.99, 11.04, 0),
+      ("Tensor G5", 5, 1785000, 7, 3398000, 20.29, 264.14, 9.85, 0),
+      ("Tensor G5", 5, 1785000, 7, 3590000, 19.44, 329.73, 10.79, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 5, 1785000, 7, 3782000, 19.91, 473.6, 10.07, 0),
+      ("Tensor G5", 5, 1862000, 7, 266000, 6.25, 114.94, 5.01, 0),
+      ("Tensor G5", 5, 1862000, 7, 400000, 6.36, 117.39, 4.99, 0),
+      ("Tensor G5", 5, 1862000, 7, 533000, 6.81, 110.45, 4.85, 0),
+      ("Tensor G5", 5, 1862000, 7, 800000, 7.22, 112.71, 4.67, 0),
+      ("Tensor G5", 5, 1862000, 7, 883000, 7.95, 116.41, 4.53, 0),
+      ("Tensor G5", 5, 1862000, 7, 1036000, 7.5, 118.48, 4.87, 0),
+      ("Tensor G5", 5, 1862000, 7, 1152000, 8.17, 109.96, 4.55, 0),
+      ("Tensor G5", 5, 1862000, 7, 1305000, 8.21, 115.7, 4.72, 0),
+      ("Tensor G5", 5, 1862000, 7, 1420000, 7.77, 111.2, 4.89, 0),
+      ("Tensor G5", 5, 1862000, 7, 1593000, 8.65, 116.4, 4.64, 0),
+      ("Tensor G5", 5, 1862000, 7, 1766000, 8.05, 114.02, 5.03, 0),
+      ("Tensor G5", 5, 1862000, 7, 1920000, 9.01, 115.93, 4.61, 0),
+      ("Tensor G5", 5, 1862000, 7, 2073000, 9.27, 111.13, 4.61, 0),
+      ("Tensor G5", 5, 1862000, 7, 2208000, 9.58, 118.08, 4.68, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 5, 1862000, 7, 2342000, 10.74, 123.33, 4.9, 0),
+      ("Tensor G5", 5, 1862000, 7, 2457000, 10.9, 136.92, 5.84, 0),
+      ("Tensor G5", 5, 1862000, 7, 2592000, 11.69, 143.73, 6.31, 0),
+      ("Tensor G5", 5, 1862000, 7, 2707000, 12.63, 158.23, 6.79, 0),
+      ("Tensor G5", 5, 1862000, 7, 2937000, 15.12, 174.19, 7.49, 0),
+      ("Tensor G5", 5, 1862000, 7, 3168000, 20.09, 216.69, 10.47, 0),
+      ("Tensor G5", 5, 1862000, 7, 3398000, 20.65, 258.47, 9.91, 0),
+      ("Tensor G5", 5, 1862000, 7, 3590000, 19.83, 334.54, 10.74, 0),
+      ("Tensor G5", 5, 1862000, 7, 3782000, 20.22, 487.67, 10.1, 0),
+      ("Tensor G5", 5, 1939000, 7, 266000, 7.27, 125.19, 5.03, 0),
+      ("Tensor G5", 5, 1939000, 7, 400000, 6.32, 122.17, 5.79, 0),
+      ("Tensor G5", 5, 1939000, 7, 533000, 7.34, 123.35, 4.98, 0),
+      ("Tensor G5", 5, 1939000, 7, 800000, 6.88, 119.42, 5.3, 0),
+      ("Tensor G5", 5, 1939000, 7, 883000, 8.36, 127.35, 4.84, 0),
+      ("Tensor G5", 5, 1939000, 7, 1036000, 8.55, 120.02, 4.81, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 5, 1939000, 7, 1152000, 7.9, 131.32, 5.23, 0),
+      ("Tensor G5", 5, 1939000, 7, 1305000, 8.76, 119.77, 4.96, 0),
+      ("Tensor G5", 5, 1939000, 7, 1420000, 8.46, 124.8, 5.09, 0),
+      ("Tensor G5", 5, 1939000, 7, 1593000, 8.41, 123.55, 5.27, 0),
+      ("Tensor G5", 5, 1939000, 7, 1766000, 8.64, 123.78, 5.34, 0),
+      ("Tensor G5", 5, 1939000, 7, 1920000, 9.85, 122.17, 4.69, 0),
+      ("Tensor G5", 5, 1939000, 7, 2073000, 8.68, 128.51, 5.62, 0),
+      ("Tensor G5", 5, 1939000, 7, 2208000, 9.34, 121.66, 5.18, 0),
+      ("Tensor G5", 5, 1939000, 7, 2342000, 10.73, 128.96, 5.13, 0),
+      ("Tensor G5", 5, 1939000, 7, 2457000, 10.88, 138.85, 5.98, 0),
+      ("Tensor G5", 5, 1939000, 7, 2592000, 13.04, 147.65, 5.72, 0),
+      ("Tensor G5", 5, 1939000, 7, 2707000, 14.2, 152.24, 6.0, 0),
+      ("Tensor G5", 5, 1939000, 7, 2937000, 15.17, 177.51, 7.77, 0),
+      ("Tensor G5", 5, 1939000, 7, 3168000, 20.83, 202.25, 9.99, 0),
+      ("Tensor G5", 5, 1939000, 7, 3398000, 19.59, 277.19, 10.7, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 5, 1939000, 7, 3590000, 20.98, 343.01, 9.96, 0),
+      ("Tensor G5", 5, 1939000, 7, 3782000, 18.71, 502.82, 11.53, 0),
+      ("Tensor G5", 5, 2092000, 7, 266000, 7.18, 141.09, 6.46, 0),
+      ("Tensor G5", 5, 2092000, 7, 400000, 8.15, 143.52, 5.78, 0),
+      ("Tensor G5", 5, 2092000, 7, 533000, 7.46, 143.76, 6.07, 0),
+      ("Tensor G5", 5, 2092000, 7, 800000, 8.55, 31.33, 5.65, 0),
+      ("Tensor G5", 5, 2092000, 7, 883000, 8.86, 141.73, 5.7, 0),
+      ("Tensor G5", 5, 2092000, 7, 1036000, 8.95, 142.92, 5.78, 0),
+      ("Tensor G5", 5, 2092000, 7, 1152000, 9.86, 29.11, 5.41, 0),
+      ("Tensor G5", 5, 2092000, 7, 1305000, 9.67, 147.95, 5.78, 0),
+      ("Tensor G5", 5, 2092000, 7, 1420000, 10.26, 136.27, 5.37, 0),
+      ("Tensor G5", 5, 2092000, 7, 1593000, 9.67, 147.72, 5.94, 0),
+      ("Tensor G5", 5, 2092000, 7, 1766000, 10.79, 135.9, 5.47, 0),
+      ("Tensor G5", 5, 2092000, 7, 1920000, 10.4, 145.94, 5.76, 0),
+      ("Tensor G5", 5, 2092000, 7, 2073000, 11.31, 136.0, 5.31, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 5, 2092000, 7, 2208000, 10.58, 145.88, 6.02, 0),
+      ("Tensor G5", 5, 2092000, 7, 2342000, 11.09, 138.85, 5.86, 0),
+      ("Tensor G5", 5, 2092000, 7, 2457000, 12.31, 146.5, 5.42, 0),
+      ("Tensor G5", 5, 2092000, 7, 2592000, 13.58, 31.28, 5.61, 0),
+      ("Tensor G5", 5, 2092000, 7, 2707000, 12.7, 171.16, 7.42, 0),
+      ("Tensor G5", 5, 2092000, 7, 2937000, 15.5, 177.01, 7.66, 0),
+      ("Tensor G5", 5, 2092000, 7, 3168000, 20.31, 50.32, 10.4, 0),
+      ("Tensor G5", 5, 2092000, 7, 3398000, 21.18, 294.51, 10.15, 0),
+      ("Tensor G5", 5, 2092000, 7, 3590000, 21.48, 362.26, 10.05, 0),
+      ("Tensor G5", 5, 2092000, 7, 3782000, 20.04, 526.35, 10.61, 0),
+      ("Tensor G5", 5, 2188000, 7, 266000, 8.43, 154.26, 6.28, 0),
+      ("Tensor G5", 5, 2188000, 7, 400000, 8.31, 152.85, 6.32, 0),
+      ("Tensor G5", 5, 2188000, 7, 533000, 8.4, 161.76, 6.13, 0),
+      ("Tensor G5", 5, 2188000, 7, 800000, 8.54, 148.4, 6.12, 0),
+      ("Tensor G5", 5, 2188000, 7, 883000, 9.19, 162.07, 6.16, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 5, 2188000, 7, 1036000, 10.32, 148.71, 5.8, 0),
+      ("Tensor G5", 5, 2188000, 7, 1152000, 10.61, 158.24, 5.68, 0),
+      ("Tensor G5", 5, 2188000, 7, 1305000, 11.01, 149.94, 5.6, 0),
+      ("Tensor G5", 5, 2188000, 7, 1420000, 11.21, 161.33, 5.6, 0),
+      ("Tensor G5", 5, 2188000, 7, 1593000, 10.54, 152.11, 5.92, 0),
+      ("Tensor G5", 5, 2188000, 7, 1766000, 10.36, 157.49, 6.25, 0),
+      ("Tensor G5", 5, 2188000, 7, 1920000, 11.58, 147.52, 5.82, 0),
+      ("Tensor G5", 5, 2188000, 7, 2073000, 12.15, 152.81, 5.52, 0),
+      ("Tensor G5", 5, 2188000, 7, 2208000, 11.24, 152.77, 6.13, 0),
+      ("Tensor G5", 5, 2188000, 7, 2342000, 12.1, 162.25, 5.79, 0),
+      ("Tensor G5", 5, 2188000, 7, 2457000, 11.67, 151.0, 6.1, 0),
+      ("Tensor G5", 5, 2188000, 7, 2592000, 13.16, 161.36, 5.83, 0),
+      ("Tensor G5", 5, 2188000, 7, 2707000, 14.41, 161.55, 6.45, 0),
+      ("Tensor G5", 5, 2188000, 7, 2937000, 16.48, 198.79, 7.5, 0),
+      ("Tensor G5", 5, 2188000, 7, 3168000, 22.04, 217.71, 9.89, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 5, 2188000, 7, 3398000, 22.02, 299.47, 9.83, 0),
+      ("Tensor G5", 5, 2188000, 7, 3590000, 21.63, 370.68, 10.1, 0),
+      ("Tensor G5", 5, 2188000, 7, 3782000, 22.05, 535.97, 9.84, 0),
+      ("Tensor G5", 5, 2284000, 7, 266000, 8.85, 164.03, 6.68, 0),
+      ("Tensor G5", 5, 2284000, 7, 400000, 8.89, 171.56, 6.72, 0),
+      ("Tensor G5", 5, 2284000, 7, 533000, 8.84, 173.48, 6.71, 0),
+      ("Tensor G5", 5, 2284000, 7, 800000, 10.19, 173.16, 6.13, 0),
+      ("Tensor G5", 5, 2284000, 7, 883000, 10.9, 166.32, 5.98, 0),
+      ("Tensor G5", 5, 2284000, 7, 1036000, 11.25, 174.86, 5.97, 0),
+      ("Tensor G5", 5, 2284000, 7, 1152000, 11.29, 166.86, 6.16, 0),
+      ("Tensor G5", 5, 2284000, 7, 1305000, 11.65, 171.18, 6.07, 0),
+      ("Tensor G5", 5, 2284000, 7, 1420000, 9.65, 157.2, 8.18, 0),
+      ("Tensor G5", 5, 2284000, 7, 1593000, 11.62, 170.04, 6.19, 0),
+      ("Tensor G5", 5, 2284000, 7, 1766000, 11.6, 157.42, 6.31, 0),
+      ("Tensor G5", 5, 2284000, 7, 1920000, 11.97, 165.07, 6.19, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 5, 2284000, 7, 2073000, 13.32, 161.12, 5.61, 0),
+      ("Tensor G5", 5, 2284000, 7, 2208000, 13.08, 167.74, 6.01, 0),
+      ("Tensor G5", 5, 2284000, 7, 2342000, 11.97, 167.47, 6.72, 0),
+      ("Tensor G5", 5, 2284000, 7, 2457000, 13.48, 171.67, 5.94, 0),
+      ("Tensor G5", 5, 2284000, 7, 2592000, 13.39, 167.78, 6.18, 0),
+      ("Tensor G5", 5, 2284000, 7, 2707000, 12.88, 179.52, 7.71, 0),
+      ("Tensor G5", 5, 2284000, 7, 2937000, 15.77, 192.38, 7.85, 0),
+      ("Tensor G5", 5, 2284000, 7, 3168000, 20.6, 249.62, 10.99, 0),
+      ("Tensor G5", 5, 2284000, 7, 3398000, 20.03, 310.0, 11.49, 0),
+      ("Tensor G5", 5, 2284000, 7, 3590000, 21.36, 396.97, 10.61, 0),
+      ("Tensor G5", 5, 2284000, 7, 3782000, 22.28, 552.09, 9.94, 0),
+      ("Tensor G5", 5, 2400000, 7, 266000, 9.83, 180.06, 6.82, 0),
+      ("Tensor G5", 5, 2400000, 7, 400000, 10.94, 171.69, 6.42, 0),
+      ("Tensor G5", 5, 2400000, 7, 533000, 9.88, 179.15, 6.85, 0),
+      ("Tensor G5", 5, 2400000, 7, 800000, 9.96, 183.46, 6.87, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 5, 2400000, 7, 883000, 10.45, 180.68, 7.11, 0),
+      ("Tensor G5", 5, 2400000, 7, 1036000, 12.24, 177.33, 6.25, 0),
+      ("Tensor G5", 5, 2400000, 7, 1152000, 11.46, 184.57, 6.7, 0),
+      ("Tensor G5", 5, 2400000, 7, 1305000, 11.34, 180.3, 6.98, 0),
+      ("Tensor G5", 5, 2400000, 7, 1420000, 12.53, 176.5, 6.47, 0),
+      ("Tensor G5", 5, 2400000, 7, 1593000, 11.78, 173.09, 7.02, 0),
+      ("Tensor G5", 5, 2400000, 7, 1766000, 12.27, 188.64, 6.9, 0),
+      ("Tensor G5", 5, 2400000, 7, 1920000, 13.67, 179.83, 6.26, 0),
+      ("Tensor G5", 5, 2400000, 7, 2073000, 12.49, 181.49, 7.04, 0),
+      ("Tensor G5", 5, 2400000, 7, 2208000, 13.58, 180.93, 6.75, 0),
+      ("Tensor G5", 5, 2400000, 7, 2342000, 14.11, 184.01, 6.41, 0),
+      ("Tensor G5", 5, 2400000, 7, 2457000, 13.34, 172.07, 6.99, 0),
+      ("Tensor G5", 5, 2400000, 7, 2592000, 12.59, 189.67, 7.82, 0),
+      ("Tensor G5", 5, 2400000, 7, 2707000, 13.63, 174.29, 7.36, 0),
+      ("Tensor G5", 5, 2400000, 7, 2937000, 16.45, 208.2, 7.65, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 5, 2400000, 7, 3168000, 20.93, 242.56, 11.0, 0),
+      ("Tensor G5", 5, 2400000, 7, 3398000, 21.29, 318.53, 10.66, 0),
+      ("Tensor G5", 5, 2400000, 7, 3590000, 21.77, 396.53, 10.37, 0),
+      ("Tensor G5", 5, 2400000, 7, 3782000, 22.91, 570.58, 9.64, 0),
+      ("Tensor G5", 5, 2534000, 7, 266000, 12.7, 191.57, 7.25, 0),
+      ("Tensor G5", 5, 2534000, 7, 400000, 13.27, 211.99, 6.63, 0),
+      ("Tensor G5", 5, 2534000, 7, 533000, 12.2, 201.61, 7.47, 0),
+      ("Tensor G5", 5, 2534000, 7, 800000, 11.73, 215.66, 7.82, 0),
+      ("Tensor G5", 5, 2534000, 7, 883000, 12.69, 212.61, 7.75, 0),
+      ("Tensor G5", 5, 2534000, 7, 1036000, 13.82, 211.11, 7.47, 0),
+      ("Tensor G5", 5, 2534000, 7, 1152000, 14.85, 198.97, 6.82, 0),
+      ("Tensor G5", 5, 2534000, 7, 1305000, 14.31, 201.45, 7.39, 0),
+      ("Tensor G5", 5, 2534000, 7, 1420000, 14.67, 202.75, 7.26, 0),
+      ("Tensor G5", 5, 2534000, 7, 1593000, 13.98, 212.66, 7.73, 0),
+      ("Tensor G5", 5, 2534000, 7, 1766000, 14.27, 202.88, 7.7, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 5, 2534000, 7, 1920000, 15.73, 208.43, 7.12, 0),
+      ("Tensor G5", 5, 2534000, 7, 2073000, 15.71, 197.24, 7.46, 0),
+      ("Tensor G5", 5, 2534000, 7, 2208000, 14.88, 216.52, 7.84, 0),
+      ("Tensor G5", 5, 2534000, 7, 2342000, 15.36, 206.42, 7.64, 0),
+      ("Tensor G5", 5, 2534000, 7, 2457000, 14.75, 218.4, 8.36, 0),
+      ("Tensor G5", 5, 2534000, 7, 2592000, 16.01, 201.88, 7.58, 0),
+      ("Tensor G5", 5, 2534000, 7, 2707000, 17.0, 212.26, 7.17, 0),
+      ("Tensor G5", 5, 2534000, 7, 2937000, 16.05, 202.96, 8.41, 0),
+      ("Tensor G5", 5, 2534000, 7, 3168000, 22.66, 257.8, 10.19, 0),
+      ("Tensor G5", 5, 2534000, 7, 3398000, 20.99, 319.68, 11.23, 0),
+      ("Tensor G5", 5, 2534000, 7, 3590000, 22.07, 407.71, 10.67, 0),
+      ("Tensor G5", 5, 2534000, 7, 3782000, 22.38, 586.28, 10.5, 0),
+      ("Tensor G5", 5, 2688000, 7, 266000, 13.26, 237.95, 8.95, 0),
+      ("Tensor G5", 5, 2688000, 7, 400000, 13.05, 228.83, 9.13, 0),
+      ("Tensor G5", 5, 2688000, 7, 533000, 13.82, 240.99, 9.1, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 5, 2688000, 7, 800000, 13.73, 235.14, 8.82, 0),
+      ("Tensor G5", 5, 2688000, 7, 883000, 14.22, 229.65, 9.12, 0),
+      ("Tensor G5", 5, 2688000, 7, 1036000, 14.92, 228.96, 8.97, 0),
+      ("Tensor G5", 5, 2688000, 7, 1152000, 15.58, 242.21, 8.69, 0),
+      ("Tensor G5", 5, 2688000, 7, 1305000, 15.87, 233.94, 8.43, 0),
+      ("Tensor G5", 5, 2688000, 7, 1420000, 15.58, 244.44, 8.85, 0),
+      ("Tensor G5", 5, 2688000, 7, 1593000, 14.95, 236.7, 9.72, 0),
+      ("Tensor G5", 5, 2688000, 7, 1766000, 17.31, 242.86, 8.48, 0),
+      ("Tensor G5", 5, 2688000, 7, 1920000, 16.54, 234.67, 8.89, 0),
+      ("Tensor G5", 5, 2688000, 7, 2073000, 17.92, 230.6, 8.37, 0),
+      ("Tensor G5", 5, 2688000, 7, 2208000, 16.82, 226.97, 8.89, 0),
+      ("Tensor G5", 5, 2688000, 7, 2342000, 17.38, 234.81, 8.76, 0),
+      ("Tensor G5", 5, 2688000, 7, 2457000, 16.85, 226.11, 9.12, 0),
+      ("Tensor G5", 5, 2688000, 7, 2592000, 18.51, 243.54, 8.67, 0),
+      ("Tensor G5", 5, 2688000, 7, 2707000, 17.82, 234.49, 8.91, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 5, 2688000, 7, 2937000, 19.73, 232.22, 8.2, 0),
+      ("Tensor G5", 5, 2688000, 7, 3168000, 21.81, 260.09, 11.16, 0),
+      ("Tensor G5", 5, 2688000, 7, 3398000, 20.97, 354.38, 12.05, 0),
+      ("Tensor G5", 5, 2688000, 7, 3590000, 21.36, 418.1, 11.31, 0),
+      ("Tensor G5", 5, 2688000, 7, 3782000, 21.7, 617.21, 11.36, 0),
+      ("Tensor G5", 5, 2841000, 7, 266000, 18.08, 280.49, 11.11, 0),
+      ("Tensor G5", 5, 2841000, 7, 400000, 16.48, 298.51, 12.02, 0),
+      ("Tensor G5", 5, 2841000, 7, 533000, 16.27, 285.92, 12.01, 0),
+      ("Tensor G5", 5, 2841000, 7, 800000, 17.44, 287.98, 11.39, 0),
+      ("Tensor G5", 5, 2841000, 7, 883000, 19.74, 270.47, 10.98, 0),
+      ("Tensor G5", 5, 2841000, 7, 1036000, 20.11, 273.57, 10.88, 0),
+      ("Tensor G5", 5, 2841000, 7, 1152000, 19.05, 285.28, 11.5, 0),
+      ("Tensor G5", 5, 2841000, 7, 1305000, 18.92, 291.44, 11.99, 0),
+      ("Tensor G5", 5, 2841000, 7, 1420000, 19.35, 284.92, 11.78, 0),
+      ("Tensor G5", 5, 2841000, 7, 1593000, 19.81, 289.05, 11.66, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 5, 2841000, 7, 1766000, 20.33, 283.03, 11.5, 0),
+      ("Tensor G5", 5, 2841000, 7, 1920000, 21.29, 279.53, 11.14, 0),
+      ("Tensor G5", 5, 2841000, 7, 2073000, 20.66, 287.03, 11.72, 0),
+      ("Tensor G5", 5, 2841000, 7, 2208000, 21.52, 294.05, 11.48, 0),
+      ("Tensor G5", 5, 2841000, 7, 2342000, 20.89, 282.0, 12.44, 0),
+      ("Tensor G5", 5, 2841000, 7, 2457000, 21.42, 293.84, 12.12, 0),
+      ("Tensor G5", 5, 2841000, 7, 2592000, 22.21, 273.28, 11.64, 0),
+      ("Tensor G5", 5, 2841000, 7, 2707000, 23.54, 280.57, 11.03, 0),
+      ("Tensor G5", 5, 2841000, 7, 2937000, 23.11, 275.81, 11.42, 0),
+      ("Tensor G5", 5, 2841000, 7, 3168000, 25.4, 285.75, 10.48, 0),
+      ("Tensor G5", 5, 2841000, 7, 3398000, 25.17, 342.44, 10.67, 0),
+      ("Tensor G5", 5, 2841000, 7, 3590000, 24.89, 436.76, 10.8, 0),
+      ("Tensor G5", 5, 2841000, 7, 3782000, 25.3, 601.26, 10.52, 0),
+      ("Tensor G5", 5, 2937000, 7, 266000, 21.01, 326.61, 13.39, 0),
+      ("Tensor G5", 5, 2937000, 7, 400000, 19.79, 319.62, 14.18, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 5, 2937000, 7, 533000, 20.93, 326.91, 13.65, 0),
+      ("Tensor G5", 5, 2937000, 7, 800000, 20.53, 325.58, 13.77, 0),
+      ("Tensor G5", 5, 2937000, 7, 883000, 20.96, 330.68, 14.64, 0),
+      ("Tensor G5", 5, 2937000, 7, 1036000, 23.33, 315.3, 13.56, 0),
+      ("Tensor G5", 5, 2937000, 7, 1152000, 21.59, 334.06, 14.34, 0),
+      ("Tensor G5", 5, 2937000, 7, 1305000, 22.31, 309.45, 14.66, 0),
+      ("Tensor G5", 5, 2937000, 7, 1420000, 21.83, 334.63, 14.75, 0),
+      ("Tensor G5", 5, 2937000, 7, 1593000, 25.02, 316.91, 13.23, 0),
+      ("Tensor G5", 5, 2937000, 7, 1766000, 22.57, 336.65, 15.01, 0),
+      ("Tensor G5", 5, 2937000, 7, 1920000, 24.29, 315.73, 13.83, 0),
+      ("Tensor G5", 5, 2937000, 7, 2073000, 24.42, 332.05, 14.04, 0),
+      ("Tensor G5", 5, 2937000, 7, 2208000, 26.79, 315.44, 13.04, 0),
+      ("Tensor G5", 5, 2937000, 7, 2342000, 26.4, 330.0, 13.46, 0),
+      ("Tensor G5", 5, 2937000, 7, 2457000, 25.08, 321.49, 14.43, 0),
+      ("Tensor G5", 5, 2937000, 7, 2592000, 25.54, 332.99, 14.44, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 5, 2937000, 7, 2707000, 26.36, 322.76, 13.67, 0),
+      ("Tensor G5", 5, 2937000, 7, 2937000, 26.28, 329.3, 14.17, 0),
+      ("Tensor G5", 5, 2937000, 7, 3168000, 28.35, 319.87, 13.53, 0),
+      ("Tensor G5", 5, 2937000, 7, 3398000, 26.52, 335.76, 14.82, 0),
+      ("Tensor G5", 5, 2937000, 7, 3590000, 26.25, 418.35, 14.87, 0),
+      ("Tensor G5", 5, 2937000, 7, 3782000, 28.68, 605.19, 13.36, 0),
+      ("Tensor G5", 5, 3052000, 7, 266000, 24.53, 348.05, 17.64, 0),
+      ("Tensor G5", 5, 3052000, 7, 400000, 23.87, 373.56, 17.85, 0),
+      ("Tensor G5", 5, 3052000, 7, 533000, 25.15, 348.99, 17.25, 0),
+      ("Tensor G5", 5, 3052000, 7, 800000, 25.56, 369.14, 16.83, 0),
+      ("Tensor G5", 5, 3052000, 7, 883000, 27.72, 354.79, 16.36, 0),
+      ("Tensor G5", 5, 3052000, 7, 1036000, 26.64, 372.01, 17.36, 0),
+      ("Tensor G5", 5, 3052000, 7, 1152000, 28.94, 354.06, 16.06, 0),
+      ("Tensor G5", 5, 3052000, 7, 1305000, 28.35, 354.8, 16.7, 0),
+      ("Tensor G5", 5, 3052000, 7, 1420000, 27.29, 355.77, 17.31, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 5, 3052000, 7, 1593000, 29.01, 360.68, 16.87, 0),
+      ("Tensor G5", 5, 3052000, 7, 1766000, 28.38, 358.26, 17.13, 0),
+      ("Tensor G5", 5, 3052000, 7, 1920000, 27.42, 371.84, 18.39, 0),
+      ("Tensor G5", 5, 3052000, 7, 2073000, 27.93, 362.34, 18.17, 0),
+      ("Tensor G5", 5, 3052000, 7, 2208000, 30.22, 361.79, 17.49, 0),
+      ("Tensor G5", 5, 3052000, 7, 2342000, 30.1, 361.1, 17.73, 0),
+      ("Tensor G5", 5, 3052000, 7, 2457000, 30.41, 371.25, 16.97, 0),
+      ("Tensor G5", 5, 3052000, 7, 2592000, 29.14, 356.91, 18.21, 0),
+      ("Tensor G5", 5, 3052000, 7, 2707000, 32.36, 366.08, 16.55, 0),
+      ("Tensor G5", 5, 3052000, 7, 2937000, 31.08, 358.27, 17.42, 0),
+      ("Tensor G5", 5, 3052000, 7, 3168000, 33.19, 370.28, 16.84, 0),
+      ("Tensor G5", 5, 3052000, 7, 3398000, 32.38, 361.12, 17.47, 0),
+      ("Tensor G5", 5, 3052000, 7, 3590000, 32.28, 415.4, 17.69, 0),
+      ("Tensor G5", 5, 3052000, 7, 3782000, 33.41, 596.23, 16.73, 0)) AS _values
+  )
 SELECT
   *
-FROM _w_cpu_dependence
-UNION ALL
--- Table that is dependent of devfreq frequency
-SELECT
-  *
-FROM _w_dsu_dependence;
-
--- Final table showing the curves per CPU per slice
-CREATE PERFETTO TABLE _system_state_curves AS
-SELECT
-  base.ts,
-  base.dur,
-  -- base.cpu[0-3]_curve will be non-zero if CPU has 1D dependency
-  -- base.cpu[0-3]_curve will be zero if device is suspended or deep idle
-  -- base.cpu[0-3]_curve will be NULL if 2D dependency required
-  iif(suspended, 0.0, coalesce(base.cpu0_curve, lut0.curve_value)) AS cpu0_curve,
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(  iif(suspended, 0.0, coalesce(base.cpu1_curve, lut1.curve_value)) AS cpu1_curve,
-  iif(suspended, 0.0, coalesce(base.cpu2_curve, lut2.curve_value)) AS cpu2_curve,
-  iif(suspended, 0.0, coalesce(base.cpu3_curve, lut3.curve_value)) AS cpu3_curve,
-  -- base.cpu[4-7]_curve will be non-zero if CPU has 1D dependency
-  -- base.cpu[4-7]_curve will be zero if device is suspended or deep idle
-  -- base.cpu[4-7]_curve will be NULL if CPU doesn't exist on device
-  iif(suspended, 0.0, coalesce(base.cpu4_curve, 0.0)) AS cpu4_curve,
-  iif(suspended, 0.0, coalesce(base.cpu5_curve, 0.0)) AS cpu5_curve,
-  iif(suspended, 0.0, coalesce(base.cpu6_curve, 0.0)) AS cpu6_curve,
-  iif(suspended, 0.0, coalesce(base.cpu7_curve, 0.0)) AS cpu7_curve,
-  iif(no_static = 1, 0.0, coalesce(static_1d.curve_value, static_2d.curve_value)) AS static_curve,
-  iif(all_cpu_deep_idle = 1, 0, base.l3_hit_count * l3_hit_lut.curve_value) AS l3_hit_value,
-  iif(all_cpu_deep_idle = 1, 0, base.l3_miss_count * l3_miss_lut.curve_value) AS l3_miss_value
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(FROM _curves_w_dependencies AS base
--- LUT for 2D dependencies
-LEFT JOIN _filtered_curves_2d AS lut0
-  ON lut0.freq_khz = base.freq_0
-  AND lut0.other_policy = base.dependent_policy
-  AND lut0.other_freq_khz = base.dependent_freq
-  AND lut0.idle = base.idle_0
-LEFT JOIN _filtered_curves_2d AS lut1
-  ON lut1.freq_khz = base.freq_1
-  AND lut1.other_policy = base.dependent_policy
-  AND lut1.other_freq_khz = base.dependent_freq
-  AND lut1.idle = base.idle_1
-LEFT JOIN _filtered_curves_2d AS lut2
-  ON lut2.freq_khz = base.freq_2
-  AND lut2.other_policy = base.dependent_policy
-  AND lut2.other_freq_khz = base.dependent_freq
-  AND lut2.idle = base.idle_2
-LEFT JOIN _filtered_curves_2d AS lut3
-  ON lut3.freq_khz = base.freq_3
-  AND lut3.other_policy = base.dependent_policy
-  AND lut3.other_freq_khz = base.dependent_freq
-  AND lut3.idle = base.idle_3
--- LUT for static curve lookup
-LEFT JOIN _filtered_curves_2d AS static_2d
-  ON static_2d.freq_khz = base.freq_0
-  AND static_2d.other_policy = base.dependent_policy
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  AND static_2d.other_freq_khz = base.dependent_freq
-  AND static_2d.idle = 255
-LEFT JOIN _filtered_curves_1d AS static_1d
-  ON static_1d.policy = 0 AND static_1d.freq_khz = base.freq_0 AND static_1d.idle = 255
--- LUT joins for L3 cache
-LEFT JOIN _filtered_curves_l3 AS l3_hit_lut
-  ON l3_hit_lut.freq_khz = base.freq_0
-  AND l3_hit_lut.other_policy = base.dependent_policy
-  AND l3_hit_lut.other_freq_khz = base.dependent_freq
-  AND l3_hit_lut.action = 'hit'
-LEFT JOIN _filtered_curves_l3 AS l3_miss_lut
-  ON l3_miss_lut.freq_khz = base.freq_0
-  AND l3_miss_lut.other_policy = base.dependent_policy
-  AND l3_miss_lut.other_freq_khz = base.dependent_freq
-  AND l3_miss_lut.action = 'miss';
-
--- The most basic components of Wattson, all normalized to be in mW on a per
--- system state basis
-CREATE PERFETTO TABLE _system_state_mw AS
-SELECT
-  ts,
-  dur,
-  cpu0_curve AS cpu0_mw,
-  cpu1_curve AS cpu1_mw,
-  cpu2_curve AS cpu2_mw,
-  cpu3_curve AS cpu3_mw,
-  cpu4_curve AS cpu4_mw,
-  cpu5_curve AS cpu5_mw,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  cpu6_curve AS cpu6_mw,
-  cpu7_curve AS cpu7_mw,
-  -- LUT for l3 is scaled by 10^6 to save resolution and in units of kWs. Scale
-  -- this by 10^3 so when divided by ns, result is in units of mW
-  (
-    (
-      coalesce(l3_hit_value, 0) + coalesce(l3_miss_value, 0)
-    ) * 1000 / dur
-  ) + static_curve AS dsu_scu_mw
-FROM _system_state_curves;
-
--- API to get power from each system state in an arbitrary time window
-CREATE PERFETTO FUNCTION _windowed_system_state_mw(
-    ts TIMESTAMP,
-    dur LONG
-)
-RETURNS TABLE (
-  cpu0_mw DOUBLE,
-  cpu1_mw DOUBLE,
-  cpu2_mw DOUBLE,
-  cpu3_mw DOUBLE,
-  cpu4_mw DOUBLE,
-  cpu5_mw DOUBLE,
-  cpu6_mw DOUBLE,
-  cpu7_mw DOUBLE,
-  dsu_scu_mw DOUBLE
-) AS
-SELECT
-  sum(ss.cpu0_mw * ss.dur) / sum(ss.dur) AS cpu0_mw,
-  sum(ss.cpu1_mw * ss.dur) / sum(ss.dur) AS cpu1_mw,
-  sum(ss.cpu2_mw * ss.dur) / sum(ss.dur) AS cpu2_mw,
-  sum(ss.cpu3_mw * ss.dur) / sum(ss.dur) AS cpu3_mw,
-  sum(ss.cpu4_mw * ss.dur) / sum(ss.dur) AS cpu4_mw,
-  sum(ss.cpu5_mw * ss.dur) / sum(ss.dur) AS cpu5_mw,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  sum(ss.cpu6_mw * ss.dur) / sum(ss.dur) AS cpu6_mw,
-  sum(ss.cpu7_mw * ss.dur) / sum(ss.dur) AS cpu7_mw,
-  sum(ss.dsu_scu_mw * ss.dur) / sum(ss.dur) AS dsu_scu_mw
-FROM _interval_intersect_single!($ts, $dur, _ii_subquery!(_system_state_mw)) AS ii
-JOIN _system_state_mw AS ss
-  ON ss._auto_id = id;
+R"_d3l1m1t3r_(FROM data;
 
 )_d3l1m1t3r_"
 ;
 
-const char kWattsonCurvesIdleAttribution[] = R"_d3l1m1t3r_(--
--- Copyright 2024 The Android Open Source Project
+const char kWattsonCurvesTg5Cpu2d2[] = R"_d3l1m1t3r_(--
+-- Copyright 2025 The Android Open Source Project
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
@@ -30619,234 +36267,1124 @@ const char kWattsonCurvesIdleAttribution[] = R"_d3l1m1t3r_(--
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE intervals.intersect;
-
-INCLUDE PERFETTO MODULE wattson.curves.estimates;
-
--- Get slice info of threads/processes
-CREATE PERFETTO TABLE _thread_process_slices AS
-SELECT
-  sched.ts,
-  sched.dur,
-  sched.cpu,
-  thread.utid,
-  thread.upid
-FROM thread
-JOIN sched
-  USING (utid)
-WHERE
-  dur > 0;
-
--- Helper macro so Perfetto tables can be used with interval intersect
-CREATE PERFETTO MACRO _ii_table(
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(    tab TableOrSubquery
-)
-RETURNS TableOrSubquery AS
-(
-  SELECT
-    _auto_id AS id,
-    *
-  FROM $tab
-);
-
--- Get slices only where there is transition from deep idle to active
-CREATE PERFETTO TABLE _idle_exits AS
-SELECT
-  ts,
-  dur,
-  cpu,
-  idle
-FROM _adjusted_deep_idle
-WHERE
-  idle = -1 AND dur > 0;
-
--- Gets the slices where the CPU transitions from deep idle to active, and the
--- associated thread that causes the idle exit
-CREATE PERFETTO TABLE _idle_w_threads AS
+-- Device specific device curves with 2D dependency (i.e. curve characteristics
+-- are dependent on another CPU policy). See go/wattson for more info.
+CREATE PERFETTO TABLE _tg5_2d_lut_2 AS
 WITH
-  _ii_idle_threads AS (
+  data(device, policy, freq_khz, dep_policy, dep_freq, static, active, idle0, idle1) AS (
     SELECT
-      ii.ts,
-      ii.dur,
-      ii.cpu,
-      threads.utid,
-      threads.upid,
-      id_1 AS idle_group
-    FROM _interval_intersect!(
-    (
-      _ii_table!(_thread_process_slices),
-      _ii_table!(_idle_exits)
-    ),
-    (cpu)
-  ) AS ii
-    JOIN _thread_process_slices AS threads
-      ON threads._auto_id = id_0
-  ),
-  -- Since sorted by time, MIN() is fast aggregate function that will return the
-  -- first time slice, which will be the utid = 0 slice immediately succeeding the
-  -- idle to active transition, and immediately preceding the active thread
+      *
+    FROM (VALUES
+      ("Tensor G5", 7, 266000, 5, 177000, 0, 51.2, 27.72, 0),
+      ("Tensor G5", 7, 266000, 5, 266000, 0, 51.82, 27.24, 0),
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(  first_swapper_slice AS (
-    SELECT
-      ts,
-      dur,
-      cpu,
-      idle_group,
-      min(ts) AS min
-    FROM _ii_idle_threads
-    GROUP BY
-      idle_group
-  ),
-  -- MIN() here will give the first active thread immediately succeeding the idle
-  -- to active transition slice, which means this the the thread that causes the
-  -- idle exit
-  first_non_swapper_slice AS (
-    SELECT
-      idle_group,
-      utid,
-      upid,
-      min(ts) AS min,
-      min(ts) + dur AS next_ts
-    FROM _ii_idle_threads
-    WHERE
-      NOT utid IN (
-        SELECT
-          utid
-        FROM thread
-        WHERE
-          is_idle
-      )
-    GROUP BY
-      idle_group
-  ),
-  -- MAX() here will give the last time slice in the group. This will be the
-  -- utid = 0 slice immediately preceding the active to idle transition.
-  last_swapper_slice AS (
-    SELECT
-      ts,
-      dur,
-      cpu,
-      idle_group,
-      max(ts) AS min
-    FROM _ii_idle_threads
-    GROUP BY
-      idle_group
+R"_d3l1m1t3r_(      ("Tensor G5", 7, 266000, 5, 400000, 0, 53.14, 26.99, 0),
+      ("Tensor G5", 7, 266000, 5, 533000, 0, 55.57, 28.61, 0),
+      ("Tensor G5", 7, 266000, 5, 652000, 0, 57.43, 29.59, 0),
+      ("Tensor G5", 7, 266000, 5, 729000, 0, 59.68, 30.27, 0),
+      ("Tensor G5", 7, 266000, 5, 921000, 0, 65.59, 32.64, 0),
+      ("Tensor G5", 7, 266000, 5, 1075000, 0, 70.69, 34.8, 0),
+      ("Tensor G5", 7, 266000, 5, 1267000, 0, 75.38, 37.14, 0),
+      ("Tensor G5", 7, 266000, 5, 1401000, 0, 80.24, 38.8, 0),
+      ("Tensor G5", 7, 266000, 5, 1536000, 0, 84.57, 40.91, 0),
+      ("Tensor G5", 7, 266000, 5, 1670000, 0, 88.29, 42.95, 0),
+      ("Tensor G5", 7, 266000, 5, 1785000, 0, 91.91, 44.21, 0),
+      ("Tensor G5", 7, 266000, 5, 1862000, 0, 98.54, 46.74, 0),
+      ("Tensor G5", 7, 266000, 5, 1939000, 0, 102.98, 48.88, 0),
+      ("Tensor G5", 7, 266000, 5, 2092000, 0, 114.11, 53.39, 0),
+      ("Tensor G5", 7, 266000, 5, 2188000, 0, 118.33, 55.88, 0),
+      ("Tensor G5", 7, 266000, 5, 2284000, 0, 123.94, 58.88, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 7, 266000, 5, 2400000, 0, 131.05, 61.73, 0),
+      ("Tensor G5", 7, 266000, 5, 2534000, 0, 145.65, 68.25, 0),
+      ("Tensor G5", 7, 266000, 5, 2688000, 0, 161.28, 75.26, 0),
+      ("Tensor G5", 7, 266000, 5, 2841000, 0, 191.51, 91.92, 0),
+      ("Tensor G5", 7, 266000, 5, 2937000, 0, 213.0, 105.41, 0),
+      ("Tensor G5", 7, 266000, 5, 3052000, 0, 243.69, 122.72, 0),
+      ("Tensor G5", 7, 400000, 5, 177000, 0, 70.99, 26.46, 0),
+      ("Tensor G5", 7, 400000, 5, 266000, 0, 71.18, 26.37, 0),
+      ("Tensor G5", 7, 400000, 5, 400000, 0, 71.93, 26.32, 0),
+      ("Tensor G5", 7, 400000, 5, 533000, 0, 75.41, 27.69, 0),
+      ("Tensor G5", 7, 400000, 5, 652000, 0, 78.97, 28.95, 0),
+      ("Tensor G5", 7, 400000, 5, 729000, 0, 80.65, 29.36, 0),
+      ("Tensor G5", 7, 400000, 5, 921000, 0, 87.34, 31.9, 0),
+      ("Tensor G5", 7, 400000, 5, 1075000, 0, 93.52, 34.09, 0),
+      ("Tensor G5", 7, 400000, 5, 1267000, 0, 100.36, 36.44, 0),
+      ("Tensor G5", 7, 400000, 5, 1401000, 0, 105.24, 38.08, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 7, 400000, 5, 1536000, 0, 111.59, 39.78, 0),
+      ("Tensor G5", 7, 400000, 5, 1670000, 0, 116.74, 41.83, 0),
+      ("Tensor G5", 7, 400000, 5, 1785000, 0, 120.48, 43.63, 0),
+      ("Tensor G5", 7, 400000, 5, 1862000, 0, 128.02, 46.01, 0),
+      ("Tensor G5", 7, 400000, 5, 1939000, 0, 135.7, 47.44, 0),
+      ("Tensor G5", 7, 400000, 5, 2092000, 0, 146.73, 52.88, 0),
+      ("Tensor G5", 7, 400000, 5, 2188000, 0, 154.09, 55.12, 0),
+      ("Tensor G5", 7, 400000, 5, 2284000, 0, 162.8, 57.99, 0),
+      ("Tensor G5", 7, 400000, 5, 2400000, 0, 171.08, 60.54, 0),
+      ("Tensor G5", 7, 400000, 5, 2534000, 0, 188.77, 67.58, 0),
+      ("Tensor G5", 7, 400000, 5, 2688000, 0, 206.36, 74.52, 0),
+      ("Tensor G5", 7, 400000, 5, 2841000, 0, 243.85, 90.6, 0),
+      ("Tensor G5", 7, 400000, 5, 2937000, 0, 273.68, 104.56, 0),
+      ("Tensor G5", 7, 400000, 5, 3052000, 0, 306.47, 121.9, 0),
+      ("Tensor G5", 7, 533000, 5, 177000, 0, 86.84, 25.15, 0),
+      ("Tensor G5", 7, 533000, 5, 266000, 0, 85.92, 26.0, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 7, 533000, 5, 400000, 0, 86.85, 25.82, 0),
+      ("Tensor G5", 7, 533000, 5, 533000, 0, 90.02, 27.16, 0),
+      ("Tensor G5", 7, 533000, 5, 652000, 0, 94.57, 28.54, 0),
+      ("Tensor G5", 7, 533000, 5, 729000, 0, 98.27, 28.19, 0),
+      ("Tensor G5", 7, 533000, 5, 921000, 0, 107.03, 30.71, 0),
+      ("Tensor G5", 7, 533000, 5, 1075000, 0, 113.27, 33.64, 0),
+      ("Tensor G5", 7, 533000, 5, 1267000, 0, 123.63, 35.61, 0),
+      ("Tensor G5", 7, 533000, 5, 1401000, 0, 130.18, 37.15, 0),
+      ("Tensor G5", 7, 533000, 5, 1536000, 0, 134.83, 39.69, 0),
+      ("Tensor G5", 7, 533000, 5, 1670000, 0, 139.28, 41.59, 0),
+      ("Tensor G5", 7, 533000, 5, 1785000, 0, 146.0, 42.48, 0),
+      ("Tensor G5", 7, 533000, 5, 1862000, 0, 154.85, 44.04, 0),
+      ("Tensor G5", 7, 533000, 5, 1939000, 0, 165.86, 47.62, 0),
+      ("Tensor G5", 7, 533000, 5, 2092000, 0, 178.72, 51.53, 0),
+      ("Tensor G5", 7, 533000, 5, 2188000, 0, 186.42, 54.72, 0),
+      ("Tensor G5", 7, 533000, 5, 2284000, 0, 0, 55.44, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 7, 533000, 5, 2400000, 0, 0, 59.69, 0),
+      ("Tensor G5", 7, 533000, 5, 2534000, 0, 0, 67.13, 0),
+      ("Tensor G5", 7, 533000, 5, 2688000, 0, 0, 75.87, 0),
+      ("Tensor G5", 7, 533000, 5, 2841000, 0, 0, 87.65, 0),
+      ("Tensor G5", 7, 533000, 5, 2937000, 0, 0, 103.52, 0),
+      ("Tensor G5", 7, 533000, 5, 3052000, 0, 366.64, 121.1, 0),
+      ("Tensor G5", 7, 800000, 5, 177000, 0, 120.54, 26.07, 0),
+      ("Tensor G5", 7, 800000, 5, 266000, 0, 122.76, 26.14, 0),
+      ("Tensor G5", 7, 800000, 5, 400000, 0, 119.64, 27.09, 0),
+      ("Tensor G5", 7, 800000, 5, 533000, 0, 115.66, 27.44, 0),
+      ("Tensor G5", 7, 800000, 5, 652000, 0, 126.53, 27.29, 0),
+      ("Tensor G5", 7, 800000, 5, 729000, 0, 124.87, 28.67, 0),
+      ("Tensor G5", 7, 800000, 5, 921000, 0, 141.11, 30.2, 0),
+      ("Tensor G5", 7, 800000, 5, 1075000, 0, 143.08, 33.64, 0),
+      ("Tensor G5", 7, 800000, 5, 1267000, 0, 159.6, 34.7, 0),
+      ("Tensor G5", 7, 800000, 5, 1401000, 0, 165.37, 36.34, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 7, 800000, 5, 1536000, 0, 177.27, 38.16, 0),
+      ("Tensor G5", 7, 800000, 5, 1670000, 0, 181.43, 40.1, 0),
+      ("Tensor G5", 7, 800000, 5, 1785000, 0, 191.72, 41.4, 0),
+      ("Tensor G5", 7, 800000, 5, 1862000, 0, 195.83, 45.68, 0),
+      ("Tensor G5", 7, 800000, 5, 1939000, 0, 206.23, 47.97, 0),
+      ("Tensor G5", 7, 800000, 5, 2092000, 0, 224.12, 52.21, 0),
+      ("Tensor G5", 7, 800000, 5, 2188000, 0, 235.98, 55.1, 0),
+      ("Tensor G5", 7, 800000, 5, 2284000, 0, 248.66, 55.23, 0),
+      ("Tensor G5", 7, 800000, 5, 2400000, 0, 266.57, 58.03, 0),
+      ("Tensor G5", 7, 800000, 5, 2534000, 0, 283.36, 67.23, 0),
+      ("Tensor G5", 7, 800000, 5, 2688000, 0, 319.95, 74.48, 0),
+      ("Tensor G5", 7, 800000, 5, 2841000, 0, 366.67, 90.46, 0),
+      ("Tensor G5", 7, 800000, 5, 2937000, 0, 414.14, 104.4, 0),
+      ("Tensor G5", 7, 800000, 5, 3052000, 0, 449.36, 126.56, 0),
+      ("Tensor G5", 7, 883000, 5, 177000, 0, 132.5, 28.31, 0),
+      ("Tensor G5", 7, 883000, 5, 266000, 0, 130.58, 27.14, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 7, 883000, 5, 400000, 0, 129.8, 28.05, 0),
+      ("Tensor G5", 7, 883000, 5, 533000, 0, 131.0, 27.2, 0),
+      ("Tensor G5", 7, 883000, 5, 652000, 0, 130.17, 28.56, 0),
+      ("Tensor G5", 7, 883000, 5, 729000, 0, 131.98, 29.04, 0),
+      ("Tensor G5", 7, 883000, 5, 921000, 0, 151.36, 30.46, 0),
+      ("Tensor G5", 7, 883000, 5, 1075000, 0, 151.45, 33.93, 0),
+      ("Tensor G5", 7, 883000, 5, 1267000, 0, 170.65, 35.53, 0),
+      ("Tensor G5", 7, 883000, 5, 1401000, 0, 173.46, 36.5, 0),
+      ("Tensor G5", 7, 883000, 5, 1536000, 0, 185.58, 38.36, 0),
+      ("Tensor G5", 7, 883000, 5, 1670000, 0, 189.47, 42.62, 0),
+      ("Tensor G5", 7, 883000, 5, 1785000, 0, 198.91, 43.46, 0),
+      ("Tensor G5", 7, 883000, 5, 1862000, 0, 211.99, 45.53, 0),
+      ("Tensor G5", 7, 883000, 5, 1939000, 0, 232.41, 46.95, 0),
+      ("Tensor G5", 7, 883000, 5, 2092000, 0, 244.78, 50.67, 0),
+      ("Tensor G5", 7, 883000, 5, 2188000, 0, 250.05, 55.52, 0),
+      ("Tensor G5", 7, 883000, 5, 2284000, 0, 263.23, 58.16, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 7, 883000, 5, 2400000, 0, 284.7, 59.03, 0),
+      ("Tensor G5", 7, 883000, 5, 2534000, 0, 306.12, 68.03, 0),
+      ("Tensor G5", 7, 883000, 5, 2688000, 0, 344.19, 72.35, 0),
+      ("Tensor G5", 7, 883000, 5, 2841000, 0, 388.8, 91.62, 0),
+      ("Tensor G5", 7, 883000, 5, 2937000, 0, 444.06, 104.42, 0),
+      ("Tensor G5", 7, 883000, 5, 3052000, 0, 493.66, 118.55, 0),
+      ("Tensor G5", 7, 1036000, 5, 177000, 0, 156.84, 28.63, 0),
+      ("Tensor G5", 7, 1036000, 5, 266000, 0, 151.54, 28.51, 0),
+      ("Tensor G5", 7, 1036000, 5, 400000, 0, 152.76, 29.33, 0),
+      ("Tensor G5", 7, 1036000, 5, 533000, 0, 150.44, 29.75, 0),
+      ("Tensor G5", 7, 1036000, 5, 652000, 0, 157.3, 28.65, 0),
+      ("Tensor G5", 7, 1036000, 5, 729000, 0, 148.58, 30.31, 0),
+      ("Tensor G5", 7, 1036000, 5, 921000, 0, 165.9, 30.75, 0),
+      ("Tensor G5", 7, 1036000, 5, 1075000, 0, 171.34, 32.88, 0),
+      ("Tensor G5", 7, 1036000, 5, 1267000, 0, 186.69, 36.36, 0),
+      ("Tensor G5", 7, 1036000, 5, 1401000, 0, 191.25, 36.71, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 7, 1036000, 5, 1536000, 0, 202.16, 40.46, 0),
+      ("Tensor G5", 7, 1036000, 5, 1670000, 0, 210.98, 40.96, 0),
+      ("Tensor G5", 7, 1036000, 5, 1785000, 0, 220.45, 41.96, 0),
+      ("Tensor G5", 7, 1036000, 5, 1862000, 0, 233.13, 44.8, 0),
+      ("Tensor G5", 7, 1036000, 5, 1939000, 0, 246.73, 48.6, 0),
+      ("Tensor G5", 7, 1036000, 5, 2092000, 0, 269.18, 50.99, 0),
+      ("Tensor G5", 7, 1036000, 5, 2188000, 0, 290.94, 53.55, 0),
+      ("Tensor G5", 7, 1036000, 5, 2284000, 0, 289.32, 58.66, 0),
+      ("Tensor G5", 7, 1036000, 5, 2400000, 0, 309.73, 60.92, 0),
+      ("Tensor G5", 7, 1036000, 5, 2534000, 0, 355.28, 65.54, 0),
+      ("Tensor G5", 7, 1036000, 5, 2688000, 0, 374.11, 75.3, 0),
+      ("Tensor G5", 7, 1036000, 5, 2841000, 0, 447.49, 92.03, 0),
+      ("Tensor G5", 7, 1036000, 5, 2937000, 0, 486.93, 105.22, 0),
+      ("Tensor G5", 7, 1036000, 5, 3052000, 0, 546.53, 120.64, 0),
+      ("Tensor G5", 7, 1152000, 5, 177000, 0, 178.12, 29.74, 0),
+      ("Tensor G5", 7, 1152000, 5, 266000, 0, 175.1, 30.0, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 7, 1152000, 5, 400000, 0, 176.01, 29.75, 0),
+      ("Tensor G5", 7, 1152000, 5, 533000, 0, 176.65, 29.7, 0),
+      ("Tensor G5", 7, 1152000, 5, 652000, 0, 172.76, 30.59, 0),
+      ("Tensor G5", 7, 1152000, 5, 729000, 0, 176.23, 30.34, 0),
+      ("Tensor G5", 7, 1152000, 5, 921000, 0, 174.95, 30.77, 0),
+      ("Tensor G5", 7, 1152000, 5, 1075000, 0, 185.11, 33.86, 0),
+      ("Tensor G5", 7, 1152000, 5, 1267000, 0, 202.11, 35.39, 0),
+      ("Tensor G5", 7, 1152000, 5, 1401000, 0, 212.87, 36.64, 0),
+      ("Tensor G5", 7, 1152000, 5, 1536000, 0, 217.35, 38.45, 0),
+      ("Tensor G5", 7, 1152000, 5, 1670000, 0, 235.37, 40.55, 0),
+      ("Tensor G5", 7, 1152000, 5, 1785000, 0, 235.68, 43.5, 0),
+      ("Tensor G5", 7, 1152000, 5, 1862000, 0, 259.9, 44.37, 0),
+      ("Tensor G5", 7, 1152000, 5, 1939000, 0, 269.77, 46.48, 0),
+      ("Tensor G5", 7, 1152000, 5, 2092000, 0, 289.72, 53.39, 0),
+      ("Tensor G5", 7, 1152000, 5, 2188000, 0, 308.76, 53.57, 0),
+      ("Tensor G5", 7, 1152000, 5, 2284000, 0, 325.39, 55.94, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 7, 1152000, 5, 2400000, 0, 330.07, 58.81, 0),
+      ("Tensor G5", 7, 1152000, 5, 2534000, 0, 379.01, 66.59, 0),
+      ("Tensor G5", 7, 1152000, 5, 2688000, 0, 405.14, 72.41, 0),
+      ("Tensor G5", 7, 1152000, 5, 2841000, 0, 471.8, 91.26, 0),
+      ("Tensor G5", 7, 1152000, 5, 2937000, 0, 528.13, 102.63, 0),
+      ("Tensor G5", 7, 1152000, 5, 3052000, 0, 592.55, 123.17, 0),
+      ("Tensor G5", 7, 1305000, 5, 177000, 0, 206.0, 33.03, 0),
+      ("Tensor G5", 7, 1305000, 5, 266000, 0, 209.61, 31.71, 0),
+      ("Tensor G5", 7, 1305000, 5, 400000, 0, 196.38, 31.72, 0),
+      ("Tensor G5", 7, 1305000, 5, 533000, 0, 201.55, 33.25, 0),
+      ("Tensor G5", 7, 1305000, 5, 652000, 0, 203.34, 32.84, 0),
+      ("Tensor G5", 7, 1305000, 5, 729000, 0, 207.76, 32.51, 0),
+      ("Tensor G5", 7, 1305000, 5, 921000, 0, 195.66, 32.98, 0),
+      ("Tensor G5", 7, 1305000, 5, 1075000, 0, 206.9, 32.87, 0),
+      ("Tensor G5", 7, 1305000, 5, 1267000, 0, 222.51, 35.04, 0),
+      ("Tensor G5", 7, 1305000, 5, 1401000, 0, 228.32, 38.14, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 7, 1305000, 5, 1536000, 0, 243.44, 39.08, 0),
+      ("Tensor G5", 7, 1305000, 5, 1670000, 0, 260.22, 41.21, 0),
+      ("Tensor G5", 7, 1305000, 5, 1785000, 0, 260.4, 43.11, 0),
+      ("Tensor G5", 7, 1305000, 5, 1862000, 0, 282.85, 44.87, 0),
+      ("Tensor G5", 7, 1305000, 5, 1939000, 0, 290.94, 46.8, 0),
+      ("Tensor G5", 7, 1305000, 5, 2092000, 0, 314.77, 55.51, 0),
+      ("Tensor G5", 7, 1305000, 5, 2188000, 0, 322.39, 54.62, 0),
+      ("Tensor G5", 7, 1305000, 5, 2284000, 0, 355.52, 57.03, 0),
+      ("Tensor G5", 7, 1305000, 5, 2400000, 0, 363.86, 58.99, 0),
+      ("Tensor G5", 7, 1305000, 5, 2534000, 0, 393.56, 66.2, 0),
+      ("Tensor G5", 7, 1305000, 5, 2688000, 0, 436.48, 75.88, 0),
+      ("Tensor G5", 7, 1305000, 5, 2841000, 0, 516.99, 92.28, 0),
+      ("Tensor G5", 7, 1305000, 5, 2937000, 0, 572.41, 101.99, 0),
+      ("Tensor G5", 7, 1305000, 5, 3052000, 0, 655.68, 119.01, 0),
+      ("Tensor G5", 7, 1420000, 5, 177000, 0, 236.11, 33.77, 0),
+      ("Tensor G5", 7, 1420000, 5, 266000, 0, 232.09, 33.67, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 7, 1420000, 5, 400000, 0, 234.07, 34.25, 0),
+      ("Tensor G5", 7, 1420000, 5, 533000, 0, 232.02, 33.97, 0),
+      ("Tensor G5", 7, 1420000, 5, 652000, 0, 234.54, 35.05, 0),
+      ("Tensor G5", 7, 1420000, 5, 729000, 0, 223.7, 36.17, 0),
+      ("Tensor G5", 7, 1420000, 5, 921000, 0, 234.65, 35.16, 0),
+      ("Tensor G5", 7, 1420000, 5, 1075000, 0, 228.58, 36.32, 0),
+      ("Tensor G5", 7, 1420000, 5, 1267000, 0, 234.83, 35.24, 0),
+      ("Tensor G5", 7, 1420000, 5, 1401000, 0, 245.99, 36.79, 0),
+      ("Tensor G5", 7, 1420000, 5, 1536000, 0, 256.67, 39.78, 0),
+      ("Tensor G5", 7, 1420000, 5, 1670000, 0, 274.77, 40.58, 0),
+      ("Tensor G5", 7, 1420000, 5, 1785000, 0, 265.94, 42.09, 0),
+      ("Tensor G5", 7, 1420000, 5, 1862000, 0, 305.33, 44.64, 0),
+      ("Tensor G5", 7, 1420000, 5, 1939000, 0, 309.79, 47.46, 0),
+      ("Tensor G5", 7, 1420000, 5, 2092000, 0, 340.75, 51.34, 0),
+      ("Tensor G5", 7, 1420000, 5, 2188000, 0, 341.58, 53.84, 0),
+      ("Tensor G5", 7, 1420000, 5, 2284000, 0, 376.85, 56.21, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 7, 1420000, 5, 2400000, 0, 383.0, 61.93, 0),
+      ("Tensor G5", 7, 1420000, 5, 2534000, 0, 433.95, 65.92, 0),
+      ("Tensor G5", 7, 1420000, 5, 2688000, 0, 479.61, 73.17, 0),
+      ("Tensor G5", 7, 1420000, 5, 2841000, 0, 527.26, 90.02, 0),
+      ("Tensor G5", 7, 1420000, 5, 2937000, 0, 616.15, 105.13, 0),
+      ("Tensor G5", 7, 1420000, 5, 3052000, 0, 665.23, 124.37, 0),
+      ("Tensor G5", 7, 1593000, 5, 177000, 0, 265.47, 35.96, 0),
+      ("Tensor G5", 7, 1593000, 5, 266000, 0, 261.52, 35.41, 0),
+      ("Tensor G5", 7, 1593000, 5, 400000, 0, 262.9, 35.89, 0),
+      ("Tensor G5", 7, 1593000, 5, 533000, 0, 259.88, 35.46, 0),
+      ("Tensor G5", 7, 1593000, 5, 652000, 0, 259.91, 37.91, 0),
+      ("Tensor G5", 7, 1593000, 5, 729000, 0, 259.47, 36.25, 0),
+      ("Tensor G5", 7, 1593000, 5, 921000, 0, 264.24, 36.7, 0),
+      ("Tensor G5", 7, 1593000, 5, 1075000, 0, 262.45, 36.58, 0),
+      ("Tensor G5", 7, 1593000, 5, 1267000, 0, 254.84, 37.36, 0),
+      ("Tensor G5", 7, 1593000, 5, 1401000, 0, 245.49, 38.48, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 7, 1593000, 5, 1536000, 0, 283.89, 39.08, 0),
+      ("Tensor G5", 7, 1593000, 5, 1670000, 0, 291.15, 41.08, 0),
+      ("Tensor G5", 7, 1593000, 5, 1785000, 0, 296.56, 42.75, 0),
+      ("Tensor G5", 7, 1593000, 5, 1862000, 0, 325.67, 45.21, 0),
+      ("Tensor G5", 7, 1593000, 5, 1939000, 0, 335.5, 47.03, 0),
+      ("Tensor G5", 7, 1593000, 5, 2092000, 0, 365.91, 51.79, 0),
+      ("Tensor G5", 7, 1593000, 5, 2188000, 0, 384.29, 54.53, 0),
+      ("Tensor G5", 7, 1593000, 5, 2284000, 0, 405.42, 57.27, 0),
+      ("Tensor G5", 7, 1593000, 5, 2400000, 0, 427.69, 59.47, 0),
+      ("Tensor G5", 7, 1593000, 5, 2534000, 0, 468.16, 66.17, 0),
+      ("Tensor G5", 7, 1593000, 5, 2688000, 0, 496.26, 74.05, 0),
+      ("Tensor G5", 7, 1593000, 5, 2841000, 0, 587.98, 91.33, 0),
+      ("Tensor G5", 7, 1593000, 5, 2937000, 0, 652.26, 102.81, 0),
+      ("Tensor G5", 7, 1593000, 5, 3052000, 0, 718.81, 120.84, 0),
+      ("Tensor G5", 7, 1766000, 5, 177000, 0, 280.59, 37.12, 0),
+      ("Tensor G5", 7, 1766000, 5, 266000, 0, 303.38, 37.12, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 7, 1766000, 5, 400000, 0, 295.04, 37.21, 0),
+      ("Tensor G5", 7, 1766000, 5, 533000, 0, 303.66, 37.24, 0),
+      ("Tensor G5", 7, 1766000, 5, 652000, 0, 302.21, 37.81, 0),
+      ("Tensor G5", 7, 1766000, 5, 729000, 0, 299.55, 38.22, 0),
+      ("Tensor G5", 7, 1766000, 5, 921000, 0, 298.38, 38.5, 0),
+      ("Tensor G5", 7, 1766000, 5, 1075000, 0, 297.9, 38.44, 0),
+      ("Tensor G5", 7, 1766000, 5, 1267000, 0, 289.11, 39.31, 0),
+      ("Tensor G5", 7, 1766000, 5, 1401000, 0, 296.83, 38.8, 0),
+      ("Tensor G5", 7, 1766000, 5, 1536000, 0, 301.05, 39.7, 0),
+      ("Tensor G5", 7, 1766000, 5, 1670000, 0, 314.23, 41.21, 0),
+      ("Tensor G5", 7, 1766000, 5, 1785000, 0, 302.99, 42.92, 0),
+      ("Tensor G5", 7, 1766000, 5, 1862000, 0, 339.53, 45.82, 0),
+      ("Tensor G5", 7, 1766000, 5, 1939000, 0, 362.59, 47.8, 0),
+      ("Tensor G5", 7, 1766000, 5, 2092000, 0, 393.72, 51.48, 0),
+      ("Tensor G5", 7, 1766000, 5, 2188000, 0, 423.54, 53.96, 0),
+      ("Tensor G5", 7, 1766000, 5, 2284000, 0, 406.29, 58.29, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 7, 1766000, 5, 2400000, 0, 468.06, 59.63, 0),
+      ("Tensor G5", 7, 1766000, 5, 2534000, 0, 494.42, 66.81, 0),
+      ("Tensor G5", 7, 1766000, 5, 2688000, 0, 530.79, 76.13, 0),
+      ("Tensor G5", 7, 1766000, 5, 2841000, 0, 616.92, 93.85, 0),
+      ("Tensor G5", 7, 1766000, 5, 2937000, 0, 712.46, 102.92, 0),
+      ("Tensor G5", 7, 1766000, 5, 3052000, 0, 789.5, 121.76, 0),
+      ("Tensor G5", 7, 1920000, 5, 177000, 0, 332.58, 38.6, 0),
+      ("Tensor G5", 7, 1920000, 5, 266000, 0, 323.21, 39.29, 0),
+      ("Tensor G5", 7, 1920000, 5, 400000, 0, 325.09, 38.98, 0),
+      ("Tensor G5", 7, 1920000, 5, 533000, 0, 328.51, 39.28, 0),
+      ("Tensor G5", 7, 1920000, 5, 652000, 0, 325.0, 39.92, 0),
+      ("Tensor G5", 7, 1920000, 5, 729000, 0, 321.69, 40.06, 0),
+      ("Tensor G5", 7, 1920000, 5, 921000, 0, 323.16, 39.96, 0),
+      ("Tensor G5", 7, 1920000, 5, 1075000, 0, 332.68, 40.43, 0),
+      ("Tensor G5", 7, 1920000, 5, 1267000, 0, 328.36, 41.06, 0),
+      ("Tensor G5", 7, 1920000, 5, 1401000, 0, 316.36, 41.76, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 7, 1920000, 5, 1536000, 0, 327.09, 41.45, 0),
+      ("Tensor G5", 7, 1920000, 5, 1670000, 0, 330.43, 43.64, 0),
+      ("Tensor G5", 7, 1920000, 5, 1785000, 0, 334.34, 42.79, 0),
+      ("Tensor G5", 7, 1920000, 5, 1862000, 0, 363.3, 45.29, 0),
+      ("Tensor G5", 7, 1920000, 5, 1939000, 0, 394.3, 47.41, 0),
+      ("Tensor G5", 7, 1920000, 5, 2092000, 0, 411.27, 52.67, 0),
+      ("Tensor G5", 7, 1920000, 5, 2188000, 0, 435.46, 55.29, 0),
+      ("Tensor G5", 7, 1920000, 5, 2284000, 0, 458.1, 58.39, 0),
+      ("Tensor G5", 7, 1920000, 5, 2400000, 0, 494.3, 59.94, 0),
+      ("Tensor G5", 7, 1920000, 5, 2534000, 0, 531.61, 67.75, 0),
+      ("Tensor G5", 7, 1920000, 5, 2688000, 0, 568.05, 74.1, 0),
+      ("Tensor G5", 7, 1920000, 5, 2841000, 0, 670.54, 90.67, 0),
+      ("Tensor G5", 7, 1920000, 5, 2937000, 0, 718.25, 103.09, 0),
+      ("Tensor G5", 7, 1920000, 5, 3052000, 0, 832.39, 121.4, 0),
+      ("Tensor G5", 7, 2073000, 5, 177000, 0, 363.7, 40.12, 0),
+      ("Tensor G5", 7, 2073000, 5, 266000, 0, 349.24, 40.2, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 7, 2073000, 5, 400000, 0, 359.11, 40.24, 0),
+      ("Tensor G5", 7, 2073000, 5, 533000, 0, 342.85, 40.86, 0),
+      ("Tensor G5", 7, 2073000, 5, 652000, 0, 356.73, 40.76, 0),
+      ("Tensor G5", 7, 2073000, 5, 729000, 0, 362.21, 41.05, 0),
+      ("Tensor G5", 7, 2073000, 5, 921000, 0, 355.09, 42.41, 0),
+      ("Tensor G5", 7, 2073000, 5, 1075000, 0, 348.97, 41.59, 0),
+      ("Tensor G5", 7, 2073000, 5, 1267000, 0, 356.04, 42.81, 0),
+      ("Tensor G5", 7, 2073000, 5, 1401000, 0, 338.42, 42.69, 0),
+      ("Tensor G5", 7, 2073000, 5, 1536000, 0, 351.92, 42.9, 0),
+      ("Tensor G5", 7, 2073000, 5, 1670000, 0, 356.18, 42.84, 0),
+      ("Tensor G5", 7, 2073000, 5, 1785000, 0, 366.09, 43.75, 0),
+      ("Tensor G5", 7, 2073000, 5, 1862000, 0, 374.5, 46.27, 0),
+      ("Tensor G5", 7, 2073000, 5, 1939000, 0, 397.59, 48.48, 0),
+      ("Tensor G5", 7, 2073000, 5, 2092000, 0, 448.09, 52.3, 0),
+      ("Tensor G5", 7, 2073000, 5, 2188000, 0, 431.73, 54.64, 0),
+      ("Tensor G5", 7, 2073000, 5, 2284000, 0, 492.31, 57.19, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 7, 2073000, 5, 2400000, 0, 502.14, 61.52, 0),
+      ("Tensor G5", 7, 2073000, 5, 2534000, 0, 552.46, 67.59, 0),
+      ("Tensor G5", 7, 2073000, 5, 2688000, 0, 616.1, 75.54, 0),
+      ("Tensor G5", 7, 2073000, 5, 2841000, 0, 710.16, 92.09, 0),
+      ("Tensor G5", 7, 2073000, 5, 2937000, 0, 780.86, 103.54, 0),
+      ("Tensor G5", 7, 2073000, 5, 3052000, 0, 889.63, 122.34, 0),
+      ("Tensor G5", 7, 2208000, 5, 177000, 0, 406.47, 43.66, 0),
+      ("Tensor G5", 7, 2208000, 5, 266000, 0, 391.08, 44.39, 0),
+      ("Tensor G5", 7, 2208000, 5, 400000, 0, 381.36, 43.95, 0),
+      ("Tensor G5", 7, 2208000, 5, 533000, 0, 396.63, 43.85, 0),
+      ("Tensor G5", 7, 2208000, 5, 652000, 0, 393.28, 47.14, 0),
+      ("Tensor G5", 7, 2208000, 5, 729000, 0, 399.44, 44.54, 0),
+      ("Tensor G5", 7, 2208000, 5, 921000, 0, 408.61, 44.87, 0),
+      ("Tensor G5", 7, 2208000, 5, 1075000, 0, 379.87, 45.29, 0),
+      ("Tensor G5", 7, 2208000, 5, 1267000, 0, 401.59, 45.26, 0),
+      ("Tensor G5", 7, 2208000, 5, 1401000, 0, 405.85, 45.7, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 7, 2208000, 5, 1536000, 0, 401.0, 46.1, 0),
+      ("Tensor G5", 7, 2208000, 5, 1670000, 0, 395.45, 47.37, 0),
+      ("Tensor G5", 7, 2208000, 5, 1785000, 0, 384.38, 46.32, 0),
+      ("Tensor G5", 7, 2208000, 5, 1862000, 0, 398.61, 48.28, 0),
+      ("Tensor G5", 7, 2208000, 5, 1939000, 0, 409.76, 49.26, 0),
+      ("Tensor G5", 7, 2208000, 5, 2092000, 0, 470.62, 52.38, 0),
+      ("Tensor G5", 7, 2208000, 5, 2188000, 0, 475.12, 55.67, 0),
+      ("Tensor G5", 7, 2208000, 5, 2284000, 0, 480.36, 57.85, 0),
+      ("Tensor G5", 7, 2208000, 5, 2400000, 0, 518.46, 60.24, 0),
+      ("Tensor G5", 7, 2208000, 5, 2534000, 0, 591.13, 68.98, 0),
+      ("Tensor G5", 7, 2208000, 5, 2688000, 0, 642.56, 74.56, 0),
+      ("Tensor G5", 7, 2208000, 5, 2841000, 0, 687.4, 91.61, 0),
+      ("Tensor G5", 7, 2208000, 5, 2937000, 0, 761.67, 103.84, 0),
+      ("Tensor G5", 7, 2208000, 5, 3052000, 0, 873.3, 123.49, 0),
+      ("Tensor G5", 7, 2342000, 5, 177000, 0, 461.44, 47.17, 0),
+      ("Tensor G5", 7, 2342000, 5, 266000, 0, 455.77, 47.34, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 7, 2342000, 5, 400000, 0, 456.2, 47.3, 0),
+      ("Tensor G5", 7, 2342000, 5, 533000, 0, 446.95, 47.76, 0),
+      ("Tensor G5", 7, 2342000, 5, 652000, 0, 455.7, 47.71, 0),
+      ("Tensor G5", 7, 2342000, 5, 729000, 0, 443.69, 48.47, 0),
+      ("Tensor G5", 7, 2342000, 5, 921000, 0, 444.26, 48.32, 0),
+      ("Tensor G5", 7, 2342000, 5, 1075000, 0, 442.18, 49.0, 0),
+      ("Tensor G5", 7, 2342000, 5, 1267000, 0, 441.94, 49.45, 0),
+      ("Tensor G5", 7, 2342000, 5, 1401000, 0, 445.18, 49.47, 0),
+      ("Tensor G5", 7, 2342000, 5, 1536000, 0, 459.07, 49.29, 0),
+      ("Tensor G5", 7, 2342000, 5, 1670000, 0, 456.34, 50.35, 0),
+      ("Tensor G5", 7, 2342000, 5, 1785000, 0, 451.88, 49.75, 0),
+      ("Tensor G5", 7, 2342000, 5, 1862000, 0, 448.62, 50.18, 0),
+      ("Tensor G5", 7, 2342000, 5, 1939000, 0, 451.57, 51.31, 0),
+      ("Tensor G5", 7, 2342000, 5, 2092000, 0, 486.42, 52.48, 0),
+      ("Tensor G5", 7, 2342000, 5, 2188000, 0, 505.71, 55.32, 0),
+      ("Tensor G5", 7, 2342000, 5, 2284000, 0, 512.77, 58.72, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 7, 2342000, 5, 2400000, 0, 528.61, 61.35, 0),
+      ("Tensor G5", 7, 2342000, 5, 2534000, 0, 591.33, 67.86, 0),
+      ("Tensor G5", 7, 2342000, 5, 2688000, 0, 652.7, 75.0, 0),
+      ("Tensor G5", 7, 2342000, 5, 2841000, 0, 766.34, 91.73, 0),
+      ("Tensor G5", 7, 2342000, 5, 2937000, 0, 857.24, 104.75, 0),
+      ("Tensor G5", 7, 2342000, 5, 3052000, 0, 930.58, 122.71, 0),
+      ("Tensor G5", 7, 2457000, 5, 177000, 0, 497.82, 50.2, 0),
+      ("Tensor G5", 7, 2457000, 5, 266000, 0, 504.86, 50.33, 0),
+      ("Tensor G5", 7, 2457000, 5, 400000, 0, 499.21, 51.36, 0),
+      ("Tensor G5", 7, 2457000, 5, 533000, 0, 496.54, 51.38, 0),
+      ("Tensor G5", 7, 2457000, 5, 652000, 0, 489.68, 52.41, 0),
+      ("Tensor G5", 7, 2457000, 5, 729000, 0, 512.97, 51.73, 0),
+      ("Tensor G5", 7, 2457000, 5, 921000, 0, 500.67, 52.11, 0),
+      ("Tensor G5", 7, 2457000, 5, 1075000, 0, 498.25, 52.16, 0),
+      ("Tensor G5", 7, 2457000, 5, 1267000, 0, 507.43, 53.22, 0),
+      ("Tensor G5", 7, 2457000, 5, 1401000, 0, 475.89, 53.3, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 7, 2457000, 5, 1536000, 0, 501.36, 53.43, 0),
+      ("Tensor G5", 7, 2457000, 5, 1670000, 0, 496.23, 53.67, 0),
+      ("Tensor G5", 7, 2457000, 5, 1785000, 0, 489.72, 53.69, 0),
+      ("Tensor G5", 7, 2457000, 5, 1862000, 0, 474.74, 54.68, 0),
+      ("Tensor G5", 7, 2457000, 5, 1939000, 0, 494.42, 55.16, 0),
+      ("Tensor G5", 7, 2457000, 5, 2092000, 0, 504.96, 54.82, 0),
+      ("Tensor G5", 7, 2457000, 5, 2188000, 0, 508.68, 55.49, 0),
+      ("Tensor G5", 7, 2457000, 5, 2284000, 0, 539.25, 57.92, 0),
+      ("Tensor G5", 7, 2457000, 5, 2400000, 0, 554.86, 61.81, 0),
+      ("Tensor G5", 7, 2457000, 5, 2534000, 0, 616.42, 68.59, 0),
+      ("Tensor G5", 7, 2457000, 5, 2688000, 0, 664.17, 75.8, 0),
+      ("Tensor G5", 7, 2457000, 5, 2841000, 0, 783.64, 91.65, 0),
+      ("Tensor G5", 7, 2457000, 5, 2937000, 0, 865.55, 107.21, 0),
+      ("Tensor G5", 7, 2457000, 5, 3052000, 0, 964.28, 123.18, 0),
+      ("Tensor G5", 7, 2592000, 5, 177000, 0, 547.61, 53.29, 0),
+      ("Tensor G5", 7, 2592000, 5, 266000, 0, 539.42, 53.95, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 7, 2592000, 5, 400000, 0, 539.99, 53.51, 0),
+      ("Tensor G5", 7, 2592000, 5, 533000, 0, 548.5, 54.21, 0),
+      ("Tensor G5", 7, 2592000, 5, 652000, 0, 562.36, 54.85, 0),
+      ("Tensor G5", 7, 2592000, 5, 729000, 0, 536.28, 54.66, 0),
+      ("Tensor G5", 7, 2592000, 5, 921000, 0, 545.69, 56.01, 0),
+      ("Tensor G5", 7, 2592000, 5, 1075000, 0, 555.89, 56.38, 0),
+      ("Tensor G5", 7, 2592000, 5, 1267000, 0, 565.56, 55.91, 0),
+      ("Tensor G5", 7, 2592000, 5, 1401000, 0, 548.31, 56.66, 0),
+      ("Tensor G5", 7, 2592000, 5, 1536000, 0, 522.09, 57.43, 0),
+      ("Tensor G5", 7, 2592000, 5, 1670000, 0, 537.5, 57.89, 0),
+      ("Tensor G5", 7, 2592000, 5, 1785000, 0, 556.59, 58.21, 0),
+      ("Tensor G5", 7, 2592000, 5, 1862000, 0, 548.0, 58.0, 0),
+      ("Tensor G5", 7, 2592000, 5, 1939000, 0, 552.35, 57.87, 0),
+      ("Tensor G5", 7, 2592000, 5, 2092000, 0, 547.05, 58.3, 0),
+      ("Tensor G5", 7, 2592000, 5, 2188000, 0, 552.4, 57.85, 0),
+      ("Tensor G5", 7, 2592000, 5, 2284000, 0, 549.62, 59.26, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 7, 2592000, 5, 2400000, 0, 578.35, 62.17, 0),
+      ("Tensor G5", 7, 2592000, 5, 2534000, 0, 649.03, 69.47, 0),
+      ("Tensor G5", 7, 2592000, 5, 2688000, 0, 685.66, 75.25, 0),
+      ("Tensor G5", 7, 2592000, 5, 2841000, 0, 818.44, 92.08, 0),
+      ("Tensor G5", 7, 2592000, 5, 2937000, 0, 894.29, 107.03, 0),
+      ("Tensor G5", 7, 2592000, 5, 3052000, 0, 1004.41, 123.87, 0),
+      ("Tensor G5", 7, 2707000, 5, 177000, 0, 600.23, 56.72, 0),
+      ("Tensor G5", 7, 2707000, 5, 266000, 0, 584.99, 58.47, 0),
+      ("Tensor G5", 7, 2707000, 5, 400000, 0, 597.1, 57.54, 0),
+      ("Tensor G5", 7, 2707000, 5, 533000, 0, 567.2, 58.37, 0),
+      ("Tensor G5", 7, 2707000, 5, 652000, 0, 583.63, 58.52, 0),
+      ("Tensor G5", 7, 2707000, 5, 729000, 0, 600.72, 58.75, 0),
+      ("Tensor G5", 7, 2707000, 5, 921000, 0, 587.35, 59.36, 0),
+      ("Tensor G5", 7, 2707000, 5, 1075000, 0, 604.12, 59.29, 0),
+      ("Tensor G5", 7, 2707000, 5, 1267000, 0, 591.98, 60.48, 0),
+      ("Tensor G5", 7, 2707000, 5, 1401000, 0, 615.48, 61.11, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 7, 2707000, 5, 1536000, 0, 613.84, 60.77, 0),
+      ("Tensor G5", 7, 2707000, 5, 1670000, 0, 591.48, 61.34, 0),
+      ("Tensor G5", 7, 2707000, 5, 1785000, 0, 607.08, 60.86, 0),
+      ("Tensor G5", 7, 2707000, 5, 1862000, 0, 605.97, 62.8, 0),
+      ("Tensor G5", 7, 2707000, 5, 1939000, 0, 598.74, 62.66, 0),
+      ("Tensor G5", 7, 2707000, 5, 2092000, 0, 615.31, 61.44, 0),
+      ("Tensor G5", 7, 2707000, 5, 2188000, 0, 620.28, 61.57, 0),
+      ("Tensor G5", 7, 2707000, 5, 2284000, 0, 605.46, 62.13, 0),
+      ("Tensor G5", 7, 2707000, 5, 2400000, 0, 608.66, 62.72, 0),
+      ("Tensor G5", 7, 2707000, 5, 2534000, 0, 663.95, 68.68, 0),
+      ("Tensor G5", 7, 2707000, 5, 2688000, 0, 725.62, 77.8, 0),
+      ("Tensor G5", 7, 2707000, 5, 2841000, 0, 833.35, 92.59, 0),
+      ("Tensor G5", 7, 2707000, 5, 2937000, 0, 939.85, 108.46, 0),
+      ("Tensor G5", 7, 2707000, 5, 3052000, 0, 1015.25, 124.35, 0),
+      ("Tensor G5", 7, 2937000, 5, 177000, 0, 685.32, 65.01, 0),
+      ("Tensor G5", 7, 2937000, 5, 266000, 0, 693.28, 64.16, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 7, 2937000, 5, 400000, 0, 666.68, 63.42, 0),
+      ("Tensor G5", 7, 2937000, 5, 533000, 0, 694.99, 64.78, 0),
+      ("Tensor G5", 7, 2937000, 5, 652000, 0, 708.17, 64.59, 0),
+      ("Tensor G5", 7, 2937000, 5, 729000, 0, 696.8, 65.26, 0),
+      ("Tensor G5", 7, 2937000, 5, 921000, 0, 715.94, 65.84, 0),
+      ("Tensor G5", 7, 2937000, 5, 1075000, 0, 693.99, 67.02, 0),
+      ("Tensor G5", 7, 2937000, 5, 1267000, 0, 689.19, 68.52, 0),
+      ("Tensor G5", 7, 2937000, 5, 1401000, 0, 718.09, 67.32, 0),
+      ("Tensor G5", 7, 2937000, 5, 1536000, 0, 709.66, 67.45, 0),
+      ("Tensor G5", 7, 2937000, 5, 1670000, 0, 699.56, 68.16, 0),
+      ("Tensor G5", 7, 2937000, 5, 1785000, 0, 722.07, 70.12, 0),
+      ("Tensor G5", 7, 2937000, 5, 1862000, 0, 699.92, 69.4, 0),
+      ("Tensor G5", 7, 2937000, 5, 1939000, 0, 724.52, 68.29, 0),
+      ("Tensor G5", 7, 2937000, 5, 2092000, 0, 713.08, 69.09, 0),
+      ("Tensor G5", 7, 2937000, 5, 2188000, 0, 703.57, 68.71, 0),
+      ("Tensor G5", 7, 2937000, 5, 2284000, 0, 664.83, 70.25, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 7, 2937000, 5, 2400000, 0, 697.95, 71.31, 0),
+      ("Tensor G5", 7, 2937000, 5, 2534000, 0, 698.94, 71.59, 0),
+      ("Tensor G5", 7, 2937000, 5, 2688000, 0, 782.04, 77.99, 0),
+      ("Tensor G5", 7, 2937000, 5, 2841000, 0, 907.05, 93.09, 0),
+      ("Tensor G5", 7, 2937000, 5, 2937000, 0, 946.72, 110.73, 0),
+      ("Tensor G5", 7, 2937000, 5, 3052000, 0, 1098.8, 126.18, 0),
+      ("Tensor G5", 7, 3168000, 5, 177000, 0, 902.54, 81.96, 0),
+      ("Tensor G5", 7, 3168000, 5, 266000, 0, 914.04, 82.53, 0),
+      ("Tensor G5", 7, 3168000, 5, 400000, 0, 910.13, 81.73, 0),
+      ("Tensor G5", 7, 3168000, 5, 533000, 0, 887.79, 82.66, 0),
+      ("Tensor G5", 7, 3168000, 5, 652000, 0, 904.97, 84.27, 0),
+      ("Tensor G5", 7, 3168000, 5, 729000, 0, 910.22, 82.34, 0),
+      ("Tensor G5", 7, 3168000, 5, 921000, 0, 908.96, 83.44, 0),
+      ("Tensor G5", 7, 3168000, 5, 1075000, 0, 908.71, 85.21, 0),
+      ("Tensor G5", 7, 3168000, 5, 1267000, 0, 883.89, 84.46, 0),
+      ("Tensor G5", 7, 3168000, 5, 1401000, 0, 919.61, 86.03, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 7, 3168000, 5, 1536000, 0, 910.07, 85.84, 0),
+      ("Tensor G5", 7, 3168000, 5, 1670000, 0, 911.51, 86.56, 0),
+      ("Tensor G5", 7, 3168000, 5, 1785000, 0, 906.75, 87.26, 0),
+      ("Tensor G5", 7, 3168000, 5, 1862000, 0, 908.98, 87.18, 0),
+      ("Tensor G5", 7, 3168000, 5, 1939000, 0, 889.93, 92.82, 0),
+      ("Tensor G5", 7, 3168000, 5, 2092000, 0, 897.85, 87.96, 0),
+      ("Tensor G5", 7, 3168000, 5, 2188000, 0, 902.7, 92.48, 0),
+      ("Tensor G5", 7, 3168000, 5, 2284000, 0, 914.39, 89.5, 0),
+      ("Tensor G5", 7, 3168000, 5, 2400000, 0, 901.65, 88.67, 0),
+      ("Tensor G5", 7, 3168000, 5, 2534000, 0, 934.79, 89.4, 0),
+      ("Tensor G5", 7, 3168000, 5, 2688000, 0, 915.89, 89.86, 0),
+      ("Tensor G5", 7, 3168000, 5, 2841000, 0, 926.26, 94.3, 0),
+      ("Tensor G5", 7, 3168000, 5, 2937000, 0, 1055.09, 107.54, 0),
+      ("Tensor G5", 7, 3168000, 5, 3052000, 0, 1138.41, 125.6, 0),
+      ("Tensor G5", 7, 3398000, 5, 177000, 0, 1213.57, 81.71, 0),
+      ("Tensor G5", 7, 3398000, 5, 266000, 0, 1195.86, 82.68, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 7, 3398000, 5, 400000, 0, 1233.59, 81.62, 0),
+      ("Tensor G5", 7, 3398000, 5, 533000, 0, 1212.3, 81.53, 0),
+      ("Tensor G5", 7, 3398000, 5, 652000, 0, 1145.61, 82.41, 0),
+      ("Tensor G5", 7, 3398000, 5, 729000, 0, 1190.54, 84.88, 0),
+      ("Tensor G5", 7, 3398000, 5, 921000, 0, 1210.9, 83.93, 0),
+      ("Tensor G5", 7, 3398000, 5, 1075000, 0, 1200.5, 85.47, 0),
+      ("Tensor G5", 7, 3398000, 5, 1267000, 0, 1184.77, 91.84, 0),
+      ("Tensor G5", 7, 3398000, 5, 1401000, 0, 1159.8, 86.05, 0),
+      ("Tensor G5", 7, 3398000, 5, 1536000, 0, 1206.85, 87.01, 0),
+      ("Tensor G5", 7, 3398000, 5, 1670000, 0, 1194.58, 87.47, 0),
+      ("Tensor G5", 7, 3398000, 5, 1785000, 0, 1210.84, 88.49, 0),
+      ("Tensor G5", 7, 3398000, 5, 1862000, 0, 1217.49, 87.31, 0),
+      ("Tensor G5", 7, 3398000, 5, 1939000, 0, 1146.45, 87.73, 0),
+      ("Tensor G5", 7, 3398000, 5, 2092000, 0, 1208.94, 87.83, 0),
+      ("Tensor G5", 7, 3398000, 5, 2188000, 0, 1243.76, 89.33, 0),
+      ("Tensor G5", 7, 3398000, 5, 2284000, 0, 1206.29, 88.03, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 7, 3398000, 5, 2400000, 0, 1220.44, 90.14, 0),
+      ("Tensor G5", 7, 3398000, 5, 2534000, 0, 1187.59, 89.08, 0),
+      ("Tensor G5", 7, 3398000, 5, 2688000, 0, 1201.57, 91.64, 0),
+      ("Tensor G5", 7, 3398000, 5, 2841000, 0, 1181.33, 93.42, 0),
+      ("Tensor G5", 7, 3398000, 5, 2937000, 0, 1142.78, 108.47, 0),
+      ("Tensor G5", 7, 3398000, 5, 3052000, 0, 1186.51, 126.27, 0),
+      ("Tensor G5", 7, 3590000, 5, 177000, 0, 1500.31, 82.06, 0),
+      ("Tensor G5", 7, 3590000, 5, 266000, 0, 1489.02, 81.4, 0),
+      ("Tensor G5", 7, 3590000, 5, 400000, 0, 1546.7, 83.26, 0),
+      ("Tensor G5", 7, 3590000, 5, 533000, 0, 1534.54, 81.82, 0),
+      ("Tensor G5", 7, 3590000, 5, 652000, 0, 1529.59, 83.89, 0),
+      ("Tensor G5", 7, 3590000, 5, 729000, 0, 1493.22, 83.07, 0),
+      ("Tensor G5", 7, 3590000, 5, 921000, 0, 1559.3, 84.5, 0),
+      ("Tensor G5", 7, 3590000, 5, 1075000, 0, 1494.73, 84.58, 0),
+      ("Tensor G5", 7, 3590000, 5, 1267000, 0, 1517.87, 85.14, 0),
+      ("Tensor G5", 7, 3590000, 5, 1401000, 0, 1532.96, 85.05, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 7, 3590000, 5, 1536000, 0, 1446.21, 85.84, 0),
+      ("Tensor G5", 7, 3590000, 5, 1670000, 0, 1501.52, 89.26, 0),
+      ("Tensor G5", 7, 3590000, 5, 1785000, 0, 1494.8, 87.33, 0),
+      ("Tensor G5", 7, 3590000, 5, 1862000, 0, 1564.85, 86.69, 0),
+      ("Tensor G5", 7, 3590000, 5, 1939000, 0, 1524.97, 88.18, 0),
+      ("Tensor G5", 7, 3590000, 5, 2092000, 0, 1423.09, 88.05, 0),
+      ("Tensor G5", 7, 3590000, 5, 2188000, 0, 1508.22, 89.42, 0),
+      ("Tensor G5", 7, 3590000, 5, 2284000, 0, 1537.47, 88.41, 0),
+      ("Tensor G5", 7, 3590000, 5, 2400000, 0, 1532.72, 90.83, 0),
+      ("Tensor G5", 7, 3590000, 5, 2534000, 0, 1560.42, 91.01, 0),
+      ("Tensor G5", 7, 3590000, 5, 2688000, 0, 1520.32, 89.77, 0),
+      ("Tensor G5", 7, 3590000, 5, 2841000, 0, 1520.45, 94.62, 0),
+      ("Tensor G5", 7, 3590000, 5, 2937000, 0, 1476.76, 107.87, 0),
+      ("Tensor G5", 7, 3590000, 5, 3052000, 0, 1399.22, 127.65, 0),
+      ("Tensor G5", 7, 3782000, 5, 177000, 0, 2220.4, 82.53, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 7, 3782000, 5, 266000, 0, 2102.59, 82.31, 0),
+      ("Tensor G5", 7, 3782000, 5, 400000, 0, 2248.02, 82.13, 0),
+      ("Tensor G5", 7, 3782000, 5, 533000, 0, 2252.44, 83.74, 0),
+      ("Tensor G5", 7, 3782000, 5, 652000, 0, 2246.73, 83.47, 0),
+      ("Tensor G5", 7, 3782000, 5, 729000, 0, 2245.28, 84.19, 0),
+      ("Tensor G5", 7, 3782000, 5, 921000, 0, 2083.53, 84.31, 0),
+      ("Tensor G5", 7, 3782000, 5, 1075000, 0, 2199.26, 84.97, 0),
+      ("Tensor G5", 7, 3782000, 5, 1267000, 0, 2255.14, 85.35, 0),
+      ("Tensor G5", 7, 3782000, 5, 1401000, 0, 2232.93, 84.83, 0),
+      ("Tensor G5", 7, 3782000, 5, 1536000, 0, 2259.91, 88.08, 0),
+      ("Tensor G5", 7, 3782000, 5, 1670000, 0, 2069.17, 87.45, 0),
+      ("Tensor G5", 7, 3782000, 5, 1785000, 0, 2244.54, 86.79, 0),
+      ("Tensor G5", 7, 3782000, 5, 1862000, 0, 2279.67, 88.74, 0),
+      ("Tensor G5", 7, 3782000, 5, 1939000, 0, 2239.08, 88.77, 0),
+      ("Tensor G5", 7, 3782000, 5, 2092000, 0, 2211.24, 88.48, 0),
+      ("Tensor G5", 7, 3782000, 5, 2188000, 0, 2122.59, 87.85, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 7, 3782000, 5, 2284000, 0, 2068.34, 88.42, 0),
+      ("Tensor G5", 7, 3782000, 5, 2400000, 0, 2147.31, 89.46, 0),
+      ("Tensor G5", 7, 3782000, 5, 2534000, 0, 2246.26, 88.61, 0),
+      ("Tensor G5", 7, 3782000, 5, 2688000, 0, 2312.77, 89.96, 0),
+      ("Tensor G5", 7, 3782000, 5, 2841000, 0, 2158.99, 94.69, 0),
+      ("Tensor G5", 7, 3782000, 5, 2937000, 0, 2186.74, 107.79, 0),
+      ("Tensor G5", 7, 3782000, 5, 3052000, 0, 2105.34, 126.13, 0)) AS _values
   )
 SELECT
-  swapper_info.ts,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  swapper_info.dur,
-  swapper_info.cpu,
-  thread_info.utid,
-  thread_info.upid
-FROM first_non_swapper_slice AS thread_info
-JOIN first_swapper_slice AS swapper_info
-  USING (idle_group)
-UNION ALL
--- Adds the last slice to idle transition attribution IF this is a singleton
--- thread wakeup. This is true if there is only one thread between swapper idle
--- exits/wakeups. For example, groups with order of swapper, thread X, swapper
--- will be included. Entries that have multiple thread between swappers, such as
--- swapper, thread X, thread Y, swapper will not be included.
-SELECT
-  swapper_info.ts,
-  swapper_info.dur,
-  swapper_info.cpu,
-  thread_info.utid,
-  thread_info.upid
-FROM first_non_swapper_slice AS thread_info
-JOIN last_swapper_slice AS swapper_info
-  USING (idle_group)
-WHERE
-  ts = next_ts;
+  *
+FROM data;
 
--- Interval intersect with the estimate power track, so that each slice can be
--- attributed to the power of the CPU in that time duration
-CREATE PERFETTO TABLE _idle_transition_cost AS
-SELECT
-  ii.ts,
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(  ii.dur,
-  threads.cpu,
-  threads.utid,
-  threads.upid,
-  CASE threads.cpu
-    WHEN 0
-    THEN power.cpu0_mw
-    WHEN 1
-    THEN power.cpu1_mw
-    WHEN 2
-    THEN power.cpu2_mw
-    WHEN 3
-    THEN power.cpu3_mw
-    WHEN 4
-    THEN power.cpu4_mw
-    WHEN 5
-    THEN power.cpu5_mw
-    WHEN 6
-    THEN power.cpu6_mw
-    WHEN 7
-    THEN power.cpu7_mw
-    ELSE 0
-  END AS estimated_mw
-FROM _interval_intersect!(
-  (
-    _ii_table!(_idle_w_threads),
-    _ii_table!(_system_state_mw)
-  ),
-  ()
-) AS ii
-JOIN _idle_w_threads AS threads
-  ON threads._auto_id = id_0
-JOIN _system_state_mw AS power
-  ON power._auto_id = id_1;
+;
 
--- Macro for easily filtering idle attribution to a specified time window. This
--- information can then further be filtered by specific CPU and GROUP BY on
--- either utid or upid
-CREATE PERFETTO FUNCTION _filter_idle_attribution(
-    ts TIMESTAMP,
-    dur LONG
-)
-RETURNS TABLE (
-  idle_cost_mws LONG,
-  utid JOINID(thread.id),
-  upid JOINID(process.id),
-  cpu JOINID(cpu.id)
-) AS
--- Give the negative sum of idle costs to the swapper thread, which by
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(-- definition has a utid = 0, upid = 0, and by definition will not be defined,
--- so need to UNION to manually add swapper thread
+const char kWattsonCurvesTg5L3[] = R"_d3l1m1t3r_(--
+-- Copyright 2025 The Android Open Source Project
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     https://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
+CREATE PERFETTO TABLE _tg5_l3_lut AS
 WITH
-  base AS (
+  data(device, freq_khz, dep_policy, dep_freq, l3_hit, l3_miss) AS (
     SELECT
-      cost.estimated_mw * cost.dur / 1e9 AS idle_cost_mws,
-      cost.utid,
-      cost.upid,
-      cost.cpu
-    FROM _interval_intersect_single!(
-    $ts, $dur, _ii_table!(_idle_transition_cost)
-  ) AS ii
-    JOIN _idle_transition_cost AS cost
-      ON cost._auto_id = id
+      *
+    FROM (VALUES
+      ("Tensor G5", 268000, 255, 115000000, 0.1096, 0.1484),
+      ("Tensor G5", 268000, 255, 268000000, 0.1603, 0.15),
+      ("Tensor G5", 268000, 255, 400000000, 0.1088, 0.1989),
+      ("Tensor G5", 268000, 255, 537000000, 0.1495, 0.1862),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 268000, 255, 691000000, 0.1491, 0.1763),
+      ("Tensor G5", 268000, 255, 768000000, 0.1586, 0.1999),
+      ("Tensor G5", 268000, 255, 844000000, 0.1495, 6.8313),
+      ("Tensor G5", 268000, 255, 960000000, 0.1513, 0.2175),
+      ("Tensor G5", 268000, 255, 1056000000, 0.1767, 0.2546),
+      ("Tensor G5", 268000, 255, 1132000000, 0.1893, 0.3096),
+      ("Tensor G5", 268000, 255, 1228000000, 0.1963, 0.4018),
+      ("Tensor G5", 268000, 255, 1324000000, 0.2142, 22.534),
+      ("Tensor G5", 268000, 255, 1420000000, 0.1716, 0.3265),
+      ("Tensor G5", 268000, 255, 1516000000, 0.1727, 0.4936),
+      ("Tensor G5", 268000, 255, 1612000000, 0.2809, 0.3208),
+      ("Tensor G5", 268000, 255, 1728000000, 0.2871, 0.3911),
+      ("Tensor G5", 268000, 255, 1843000000, 0.3139, 0.4534),
+      ("Tensor G5", 268000, 255, 1920000000, 0.3256, 0.5752),
+      ("Tensor G5", 268000, 255, 1996000000, 0.3684, 0.9744),
+      ("Tensor G5", 268000, 255, 2092000000, 0.2165, 0.7048),
+      ("Tensor G5", 268000, 255, 2188000000, 0.2103, 0.8444),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 345000, 255, 115000000, 0.1522, 0.195),
+      ("Tensor G5", 345000, 255, 268000000, 0.2311, 0.1862),
+      ("Tensor G5", 345000, 255, 400000000, 0.1207, 0.1636),
+      ("Tensor G5", 345000, 255, 537000000, 0.1273, 0.1573),
+      ("Tensor G5", 345000, 255, 691000000, 0.1184, 0.2618),
+      ("Tensor G5", 345000, 255, 768000000, 0.142, 0.2482),
+      ("Tensor G5", 345000, 255, 844000000, 0.1446, 0.2664),
+      ("Tensor G5", 345000, 255, 960000000, 0.1687, 0.2662),
+      ("Tensor G5", 345000, 255, 1056000000, 0.1709, 0.2462),
+      ("Tensor G5", 345000, 255, 1132000000, 0.1808, 0.3296),
+      ("Tensor G5", 345000, 255, 1228000000, 0.2105, 0.4074),
+      ("Tensor G5", 345000, 255, 1324000000, 0.2069, 0.3526),
+      ("Tensor G5", 345000, 255, 1420000000, 0.2409, 0.2047),
+      ("Tensor G5", 345000, 255, 1516000000, 0.2518, 0.4096),
+      ("Tensor G5", 345000, 255, 1612000000, 0.2511, 0.4804),
+      ("Tensor G5", 345000, 255, 1728000000, 0.2823, 0.4971),
+      ("Tensor G5", 345000, 255, 1843000000, 0.2927, 0.5702),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 345000, 255, 1920000000, 0.2052, 0.4422),
+      ("Tensor G5", 345000, 255, 1996000000, 0.4153, 0.3802),
+      ("Tensor G5", 345000, 255, 2092000000, 0.3097, 0.5162),
+      ("Tensor G5", 345000, 255, 2188000000, 0.5075, 0.7948),
+      ("Tensor G5", 422000, 255, 115000000, 0.1601, 0.1432),
+      ("Tensor G5", 422000, 255, 268000000, 0.166, 0.1341),
+      ("Tensor G5", 422000, 255, 400000000, 0.1538, 0.1711),
+      ("Tensor G5", 422000, 255, 537000000, 0.1179, 0.2207),
+      ("Tensor G5", 422000, 255, 691000000, 0.1304, 0.1672),
+      ("Tensor G5", 422000, 255, 768000000, 0.1588, 0.2404),
+      ("Tensor G5", 422000, 255, 844000000, 0.1435, 0.2624),
+      ("Tensor G5", 422000, 255, 960000000, 0.1502, 0.3262),
+      ("Tensor G5", 422000, 255, 1056000000, 0.1573, 0.2803),
+      ("Tensor G5", 422000, 255, 1132000000, 0.0958, 0.386),
+      ("Tensor G5", 422000, 255, 1228000000, 0.1969, 0.2835),
+      ("Tensor G5", 422000, 255, 1324000000, 0.1636, 0.3339),
+      ("Tensor G5", 422000, 255, 1420000000, 0.2266, 0.2891),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 422000, 255, 1516000000, 0.2091, 0.4236),
+      ("Tensor G5", 422000, 255, 1612000000, 0.2490, 0.3549),
+      ("Tensor G5", 422000, 255, 1728000000, 0.3082, 0.3632),
+      ("Tensor G5", 422000, 255, 1843000000, 0.3012, 0.3561),
+      ("Tensor G5", 422000, 255, 1920000000, 0.1777, 0.5647),
+      ("Tensor G5", 422000, 255, 1996000000, 0.3266, 0.43),
+      ("Tensor G5", 422000, 255, 2092000000, 0.454, 0.6733),
+      ("Tensor G5", 422000, 255, 2188000000, 0.4805, 0.6816),
+      ("Tensor G5", 460000, 255, 115000000, 0.1651, 0.204),
+      ("Tensor G5", 460000, 255, 268000000, 0.1438, 0.1276),
+      ("Tensor G5", 460000, 255, 400000000, 0.1075, 0.1939),
+      ("Tensor G5", 460000, 255, 537000000, 0.1261, 0.1285),
+      ("Tensor G5", 460000, 255, 691000000, 0.1256, 0.2624),
+      ("Tensor G5", 460000, 255, 768000000, 0.1384, 0.204),
+      ("Tensor G5", 460000, 255, 844000000, 0.1257, 0.2887),
+      ("Tensor G5", 460000, 255, 960000000, 0.153, 0.245),
+      ("Tensor G5", 460000, 255, 1056000000, 0.1455, 0.3272),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 460000, 255, 1132000000, 0.1422, 0.4246),
+      ("Tensor G5", 460000, 255, 1228000000, 0.1987, 0.3256),
+      ("Tensor G5", 460000, 255, 1324000000, 0.22, 0.3311),
+      ("Tensor G5", 460000, 255, 1420000000, 0.2231, 0.3838),
+      ("Tensor G5", 460000, 255, 1516000000, 0.2031, 0.3308),
+      ("Tensor G5", 460000, 255, 1612000000, 0.2589, 0.4011),
+      ("Tensor G5", 460000, 255, 1728000000, 0.3040, 0.3885),
+      ("Tensor G5", 460000, 255, 1843000000, 0.3109, 0.3531),
+      ("Tensor G5", 460000, 255, 1920000000, 0.3399, 0.4649),
+      ("Tensor G5", 460000, 255, 1996000000, 0.337, 0.4433),
+      ("Tensor G5", 460000, 255, 2092000000, 0.4644, 0.4299),
+      ("Tensor G5", 460000, 255, 2188000000, 0.5037, 0.4928),
+      ("Tensor G5", 533000, 255, 115000000, 0.1575, 0.1441),
+      ("Tensor G5", 533000, 255, 268000000, 0.1462, 0.1353),
+      ("Tensor G5", 533000, 255, 400000000, 0.1451, 0.1754),
+      ("Tensor G5", 533000, 255, 537000000, 0.1875, 6.2512),
+      ("Tensor G5", 533000, 255, 691000000, 0.1315, 0.1762),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 533000, 255, 768000000, 0.1412, 0.3602),
+      ("Tensor G5", 533000, 255, 844000000, 0.1767, 0.2519),
+      ("Tensor G5", 533000, 255, 960000000, 0.1543, 0.3237),
+      ("Tensor G5", 533000, 255, 1056000000, 0.1698, 0.3625),
+      ("Tensor G5", 533000, 255, 1132000000, 0.1917, 0.3437),
+      ("Tensor G5", 533000, 255, 1228000000, 0.2033, 0.2077),
+      ("Tensor G5", 533000, 255, 1324000000, 0.2092, 0.377),
+      ("Tensor G5", 533000, 255, 1420000000, 0.1063, 0.4008),
+      ("Tensor G5", 533000, 255, 1516000000, 0.2536, 0.4216),
+      ("Tensor G5", 533000, 255, 1612000000, 0.2602, 0.2967),
+      ("Tensor G5", 533000, 255, 1728000000, 0.3103, 0.2283),
+      ("Tensor G5", 533000, 255, 1843000000, 0.2857, 0.4644),
+      ("Tensor G5", 533000, 255, 1920000000, 0.3088, 0.4967),
+      ("Tensor G5", 533000, 255, 1996000000, 0.266, 0.4850),
+      ("Tensor G5", 533000, 255, 2092000000, 0.4351, 0.7022),
+      ("Tensor G5", 533000, 255, 2188000000, 0.4447, 0.4921),
+      ("Tensor G5", 729000, 255, 115000000, 0.2143, 0.1696),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 729000, 255, 268000000, 0.1731, 0.1759),
+      ("Tensor G5", 729000, 255, 400000000, 0.1494, 0.196),
+      ("Tensor G5", 729000, 255, 537000000, 0.14, 0.2668),
+      ("Tensor G5", 729000, 255, 691000000, 0.1472, 0.2284),
+      ("Tensor G5", 729000, 255, 768000000, 0.1319, 0.262),
+      ("Tensor G5", 729000, 255, 844000000, 0.1354, 0.3745),
+      ("Tensor G5", 729000, 255, 960000000, 0.1384, 0.3165),
+      ("Tensor G5", 729000, 255, 1056000000, 0.1647, 0.3725),
+      ("Tensor G5", 729000, 255, 1132000000, 0.1996, 0.33),
+      ("Tensor G5", 729000, 255, 1228000000, 0.1985, 0.2897),
+      ("Tensor G5", 729000, 255, 1324000000, 0.215, 0.2930),
+      ("Tensor G5", 729000, 255, 1420000000, 0.2036, 0.2291),
+      ("Tensor G5", 729000, 255, 1516000000, 0.2385, 0.3767),
+      ("Tensor G5", 729000, 255, 1612000000, 0.2523, 0.4113),
+      ("Tensor G5", 729000, 255, 1728000000, 0.2945, 0.2853),
+      ("Tensor G5", 729000, 255, 1843000000, 0.3399, 0.4153),
+      ("Tensor G5", 729000, 255, 1920000000, 0.3445, 0.4327),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 729000, 255, 1996000000, 0.1737, 0.5003),
+      ("Tensor G5", 729000, 255, 2092000000, 0.4652, 0.5378),
+      ("Tensor G5", 729000, 255, 2188000000, 0.4582, 0.6071),
+      ("Tensor G5", 883000, 255, 115000000, 0.202, 0.2491),
+      ("Tensor G5", 883000, 255, 268000000, 0.1966, 0.1789),
+      ("Tensor G5", 883000, 255, 400000000, 0.1675, 0.1921),
+      ("Tensor G5", 883000, 255, 537000000, 0.1349, 0.2125),
+      ("Tensor G5", 883000, 255, 691000000, 0.1623, 0.2692),
+      ("Tensor G5", 883000, 255, 768000000, 0.1659, 0.1773),
+      ("Tensor G5", 883000, 255, 844000000, 0.1258, 0.2663),
+      ("Tensor G5", 883000, 255, 960000000, 0.1843, 0.2412),
+      ("Tensor G5", 883000, 255, 1056000000, 0.2039, 0.2743),
+      ("Tensor G5", 883000, 255, 1132000000, 0.0848, 0.4186),
+      ("Tensor G5", 883000, 255, 1228000000, 0.1583, 0.2785),
+      ("Tensor G5", 883000, 255, 1324000000, 0.2235, 0.1911),
+      ("Tensor G5", 883000, 255, 1420000000, 0.2303, 0.3561),
+      ("Tensor G5", 883000, 255, 1516000000, 0.195, 0.3763),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 883000, 255, 1612000000, 0.2839, 0.3873),
+      ("Tensor G5", 883000, 255, 1728000000, 0.2971, 0.5389),
+      ("Tensor G5", 883000, 255, 1843000000, 0.1643, 0.7782),
+      ("Tensor G5", 883000, 255, 1920000000, 0.3829, 0.4392),
+      ("Tensor G5", 883000, 255, 1996000000, 0.39, 0.376),
+      ("Tensor G5", 883000, 255, 2092000000, 0.4458, 0.5296),
+      ("Tensor G5", 883000, 255, 2188000000, 0.4588, 0.4416),
+      ("Tensor G5", 1036000, 255, 115000000, 0.2181, 0.1638),
+      ("Tensor G5", 1036000, 255, 268000000, 0.2075, 0.1466),
+      ("Tensor G5", 1036000, 255, 400000000, 0.1804, 0.2125),
+      ("Tensor G5", 1036000, 255, 537000000, 0.1559, 0.1926),
+      ("Tensor G5", 1036000, 255, 691000000, 0.155, 0.2547),
+      ("Tensor G5", 1036000, 255, 768000000, 0.123, 0.5322),
+      ("Tensor G5", 1036000, 255, 844000000, 0.1474, 0.2743),
+      ("Tensor G5", 1036000, 255, 960000000, 0.1687, 0.2686),
+      ("Tensor G5", 1036000, 255, 1056000000, 0.182, 0.3021),
+      ("Tensor G5", 1036000, 255, 1132000000, 0.1840, 0.2234),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 1036000, 255, 1228000000, 0.1698, 0.2769),
+      ("Tensor G5", 1036000, 255, 1324000000, 0.1056, 0.337),
+      ("Tensor G5", 1036000, 255, 1420000000, 0.2004, 0.3431),
+      ("Tensor G5", 1036000, 255, 1516000000, 0.2392, 0.3476),
+      ("Tensor G5", 1036000, 255, 1612000000, 0.27, 0.35),
+      ("Tensor G5", 1036000, 255, 1728000000, 0.2964, 0.3646),
+      ("Tensor G5", 1036000, 255, 1843000000, 0.2966, 0.3378),
+      ("Tensor G5", 1036000, 255, 1920000000, 0.3823, 0.5215),
+      ("Tensor G5", 1036000, 255, 1996000000, 0.3764, 0.6542),
+      ("Tensor G5", 1036000, 255, 2092000000, 0.3531, 0.8952),
+      ("Tensor G5", 1036000, 255, 2188000000, 0.5176, 0.3729),
+      ("Tensor G5", 1190000, 255, 115000000, 0.21, 0.3403),
+      ("Tensor G5", 1190000, 255, 268000000, 0.1794, 0.2271),
+      ("Tensor G5", 1190000, 255, 400000000, 0.1604, 0.2157),
+      ("Tensor G5", 1190000, 255, 537000000, 0.1828, 0.1426),
+      ("Tensor G5", 1190000, 255, 691000000, 0.1673, 0.1555),
+      ("Tensor G5", 1190000, 255, 768000000, 0.1654, 0.2941),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 1190000, 255, 844000000, 0.1618, 0.2666),
+      ("Tensor G5", 1190000, 255, 960000000, 0.1752, 0.1551),
+      ("Tensor G5", 1190000, 255, 1056000000, 0.1868, 0.298),
+      ("Tensor G5", 1190000, 255, 1132000000, 0.1857, 0.2223),
+      ("Tensor G5", 1190000, 255, 1228000000, 0.2031, 0.2645),
+      ("Tensor G5", 1190000, 255, 1324000000, 0.1763, 0.3173),
+      ("Tensor G5", 1190000, 255, 1420000000, 0.2207, 0.3266),
+      ("Tensor G5", 1190000, 255, 1516000000, 0.2105, 0.319),
+      ("Tensor G5", 1190000, 255, 1612000000, 0.2854, 0.2594),
+      ("Tensor G5", 1190000, 255, 1728000000, 0.3071, 0.3061),
+      ("Tensor G5", 1190000, 255, 1843000000, 0.3332, 0.2915),
+      ("Tensor G5", 1190000, 255, 1920000000, 0.3649, 0.4683),
+      ("Tensor G5", 1190000, 255, 1996000000, 0.3586, 0.3071),
+      ("Tensor G5", 1190000, 255, 2092000000, 0.4528, 0.4337),
+      ("Tensor G5", 1190000, 255, 2188000000, 0.2092, 1.0424),
+      ("Tensor G5", 1286000, 255, 115000000, 0.0932, 0.3813),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 1286000, 255, 268000000, 0.2062, 0.2542),
+      ("Tensor G5", 1286000, 255, 400000000, 0.1953, 0.1992),
+      ("Tensor G5", 1286000, 255, 537000000, 0.0601, 0.3414),
+      ("Tensor G5", 1286000, 255, 691000000, 0.1871, 0.2674),
+      ("Tensor G5", 1286000, 255, 768000000, 0.1766, 0.3547),
+      ("Tensor G5", 1286000, 255, 844000000, 0.2322, 0.3326),
+      ("Tensor G5", 1286000, 255, 960000000, 0.1820, 0.1999),
+      ("Tensor G5", 1286000, 255, 1056000000, 0.1629, 0.2539),
+      ("Tensor G5", 1286000, 255, 1132000000, 0.1895, 0.2977),
+      ("Tensor G5", 1286000, 255, 1228000000, 0.2067, 0.3987),
+      ("Tensor G5", 1286000, 255, 1324000000, -0.142, -0.052),
+      ("Tensor G5", 1286000, 255, 1420000000, 0.1138, 0.1704),
+      ("Tensor G5", 1286000, 255, 1516000000, 0.0424, 0.0779),
+      ("Tensor G5", 1286000, 255, 1612000000, 0.0301, 0.1918),
+      ("Tensor G5", 1286000, 255, 1728000000, -0.015, 0.0857),
+      ("Tensor G5", 1286000, 255, 1843000000, 0.3095, 0.5025),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 1286000, 255, 1920000000, 0.3982, 0.4315),
+      ("Tensor G5", 1286000, 255, 1996000000, 0.4114, 0.5939),
+      ("Tensor G5", 1286000, 255, 2092000000, 0.4539, 0.5138),
+      ("Tensor G5", 1286000, 255, 2188000000, 0.4886, 0.5855),
+      ("Tensor G5", 1363000, 255, 115000000, 0.1114, 0.4418),
+      ("Tensor G5", 1363000, 255, 268000000, 0.1823, 0.1804),
+      ("Tensor G5", 1363000, 255, 400000000, 0.1981, 0.2165),
+      ("Tensor G5", 1363000, 255, 537000000, 0.1669, 0.2468),
+      ("Tensor G5", 1363000, 255, 691000000, 0.1898, 0.2182),
+      ("Tensor G5", 1363000, 255, 768000000, 0.1881, 0.3358),
+      ("Tensor G5", 1363000, 255, 844000000, 0.2157, 0.3614),
+      ("Tensor G5", 1363000, 255, 960000000, 0.1548, 0.2503),
+      ("Tensor G5", 1363000, 255, 1056000000, 0.1978, 0.3034),
+      ("Tensor G5", 1363000, 255, 1132000000, 0.1899, 0.2391),
+      ("Tensor G5", 1363000, 255, 1228000000, 0.2054, 0.2715),
+      ("Tensor G5", 1363000, 255, 1324000000, 0.2168, 0.2990),
+      ("Tensor G5", 1363000, 255, 1420000000, 0.2279, 0.2975),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 1363000, 255, 1516000000, 0.2527, 0.3),
+      ("Tensor G5", 1363000, 255, 1612000000, 0.2979, 0.3576),
+      ("Tensor G5", 1363000, 255, 1728000000, 0.3251, 0.4953),
+      ("Tensor G5", 1363000, 255, 1843000000, 0.263, 0.3917),
+      ("Tensor G5", 1363000, 255, 1920000000, 0.3323, 0.479),
+      ("Tensor G5", 1363000, 255, 1996000000, 0.4094, 0.4462),
+      ("Tensor G5", 1363000, 255, 2092000000, 0.4005, 0.5543),
+      ("Tensor G5", 1363000, 255, 2188000000, 0.4513, 0.3705),
+      ("Tensor G5", 1459000, 255, 115000000, 0.1204, 0.3199),
+      ("Tensor G5", 1459000, 255, 268000000, 0.2152, 0.254),
+      ("Tensor G5", 1459000, 255, 400000000, 0.1929, 0.2961),
+      ("Tensor G5", 1459000, 255, 537000000, 0.1773, 0.2965),
+      ("Tensor G5", 1459000, 255, 691000000, 0.1847, 0.2885),
+      ("Tensor G5", 1459000, 255, 768000000, 0.1551, 0.1883),
+      ("Tensor G5", 1459000, 255, 844000000, 0.1946, 0.3561),
+      ("Tensor G5", 1459000, 255, 960000000, 0.1889, 0.3829),
+      ("Tensor G5", 1459000, 255, 1056000000, 0.1423, 0.3766),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 1459000, 255, 1132000000, 0.2002, 0.2371),
+      ("Tensor G5", 1459000, 255, 1228000000, 0.216, 0.3038),
+      ("Tensor G5", 1459000, 255, 1324000000, 0.1485, 0.3341),
+      ("Tensor G5", 1459000, 255, 1420000000, 0.1596, 0.3352),
+      ("Tensor G5", 1459000, 255, 1516000000, 0.2406, 0.3815),
+      ("Tensor G5", 1459000, 255, 1612000000, 0.2214, 0.3719),
+      ("Tensor G5", 1459000, 255, 1728000000, 0.3056, 0.3596),
+      ("Tensor G5", 1459000, 255, 1843000000, 0.3325, 0.4306),
+      ("Tensor G5", 1459000, 255, 1920000000, 0.3375, 0.6518),
+      ("Tensor G5", 1459000, 255, 1996000000, 0.3969, 0.4834),
+      ("Tensor G5", 1459000, 255, 2092000000, 0.3996, 0.4151),
+      ("Tensor G5", 1459000, 255, 2188000000, 0.3327, 1.0129),
+      ("Tensor G5", 1555000, 255, 115000000, 0.1470, 0.4342),
+      ("Tensor G5", 1555000, 255, 268000000, 0.22, 0.2744),
+      ("Tensor G5", 1555000, 255, 400000000, 0.2428, 0.2656),
+      ("Tensor G5", 1555000, 255, 537000000, 0.2055, 0.2905),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 1555000, 255, 691000000, 0.2016, 0.5079),
+      ("Tensor G5", 1555000, 255, 768000000, 0.1805, 0.3647),
+      ("Tensor G5", 1555000, 255, 844000000, 0.1886, 0.3669),
+      ("Tensor G5", 1555000, 255, 960000000, 0.1651, 0.3832),
+      ("Tensor G5", 1555000, 255, 1056000000, 0.2096, 0.3302),
+      ("Tensor G5", 1555000, 255, 1132000000, 0.2284, 0.3751),
+      ("Tensor G5", 1555000, 255, 1228000000, 0.1713, 0.3956),
+      ("Tensor G5", 1555000, 255, 1324000000, 0.2307, 0.3587),
+      ("Tensor G5", 1555000, 255, 1420000000, 0.2276, 0.396),
+      ("Tensor G5", 1555000, 255, 1516000000, 0.251, 0.2996),
+      ("Tensor G5", 1555000, 255, 1612000000, 0.2231, 0.5059),
+      ("Tensor G5", 1555000, 255, 1728000000, 0.2933, 0.5490),
+      ("Tensor G5", 1555000, 255, 1843000000, 0.3412, 0.4248),
+      ("Tensor G5", 1555000, 255, 1920000000, 0.3772, 0.2708),
+      ("Tensor G5", 1555000, 255, 1996000000, 0.3805, 0.4879),
+      ("Tensor G5", 1555000, 255, 2092000000, 0.3814, 0.713),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 1555000, 255, 2188000000, 0.3337, 0.6041),
+      ("Tensor G5", 1632000, 255, 115000000, 0.2124, 0.4291),
+      ("Tensor G5", 1632000, 255, 268000000, 0.2329, 0.2808),
+      ("Tensor G5", 1632000, 255, 400000000, 0.2324, 0.2568),
+      ("Tensor G5", 1632000, 255, 537000000, 0.2115, 11.699),
+      ("Tensor G5", 1632000, 255, 691000000, 0.2033, 0.2900),
+      ("Tensor G5", 1632000, 255, 768000000, 0.2163, 0.3491),
+      ("Tensor G5", 1632000, 255, 844000000, 0.2236, 0.3558),
+      ("Tensor G5", 1632000, 255, 960000000, 0.1695, 0.3829),
+      ("Tensor G5", 1632000, 255, 1056000000, 0.2267, 0.3246),
+      ("Tensor G5", 1632000, 255, 1132000000, 0.2215, 0.3009),
+      ("Tensor G5", 1632000, 255, 1228000000, 0.1996, 0.3095),
+      ("Tensor G5", 1632000, 255, 1324000000, 0.1971, 0.4314),
+      ("Tensor G5", 1632000, 255, 1420000000, 0.2359, 0.3931),
+      ("Tensor G5", 1632000, 255, 1516000000, 0.1146, 0.3732),
+      ("Tensor G5", 1632000, 255, 1612000000, 0.2656, 0.2729),
+      ("Tensor G5", 1632000, 255, 1728000000, 0.2861, 0.2673),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 1632000, 255, 1843000000, 0.346, 0.5312),
+      ("Tensor G5", 1632000, 255, 1920000000, 0.1896, 0.6942),
+      ("Tensor G5", 1632000, 255, 1996000000, 0.3400, 0.5261),
+      ("Tensor G5", 1632000, 255, 2092000000, 0.435, 0.6862),
+      ("Tensor G5", 1632000, 255, 2188000000, 0.4348, 0.8778),
+      ("Tensor G5", 1766000, 255, 115000000, 0.2871, 0.3695),
+      ("Tensor G5", 1766000, 255, 268000000, 0.2682, 0.2392),
+      ("Tensor G5", 1766000, 255, 400000000, 0.2186, 0.3338),
+      ("Tensor G5", 1766000, 255, 537000000, 0.2624, 0.3108),
+      ("Tensor G5", 1766000, 255, 691000000, 0.2267, 0.3222),
+      ("Tensor G5", 1766000, 255, 768000000, 0.2107, 0.4472),
+      ("Tensor G5", 1766000, 255, 844000000, 0.2129, 0.3108),
+      ("Tensor G5", 1766000, 255, 960000000, 0.2445, 0.3611),
+      ("Tensor G5", 1766000, 255, 1056000000, 0.1073, 0.4906),
+      ("Tensor G5", 1766000, 255, 1132000000, 0.2468, 0.4093),
+      ("Tensor G5", 1766000, 255, 1228000000, 0.2264, 0.4356),
+      ("Tensor G5", 1766000, 255, 1324000000, 0.1714, 0.3935),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 1766000, 255, 1420000000, 0.2524, 0.3091),
+      ("Tensor G5", 1766000, 255, 1516000000, 0.2651, 0.4433),
+      ("Tensor G5", 1766000, 255, 1612000000, 0.2093, 0.733),
+      ("Tensor G5", 1766000, 255, 1728000000, 0.2913, 0.3617),
+      ("Tensor G5", 1766000, 255, 1843000000, 0.3608, 0.5116),
+      ("Tensor G5", 1766000, 255, 1920000000, 0.2915, 0.4919),
+      ("Tensor G5", 1766000, 255, 1996000000, 0.3513, 0.2989),
+      ("Tensor G5", 1766000, 255, 2092000000, 0.4145, 0.7738),
+      ("Tensor G5", 1766000, 255, 2188000000, 0.2372, 0.6006),
+      ("Tensor G5", 1881000, 255, 115000000, 0.3476, 0.4273),
+      ("Tensor G5", 1881000, 255, 268000000, 0.2761, 0.318),
+      ("Tensor G5", 1881000, 255, 400000000, 0.24, 0.3145),
+      ("Tensor G5", 1881000, 255, 537000000, 0.262, 0.3373),
+      ("Tensor G5", 1881000, 255, 691000000, 0.2807, 0.3893),
+      ("Tensor G5", 1881000, 255, 768000000, 0.2221, 0.4449),
+      ("Tensor G5", 1881000, 255, 844000000, 0.2055, 0.4472),
+      ("Tensor G5", 1881000, 255, 960000000, 0.2511, 0.3165),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 1881000, 255, 1056000000, 0.2469, 0.2483),
+      ("Tensor G5", 1881000, 255, 1132000000, 0.2491, 0.4923),
+      ("Tensor G5", 1881000, 255, 1228000000, 0.2519, 0.3244),
+      ("Tensor G5", 1881000, 255, 1324000000, 0.2676, 0.5411),
+      ("Tensor G5", 1881000, 255, 1420000000, 0.2641, 0.2735),
+      ("Tensor G5", 1881000, 255, 1516000000, 0.2393, 0.3807),
+      ("Tensor G5", 1881000, 255, 1612000000, 0.2311, 0.5302),
+      ("Tensor G5", 1881000, 255, 1728000000, 0.2256, 0.3213),
+      ("Tensor G5", 1881000, 255, 1843000000, 0.2789, 0.4710),
+      ("Tensor G5", 1881000, 255, 1920000000, 0.3497, 0.4614),
+      ("Tensor G5", 1881000, 255, 1996000000, 0.3088, 0.6546),
+      ("Tensor G5", 1881000, 255, 2092000000, 0.4274, 0.7133),
+      ("Tensor G5", 1881000, 255, 2188000000, 0.4428, 0.8129),
+      ("Tensor G5", 1996000, 255, 115000000, 0.3520, 0.3168),
+      ("Tensor G5", 1996000, 255, 268000000, 0.2607, 0.4108),
+      ("Tensor G5", 1996000, 255, 400000000, 0.2538, 0.3641),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 1996000, 255, 537000000, 0.1820, 0.7486),
+      ("Tensor G5", 1996000, 255, 691000000, 0.2382, 0.4454),
+      ("Tensor G5", 1996000, 255, 768000000, 0.2328, 0.5745),
+      ("Tensor G5", 1996000, 255, 844000000, 0.2891, 0.4183),
+      ("Tensor G5", 1996000, 255, 960000000, 0.232, 0.3792),
+      ("Tensor G5", 1996000, 255, 1056000000, 0.2841, 0.4266),
+      ("Tensor G5", 1996000, 255, 1132000000, 0.2283, 0.5786),
+      ("Tensor G5", 1996000, 255, 1228000000, 0.1972, 0.4419),
+      ("Tensor G5", 1996000, 255, 1324000000, 0.1561, 0.4602),
+      ("Tensor G5", 1996000, 255, 1420000000, 0.3003, 0.4203),
+      ("Tensor G5", 1996000, 255, 1516000000, 0.3037, 0.4552),
+      ("Tensor G5", 1996000, 255, 1612000000, 0.218, 0.6278),
+      ("Tensor G5", 1996000, 255, 1728000000, 0.3288, 0.3823),
+      ("Tensor G5", 1996000, 255, 1843000000, 0.3427, 0.4182),
+      ("Tensor G5", 1996000, 255, 1920000000, 0.3808, 0.6083),
+      ("Tensor G5", 1996000, 255, 1996000000, 0.1738, 0.4082),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 1996000, 255, 2092000000, 0.4273, 0.5363),
+      ("Tensor G5", 1996000, 255, 2188000000, 0.3972, 0.4524),
+      ("Tensor G5", 2016000, 255, 115000000, 0.2433, 0.447),
+      ("Tensor G5", 2016000, 255, 268000000, 0.2679, 0.3328),
+      ("Tensor G5", 2016000, 255, 400000000, 0.2983, 0.3725),
+      ("Tensor G5", 2016000, 255, 537000000, 0.3251, 0.3428),
+      ("Tensor G5", 2016000, 255, 691000000, 0.2804, 0.2545),
+      ("Tensor G5", 2016000, 255, 768000000, 0.2824, 0.5095),
+      ("Tensor G5", 2016000, 255, 844000000, 0.2517, 0.4909),
+      ("Tensor G5", 2016000, 255, 960000000, 0.2804, 0.3634),
+      ("Tensor G5", 2016000, 255, 1056000000, 0.2524, 0.3324),
+      ("Tensor G5", 2016000, 255, 1132000000, 0.2794, 0.3238),
+      ("Tensor G5", 2016000, 255, 1228000000, 0.2807, 0.3461),
+      ("Tensor G5", 2016000, 255, 1324000000, 0.2863, 0.5673),
+      ("Tensor G5", 2016000, 255, 1420000000, 0.3645, 0.3403),
+      ("Tensor G5", 2016000, 255, 1516000000, 0.245, 0.5254),
+      ("Tensor G5", 2016000, 255, 1612000000, 0.2309, 0.6037),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 2016000, 255, 1728000000, 0.2668, 0.4946),
+      ("Tensor G5", 2016000, 255, 1843000000, 0.3026, 0.6272),
+      ("Tensor G5", 2016000, 255, 1920000000, 0.3879, 0.6073),
+      ("Tensor G5", 2016000, 255, 1996000000, 0.374, 0.4027),
+      ("Tensor G5", 2016000, 255, 2092000000, 0.4634, 0.5438),
+      ("Tensor G5", 2016000, 255, 2188000000, 0.4491, 0.7081),
+      ("Tensor G5", 2054000, 255, 115000000, 0.3228, 0.3829),
+      ("Tensor G5", 2054000, 255, 268000000, 0.2783, 0.3625),
+      ("Tensor G5", 2054000, 255, 400000000, 0.3147, 0.283),
+      ("Tensor G5", 2054000, 255, 537000000, 0.283, 0.4224),
+      ("Tensor G5", 2054000, 255, 691000000, 0.1618, 0.5269),
+      ("Tensor G5", 2054000, 255, 768000000, 0.2415, 0.4877),
+      ("Tensor G5", 2054000, 255, 844000000, 0.3019, 0.3428),
+      ("Tensor G5", 2054000, 255, 960000000, 0.2153, 0.4231),
+      ("Tensor G5", 2054000, 255, 1056000000, 0.2966, 0.4831),
+      ("Tensor G5", 2054000, 255, 1132000000, 0.309, 0.4705),
+      ("Tensor G5", 2054000, 255, 1228000000, 0.2889, 0.4501),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 2054000, 255, 1324000000, 0.3135, 0.6828),
+      ("Tensor G5", 2054000, 255, 1420000000, 0.3409, 0.5490),
+      ("Tensor G5", 2054000, 255, 1516000000, 0.3153, 0.3259),
+      ("Tensor G5", 2054000, 255, 1612000000, 0.3197, 0.5847),
+      ("Tensor G5", 2054000, 255, 1728000000, 0.3186, 0.5825),
+      ("Tensor G5", 2054000, 255, 1843000000, 0.3456, 0.4538),
+      ("Tensor G5", 2054000, 255, 1920000000, 0.2944, 0.3929),
+      ("Tensor G5", 2054000, 255, 1996000000, 0.3575, 0.406),
+      ("Tensor G5", 2054000, 255, 2092000000, 0.4072, 0.8127),
+      ("Tensor G5", 2054000, 255, 2188000000, 0.4752, 0.5146),
+      ("Tensor G5", 2092000, 255, 115000000, 0.3096, 0.3571),
+      ("Tensor G5", 2092000, 255, 268000000, 0.3187, 0.4034),
+      ("Tensor G5", 2092000, 255, 400000000, 0.3196, 0.3981),
+      ("Tensor G5", 2092000, 255, 537000000, 0.3198, 0.3992),
+      ("Tensor G5", 2092000, 255, 691000000, 0.3077, 0.5161),
+      ("Tensor G5", 2092000, 255, 768000000, 0.2976, 0.4976),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 2092000, 255, 844000000, 0.221, 0.5945),
+      ("Tensor G5", 2092000, 255, 960000000, 0.3047, 0.3559),
+      ("Tensor G5", 2092000, 255, 1056000000, 0.2080, 0.3991),
+      ("Tensor G5", 2092000, 255, 1132000000, 0.3034, 0.5344),
+      ("Tensor G5", 2092000, 255, 1228000000, 0.3053, 0.5314),
+      ("Tensor G5", 2092000, 255, 1324000000, 0.1538, 31.397),
+      ("Tensor G5", 2092000, 255, 1420000000, 0.3446, 0.3589),
+      ("Tensor G5", 2092000, 255, 1516000000, 0.3363, 0.4872),
+      ("Tensor G5", 2092000, 255, 1612000000, 0.3423, 0.5387),
+      ("Tensor G5", 2092000, 255, 1728000000, 0.3464, 0.4640),
+      ("Tensor G5", 2092000, 255, 1843000000, 0.3728, 0.5651),
+      ("Tensor G5", 2092000, 255, 1920000000, 0.3946, 0.3228),
+      ("Tensor G5", 2092000, 255, 1996000000, 0.3678, 0.3802),
+      ("Tensor G5", 2092000, 255, 2092000000, 0.4238, 0.4055),
+      ("Tensor G5", 2092000, 255, 2188000000, 0.4652, 0.4393),
+      ("Tensor G5", 2169000, 255, 115000000, 0.3441, 0.4047),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 2169000, 255, 268000000, 0.2531, 0.4981),
+      ("Tensor G5", 2169000, 255, 400000000, 0.3047, 0.5037),
+      ("Tensor G5", 2169000, 255, 537000000, 0.3091, 0.3904),
+      ("Tensor G5", 2169000, 255, 691000000, 0.3236, 0.5714),
+      ("Tensor G5", 2169000, 255, 768000000, 0.2832, 0.4033),
+      ("Tensor G5", 2169000, 255, 844000000, 0.3264, 0.4072),
+      ("Tensor G5", 2169000, 255, 960000000, 0.2455, 0.4045),
+      ("Tensor G5", 2169000, 255, 1056000000, 0.3238, 0.3717),
+      ("Tensor G5", 2169000, 255, 1132000000, 0.3303, 0.4531),
+      ("Tensor G5", 2169000, 255, 1228000000, 0.3202, 0.5501),
+      ("Tensor G5", 2169000, 255, 1324000000, 0.3329, 0.4658),
+      ("Tensor G5", 2169000, 255, 1420000000, 0.37, 0.4666),
+      ("Tensor G5", 2169000, 255, 1516000000, 0.3593, 0.3602),
+      ("Tensor G5", 2169000, 255, 1612000000, 0.3253, 0.7185),
+      ("Tensor G5", 2169000, 255, 1728000000, 0.2935, 0.5328),
+      ("Tensor G5", 2169000, 255, 1843000000, 0.3935, 0.3907),
+      ("Tensor G5", 2169000, 255, 1920000000, 0.3439, 0.5322),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 2169000, 255, 1996000000, 0.4164, 0.6431),
+      ("Tensor G5", 2169000, 255, 2092000000, 0.3067, 0.6504),
+      ("Tensor G5", 2169000, 255, 2188000000, 0.4595, 0.6651),
+      ("Tensor G5", 2246000, 255, 115000000, 0.5018, 0.334),
+      ("Tensor G5", 2246000, 255, 268000000, 0.1858, 0.5702),
+      ("Tensor G5", 2246000, 255, 400000000, 0.3575, 0.4385),
+      ("Tensor G5", 2246000, 255, 537000000, 0.317, 0.5159),
+      ("Tensor G5", 2246000, 255, 691000000, 0.3315, 0.4771),
+      ("Tensor G5", 2246000, 255, 768000000, 0.1644, 0.5081),
+      ("Tensor G5", 2246000, 255, 844000000, 0.3641, 0.5874),
+      ("Tensor G5", 2246000, 255, 960000000, 0.3196, 0.4443),
+      ("Tensor G5", 2246000, 255, 1056000000, 0.3679, 0.2638),
+      ("Tensor G5", 2246000, 255, 1132000000, 0.3306, 0.4363),
+      ("Tensor G5", 2246000, 255, 1228000000, 0.3679, 0.6061),
+      ("Tensor G5", 2246000, 255, 1324000000, 0.3273, 0.4928),
+      ("Tensor G5", 2246000, 255, 1420000000, 0.3646, 0.6653),
+      ("Tensor G5", 2246000, 255, 1516000000, 0.3953, 0.4656),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("Tensor G5", 2246000, 255, 1612000000, 0.391, 0.7046),
+      ("Tensor G5", 2246000, 255, 1728000000, 0.3948, 0.4969),
+      ("Tensor G5", 2246000, 255, 1843000000, 0.4446, 0.7071),
+      ("Tensor G5", 2246000, 255, 1920000000, 0.4609, 0.5365),
+      ("Tensor G5", 2246000, 255, 1996000000, 0.3605, 0.6287),
+      ("Tensor G5", 2246000, 255, 2092000000, 0.2661, 0.6364),
+      ("Tensor G5", 2246000, 255, 2188000000, 0.4526, 0.8995)) AS _values
   )
 SELECT
-  idle_cost_mws,
-  utid,
-  upid,
-  cpu
-FROM base
-UNION ALL
-SELECT
-  -1 * sum(idle_cost_mws) AS idle_cost_mws,
-  0 AS utid,
-  0 AS upid,
-  cpu
-FROM base
-GROUP BY
-  cpu;
+  *
+FROM data;
 
 )_d3l1m1t3r_"
 ;
@@ -30866,7 +37404,13 @@ const char kWattsonCurvesUtils[] = R"_d3l1m1t3r_(--
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE wattson.curves.device;
+INCLUDE PERFETTO MODULE wattson.curves.device_cpu_1d;
+
+INCLUDE PERFETTO MODULE wattson.curves.device_cpu_2d;
+
+INCLUDE PERFETTO MODULE wattson.curves.device_gpu;
+
+INCLUDE PERFETTO MODULE wattson.curves.device_l3;
 
 INCLUDE PERFETTO MODULE wattson.device_infos;
 
@@ -30879,39 +37423,35 @@ SELECT
   idle0,
   idle1,
   static
-FROM _device_curves_1d AS dc
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(FROM _device_curves_1d AS dc
 JOIN _wattson_device AS device
   ON dc.device = device.name
 JOIN _dev_cpu_policy_map AS cp
   ON dc.policy = cp.policy;
 
 CREATE PERFETTO TABLE _filtered_curves_1d AS
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(SELECT
+SELECT
   policy,
   freq_khz,
   -1 AS idle,
-  active AS curve_value
+  active AS curve_value,
+  static
 FROM _filtered_curves_1d_raw
 UNION
 SELECT
   policy,
   freq_khz,
   0,
-  idle0
+  idle0,
+  static
 FROM _filtered_curves_1d_raw
 UNION
 SELECT
   policy,
   freq_khz,
   1,
-  idle1
-FROM _filtered_curves_1d_raw
-UNION
-SELECT
-  policy,
-  freq_khz,
-  255,
+  idle1,
   static
 FROM _filtered_curves_1d_raw;
 
@@ -30920,310 +37460,173 @@ CREATE PERFETTO INDEX freq_1d ON _filtered_curves_1d(policy, freq_khz, idle);
 -- 2D LUT; with dependency on another CPU
 CREATE PERFETTO TABLE _filtered_curves_2d_raw AS
 SELECT
-  cp.policy AS other_policy,
+  dc.policy,
   dc.freq_khz,
-  dc.other_freq_khz,
+  dc.dep_policy,
+  dc.dep_freq,
   dc.active,
   dc.idle0,
   dc.idle1,
   dc.static
 FROM _device_curves_2d AS dc
 JOIN _wattson_device AS device
-  ON dc.device = device.name
-JOIN _dev_cpu_policy_map AS cp
-  ON dc.other_policy = cp.policy;
+  ON dc.device = device.name;
 
 CREATE PERFETTO TABLE _filtered_curves_2d AS
 SELECT
   freq_khz,
-  other_policy,
-  other_freq_khz,
+  dep_policy,
+  dep_freq,
   -1 AS idle,
+  static,
   active AS curve_value
 FROM _filtered_curves_2d_raw
-UNION
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(UNION
 SELECT
   freq_khz,
-  other_policy,
-  other_freq_khz,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  0,
+  dep_policy,
+  dep_freq,
+  0,
+  static,
   idle0
 FROM _filtered_curves_2d_raw
 UNION
 SELECT
   freq_khz,
-  other_policy,
-  other_freq_khz,
+  dep_policy,
+  dep_freq,
   1,
+  static,
   idle1
-FROM _filtered_curves_2d_raw
-UNION
-SELECT
-  freq_khz,
-  other_policy,
-  other_freq_khz,
-  255,
-  static
 FROM _filtered_curves_2d_raw;
 
-CREATE PERFETTO INDEX freq_2d ON _filtered_curves_2d(freq_khz, other_policy, other_freq_khz, idle);
+CREATE PERFETTO INDEX freq_2d ON _filtered_curves_2d(freq_khz, dep_policy, dep_freq, idle);
 
 -- L3 cache LUT
-CREATE PERFETTO TABLE _filtered_curves_l3_raw AS
+CREATE PERFETTO TABLE _filtered_curves_l3 AS
 SELECT
-  cp.policy AS other_policy,
   dc.freq_khz,
-  dc.other_freq_khz,
+  dc.dep_policy,
+  dc.dep_freq,
   dc.l3_hit,
   dc.l3_miss
 FROM _device_curves_l3 AS dc
 JOIN _wattson_device AS device
-  ON dc.device = device.name
-JOIN _dev_cpu_policy_map AS cp
-  ON dc.other_policy = cp.policy;
+  ON dc.device = device.name;
 
-CREATE PERFETTO TABLE _filtered_curves_l3 AS
+CREATE PERFETTO INDEX freq_l3 ON _filtered_curves_l3(freq_khz, dep_policy, dep_freq);
+
+-- Device specific GPU curves
+CREATE PERFETTO TABLE _gpu_filtered_curves_raw AS
 SELECT
   freq_khz,
-  other_policy,
-  other_freq_khz,
-  'hit' AS action,
-  l3_hit AS curve_value
-FROM _filtered_curves_l3_raw
-UNION
+  active,
+  idle1,
+  idle2
+FROM _gpu_device_curves AS dc
+JOIN _wattson_device AS device
+  ON dc.device = device.name;
+
+CREATE PERFETTO TABLE _gpu_filtered_curves AS
 SELECT
   freq_khz,
-  other_policy,
-  other_freq_khz,
-  'miss' AS action,
-  l3_miss
-FROM _filtered_curves_l3_raw;
-
-CREATE PERFETTO INDEX freq_l3 ON _filtered_curves_l3(freq_khz, other_policy, other_freq_khz, action);
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(
-)_d3l1m1t3r_"
-;
-
-const char kWattsonCurvesWCpuDependence[] = R"_d3l1m1t3r_(--
--- Copyright 2024 The Android Open Source Project
---
--- Licensed under the Apache License, Version 2.0 (the "License");
--- you may not use this file except in compliance with the License.
--- You may obtain a copy of the License at
---
---     https://www.apache.org/licenses/LICENSE-2.0
---
--- Unless required by applicable law or agreed to in writing, software
--- distributed under the License is distributed on an "AS IS" BASIS,
--- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
--- See the License for the specific language governing permissions and
--- limitations under the License.
-
-INCLUDE PERFETTO MODULE wattson.cpu_split;
-
--- Find the CPU states creating the max vote
-CREATE PERFETTO TABLE _w_cpu_dependence AS
-WITH
-  max_power_tbl AS (
-    SELECT
-      *,
-      -- Indicates if all CPUs are in deep idle
-      min(
-        no_static,
-        coalesce(idle_4, 1),
-        coalesce(idle_5, 1),
-        coalesce(idle_6, 1),
-        coalesce(idle_7, 1)
-      ) AS all_cpu_deep_idle,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      -- Determines which CPU has highest vote
-      max(static_4, static_5, static_6, static_7) AS max_static_vote
-    FROM _w_independent_cpus_calc, _skip_devfreq_for_calc
-  )
-SELECT
-  ts,
-  dur,
-  freq_0,
-  idle_0,
-  freq_1,
-  idle_1,
-  freq_2,
-  idle_2,
-  freq_3,
-  idle_3,
-  cpu0_curve,
-  cpu1_curve,
-  cpu2_curve,
-  cpu3_curve,
-  cpu4_curve,
-  cpu5_curve,
-  cpu6_curve,
-  cpu7_curve,
-  l3_hit_count,
-  l3_miss_count,
-  suspended,
-  no_static,
-  all_cpu_deep_idle,
-  CASE max_static_vote
-    WHEN -1
-    THEN _get_min_freq_vote()
-    WHEN static_4
-    THEN freq_4
-    WHEN static_5
-    THEN freq_5
-    WHEN static_6
-    THEN freq_6
-    WHEN static_7
-    THEN freq_7
-    ELSE 400000
-  END AS dependent_freq,
-  CASE max_static_vote
-    WHEN -1
-    THEN _get_min_policy_vote()
-    WHEN static_4
-    THEN policy_4
-    WHEN static_5
-    THEN policy_5
-    WHEN static_6
-    THEN policy_6
-    WHEN static_7
-    THEN policy_7
-    ELSE 4
-  END AS dependent_policy
-FROM max_power_tbl;
-
-)_d3l1m1t3r_"
-;
-
-const char kWattsonCurvesWDsuDependence[] = R"_d3l1m1t3r_(--
--- Copyright 2024 The Android Open Source Project
---
--- Licensed under the Apache License, Version 2.0 (the "License");
--- you may not use this file except in compliance with the License.
--- You may obtain a copy of the License at
---
---     https://www.apache.org/licenses/LICENSE-2.0
---
--- Unless required by applicable law or agreed to in writing, software
--- distributed under the License is distributed on an "AS IS" BASIS,
--- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
--- See the License for the specific language governing permissions and
--- limitations under the License.
-
-INCLUDE PERFETTO MODULE intervals.intersect;
-
-INCLUDE PERFETTO MODULE linux.devfreq;
-
-INCLUDE PERFETTO MODULE wattson.cpu_split;
-
-INCLUDE PERFETTO MODULE wattson.curves.utils;
-
-INCLUDE PERFETTO MODULE wattson.device_infos;
-
-CREATE PERFETTO TABLE _cpu_curves AS
-SELECT
-  ts,
-  dur,
-  freq_0,
-  idle_0,
-  freq_1,
-  idle_1,
-  freq_2,
-  idle_2,
-  freq_3,
-  idle_3,
-  cpu4_curve,
-  cpu5_curve,
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(  cpu6_curve,
-  cpu7_curve,
-  l3_hit_count,
-  l3_miss_count,
-  suspended,
-  no_static,
-  min(
-    no_static,
-    coalesce(idle_4, 1),
-    coalesce(idle_5, 1),
-    coalesce(idle_6, 1),
-    coalesce(idle_7, 1)
-  ) AS all_cpu_deep_idle
-FROM _w_independent_cpus_calc AS base, _use_devfreq_for_calc;
-
--- Get nominal devfreq_dsu counter, OR use a dummy one for Pixel 9 VM traces
--- The VM doesn't have a DSU, so the placeholder value of FMin is put in. The
--- DSU frequency is a prerequisite for power estimation on Pixel 9.
-CREATE PERFETTO TABLE _dsu_frequency AS
-SELECT
-  *
-FROM linux_devfreq_dsu_counter
+  2 AS idle,
+  active AS curve_value
+FROM _gpu_filtered_curves_raw
 UNION ALL
 SELECT
-  0 AS id,
-  trace_start() AS ts,
-  trace_end() - trace_start() AS dur,
-  610000 AS dsu_freq
--- Only add this for traces from a VM on Pixel 9 where DSU values aren't present
-WHERE
-  (
-    SELECT
-      str_value
-    FROM metadata
-    WHERE
-      name = 'android_guest_soc_model'
-  ) IN (
-    SELECT
-      device
-    FROM _use_devfreq
-  )
-  AND (
-    SELECT
-      count(*)
-    FROM linux_devfreq_dsu_counter
+  freq_khz,
+  1 AS idle,
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(  ) = 0;
-
-CREATE PERFETTO TABLE _w_dsu_dependence AS
+R"_d3l1m1t3r_(  idle1 AS curve_value
+FROM _gpu_filtered_curves_raw
+UNION ALL
 SELECT
-  c.ts,
-  c.dur,
-  c.freq_0,
-  c.idle_0,
-  c.freq_1,
-  c.idle_1,
-  c.freq_2,
-  c.idle_2,
-  c.freq_3,
-  c.idle_3,
-  -- NULL columns needed to match columns of _get_max_vote before UNION
-  NULL AS cpu0_curve,
-  NULL AS cpu1_curve,
-  NULL AS cpu2_curve,
-  NULL AS cpu3_curve,
-  c.cpu4_curve,
-  c.cpu5_curve,
-  c.cpu6_curve,
-  c.cpu7_curve,
-  c.l3_hit_count,
-  c.l3_miss_count,
-  c.suspended,
-  c.no_static,
-  c.all_cpu_deep_idle,
-  d.dsu_freq AS dependent_freq,
-  255 AS dependent_policy
-FROM _interval_intersect!(
-  (
-    _ii_subquery!(_cpu_curves),
-    _ii_subquery!(_dsu_frequency)
+  freq_khz,
+  0 AS idle,
+  idle2 AS curve_value
+FROM _gpu_filtered_curves_raw;
+
+CREATE PERFETTO INDEX gpu_freq ON _gpu_filtered_curves(freq_khz, idle);
+
+-- Constructs table specifying CPUs that are DSU dependent
+CREATE PERFETTO TABLE _cpu_w_dsu_dependency AS
+SELECT DISTINCT
+  cpu
+FROM _filtered_curves_2d_raw
+JOIN _dev_cpu_policy_map
+  USING (policy)
+WHERE
+  dep_policy = 255;
+
+-- Chooses the minimum vote for CPUs with dependencies
+CREATE PERFETTO TABLE _cpu_w_dependency_default_vote AS
+WITH
+  policy_vote AS (
+    SELECT
+      policy,
+      dep_policy,
+      min(dep_freq) AS dep_freq
+    FROM _filtered_curves_2d_raw
+    GROUP BY
+      policy
+  )
+SELECT
+  cpu,
+  dep_policy,
+  dep_freq
+FROM policy_vote
+JOIN _dev_cpu_policy_map
+  USING (policy);
+
+-- CPUs that need to be checked for static calculation
+CREATE PERFETTO TABLE _cpus_for_static AS
+SELECT DISTINCT
+  m.cpu
+FROM _filtered_curves_2d_raw AS c
+JOIN _dev_cpu_policy_map AS m
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  USING (policy)
+WHERE
+  static > 0
+UNION
+SELECT DISTINCT
+  m.cpu
+FROM _filtered_curves_1d AS c
+JOIN _dev_cpu_policy_map AS m
+  USING (policy)
+WHERE
+  static > 0;
+
+-- Contructs table specifying CPU dependency of each CPU (if applicable)
+CREATE PERFETTO TABLE _cpu_lut_dependencies AS
+WITH
+  base_cpus AS (
+    SELECT DISTINCT
+      m.cpu,
+      m.policy
+    FROM _filtered_curves_2d_raw AS c
+    JOIN _dev_cpu_policy_map AS m
+      USING (policy)
+    WHERE
+      dep_policy != 255
   ),
-  ()
-) AS ii
-JOIN _cpu_curves AS c
-  ON c._auto_id = id_0
-JOIN _dsu_frequency AS d
-  ON d._auto_id = id_1;
+  dep_cpus AS (
+    SELECT DISTINCT
+      m.cpu AS dep_cpu,
+      m.policy AS dep_policy
+    FROM _filtered_curves_2d_raw AS c
+    JOIN _dev_cpu_policy_map AS m
+      ON c.dep_policy = m.policy
+  )
+SELECT
+  b.cpu,
+  d.dep_cpu
+FROM base_cpus AS b
+CROSS JOIN dep_cpus AS d
+WHERE
+  b.policy != d.dep_policy;
 
 )_d3l1m1t3r_"
 ;
@@ -31273,10 +37676,24 @@ R"_d3l1m1t3r_(      ("Tensor", 7, 200000),
       ("Tensor G4", 5, 110000),
       ("Tensor G4", 6, 110000),
       ("Tensor G4", 7, 400000),
+      ("Tensor G5", 0, 0),
+      ("Tensor G5", 1, 0),
+      ("Tensor G5", 2, 0),
+      ("Tensor G5", 3, 0),
+      ("Tensor G5", 4, 0),
+      ("Tensor G5", 5, 0),
+      ("Tensor G5", 6, 0),
+      ("Tensor G5", 7, 0),
       ("neo", 0, 100000),
       ("neo", 1, 100000),
       ("neo", 2, 100000),
-      ("neo", 3, 100000)) AS _values
+      ("neo", 3, 100000),
+      ("SXR2230P", 0, 0),
+      ("SXR2230P", 1, 0),
+      ("SXR2230P", 2, 0),
+      ("SXR2230P", 3, 0),
+      ("SXR2230P", 4, 0),
+      ("SXR2230P", 5, 0)) AS _values
   )
 SELECT
   *
@@ -31288,7 +37705,8 @@ WITH
     SELECT
       *
     FROM (VALUES
-      ("oriole", "Tensor"),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("oriole", "Tensor"),
       ("raven", "Tensor"),
       ("bluejay", "Tensor"),
       ("eos", "monaco"),
@@ -31306,8 +37724,7 @@ WITH
         -- Get guest model from metadata, which takes precedence if set
         (
           SELECT
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(            str_value
+            str_value
           FROM metadata
           WHERE
             name = 'android_guest_soc_model'
@@ -31332,7 +37749,8 @@ R"_d3l1m1t3r_(            str_value
   )
 -- Once model is obtained, check to see if the model is supported by Wattson
 -- via checking if model is within a key-value pair mapping
-SELECT DISTINCT
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(SELECT DISTINCT
   name
 FROM soc_model
 JOIN _device_cpu_deep_idle_offsets AS map
@@ -31347,8 +37765,7 @@ WITH
     FROM (VALUES
       ("monaco", 0, 0),
       ("monaco", 1, 0),
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("monaco", 2, 0),
+      ("monaco", 2, 0),
       ("monaco", 3, 0),
       ("Tensor", 0, 0),
       ("Tensor", 1, 0),
@@ -31366,11 +37783,25 @@ R"_d3l1m1t3r_(      ("monaco", 2, 0),
       ("Tensor G4", 5, 4),
       ("Tensor G4", 6, 4),
       ("Tensor G4", 7, 7),
-      ("Tensor G4", 255, 255),
+      ("Tensor G5", 0, 0),
+      ("Tensor G5", 1, 0),
+      ("Tensor G5", 2, 2),
+      ("Tensor G5", 3, 2),
+      ("Tensor G5", 4, 2),
+      ("Tensor G5", 5, 5),
+      ("Tensor G5", 6, 5),
+      ("Tensor G5", 7, 7),
       ("neo", 0, 0),
-      ("neo", 1, 0),
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      ("neo", 1, 0),
       ("neo", 2, 0),
-      ("neo", 3, 0)) AS _values
+      ("neo", 3, 0),
+      ("SXR2230P", 0, 0),
+      ("SXR2230P", 1, 0),
+      ("SXR2230P", 2, 2),
+      ("SXR2230P", 3, 2),
+      ("SXR2230P", 4, 2),
+      ("SXR2230P", 5, 2)) AS _values
   )
 SELECT
   *
@@ -31387,40 +37818,11 @@ JOIN _wattson_device AS device
 ORDER BY
   cpu;
 
--- Policy and freq that will give minimum volt vote
-CREATE PERFETTO TABLE _device_min_volt_vote AS
-WITH
-  data(device, policy, freq) AS (
-    SELECT
-      *
-    FROM (VALUES
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(      ("monaco", 0, 614400),
-      ("Tensor", 4, 400000),
-      ("Tensor G4", 0, 700000),
-      ("neo", 0, 691200)) AS _values
-  )
-SELECT
-  *
-FROM data;
-
--- Get policy corresponding to minimum volt vote
-CREATE PERFETTO FUNCTION _get_min_policy_vote()
-RETURNS LONG AS
-SELECT
-  vote_tbl.policy
-FROM _device_min_volt_vote AS vote_tbl, _wattson_device AS device
-WHERE
-  vote_tbl.device = device.name;
-
--- Get frequency corresponding to minimum volt vote
-CREATE PERFETTO FUNCTION _get_min_freq_vote()
-RETURNS LONG AS
-SELECT
-  vote_tbl.freq
-FROM _device_min_volt_vote AS vote_tbl, _wattson_device AS device
-WHERE
-  vote_tbl.device = device.name;
+-- Identifies unique policies on this device
+CREATE PERFETTO TABLE _device_policies AS
+SELECT DISTINCT
+  policy
+FROM _dev_cpu_policy_map;
 
 -- Devices that require using devfreq
 CREATE PERFETTO TABLE _use_devfreq AS
@@ -31429,7 +37831,8 @@ WITH
     SELECT
       *
     FROM (VALUES
-      ("Tensor G4")) AS _values
+      ("Tensor G4"),
+      ("Tensor G5")) AS _values
   )
 SELECT
   *
@@ -31448,9 +37851,12 @@ R"_d3l1m1t3r_(  ON d.device = device.name;
 CREATE PERFETTO TABLE _skip_devfreq_for_calc AS
 SELECT
   FALSE AS devfreq_necessary
-FROM _use_devfreq AS d
-JOIN _wattson_device AS device
-  ON d.device != device.name;
+WHERE
+  NOT EXISTS(
+    SELECT
+      *
+    FROM _use_devfreq_for_calc
+  );
 
 -- Devices that require idle state mapping
 CREATE PERFETTO TABLE _idle_state_map AS
@@ -31462,7 +37868,11 @@ WITH
       ("neo", 4294967295, -1),
       ("neo", 0, 0),
       ("neo", 1, 1),
-      ("neo", 2, 1)) AS _values
+      ("neo", 2, 1),
+      ("SXR2230P", 4294967295, -1),
+      ("SXR2230P", 0, 0),
+      ("SXR2230P", 1, 1),
+      ("SXR2230P", 2, 1)) AS _values
   )
 SELECT
   *
@@ -31478,20 +37888,461 @@ JOIN _wattson_device AS device
   ON idle_map.device = device.name;
 
 -- Get the device specific deepest idle state if defined, otherwise use 1 as the
--- deepest idle state
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(-- deepest idle state
 CREATE PERFETTO TABLE _deepest_idle AS
 SELECT
   coalesce((
     SELECT
       max(override_idle)
-)_d3l1m1t3r_"
-R"_d3l1m1t3r_(    FROM _idle_state_map_override
+    FROM _idle_state_map_override
   ), 1) AS idle;
+
+-- Specify which device-cpu combination has 2D dependency that votes by
+-- frequency (as opposed to the default, vote by power)
+CREATE PERFETTO TABLE _vote_by_freq AS
+WITH
+  data(device, cpu) AS (
+    SELECT
+      *
+    FROM (VALUES
+      ("Tensor G5", 5),
+      ("Tensor G5", 6),
+      ("Tensor G5", 7)) AS _values
+  )
+SELECT
+  *
+FROM data;
+
+-- Gets all CPUs on device and whether the CPU vote is be freq or power
+CREATE PERFETTO TABLE _dev_vote_by_freq AS
+WITH
+  base AS (
+    SELECT
+      m.cpu,
+      0 AS vote_by_freq
+    FROM _dev_cpu_policy_map AS m
+    LEFT JOIN _vote_by_freq AS v
+      USING (cpu)
+    WHERE
+      v.cpu IS NULL
+    UNION ALL
+    SELECT
+      cpu,
+      1 AS vote_by_freq
+    FROM _vote_by_freq AS v
+    JOIN _wattson_device AS device
+      ON v.device = device.name
+  )
+SELECT
+  cpu,
+  vote_by_freq
+FROM base
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(ORDER BY
+  cpu;
 
 )_d3l1m1t3r_"
 ;
 
-const char kWattsonSystemState[] = R"_d3l1m1t3r_(--
+const char kWattsonEstimates[] = R"_d3l1m1t3r_(--
+-- Copyright 2025 The Android Open Source Project
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     https://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
+INCLUDE PERFETTO MODULE wattson.cpu.estimates;
+
+INCLUDE PERFETTO MODULE wattson.gpu.estimates;
+
+INCLUDE PERFETTO MODULE wattson.utils;
+
+-- Need to use SPAN_OUTER_JOIN because depending on the trace points enabled,
+-- it's possible one of the tables is empty
+CREATE VIRTUAL TABLE _virtual_system_state_mw USING SPAN_OUTER_JOIN (_cpu_estimates_mw, _gpu_estimates_mw);
+
+-- The most basic components of Wattson, all normalized to be in mW on a per
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(-- system state basis
+CREATE PERFETTO TABLE _system_state_mw AS
+SELECT
+  *
+FROM _virtual_system_state_mw;
+
+-- API to get power from each system state in an arbitrary time window
+CREATE PERFETTO FUNCTION _windowed_system_state_mw(
+    ts TIMESTAMP,
+    dur LONG
+)
+RETURNS TABLE (
+  cpu0_mw DOUBLE,
+  cpu1_mw DOUBLE,
+  cpu2_mw DOUBLE,
+  cpu3_mw DOUBLE,
+  cpu4_mw DOUBLE,
+  cpu5_mw DOUBLE,
+  cpu6_mw DOUBLE,
+  cpu7_mw DOUBLE,
+  dsu_scu_mw DOUBLE,
+  gpu_mw DOUBLE
+) AS
+SELECT
+  sum(ss.cpu0_mw * ss.dur) / sum(ss.dur) AS cpu0_mw,
+  sum(ss.cpu1_mw * ss.dur) / sum(ss.dur) AS cpu1_mw,
+  sum(ss.cpu2_mw * ss.dur) / sum(ss.dur) AS cpu2_mw,
+  sum(ss.cpu3_mw * ss.dur) / sum(ss.dur) AS cpu3_mw,
+  sum(ss.cpu4_mw * ss.dur) / sum(ss.dur) AS cpu4_mw,
+  sum(ss.cpu5_mw * ss.dur) / sum(ss.dur) AS cpu5_mw,
+  sum(ss.cpu6_mw * ss.dur) / sum(ss.dur) AS cpu6_mw,
+  sum(ss.cpu7_mw * ss.dur) / sum(ss.dur) AS cpu7_mw,
+  sum(ss.dsu_scu_mw * ss.dur) / sum(ss.dur) AS dsu_scu_mw,
+  sum(ss.gpu_mw * ss.dur) / sum(ss.dur) AS gpu_mw
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(FROM _interval_intersect_single!($ts, $dur, _ii_subquery!(_system_state_mw)) AS ii
+JOIN _system_state_mw AS ss
+  ON ss._auto_id = id;
+
+)_d3l1m1t3r_"
+;
+
+const char kWattsonGpuEstimates[] = R"_d3l1m1t3r_(--
+-- Copyright 2025 The Android Open Source Project
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     https://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
+INCLUDE PERFETTO MODULE wattson.gpu.freq_idle;
+
+-- GPU power estimates in mW
+CREATE PERFETTO TABLE _gpu_estimates_mw AS
+SELECT
+  gfi.ts,
+  gfi.dur,
+  c.curve_value AS gpu_mw
+FROM _gpu_freq_idle AS gfi
+JOIN _gpu_filtered_curves AS c
+  ON c.freq_khz = gfi.freq AND c.idle = gfi.power_state
+ORDER BY
+  ts ASC;
+
+)_d3l1m1t3r_"
+;
+
+const char kWattsonGpuFreqIdle[] = R"_d3l1m1t3r_(--
+-- Copyright 2025 The Android Open Source Project
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     https://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
+INCLUDE PERFETTO MODULE android.gpu.frequency;
+
+INCLUDE PERFETTO MODULE android.gpu.mali_power_state;
+
+INCLUDE PERFETTO MODULE intervals.intersect;
+
+-- Gapless time slices of GPU freq from trace_start() to trace_end()
+CREATE PERFETTO TABLE _gapless_gpu_freq AS
+WITH
+  nominal_freqs AS (
+    -- Prepend NULL slices up to first freq events
+    SELECT
+      trace_start() AS ts,
+      min(ts) - trace_start() AS dur,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      NULL AS freq,
+      NULL AS prev_freq,
+      next_gpu_freq AS next_freq,
+      gpu_id
+    FROM android_gpu_frequency
+    -- Use gpu_id1 since there are multiple gpu_id1 freqs for each gpu_id0 freq
+    WHERE
+      gpu_id = 1
+    UNION ALL
+    SELECT
+      ts,
+      dur,
+      gpu_freq AS freq,
+      prev_gpu_freq AS prev_freq,
+      next_gpu_freq AS next_freq,
+      gpu_id
+    FROM android_gpu_frequency
+    WHERE
+      gpu_id = 1
+  )
+SELECT
+  *
+FROM nominal_freqs;
+
+-- Gapless time slices of GPU idle from trace_start() to trace_end()
+CREATE PERFETTO TABLE _gapless_gpu_power_state AS
+-- Prepend NULL slices up to first idle events
+WITH
+  nominal_power_states AS (
+    SELECT
+      trace_start() AS ts,
+      min(ts) - trace_start() AS dur,
+      NULL AS power_state
+    FROM android_mali_gpu_power_state
+    UNION ALL
+    SELECT
+      ts,
+      dur,
+      power_state
+    FROM android_mali_gpu_power_state
+  )
+SELECT
+  *
+FROM nominal_power_states;
+
+CREATE PERFETTO TABLE _gpu_freq_idle AS
+WITH
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  base AS (
+    SELECT
+      ii.ts,
+      ii.dur,
+      freq.freq,
+      freq.prev_freq,
+      freq.next_freq,
+      idle.power_state
+    FROM _interval_intersect!(
+    (
+      _ii_subquery!(_gapless_gpu_freq),
+      _ii_subquery!(_gapless_gpu_power_state)
+    ),
+    ()
+  ) AS ii
+    JOIN _gapless_gpu_freq AS freq
+      ON freq._auto_id = id_0
+    JOIN _gapless_gpu_power_state AS idle
+      ON idle._auto_id = id_1
+  )
+SELECT
+  ts,
+  dur,
+  -- From power perspective, even though driver is reporting freq=0, it actually
+  -- is still at the previous frequency but in a shallower idle state.
+  --
+  -- This logic accounts for the inverse idle state relative to CPU idle states,
+  -- and converts the GPU power state to be same scale as CPU idle state for
+  -- consistency. (smaller numbers correspond to deeper idle states on Mali, and
+  -- larger numbers correspond to deeper idle state on CPUs).
+  iif(power_state = 2 AND freq = 0, iif(prev_freq = 0, next_freq, prev_freq), freq) AS freq,
+  iif(power_state = 2 AND freq = 0, 1, power_state) AS power_state
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(FROM base;
+
+)_d3l1m1t3r_"
+;
+
+const char kWattsonTasksAttribution[] = R"_d3l1m1t3r_(--
+-- Copyright 2025 The Android Open Source Project
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     https://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
+INCLUDE PERFETTO MODULE wattson.tasks.task_slices;
+
+INCLUDE PERFETTO MODULE wattson.ui.continuous_estimates;
+
+INCLUDE PERFETTO MODULE wattson.utils;
+
+CREATE PERFETTO TABLE _unioned_wattson_estimates_mw AS
+SELECT
+  ts,
+  dur,
+  0 AS cpu,
+  cpu0_mw AS estimated_mw
+FROM _system_state_cpu0_mw
+WHERE
+  EXISTS(
+    SELECT
+      cpu
+    FROM _dev_cpu_policy_map
+    WHERE
+      0 = cpu
+  )
+UNION ALL
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(SELECT
+  ts,
+  dur,
+  1 AS cpu,
+  cpu1_mw AS estimated_mw
+FROM _system_state_cpu1_mw
+WHERE
+  EXISTS(
+    SELECT
+      cpu
+    FROM _dev_cpu_policy_map
+    WHERE
+      1 = cpu
+  )
+UNION ALL
+SELECT
+  ts,
+  dur,
+  2 AS cpu,
+  cpu2_mw AS estimated_mw
+FROM _system_state_cpu2_mw
+WHERE
+  EXISTS(
+    SELECT
+      cpu
+    FROM _dev_cpu_policy_map
+    WHERE
+      2 = cpu
+  )
+UNION ALL
+SELECT
+  ts,
+  dur,
+  3 AS cpu,
+  cpu3_mw AS estimated_mw
+FROM _system_state_cpu3_mw
+WHERE
+  EXISTS(
+    SELECT
+      cpu
+    FROM _dev_cpu_policy_map
+    WHERE
+      3 = cpu
+  )
+UNION ALL
+SELECT
+  ts,
+  dur,
+  4 AS cpu,
+  cpu4_mw AS estimated_mw
+FROM _system_state_cpu4_mw
+WHERE
+  EXISTS(
+    SELECT
+      cpu
+    FROM _dev_cpu_policy_map
+    WHERE
+      4 = cpu
+  )
+UNION ALL
+SELECT
+  ts,
+  dur,
+  5 AS cpu,
+  cpu5_mw AS estimated_mw
+FROM _system_state_cpu5_mw
+WHERE
+  EXISTS(
+    SELECT
+      cpu
+    FROM _dev_cpu_policy_map
+    WHERE
+      5 = cpu
+  )
+UNION ALL
+SELECT
+  ts,
+  dur,
+  6 AS cpu,
+  cpu6_mw AS estimated_mw
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(FROM _system_state_cpu6_mw
+WHERE
+  EXISTS(
+    SELECT
+      cpu
+    FROM _dev_cpu_policy_map
+    WHERE
+      6 = cpu
+  )
+UNION ALL
+SELECT
+  ts,
+  dur,
+  7 AS cpu,
+  cpu7_mw AS estimated_mw
+FROM _system_state_cpu7_mw
+WHERE
+  EXISTS(
+    SELECT
+      cpu
+    FROM _dev_cpu_policy_map
+    WHERE
+      7 = cpu
+  )
+UNION ALL
+SELECT
+  ts,
+  dur,
+  -1 AS cpu,
+  dsu_scu_mw AS estimated_mw
+FROM _system_state_dsu_scu_mw;
+
+CREATE PERFETTO TABLE _estimates_w_tasks_attribution AS
+SELECT
+  ii.ts,
+  ii.dur,
+  ii.cpu,
+  uw.estimated_mw,
+  s.thread_name,
+  s.process_name,
+  s.package_name,
+  s.tid,
+  s.pid,
+  s.uid,
+  s.utid,
+  s.upid
+FROM _interval_intersect!(
+  (
+    _ii_subquery!(_unioned_wattson_estimates_mw),
+    _ii_subquery!(_wattson_task_slices)
+  ),
+  (cpu)
+) AS ii
+JOIN _unioned_wattson_estimates_mw AS uw
+  ON uw._auto_id = id_0
+JOIN _wattson_task_slices AS s
+  ON s._auto_id = id_1;
+
+)_d3l1m1t3r_"
+;
+
+const char kWattsonTasksIdleTransitionsAttribution[] = R"_d3l1m1t3r_(--
 -- Copyright 2024 The Android Open Source Project
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -31506,98 +38357,664 @@ const char kWattsonSystemState[] = R"_d3l1m1t3r_(--
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE wattson.cpu_split;
+INCLUDE PERFETTO MODULE intervals.intersect;
 
--- The final system state for the CPU subsystem, which has all the information
--- needed by Wattson to estimate energy for the CPU subsystem.
-CREATE PERFETTO TABLE _wattson_system_states (
-  -- Starting timestamp of the current counter where system state is constant.
-  ts TIMESTAMP,
-  -- Duration of the current counter where system state is constant.
+INCLUDE PERFETTO MODULE wattson.estimates;
+
+INCLUDE PERFETTO MODULE wattson.tasks.task_slices;
+
+INCLUDE PERFETTO MODULE wattson.utils;
+
+-- Gets the slices where the CPU transitions from deep idle to active, and the
+-- associated task that causes the idle exit
+CREATE PERFETTO TABLE _idle_w_tasks AS
+WITH
+  _ii_idle_tasks AS (
+    SELECT
+      ii.ts,
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(  dur DURATION,
-  -- Number of L3 hits the current system state.
-  l3_hit_count LONG,
-  -- Number of L3 misses in the current system state.
-  l3_miss_count LONG,
-  -- Frequency of CPU0.
-  freq_0 LONG,
-  -- Idle state of CPU0.
-  idle_0 LONG,
-  -- Frequency of CPU1.
-  freq_1 LONG,
-  -- Idle state of CPU1.
-  idle_1 LONG,
-  -- Frequency of CPU2.
-  freq_2 LONG,
-  -- Idle state of CPU2.
-  idle_2 LONG,
-  -- Frequency of CPU3.
-  freq_3 LONG,
-  -- Idle state of CPU3.
-  idle_3 LONG,
-  -- Frequency of CPU4.
-  freq_4 LONG,
-  -- Idle state of CPU4.
-  idle_4 LONG,
-  -- Frequency of CPU5.
-  freq_5 LONG,
-  -- Idle state of CPU5.
-  idle_5 LONG,
-  -- Frequency of CPU6.
-  freq_6 LONG,
-  -- Idle state of CPU6.
-  idle_6 LONG,
-  -- Frequency of CPU7.
-  freq_7 LONG,
-  -- Idle state of CPU7.
-  idle_7 LONG,
-  -- Flag indicating if current system state is suspended.
-  suspended BOOL
-) AS
+R"_d3l1m1t3r_(      ii.dur,
+      ii.cpu,
+      tasks.utid,
+      tasks.upid,
+      id_1 AS idle_group
+    FROM _interval_intersect!(
+    (
+      _ii_subquery!(_wattson_task_slices),
+      _ii_subquery!(_idle_exits)
+    ),
+    (cpu)
+  ) AS ii
+    JOIN _wattson_task_slices AS tasks
+      ON tasks._auto_id = id_0
+    ORDER BY
+      ii.ts ASC
+  ),
+  -- Since sorted by time, MIN() is fast aggregate function that will return the
+  -- first time slice, which will be the utid = 0 slice immediately succeeding the
+  -- idle to active transition, and immediately preceding the active task
+  first_swapper_slice AS (
+    SELECT
+      ts,
+      dur,
+      cpu,
+      idle_group,
+      min(ts) AS min
+    FROM _ii_idle_tasks
+    GROUP BY
+      idle_group
+  ),
+  -- MIN() here will give the first active task immediately succeeding the idle
+  -- to active transition slice, which means this the the task that causes the
+  -- idle exit
+  first_non_swapper_slice AS (
+    SELECT
+      idle_group,
+      utid,
+      upid,
+      min(ts) AS min,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(      min(ts) + dur AS next_ts
+    FROM _ii_idle_tasks
+    WHERE
+      NOT utid IN (
+        SELECT
+          utid
+        FROM thread
+        WHERE
+          is_idle
+      )
+    GROUP BY
+      idle_group
+  ),
+  -- MAX() here will give the last time slice in the group. This will be the
+  -- utid = 0 slice immediately preceding the active to idle transition.
+  last_swapper_slice AS (
+    SELECT
+      ts,
+      dur,
+      cpu,
+      idle_group,
+      max(ts) AS min
+    FROM _ii_idle_tasks
+    GROUP BY
+      idle_group
+  )
 SELECT
-  s.ts,
-  s.dur,
-  cast_int!(round(l3_hit_rate * s.dur, 0)) AS l3_hit_count,
-  cast_int!(round(l3_miss_rate * s.dur, 0)) AS l3_miss_count,
+  swapper_info.ts,
+  swapper_info.dur,
+  swapper_info.cpu,
+  task_info.utid,
+  task_info.upid
+FROM first_non_swapper_slice AS task_info
+JOIN first_swapper_slice AS swapper_info
+  USING (idle_group)
+UNION ALL
+-- Adds the last slice to idle transition attribution IF this is a singleton
+-- task wakeup. This is true if there is only one task between swapper idle
+-- exits/wakeups. For example, groups with order of swapper, task X, swapper
+-- will be included. Entries that have multiple task between swappers, such as
 )_d3l1m1t3r_"
-R"_d3l1m1t3r_(  freq_0,
-  idle_0,
-  freq_1,
-  idle_1,
-  freq_2,
-  idle_2,
-  freq_3,
-  idle_3,
-  freq_4,
-  idle_4,
-  freq_5,
-  idle_5,
-  freq_6,
-  idle_6,
-  freq_7,
-  idle_7,
-  coalesce(suspended, FALSE) AS suspended
-FROM _idle_freq_l3_hit_l3_miss_slice AS s
-JOIN _stats_cpu0
-  ON _stats_cpu0._auto_id = s.cpu0_id
-JOIN _stats_cpu1
-  ON _stats_cpu1._auto_id = s.cpu1_id
-JOIN _stats_cpu2
-  ON _stats_cpu2._auto_id = s.cpu2_id
-JOIN _stats_cpu3
-  ON _stats_cpu3._auto_id = s.cpu3_id
-LEFT JOIN _stats_cpu4
-  ON _stats_cpu4._auto_id = s.cpu4_id
-LEFT JOIN _stats_cpu5
-  ON _stats_cpu5._auto_id = s.cpu5_id
-LEFT JOIN _stats_cpu6
-  ON _stats_cpu6._auto_id = s.cpu6_id
-LEFT JOIN _stats_cpu7
-  ON _stats_cpu7._auto_id = s.cpu7_id
--- Needs to be at least 1us to reduce inconsequential rows.
+R"_d3l1m1t3r_(-- swapper, task X, task Y, swapper will not be included.
+SELECT
+  swapper_info.ts,
+  swapper_info.dur,
+  swapper_info.cpu,
+  task_info.utid,
+  task_info.upid
+FROM first_non_swapper_slice AS task_info
+JOIN last_swapper_slice AS swapper_info
+  USING (idle_group)
 WHERE
-  s.dur > time_from_us(1);
+  ts = next_ts;
+
+-- Interval intersect with the estimate power track, so that each slice can be
+-- attributed to the power of the CPU in that time duration
+CREATE PERFETTO TABLE _idle_transition_cost AS
+SELECT
+  ii.ts,
+  ii.dur,
+  tasks.cpu,
+  tasks.utid,
+  tasks.upid,
+  CASE tasks.cpu
+    WHEN 0
+    THEN power.cpu0_mw
+    WHEN 1
+    THEN power.cpu1_mw
+    WHEN 2
+    THEN power.cpu2_mw
+    WHEN 3
+    THEN power.cpu3_mw
+    WHEN 4
+    THEN power.cpu4_mw
+    WHEN 5
+    THEN power.cpu5_mw
+    WHEN 6
+    THEN power.cpu6_mw
+    WHEN 7
+    THEN power.cpu7_mw
+    ELSE 0
+  END AS estimated_mw
+FROM _interval_intersect!(
+  (
+    _ii_subquery!(_idle_w_tasks),
+    _ii_subquery!(_system_state_mw)
+  ),
+  ()
+) AS ii
+JOIN _idle_w_tasks AS tasks
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  ON tasks._auto_id = id_0
+JOIN _system_state_mw AS power
+  ON power._auto_id = id_1;
+
+-- Macro for easily filtering idle attribution to a specified time window. This
+-- information can then further be filtered by specific CPU and GROUP BY on
+-- either utid or upid
+CREATE PERFETTO FUNCTION _filter_idle_attribution(
+    ts TIMESTAMP,
+    dur LONG
+)
+RETURNS TABLE (
+  idle_cost_mws LONG,
+  utid JOINID(task.id),
+  upid JOINID(process.id),
+  cpu JOINID(cpu.id)
+) AS
+-- Give the negative sum of idle costs to the swapper thread, which by
+-- definition has a utid = 0, upid = 0, and by definition will not be defined,
+-- so need to UNION to manually add swapper thread
+WITH
+  base AS (
+    SELECT
+      cost.estimated_mw * cost.dur / 1e9 AS idle_cost_mws,
+      cost.utid,
+      cost.upid,
+      cost.cpu
+    FROM _interval_intersect_single!(
+    $ts, $dur, _ii_subquery!(_idle_transition_cost)
+  ) AS ii
+    JOIN _idle_transition_cost AS cost
+      ON cost._auto_id = id
+  )
+SELECT
+  idle_cost_mws,
+  utid,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  upid,
+  cpu
+FROM base
+UNION ALL
+SELECT
+  -1 * sum(idle_cost_mws) AS idle_cost_mws,
+  0 AS utid,
+  0 AS upid,
+  cpu
+FROM base
+GROUP BY
+  cpu;
+
+)_d3l1m1t3r_"
+;
+
+const char kWattsonTasksTaskSlices[] = R"_d3l1m1t3r_(--
+-- Copyright 2024 The Android Open Source Project
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     https://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
+INCLUDE PERFETTO MODULE android.process_metadata;
+
+INCLUDE PERFETTO MODULE intervals.intersect;
+
+INCLUDE PERFETTO MODULE intervals.overlap;
+
+INCLUDE PERFETTO MODULE linux.irqs;
+
+INCLUDE PERFETTO MODULE wattson.cpu.idle;
+
+INCLUDE PERFETTO MODULE wattson.utils;
+
+-- Get slices only where there is transition from deep idle to active
+CREATE PERFETTO TABLE _idle_exits AS
+SELECT
+  ts,
+  dur,
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  cpu,
+  idle,
+  _auto_id AS group_id
+FROM _adjusted_deep_idle
+WHERE
+  idle = -1;
+
+-- Establish relationships between tasks, such as thread/process/package
+CREATE PERFETTO TABLE _task_wo_irq_infos AS
+SELECT
+  sched.ts,
+  sched.dur,
+  sched.cpu,
+  thread.utid,
+  thread.upid,
+  thread.tid,
+  process.pid,
+  package.uid,
+  thread.name AS thread_name,
+  process.name AS process_name,
+  package.package_name
+FROM thread
+JOIN sched
+  USING (utid)
+LEFT JOIN process
+  USING (upid)
+LEFT JOIN android_process_metadata AS package
+  USING (upid)
+WHERE
+  -- Some slices have -1 duration when there is no end (e.g. slices at the end
+  -- of a trace), so need this check to exclude negative dur slices.
+  dur > 0;
+
+-- Flatten hard IRQs, since they can preempt each other. Only hard IRQs can use
+-- the built-in ancestor_slice() and interval functions
+CREATE PERFETTO VIEW _hard_irq_flattened_slices AS
+WITH
+  root_slices AS (
+    SELECT
+      id,
+      ts,
+      dur
+    FROM linux_hard_irqs
+    WHERE
+      parent_id IS NULL
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  ),
+  child_slices AS (
+    SELECT
+      anc.id AS root_id,
+      irq.id,
+      irq.parent_id,
+      irq.ts,
+      irq.dur
+    FROM linux_hard_irqs AS irq, ancestor_slice(irq.id) AS anc
+    WHERE
+      irq.parent_id IS NOT NULL
+  )
+SELECT
+  intervals.ts,
+  intervals.dur,
+  slices.name AS hard_irq_name,
+  slices.stack_id AS hard_irq_stack_id,
+  cpu_track.cpu
+FROM _intervals_flatten!(_intervals_merge_root_and_children!(root_slices, child_slices)) AS intervals
+JOIN slices
+  USING (id)
+JOIN cpu_track
+  ON cpu_track.id = slices.track_id;
+
+-- Softirqs run with other softirqs disabled, so will not be preempted by each
+-- other, and thus do not need to be flattened like hard IRQs do.
+CREATE PERFETTO VIEW _soft_irq_slices AS
+SELECT
+  linux_soft_irqs.ts,
+  linux_soft_irqs.dur,
+  slices.name AS soft_irq_name,
+  slices.stack_id AS soft_irq_stack_id,
+  cpu_track.cpu
+FROM linux_soft_irqs
+JOIN slices
+  USING (id)
+JOIN cpu_track
+  ON cpu_track.id = slices.track_id;
+
+CREATE VIRTUAL TABLE _all_irqs_combined_slices USING SPAN_OUTER_JOIN (
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(  _soft_irq_slices PARTITIONED cpu,
+  _hard_irq_flattened_slices PARTITIONED cpu
+);
+
+-- Replace soft IRQs with hard IRQs if hard IRQs are present. Hard IRQs could
+-- preempt soft IRQs, but not the other way around.
+CREATE PERFETTO VIEW _all_irqs_flattened_slices AS
+WITH
+  base_name AS (
+    SELECT
+      ts,
+      dur,
+      cpu,
+      coalesce(hard_irq_name, soft_irq_name) AS irq_name,
+      coalesce(hard_irq_stack_id, soft_irq_stack_id) AS stack_id
+    FROM _all_irqs_combined_slices
+  )
+SELECT
+  ts,
+  dur,
+  cpu,
+  irq_name,
+  -- Create a synthetic irq_id such that IRQ slices have the same
+  -- properties/columns as thread slices, which allows us to fit IRQ slices into
+  -- the existing framework of attributing power to tasks.
+  hash(irq_name) AS irq_id
+FROM base_name;
+
+-- SPAN_OUTER_JOIN needed because IRQ table do not have contiguous slices,
+-- whereas tasks table will be contiguous
+CREATE VIRTUAL TABLE _irq_w_tasks_info USING SPAN_OUTER_JOIN (
+  _task_wo_irq_infos PARTITIONED cpu,
+  _all_irqs_flattened_slices PARTITIONED cpu
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_();
+
+-- Replace nominal tasks with IRQ if the IRQ slice is present. IRQs could
+-- preempt tasks, but not the other way around.
+CREATE PERFETTO TABLE _all_tasks_flattened_slices AS
+SELECT
+  ts,
+  dur,
+  cpu,
+  coalesce(irq_id, utid) AS utid,
+  coalesce(irq_id, upid) AS upid,
+  coalesce(irq_id, tid) AS tid,
+  coalesce(irq_id, pid) AS pid,
+  coalesce(irq_id, uid) AS uid,
+  coalesce(irq_name, thread_name) AS thread_name,
+  coalesce(irq_name, process_name) AS process_name,
+  coalesce(irq_name, package_name) AS package_name,
+  NOT irq_id IS NULL AS is_irq
+FROM _irq_w_tasks_info;
+
+-- Associate idle states, and specifically the active state, with tasks
+CREATE PERFETTO TABLE _active_state_w_tasks AS
+SELECT
+  ii.ts,
+  ii.dur,
+  ii.cpu,
+  tasks.utid,
+  tasks.upid,
+  tasks.tid,
+  tasks.pid,
+  tasks.uid,
+  tasks.thread_name,
+  tasks.process_name,
+  tasks.package_name,
+  tasks.is_irq,
+  id_1 AS idle_group
+FROM _interval_intersect!(
+(
+  _ii_subquery!(_all_tasks_flattened_slices),
+  _ii_subquery!(_idle_exits)
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(),
+(cpu)
+) AS ii
+JOIN _all_tasks_flattened_slices AS tasks
+  ON tasks._auto_id = id_0;
+
+CREATE PERFETTO INDEX _active_state_w_tasks_group ON _active_state_w_tasks(idle_group, ts);
+
+-- Find the task responsible for causing the idle exit, and remove all tasks
+-- before it (effectively only IRQs and swappers). This logic creates a table
+-- wherein the first task in the table is the one that caused the idle exit.
+CREATE PERFETTO TABLE _task_causing_idle_exit AS
+WITH
+  exit_causer AS (
+    SELECT
+      ts,
+      idle_group,
+      -- If there are non-IRQs in this idle_group, select the first non-IRQ
+      -- task as the first row. Otherwise, select the first IRQ as the first
+      -- row.
+      row_number() OVER (PARTITION BY idle_group ORDER BY (
+        CASE WHEN NOT is_irq AND utid > 0 THEN 0 ELSE 1 END
+      ), ts) AS rn
+    FROM _active_state_w_tasks
+  )
+SELECT
+  ts AS boundary_ts,
+  idle_group
+FROM exit_causer
+WHERE
+  rn = 1;
+
+CREATE PERFETTO INDEX _task_causing_idle_exit_idx ON _task_causing_idle_exit(idle_group, boundary_ts);
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(
+--- Recreate all known tasks in the context of power estimation, meaning that
+--- tasks (usually IRQs) that do not contribute to power attribution are removed
+--- and replaced with swapper. The previous table, _active_state_w_tasks, has
+--- many groups of "islands", of which the gaps need to be filled back in with
+--- the swapper task.
+CREATE PERFETTO TABLE _wattson_task_slices AS
+WITH
+  base_tasks AS (
+    SELECT
+      t.*
+    FROM _active_state_w_tasks AS t
+    JOIN _task_causing_idle_exit AS exit
+      USING (idle_group)
+    WHERE
+      t.ts >= exit.boundary_ts
+  ),
+  activity_islands AS (
+    SELECT
+      cpu,
+      idle_group,
+      min(ts) AS island_start,
+      max(ts + dur) AS island_end
+    FROM base_tasks
+    GROUP BY
+      cpu,
+      idle_group
+  ),
+  swapper_gaps AS (
+    SELECT
+      island_end AS ts,
+      lead(island_start) OVER (PARTITION BY cpu ORDER BY island_start) - island_end AS dur,
+      cpu
+    FROM activity_islands
+  )
+-- Combine the real tasks with the calculated swapper gaps.
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(SELECT
+  ts,
+  dur,
+  cpu,
+  utid,
+  upid,
+  tid,
+  pid,
+  uid,
+  thread_name,
+  process_name,
+  package_name
+FROM base_tasks
+UNION ALL
+SELECT
+  ts,
+  dur,
+  cpu,
+  0 AS utid,
+  0 AS upid,
+  0 AS tid,
+  0 AS pid,
+  NULL AS uid,
+  'swapper' AS thread_name,
+  NULL AS process_name,
+  NULL AS package_name
+FROM swapper_gaps
+WHERE
+  dur > 0;
+
+)_d3l1m1t3r_"
+;
+
+const char kWattsonUiContinuousEstimates[] = R"_d3l1m1t3r_(--
+-- Copyright 2025 The Android Open Source Project
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     https://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
+INCLUDE PERFETTO MODULE wattson.estimates;
+
+INCLUDE PERFETTO MODULE wattson.utils;
+
+-- After ii, a single column will have the same value split up into different
+-- slices. This macro recombines all the slices such that adjacent slices will
+-- always have different values. This means less slices to process, and from the
+-- UI perspective, the counter track will be displayed cleaner.
+CREATE PERFETTO MACRO _get_continuous_estimates(
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(    rail ColumnName
+)
+RETURNS TableOrSubquery AS
+(
+  WITH
+    base AS (
+      SELECT
+        ts,
+        $rail,
+        lag($rail, 1, $rail) OVER (ORDER BY ts) != $rail AS changed
+      FROM _system_state_mw
+    )
+  SELECT
+    ts,
+    lead(ts, 1, trace_end()) OVER (ORDER BY ts) - ts AS dur,
+    $rail
+  FROM base
+  WHERE
+    changed
+);
+
+CREATE PERFETTO TABLE _system_state_cpu0_mw AS
+SELECT
+  *,
+  0 AS cpu
+FROM _get_continuous_estimates!(cpu0_mw);
+
+CREATE PERFETTO TABLE _system_state_cpu1_mw AS
+SELECT
+  *,
+  1 AS cpu
+FROM _get_continuous_estimates!(cpu1_mw);
+
+CREATE PERFETTO TABLE _system_state_cpu2_mw AS
+SELECT
+  *,
+  2 AS cpu
+FROM _get_continuous_estimates!(cpu2_mw);
+
+CREATE PERFETTO TABLE _system_state_cpu3_mw AS
+SELECT
+  *,
+  3 AS cpu
+FROM _get_continuous_estimates!(cpu3_mw);
+
+CREATE PERFETTO TABLE _system_state_cpu4_mw AS
+SELECT
+  *,
+  4 AS cpu
+FROM _get_continuous_estimates!(cpu4_mw);
+
+CREATE PERFETTO TABLE _system_state_cpu5_mw AS
+SELECT
+  *,
+  5 AS cpu
+FROM _get_continuous_estimates!(cpu5_mw);
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(
+CREATE PERFETTO TABLE _system_state_cpu6_mw AS
+SELECT
+  *,
+  6 AS cpu
+FROM _get_continuous_estimates!(cpu6_mw);
+
+CREATE PERFETTO TABLE _system_state_cpu7_mw AS
+SELECT
+  *,
+  7 AS cpu
+FROM _get_continuous_estimates!(cpu7_mw);
+
+CREATE PERFETTO TABLE _system_state_dsu_scu_mw AS
+SELECT
+  *
+FROM _get_continuous_estimates!(dsu_scu_mw);
+
+CREATE PERFETTO TABLE _system_state_gpu_mw AS
+SELECT
+  *
+FROM _get_continuous_estimates!(gpu_mw);
+
+)_d3l1m1t3r_"
+;
+
+const char kWattsonUtils[] = R"_d3l1m1t3r_(--
+-- Copyright 2025 The Android Open Source Project
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     https://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
+-- Creates slice that defines the user inserted Wattson markers. This table will
+-- provide the proper Wattson markers slice if user inserts only one pair of
+-- Wattson markers, which is the pre-defined agreement.
+CREATE PERFETTO TABLE _wattson_markers_window AS
+WITH
+  markers AS (
+    SELECT
+      min(ts) FILTER(WHERE
+        name = 'wattson_start') AS start,
+      max(ts) FILTER(WHERE
+)_d3l1m1t3r_"
+R"_d3l1m1t3r_(        name = 'wattson_stop') AS stop
+    FROM slice
+    WHERE
+      name IN ('wattson_start', 'wattson_stop')
+  )
+SELECT
+  start AS ts,
+  stop - start AS dur,
+  'Markers window' AS name
+FROM markers
+WHERE
+  start IS NOT NULL;
+
+-- Helper macro for using Perfetto table with interval intersect
+CREATE PERFETTO MACRO _ii_subquery(
+    tab TableOrSubquery
+)
+RETURNS TableOrSubquery AS
+(
+  SELECT
+    _auto_id AS id,
+    *
+  FROM $tab
+);
 
 )_d3l1m1t3r_"
 ;
@@ -31616,7 +39033,13 @@ const FileToSql kFileToSql[] = {
 
   {"android/cpu/cluster_type.sql", kAndroidCpuClusterType},
 
+  {"android/cujs/sysui_cuj_counters.sql", kAndroidCujsSysuiCujCounters},
+
+  {"android/cujs/sysui_cujs.sql", kAndroidCujsSysuiCujs},
+
   {"android/dumpsys/show_map.sql", kAndroidDumpsysShowMap},
+
+  {"android/frame_blocking_calls/blocking_calls_aggregation.sql", kAndroidFrameBlockingCallsBlockingCallsAggregation},
 
   {"android/frames/jank_type.sql", kAndroidFramesJankType},
 
@@ -31628,9 +39051,13 @@ const FileToSql kFileToSql[] = {
 
   {"android/gpu/frequency.sql", kAndroidGpuFrequency},
 
+  {"android/gpu/mali_power_state.sql", kAndroidGpuMaliPowerState},
+
   {"android/gpu/memory.sql", kAndroidGpuMemory},
 
   {"android/gpu/work_period.sql", kAndroidGpuWorkPeriod},
+
+  {"android/memory/heap_graph/class_relationship.sql", kAndroidMemoryHeapGraphClassRelationship},
 
   {"android/memory/heap_graph/class_summary_tree.sql", kAndroidMemoryHeapGraphClassSummaryTree},
 
@@ -31654,6 +39081,8 @@ const FileToSql kFileToSql[] = {
 
   {"android/memory/dmabuf.sql", kAndroidMemoryDmabuf},
 
+  {"android/memory/lmk.sql", kAndroidMemoryLmk},
+
   {"android/memory/process.sql", kAndroidMemoryProcess},
 
   {"android/startup/startup_breakdowns.sql", kAndroidStartupStartupBreakdowns},
@@ -31672,6 +39101,12 @@ const FileToSql kFileToSql[] = {
 
   {"android/winscope/inputmethod.sql", kAndroidWinscopeInputmethod},
 
+  {"android/winscope/rect.sql", kAndroidWinscopeRect},
+
+  {"android/winscope/surfaceflinger.sql", kAndroidWinscopeSurfaceflinger},
+
+  {"android/winscope/transitions.sql", kAndroidWinscopeTransitions},
+
   {"android/winscope/viewcapture.sql", kAndroidWinscopeViewcapture},
 
   {"android/winscope/windowmanager.sql", kAndroidWinscopeWindowmanager},
@@ -31688,6 +39123,8 @@ const FileToSql kFileToSql[] = {
 
   {"android/binder_breakdown.sql", kAndroidBinderBreakdown},
 
+  {"android/bitmaps.sql", kAndroidBitmaps},
+
   {"android/broadcasts.sql", kAndroidBroadcasts},
 
   {"android/critical_blocking_calls.sql", kAndroidCriticalBlockingCalls},
@@ -31697,6 +39134,8 @@ const FileToSql kFileToSql[] = {
   {"android/device.sql", kAndroidDevice},
 
   {"android/dvfs.sql", kAndroidDvfs},
+
+  {"android/entity_state_residency.sql", kAndroidEntityStateResidency},
 
   {"android/freezer.sql", kAndroidFreezer},
 
@@ -31732,6 +39171,8 @@ const FileToSql kFileToSql[] = {
 
   {"android/statsd.sql", kAndroidStatsd},
 
+  {"android/surfaceflinger.sql", kAndroidSurfaceflinger},
+
   {"android/suspend.sql", kAndroidSuspend},
 
   {"android/thread.sql", kAndroidThread},
@@ -31743,6 +39184,8 @@ const FileToSql kFileToSql[] = {
   {"appleos/instruments/samples.sql", kAppleosInstrumentsSamples},
 
   {"callstacks/stack_profile.sql", kCallstacksStackProfile},
+
+  {"callstacks/symbolize.sql", kCallstacksSymbolize},
 
   {"chrome/android_input.sql", kChromeAndroidInput},
 
@@ -31804,6 +39247,8 @@ const FileToSql kFileToSql[] = {
 
   {"export/to_firefox_profile.sql", kExportToFirefoxProfile},
 
+  {"export/to_svg.sql", kExportToSvg},
+
   {"graphs/critical_path.sql", kGraphsCriticalPath},
 
   {"graphs/dominator_tree.sql", kGraphsDominatorTree},
@@ -31848,9 +39293,13 @@ const FileToSql kFileToSql[] = {
 
   {"linux/perf/spe.sql", kLinuxPerfSpe},
 
+  {"linux/perf/etm.sql", kLinuxPerfEtm},
+
   {"linux/block_io.sql", kLinuxBlockIo},
 
   {"linux/devfreq.sql", kLinuxDevfreq},
+
+  {"linux/irqs.sql", kLinuxIrqs},
 
   {"linux/threads.sql", kLinuxThreads},
 
@@ -31859,6 +39308,8 @@ const FileToSql kFileToSql[] = {
   {"pkvm/hypervisor.sql", kPkvmHypervisor},
 
   {"prelude/after_eof/casts.sql", kPreludeAfterEofCasts},
+
+  {"prelude/after_eof/indexes.sql", kPreludeAfterEofIndexes},
 
   {"prelude/after_eof/slices.sql", kPreludeAfterEofSlices},
 
@@ -31896,6 +39347,8 @@ const FileToSql kFileToSql[] = {
 
   {"slices/hierarchy.sql", kSlicesHierarchy},
 
+  {"slices/self_dur.sql", kSlicesSelfDur},
+
   {"slices/time_in_state.sql", kSlicesTimeInState},
 
   {"slices/with_context.sql", kSlicesWithContext},
@@ -31905,6 +39358,8 @@ const FileToSql kFileToSql[] = {
   {"stacks/cpu_profiling.sql", kStacksCpuProfiling},
 
   {"time/conversion.sql", kTimeConversion},
+
+  {"traced/stats.sql", kTracedStats},
 
   {"v8/jit.sql", kV8Jit},
 
@@ -31916,8 +39371,6 @@ const FileToSql kFileToSql[] = {
 
   {"viz/summary/threads.sql", kVizSummaryThreads},
 
-  {"viz/summary/threads_w_processes.sql", kVizSummaryThreadsWProcesses},
-
   {"viz/summary/trace.sql", kVizSummaryTrace},
 
   {"viz/summary/track_event.sql", kVizSummaryTrackEvent},
@@ -31928,33 +39381,57 @@ const FileToSql kFileToSql[] = {
 
   {"viz/threads.sql", kVizThreads},
 
-  {"wattson/arm_dsu.sql", kWattsonArmDsu},
+  {"wattson/cpu/arm_dsu.sql", kWattsonCpuArmDsu},
 
-  {"wattson/cpu_freq.sql", kWattsonCpuFreq},
+  {"wattson/cpu/estimates.sql", kWattsonCpuEstimates},
 
-  {"wattson/cpu_freq_idle.sql", kWattsonCpuFreqIdle},
+  {"wattson/cpu/freq.sql", kWattsonCpuFreq},
 
-  {"wattson/cpu_hotplug.sql", kWattsonCpuHotplug},
+  {"wattson/cpu/freq_idle.sql", kWattsonCpuFreqIdle},
 
-  {"wattson/cpu_idle.sql", kWattsonCpuIdle},
+  {"wattson/cpu/hotplug.sql", kWattsonCpuHotplug},
 
-  {"wattson/cpu_split.sql", kWattsonCpuSplit},
+  {"wattson/cpu/idle.sql", kWattsonCpuIdle},
 
-  {"wattson/curves/device.sql", kWattsonCurvesDevice},
+  {"wattson/cpu/pivot.sql", kWattsonCpuPivot},
 
-  {"wattson/curves/estimates.sql", kWattsonCurvesEstimates},
+  {"wattson/curves/device_cpu_1d.sql", kWattsonCurvesDeviceCpu1d},
 
-  {"wattson/curves/idle_attribution.sql", kWattsonCurvesIdleAttribution},
+  {"wattson/curves/device_cpu_2d.sql", kWattsonCurvesDeviceCpu2d},
+
+  {"wattson/curves/device_gpu.sql", kWattsonCurvesDeviceGpu},
+
+  {"wattson/curves/device_l3.sql", kWattsonCurvesDeviceL3},
+
+  {"wattson/curves/tg5_cpu_1d.sql", kWattsonCurvesTg5Cpu1d},
+
+  {"wattson/curves/tg5_cpu_2d.sql", kWattsonCurvesTg5Cpu2d},
+
+  {"wattson/curves/tg5_cpu_2d_1.sql", kWattsonCurvesTg5Cpu2d1},
+
+  {"wattson/curves/tg5_cpu_2d_2.sql", kWattsonCurvesTg5Cpu2d2},
+
+  {"wattson/curves/tg5_l3.sql", kWattsonCurvesTg5L3},
 
   {"wattson/curves/utils.sql", kWattsonCurvesUtils},
 
-  {"wattson/curves/w_cpu_dependence.sql", kWattsonCurvesWCpuDependence},
-
-  {"wattson/curves/w_dsu_dependence.sql", kWattsonCurvesWDsuDependence},
-
   {"wattson/device_infos.sql", kWattsonDeviceInfos},
 
-  {"wattson/system_state.sql", kWattsonSystemState},
+  {"wattson/estimates.sql", kWattsonEstimates},
+
+  {"wattson/gpu/estimates.sql", kWattsonGpuEstimates},
+
+  {"wattson/gpu/freq_idle.sql", kWattsonGpuFreqIdle},
+
+  {"wattson/tasks/attribution.sql", kWattsonTasksAttribution},
+
+  {"wattson/tasks/idle_transitions_attribution.sql", kWattsonTasksIdleTransitionsAttribution},
+
+  {"wattson/tasks/task_slices.sql", kWattsonTasksTaskSlices},
+
+  {"wattson/ui/continuous_estimates.sql", kWattsonUiContinuousEstimates},
+
+  {"wattson/utils.sql", kWattsonUtils},
 };
 
 }  // namespace stdlib

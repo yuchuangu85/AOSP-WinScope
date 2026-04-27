@@ -13,26 +13,32 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import {HttpClientModule} from '@angular/common/http';
-import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {provideHttpClient, withInterceptorsFromDi} from '@angular/common/http';
+import {TestBed} from '@angular/core/testing';
 import {MatDialogModule} from '@angular/material/dialog';
 import {MatIconModule} from '@angular/material/icon';
+import {NoopAnimationsModule} from '@angular/platform-browser/animations';
+import {DOMTestHelper} from 'test/unit/dom_test_helpers';
 import {ShortcutsComponent} from './shortcuts_component';
 
 describe('ShortcutsComponent', () => {
-  let fixture: ComponentFixture<ShortcutsComponent>;
   let component: ShortcutsComponent;
-  let htmlElement: HTMLElement;
+  let dom: DOMTestHelper<ShortcutsComponent>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [MatIconModule, HttpClientModule, MatDialogModule],
-      declarations: [ShortcutsComponent],
+      providers: [provideHttpClient(withInterceptorsFromDi())],
+      imports: [
+        NoopAnimationsModule,
+        MatIconModule,
+        MatDialogModule,
+        ShortcutsComponent,
+      ],
     }).compileComponents();
-    fixture = TestBed.createComponent(ShortcutsComponent);
+    const fixture = TestBed.createComponent(ShortcutsComponent);
     component = fixture.componentInstance;
-    htmlElement = fixture.nativeElement;
-    fixture.detectChanges();
+    dom = new DOMTestHelper(fixture, fixture.nativeElement);
+    dom.detectChanges();
   });
 
   it('can be created', () => {
@@ -41,21 +47,21 @@ describe('ShortcutsComponent', () => {
 
   it('renders key shortcuts', () => {
     checkShortcuts('.key-shortcut', [
-      ['zoom in'],
-      ['zoom out'],
-      ['slider left'],
-      ['slider right'],
-      ['previous'],
-      ['next'],
+      ['Zoom in'],
+      ['Zoom out'],
+      ['Move slider left'],
+      ['Move slider right'],
+      ['Previous state'],
+      ['Next state'],
     ]);
   });
 
   it('renders pointer shortcuts', () => {
     checkShortcuts('.pointer-shortcut', [
-      ['right click', 'bookmarks'],
-      ['vertical scroll', 'zoom'],
-      ['horizontal scroll', 'move slider'],
-      ['vertical scroll', 'zoom'],
+      ['Right click', 'bookmarks'],
+      ['Vertical Scroll', 'Zoom'],
+      ['Horizontal Scroll', 'Move slider'],
+      ['Vertical Scroll', 'Zoom'],
     ]);
   });
 
@@ -63,12 +69,12 @@ describe('ShortcutsComponent', () => {
     shortcutsSelector: string,
     expectedContent: string[][],
   ) {
-    const shortcuts = htmlElement.querySelectorAll(shortcutsSelector);
+    const shortcuts = dom.findAll(shortcutsSelector);
     expect(shortcuts.length).toEqual(expectedContent.length);
 
     for (let i = 0; i < expectedContent.length; i++) {
       expectedContent[i].forEach((s) => {
-        expect(shortcuts.item(i).textContent?.toLowerCase()).toContain(s);
+        shortcuts[i].checkText(s);
       });
     }
   }

@@ -30,15 +30,17 @@ function createHeapProfileTrack(trace, uri, tableName, upid, heapProfileIsIncomp
                 type: query_result_1.STR,
                 id: query_result_1.NUM,
             },
+            filter: {
+                col: 'upid',
+                eq: upid,
+            },
         }),
         detailsPanel: (row) => {
             const ts = time_1.Time.fromRaw(row.ts);
             const type = (0, heap_profile_details_panel_1.profileType)(row.type);
             return new heap_profile_details_panel_1.HeapProfileFlamegraphDetailsPanel(trace, heapProfileIsIncomplete, upid, type, ts);
         },
-        tooltip: (row) => {
-            return [row.type];
-        },
+        tooltip: (slice) => slice.row.type,
     });
 }
 //# sourceMappingURL=heap_profile_track.js.map

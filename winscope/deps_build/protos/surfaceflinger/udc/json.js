@@ -11,6 +11,7 @@ const $root = ($protobuf.roots.surfaceflinger_udc || ($protobuf.roots.surfacefli
       surfaceflinger: {
         nested: {
           LayersTraceFileProto: {
+            edition: "proto2",
             fields: {
               magicNumber: {
                 type: "fixed64",
@@ -37,6 +38,7 @@ const $root = ($protobuf.roots.surfaceflinger_udc || ($protobuf.roots.surfacefli
             }
           },
           LayersTraceProto: {
+            edition: "proto2",
             fields: {
               elapsedRealtimeNanos: {
                 type: "sfixed64",

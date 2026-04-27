@@ -18,12 +18,10 @@ const tslib_1 = require("tslib");
 const immer_1 = require("immer");
 const mithril_1 = tslib_1.__importDefault(require("mithril"));
 const raf_scheduler_1 = require("../core/raf_scheduler");
-const globals_1 = require("./globals");
 const app_impl_1 = require("../core/app_impl");
 function registerDebugGlobals() {
     window.m = mithril_1.default;
     window.app = app_impl_1.AppImpl.instance;
-    window.globals = globals_1.globals;
     window.produce = immer_1.produce;
     window.raf = raf_scheduler_1.raf;
 }

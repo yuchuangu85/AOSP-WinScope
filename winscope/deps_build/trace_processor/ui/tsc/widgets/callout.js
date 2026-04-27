@@ -1,5 +1,5 @@
 "use strict";
-// Copyright (C) 2023 The Android Open Source Project
+// Copyright (C) 2025 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,11 +16,23 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.Callout = void 0;
 const tslib_1 = require("tslib");
 const mithril_1 = tslib_1.__importDefault(require("mithril"));
+const common_1 = require("./common");
+const button_1 = require("./button");
 const icon_1 = require("./icon");
+const classnames_1 = require("../base/classnames");
 class Callout {
     view({ attrs, children }) {
-        const { icon, ...htmlAttrs } = attrs;
-        return (0, mithril_1.default)('.pf-callout', htmlAttrs, icon && (0, mithril_1.default)(icon_1.Icon, { className: 'pf-left-icon', icon }), children);
+        const { icon, intent = common_1.Intent.None, className, dismissable = false, onDismiss, ...htmlAttrs } = attrs;
+        const dismissButton = dismissable &&
+            (0, mithril_1.default)(button_1.Button, {
+                icon: 'close',
+                onclick: onDismiss,
+                compact: true,
+            });
+        return (0, mithril_1.default)('.pf-callout', {
+            className: (0, classnames_1.classNames)((0, common_1.classForIntent)(intent), className),
+            ...htmlAttrs,
+        }, icon && (0, mithril_1.default)(icon_1.Icon, { className: 'pf-left-icon', icon }), (0, mithril_1.default)('span', children), dismissButton);
     }
 }
 exports.Callout = Callout;

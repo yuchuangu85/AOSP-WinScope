@@ -19,7 +19,7 @@ export namespace com {
                     interface ITransitionTraceProto {
 
                         /** TransitionTraceProto magicNumber */
-                        magicNumber: Long;
+                        magicNumber?: (Long|null);
 
                         /** TransitionTraceProto transitions */
                         transitions?: (com.android.server.wm.shell.ITransition[]|null);
@@ -138,7 +138,7 @@ export namespace com {
                     interface ITransition {
 
                         /** Transition id */
-                        id: number;
+                        id?: (number|null);
 
                         /** Transition startTransactionId */
                         startTransactionId?: (Long|null);
@@ -419,7 +419,7 @@ export namespace com {
                 interface IWmShellTransitionTraceProto {
 
                     /** WmShellTransitionTraceProto magicNumber */
-                    magicNumber: Long;
+                    magicNumber?: (Long|null);
 
                     /** WmShellTransitionTraceProto transitions */
                     transitions?: (com.android.wm.shell.ITransition[]|null);
@@ -544,7 +544,7 @@ export namespace com {
                 interface ITransition {
 
                     /** Transition id */
-                    id: number;
+                    id?: (number|null);
 
                     /** Transition dispatchTimeNs */
                     dispatchTimeNs?: (Long|null);
@@ -677,10 +677,10 @@ export namespace com {
                 interface IHandlerMapping {
 
                     /** HandlerMapping id */
-                    id: number;
+                    id?: (number|null);
 
                     /** HandlerMapping name */
-                    name: string;
+                    name?: (string|null);
                 }
 
                 /** Represents a HandlerMapping. */

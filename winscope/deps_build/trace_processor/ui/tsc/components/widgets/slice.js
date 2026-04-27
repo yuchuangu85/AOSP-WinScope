@@ -22,14 +22,12 @@ const anchor_1 = require("../../widgets/anchor");
 const semantic_icons_1 = require("../../base/semantic_icons");
 const slice_1 = require("../sql_utils/slice");
 const sql_ref_renderer_registry_1 = require("./sql/details/sql_ref_renderer_registry");
-const app_impl_1 = require("../../core/app_impl");
 class SliceRef {
     view(vnode) {
         return (0, mithril_1.default)(anchor_1.Anchor, {
             icon: semantic_icons_1.Icons.UpdateSelection,
             onclick: () => {
-                // TODO(primiano): the Trace object should be properly injected here.
-                app_impl_1.AppImpl.instance.trace?.selection.selectSqlEvent('slice', vnode.attrs.id, {
+                vnode.attrs.trace.selection.selectSqlEvent('slice', vnode.attrs.id, {
                     switchToCurrentSelectionTab: vnode.attrs.switchToCurrentSelectionTab,
                     scrollToSelection: true,
                 });
@@ -38,8 +36,9 @@ class SliceRef {
     }
 }
 exports.SliceRef = SliceRef;
-function sliceRef(slice, name) {
+function sliceRef(trace, slice, name) {
     return (0, mithril_1.default)(SliceRef, {
+        trace,
         id: slice.id,
         name: name ?? slice.name,
     });
@@ -49,7 +48,7 @@ sql_ref_renderer_registry_1.sqlIdRegistry['slice'] = (0, sql_ref_renderer_regist
         id,
         slice: await (0, slice_1.getSlice)(engine, (0, core_types_1.asSliceSqlId)(Number(id))),
     };
-}, ({ id, slice }) => ({
-    value: slice !== undefined ? sliceRef(slice) : `Unknown slice ${id}`,
+}, (trace, { id, slice }) => ({
+    value: slice !== undefined ? sliceRef(trace, slice) : `Unknown slice ${id}`,
 }));
 //# sourceMappingURL=slice.js.map

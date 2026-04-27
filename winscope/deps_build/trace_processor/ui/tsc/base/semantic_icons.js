@@ -45,8 +45,26 @@ class Icons {
     static Chart = 'bar_chart';
     static Change = 'change_circle';
     static GoTo = 'arrow_forward';
-    static MoreVert = 'more_vert';
+    static ContextMenuAlt = 'more_vert';
+    static Info = 'info';
     static Warning = 'warning';
+    static Help = 'help';
+    static Download = 'download';
+    static Check = 'check';
+    static Search = 'search';
+    static Save = 'save';
+    // Page control
+    static NextPage = 'chevron_right';
+    static PrevPage = 'chevron_left';
+    static LastPage = 'last_page';
+    static FirstPage = 'first_page';
+    // Sorting
+    static SortAsc = 'arrow_upward';
+    static SortDesc = 'arrow_downward';
+    static ResetState = 'restart_alt';
+    static Remove = 'clear';
+    static Play = 'play_arrow';
+    static Edit = 'edit';
 }
 exports.Icons = Icons;
 //# sourceMappingURL=semantic_icons.js.map

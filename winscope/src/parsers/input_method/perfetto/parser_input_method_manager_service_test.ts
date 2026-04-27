@@ -13,23 +13,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import {assertDefined} from 'common/assert_utils';
+import {assertDefined} from 'common/assert';
+import {getPerfettoParser} from 'test/unit/fixture_utils';
 import {
-  TimestampConverterUtils,
+  makeRealTimestamp,
   timestampEqualityTester,
-} from 'common/time/test_utils';
-import {UnitTestUtils} from 'test/unit/utils';
-import {CoarseVersion} from 'trace/coarse_version';
-import {Parser} from 'trace/parser';
-import {TraceType} from 'trace/trace_type';
-import {HierarchyTreeNode} from 'trace/tree_node/hierarchy_tree_node';
+} from 'test/unit/time_test_helpers';
+import {CoarseVersion} from 'trace_api/coarse_version';
+import {Parser} from 'trace_api/parser';
+import {TraceType} from 'trace_api/trace_type';
+import {HierarchyTreeNode} from 'tree_node/hierarchy_tree_node';
 
-describe('Perfetto ParserInputMethodManagerService', () => {
+describe('PerfettoParserInputMethodManagerService', () => {
   let parser: Parser<HierarchyTreeNode>;
 
   beforeAll(async () => {
     jasmine.addCustomEqualityTester(timestampEqualityTester);
-    parser = (await UnitTestUtils.getPerfettoParser(
+    parser = (await getPerfettoParser(
       TraceType.INPUT_METHOD_MANAGER_SERVICE,
       'traces/perfetto/ime.perfetto-trace',
     )) as Parser<HierarchyTreeNode>;
@@ -46,12 +46,12 @@ describe('Perfetto ParserInputMethodManagerService', () => {
   });
 
   it('provides timestamps', () => {
-    expect(assertDefined(parser.getTimestamps()).length).toEqual(7);
+    expect(assertDefined(parser.getTimestamps()).length).toBe(7);
 
     const expected = [
-      TimestampConverterUtils.makeRealTimestamp(1714659587704398638n),
-      TimestampConverterUtils.makeRealTimestamp(1714659588929259723n),
-      TimestampConverterUtils.makeRealTimestamp(1714659588964769244n),
+      makeRealTimestamp(1714659587704398638n),
+      makeRealTimestamp(1714659588929259723n),
+      makeRealTimestamp(1714659588964769244n),
     ];
     expect(assertDefined(parser.getTimestamps()).slice(0, 3)).toEqual(expected);
   });
@@ -59,8 +59,6 @@ describe('Perfetto ParserInputMethodManagerService', () => {
   it('retrieves trace entry', async () => {
     const entry = await parser.getEntry(0);
     expect(entry).toBeInstanceOf(HierarchyTreeNode);
-    expect(entry.id).toEqual('InputMethodManagerService entry');
+    expect(entry.id).toBe('InputMethodManagerService entry');
   });
-
-  //TODO: check decoded intdefs
 });

@@ -16,18 +16,19 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.BaseCounterTrack = void 0;
 const tslib_1 = require("tslib");
 const mithril_1 = tslib_1.__importDefault(require("mithril"));
+const zod_1 = tslib_1.__importDefault(require("zod"));
 const binary_search_1 = require("../../base/binary_search");
+const disposable_stack_1 = require("../../base/disposable_stack");
 const logging_1 = require("../../base/logging");
 const time_1 = require("../../base/time");
 const uuid_1 = require("../../base/uuid");
-const canvas_utils_1 = require("../../base/canvas_utils");
 const raf_scheduler_1 = require("../../core/raf_scheduler");
-const timeline_cache_1 = require("./timeline_cache");
+const query_result_1 = require("../../trace_processor/query_result");
 const button_1 = require("../../widgets/button");
 const menu_1 = require("../../widgets/menu");
-const query_result_1 = require("../../trace_processor/query_result");
 const checkerboard_1 = require("../checkerboard");
-const disposable_stack_1 = require("../../base/disposable_stack");
+const timeline_cache_1 = require("./timeline_cache");
+const array_utils_1 = require("../../base/array_utils");
 function roundAway(n) {
     const exp = Math.ceil(Math.log10(Math.max(Math.abs(n), 1)));
     const pow10 = Math.pow(10, exp);
@@ -88,7 +89,7 @@ class RangeSharer {
         if (key === undefined || !this.isEnabled(key)) {
             return [min, max];
         }
-        const tag = `${options.yRangeSharingKey}-${options.yMode}-${options.yDisplay}-${!!options.enlarge}`;
+        const tag = `${options.yRangeSharingKey}-${options.yMode}-${options.yDisplay}-${options.chartHeightSize}`;
         const cachedRange = this.tagToRange.get(tag);
         if (cachedRange === undefined) {
             this.tagToRange.set(tag, [min, max]);
@@ -101,6 +102,170 @@ class RangeSharer {
 }
 // 0.5 Makes the horizontal lines sharp.
 const MARGIN_TOP = 3.5;
+const CHART_HEIGHT_LABELS = [
+    ['Small (1x)', 1],
+    ['Medium (4x)', 4],
+    ['Large (8x)', 8],
+    ['XLarge (16x)', 16],
+    ['XXLarge (32x)', 32],
+];
+const radioIconChecked = 'radio_button_checked';
+const radioIconUnchecked = 'radio_button_unchecked';
+const ymodeSchema = zod_1.default.enum(['value', 'delta', 'rate']);
+const yRangeSchema = zod_1.default.union([zod_1.default.literal('all'), zod_1.default.literal('viewport')]);
+const yDisplaySchema = zod_1.default.enum(['zero', 'minmax', 'log']);
+const yRangeRoundingSchema = zod_1.default.union([
+    zod_1.default.literal('strict'),
+    zod_1.default.literal('human_readable'),
+]);
+const chartHeightSizeSchema = zod_1.default.union([
+    zod_1.default.literal(1),
+    zod_1.default.literal(4),
+    zod_1.default.literal(8),
+    zod_1.default.literal(16),
+    zod_1.default.literal(32),
+]);
+const yModeSettingDescriptor = {
+    id: 'yMode',
+    name: 'Mode',
+    description: 'value, delta, rate',
+    schema: ymodeSchema,
+    defaultValue: 'value',
+    render(setter, values) {
+        const value = (0, array_utils_1.valueIfAllEqual)(values);
+        return (0, mithril_1.default)(menu_1.MenuItem, { label: `Mode (currently: ${value ?? 'mixed'})` }, [
+            (0, mithril_1.default)(menu_1.MenuItem, {
+                label: 'Value',
+                onclick: () => setter('value'),
+                icon: value === 'value' ? radioIconChecked : radioIconUnchecked,
+            }),
+            (0, mithril_1.default)(menu_1.MenuItem, {
+                label: 'Delta',
+                onclick: () => setter('delta'),
+                icon: value === 'delta' ? radioIconChecked : radioIconUnchecked,
+            }),
+            (0, mithril_1.default)(menu_1.MenuItem, {
+                label: 'Rate',
+                onclick: () => setter('rate'),
+                icon: value === 'rate' ? radioIconChecked : radioIconUnchecked,
+            }),
+        ]);
+    },
+};
+const yRangeSettingDescriptor = {
+    id: 'yRange',
+    name: 'Y-axis range',
+    description: 'all, viewport',
+    schema: yRangeSchema,
+    defaultValue: 'all',
+    render(setter, values) {
+        const value = (0, array_utils_1.valueIfAllEqual)(values);
+        const icon = (() => {
+            switch (value) {
+                case 'viewport':
+                    return 'check_box';
+                case 'all':
+                    return 'check_box_outline_blank';
+                default:
+                    return 'indeterminate_check_box';
+            }
+        })();
+        return (0, mithril_1.default)(menu_1.MenuItem, {
+            label: 'Zoom on scroll',
+            icon,
+            onclick: () => {
+                switch (value) {
+                    case 'all':
+                        setter('viewport');
+                        break;
+                    case 'viewport':
+                    default:
+                        setter('all');
+                        break;
+                }
+            },
+        });
+    },
+};
+const yDisplaySettingDescriptor = {
+    id: 'yDisplay',
+    name: 'Y-axis display',
+    description: 'zero, minmax, log',
+    schema: yDisplaySchema,
+    defaultValue: 'zero',
+    render(setter, values) {
+        const value = (0, array_utils_1.valueIfAllEqual)(values);
+        return (0, mithril_1.default)(menu_1.MenuItem, { label: `Display (currently: ${value ?? 'mixed'})` }, [
+            (0, mithril_1.default)(menu_1.MenuItem, {
+                label: 'Zero-based',
+                onclick: () => setter('zero'),
+                icon: value === 'zero' ? radioIconChecked : radioIconUnchecked,
+            }),
+            (0, mithril_1.default)(menu_1.MenuItem, {
+                label: 'Min/Max',
+                onclick: () => setter('minmax'),
+                icon: value === 'minmax' ? radioIconChecked : radioIconUnchecked,
+            }),
+            (0, mithril_1.default)(menu_1.MenuItem, {
+                label: 'Log',
+                onclick: () => setter('log'),
+                icon: value === 'log' ? radioIconChecked : radioIconUnchecked,
+            }),
+        ]);
+    },
+};
+const yRangeRoundingSettingDescriptor = {
+    id: 'yRangeRounding',
+    name: 'Y-axis rounding',
+    description: 'strict, human_readable',
+    schema: yRangeRoundingSchema,
+    defaultValue: 'human_readable',
+    render(setter, values) {
+        const value = (0, array_utils_1.valueIfAllEqual)(values);
+        const icon = (() => {
+            switch (value) {
+                case 'human_readable':
+                    return 'check_box';
+                case 'strict':
+                    return 'check_box_outline_blank';
+                default:
+                    return 'indeterminate_check_box';
+            }
+        })();
+        return (0, mithril_1.default)(menu_1.MenuItem, {
+            label: 'Round y-axis scale',
+            icon,
+            onclick: () => {
+                switch (value) {
+                    case 'human_readable':
+                        setter('strict');
+                        break;
+                    case 'strict':
+                    default:
+                        setter('human_readable');
+                        break;
+                }
+            },
+        });
+    },
+};
+const chartHeightSizeSettingDescriptor = {
+    id: 'chartHeightSize',
+    name: 'Chart height',
+    description: '1, 4, 8, 16, 32',
+    schema: chartHeightSizeSchema,
+    defaultValue: 1,
+    render(setter, values) {
+        const value = (0, array_utils_1.valueIfAllEqual)(values);
+        return (0, mithril_1.default)(menu_1.MenuItem, { label: `Enlarge (currently: ${value ?? 'mixed'})` }, [
+            CHART_HEIGHT_LABELS.map(([label, size]) => (0, mithril_1.default)(menu_1.MenuItem, {
+                label,
+                onclick: () => setter(size),
+                icon: value === size ? radioIconChecked : radioIconUnchecked,
+            })),
+        ]);
+    },
+};
 class BaseCounterTrack {
     trace;
     uri;
@@ -116,7 +281,6 @@ class BaseCounterTrack {
         displayValueRange: [0, 0],
     };
     limits;
-    mousePos = { x: 0, y: 0 };
     hover;
     options;
     trash;
@@ -133,6 +297,31 @@ class BaseCounterTrack {
         }
         return this.options;
     }
+    renderTooltip() {
+        if (this.hover) {
+            const value = this.options?.yDisplay === 'log'
+                ? Math.exp(this.hover.lastDisplayValue)
+                : this.hover.lastDisplayValue;
+            return (0, mithril_1.default)('.pf-track__tooltip', this.formatValue(value));
+        }
+        else {
+            return undefined;
+        }
+    }
+    formatValue(value) {
+        const options = this.getCounterOptions();
+        const unit = this.unit;
+        switch (options.yMode) {
+            case 'value':
+                return `${value.toLocaleString()} ${unit}`;
+            case 'delta':
+                return `${value.toLocaleString()} \u0394${unit}`;
+            case 'rate':
+                return `${value.toLocaleString()} ${this.rateUnit}`;
+            default:
+                (0, logging_1.assertUnreachable)(options.yMode);
+        }
+    }
     // Extension points.
     // onInit hook lets you do asynchronous set up e.g. creating a table
     // etc. We guarantee that this will be resolved before doing any
@@ -146,6 +335,7 @@ class BaseCounterTrack {
             yRangeRounding: 'human_readable',
             yMode: 'value',
             yDisplay: 'zero',
+            chartHeightSize: 1,
         };
     }
     constructor(trace, uri, defaultOptions = {}) {
@@ -156,7 +346,7 @@ class BaseCounterTrack {
     }
     getHeight() {
         const height = 40;
-        return this.getCounterOptions().enlarge ? height * 4 : height;
+        return height * this.getCounterOptions().chartHeightSize;
     }
     // A method to render menu items for switching the defualt
     // rendering options.  Useful if a subclass wants to incorporate it
@@ -195,20 +385,24 @@ class BaseCounterTrack {
                 },
             })),
             (0, mithril_1.default)(menu_1.MenuItem, {
+                label: `Enlarge (currently: ${options.chartHeightSize}x)`,
+            }, CHART_HEIGHT_LABELS.map(([label, size]) => (0, mithril_1.default)(menu_1.MenuItem, {
+                label,
+                icon: options.chartHeightSize === size
+                    ? 'radio_button_checked'
+                    : 'radio_button_unchecked',
+                onclick: () => {
+                    options.chartHeightSize = size;
+                    this.invalidate();
+                },
+            }))),
+            (0, mithril_1.default)(menu_1.MenuItem, {
                 label: 'Zoom on scroll',
                 icon: options.yRange === 'viewport'
                     ? 'check_box'
                     : 'check_box_outline_blank',
                 onclick: () => {
                     options.yRange = options.yRange === 'viewport' ? 'all' : 'viewport';
-                    this.invalidate();
-                },
-            }),
-            (0, mithril_1.default)(menu_1.MenuItem, {
-                label: `Enlarge`,
-                icon: options.enlarge ? 'check_box' : 'check_box_outline_blank',
-                onclick: () => {
-                    options.enlarge = !options.enlarge;
                     this.invalidate();
                 },
             }),
@@ -303,6 +497,53 @@ class BaseCounterTrack {
         result && this.trash.use(result);
         this.limits = await this.createTableAndFetchLimits(false);
     }
+    yModeSetting = {
+        descriptor: yModeSettingDescriptor,
+        getValue: () => this.getCounterOptions().yMode,
+        setValue: (yMode) => {
+            this.options = { ...this.getCounterOptions(), yMode };
+            this.invalidate();
+        },
+    };
+    yRangeSetting = {
+        descriptor: yRangeSettingDescriptor,
+        getValue: () => this.getCounterOptions().yRange,
+        setValue: (yRange) => {
+            this.options = { ...this.getCounterOptions(), yRange };
+            this.invalidate();
+        },
+    };
+    yDisplaySetting = {
+        descriptor: yDisplaySettingDescriptor,
+        getValue: () => this.getCounterOptions().yDisplay,
+        setValue: (yDisplay) => {
+            this.options = { ...this.getCounterOptions(), yDisplay };
+            this.invalidate();
+        },
+    };
+    yRangeRoundingSetting = {
+        descriptor: yRangeRoundingSettingDescriptor,
+        getValue: () => this.getCounterOptions().yRangeRounding,
+        setValue: (yRangeRounding) => {
+            this.options = { ...this.getCounterOptions(), yRangeRounding };
+            this.invalidate();
+        },
+    };
+    chartHeightSizeSetting = {
+        descriptor: chartHeightSizeSettingDescriptor,
+        getValue: () => this.getCounterOptions().chartHeightSize,
+        setValue: (chartHeightSize) => {
+            this.options = { ...this.getCounterOptions(), chartHeightSize };
+            this.invalidate();
+        },
+    };
+    settings = [
+        this.yModeSetting,
+        this.yRangeSetting,
+        this.yDisplaySetting,
+        this.yRangeRoundingSetting,
+        this.chartHeightSizeSetting,
+    ];
     async onUpdate({ visibleWindow, size }) {
         const windowSizePx = Math.max(1, size.width);
         const timespan = visibleWindow.toTimeSpan();
@@ -311,7 +552,7 @@ class BaseCounterTrack {
         // asynchronously new data from the SQL engine.
         await this.maybeRequestData(rawCountersKey);
     }
-    render({ ctx, size, timescale }) {
+    render({ ctx, size, timescale, theme }) {
         // In any case, draw whatever we have (which might be stale/incomplete).
         const limits = this.limits;
         const data = this.counters;
@@ -322,7 +563,6 @@ class BaseCounterTrack {
         (0, logging_1.assertTrue)(data.timestamps.length === data.minDisplayValues.length);
         (0, logging_1.assertTrue)(data.timestamps.length === data.maxDisplayValues.length);
         (0, logging_1.assertTrue)(data.timestamps.length === data.lastDisplayValues.length);
-        const options = this.getCounterOptions();
         const timestamps = data.timestamps;
         const minValues = data.minDisplayValues;
         const maxValues = data.maxDisplayValues;
@@ -335,8 +575,8 @@ class BaseCounterTrack {
         const exp = Math.ceil(Math.log10(Math.max(yMax, 1)));
         const expCapped = Math.min(exp - 3, 9);
         const hue = (180 - Math.floor(expCapped * (180 / 6)) + 360) % 360;
-        ctx.fillStyle = `hsl(${hue}, 45%, 75%)`;
-        ctx.strokeStyle = `hsl(${hue}, 45%, 45%)`;
+        ctx.fillStyle = `hsla(${hue}, 45%, 50%, 0.6)`;
+        ctx.strokeStyle = `hsl(${hue}, 45%, 50%)`;
         const calculateX = (ts) => {
             return Math.floor(timescale.timeToPx(ts));
         };
@@ -396,22 +636,6 @@ class BaseCounterTrack {
         ctx.font = '10px Roboto Condensed';
         const hover = this.hover;
         if (hover !== undefined) {
-            let text = `${hover.lastDisplayValue.toLocaleString()}`;
-            const unit = this.unit;
-            switch (options.yMode) {
-                case 'value':
-                    text = `${text} ${unit}`;
-                    break;
-                case 'delta':
-                    text = `${text} \u0394${unit}`;
-                    break;
-                case 'rate':
-                    text = `${text} \u0394${unit}/s`;
-                    break;
-                default:
-                    (0, logging_1.assertUnreachable)(options.yMode);
-                    break;
-            }
             ctx.fillStyle = `hsl(${hue}, 45%, 75%)`;
             ctx.strokeStyle = `hsl(${hue}, 45%, 45%)`;
             const rawXStart = calculateX(hover.ts);
@@ -436,16 +660,16 @@ class BaseCounterTrack {
                 ctx.fill();
                 ctx.stroke();
             }
-            // Draw the tooltip.
-            (0, canvas_utils_1.drawTrackHoverTooltip)(ctx, this.mousePos, size, text);
         }
         // Write the Y scale on the top left corner.
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-        ctx.fillRect(0, 0, 42, 13);
-        ctx.fillStyle = '#666';
-        ctx.textAlign = 'left';
         ctx.textBaseline = 'alphabetic';
-        ctx.fillText(`${yLabel}`, 5, 11);
+        ctx.fillStyle = theme.COLOR_BACKGROUND;
+        ctx.globalAlpha = 0.6;
+        ctx.fillRect(0, 0, 42, 18);
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = theme.COLOR_TEXT;
+        ctx.textAlign = 'left';
+        ctx.fillText(`${yLabel}`, 4, 14);
         // TODO(hjd): Refactor this into checkerboardExcept
         {
             const counterEndPx = Infinity;
@@ -459,11 +683,10 @@ class BaseCounterTrack {
         // show a gray rectangle with a "Loading..." label.
         (0, checkerboard_1.checkerboardExcept)(ctx, this.getHeight(), 0, size.width, timescale.timeToPx(this.countersKey.start), timescale.timeToPx(this.countersKey.end));
     }
-    onMouseMove({ x, y, timescale }) {
+    onMouseMove({ x, timescale }) {
         const data = this.counters;
         if (data === undefined)
             return;
-        this.mousePos = { x, y };
         const time = timescale.pxToHpTime(x);
         const [left, right] = (0, binary_search_1.searchSegment)(data.timestamps, time.toTime());
         if (left === -1) {
@@ -478,6 +701,8 @@ class BaseCounterTrack {
             tsEnd,
             lastDisplayValue,
         };
+        // Full redraw to update the tooltip
+        raf_scheduler_1.raf.scheduleFullRedraw();
     }
     onMouseOut() {
         this.hover = undefined;
@@ -542,7 +767,7 @@ class BaseCounterTrack {
                 yLabel += `\u0394${unit}`;
                 break;
             case 'rate':
-                yLabel += `\u0394${unit}/s`;
+                yLabel += ` ${this.rateUnit}`;
                 break;
             default:
                 (0, logging_1.assertUnreachable)(options.yMode);
@@ -652,7 +877,7 @@ class BaseCounterTrack {
         min_value as minDisplayValue,
         max_value as maxDisplayValue
       from ${this.getTableName()}(
-        trace_start(), trace_end(), trace_dur()
+        trace_start(), trace_end() + 1, trace_dur() + 1
       );
     `);
         this.trash.defer(async () => {
@@ -669,6 +894,9 @@ class BaseCounterTrack {
     }
     get unit() {
         return this.getCounterOptions().unit ?? '';
+    }
+    get rateUnit() {
+        return this.getCounterOptions().rateUnit ?? `\u0394${this.unit}/s`;
     }
     get engine() {
         return this.trace.engine;

@@ -18,55 +18,59 @@ const tslib_1 = require("tslib");
 const mithril_1 = tslib_1.__importDefault(require("mithril"));
 const button_1 = require("../../widgets/button");
 const menu_1 = require("../../widgets/menu");
-const tabbed_split_panel_1 = require("../../widgets/tabbed_split_panel");
+const split_panel_1 = require("../../widgets/split_panel");
 const css_constants_1 = require("../css_constants");
 const current_selection_tab_1 = require("./current_selection_tab");
+const mithril_utils_1 = require("../../base/mithril_utils");
 class TabPanel {
     view({ attrs, children, }) {
-        const tabs = this.gatherTabs(attrs.trace);
-        return (0, mithril_1.default)(tabbed_split_panel_1.TabbedSplitPanel, {
+        const { tabs, drawerContent } = this.gatherTabs(attrs.trace);
+        return (0, mithril_1.default)(split_panel_1.SplitPanel, {
             className: attrs.className,
             startingHeight: css_constants_1.DEFAULT_DETAILS_CONTENT_HEIGHT,
             leftHandleContent: this.renderDropdownMenu(attrs.trace),
             tabs,
+            drawerContent,
             visibility: attrs.trace.tabs.tabPanelVisibility,
             onVisibilityChange: (visibility) => attrs.trace.tabs.setTabPanelVisibility(visibility),
-            onTabChange: (key) => attrs.trace.tabs.showTab(key),
-            currentTabKey: attrs.trace.tabs.currentTabUri,
         }, children);
     }
     gatherTabs(trace) {
         const tabMan = trace.tabs;
         const tabList = trace.tabs.openTabsUri;
         const resolvedTabs = tabMan.resolveTabs(tabList);
+        const currentTabUri = trace.tabs.currentTabUri;
+        const drawerContent = [];
         const tabs = resolvedTabs.map(({ uri, tab: tabDesc }) => {
+            const active = uri === currentTabUri;
             if (tabDesc) {
-                return {
-                    key: uri,
+                drawerContent.push((0, mithril_1.default)(mithril_utils_1.Gate, { open: active }, tabDesc.content.render()));
+                return (0, mithril_1.default)(split_panel_1.Tab, {
+                    active,
+                    onclick: () => trace.tabs.showTab(uri),
                     hasCloseButton: true,
-                    title: tabDesc.content.getTitle(),
-                    content: tabDesc.content.render(),
                     onClose: () => {
                         trace.tabs.hideTab(uri);
                     },
-                };
+                }, tabDesc.content.getTitle());
             }
             else {
-                return {
-                    key: uri,
-                    hasCloseButton: true,
-                    title: 'Tab does not exist',
-                    content: undefined,
-                };
+                return (0, mithril_1.default)(split_panel_1.Tab, {
+                    active,
+                    onclick: () => trace.tabs.showTab(uri),
+                }, 'Tab does not exist');
             }
         });
         // Add the permanent current selection tab to the front of the list of tabs
-        tabs.unshift({
-            key: 'current_selection',
-            title: 'Current Selection',
-            content: (0, mithril_1.default)(current_selection_tab_1.CurrentSelectionTab, { trace }),
-        });
-        return tabs;
+        const active = currentTabUri === 'current_selection';
+        if (active) {
+            drawerContent.push((0, mithril_1.default)(mithril_utils_1.Gate, { open: active }, (0, mithril_1.default)(current_selection_tab_1.CurrentSelectionTab, { trace })));
+        }
+        tabs.unshift((0, mithril_1.default)(split_panel_1.Tab, {
+            active,
+            onclick: () => trace.tabs.showTab('current_selection'),
+        }, 'Current Selection'));
+        return { tabs, drawerContent };
     }
     renderDropdownMenu(trace) {
         const entries = trace.tabs.tabs
@@ -81,7 +85,6 @@ class TabPanel {
         });
         return (0, mithril_1.default)(menu_1.PopupMenu, {
             trigger: (0, mithril_1.default)(button_1.Button, {
-                compact: true,
                 icon: 'more_vert',
                 disabled: entries.length === 0,
                 title: 'More Tabs',

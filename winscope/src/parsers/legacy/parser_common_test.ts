@@ -13,16 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import {assertDefined} from 'common/assert_utils';
+import {assertDefined} from 'common/assert';
+import {getFixtureFile} from 'test/unit/io_helpers';
+import {LegacyParserProvider} from 'test/unit/fixture_utils';
 import {
-  TimestampConverterUtils,
+  makeElapsedTimestamp,
+  makeRealTimestamp,
   timestampEqualityTester,
-} from 'common/time/test_utils';
-import {getFixtureFile} from 'test/unit/fixture_utils';
-import {UnitTestUtils} from 'test/unit/utils';
-import {Parser} from 'trace/parser';
+  UTC_CONVERTER,
+} from 'test/unit/time_test_helpers';
 import {TraceFile} from 'trace/trace_file';
-import {HierarchyTreeNode} from 'trace/tree_node/hierarchy_tree_node';
+import {Parser} from 'trace_api/parser';
+import {HierarchyTreeNode} from 'tree_node/hierarchy_tree_node';
 import {ParserFactory} from './parser_factory';
 
 describe('Parser', () => {
@@ -30,52 +32,38 @@ describe('Parser', () => {
     jasmine.addCustomEqualityTester(timestampEqualityTester);
   });
 
-  it('is robust to empty trace file', async () => {
-    const trace = new TraceFile(
-      await getFixtureFile('traces/empty.pb'),
-      undefined,
-    );
-    const parsers = await new ParserFactory().createParsers(
-      [trace],
-      TimestampConverterUtils.TIMESTAMP_CONVERTER,
-      {},
-    );
-    expect(parsers.length).toEqual(0);
-  });
+  describe('is robust to', () => {
+    it('empty trace file', async () => {
+      await checkRobustToFile('invalid_files/empty.pb', true);
+    });
 
-  it('is robust to trace with no entries', async () => {
-    const trace = new TraceFile(
-      await getFixtureFile('traces/no_entries_InputMethodClients.pb'),
-      undefined,
-    );
-    const parsers = await new ParserFactory().createParsers(
-      [trace],
-      TimestampConverterUtils.TIMESTAMP_CONVERTER,
-      {},
-    );
-    expect(parsers.length).toEqual(0);
-  });
+    it('trace with no entries', async () => {
+      await checkRobustToFile('invalid_files/no_entries_InputMethodClients.pb');
+    });
 
-  it('is robust to view capture trace with no entries', async () => {
-    const trace = new TraceFile(
-      await getFixtureFile('traces/no_entries_view_capture.vc'),
-      undefined,
-    );
-    const parsers = await new ParserFactory().createParsers(
-      [trace],
-      TimestampConverterUtils.TIMESTAMP_CONVERTER,
-      {},
-    );
-    expect(parsers.length).toEqual(0);
+    it('view capture trace with no entries', async () => {
+      await checkRobustToFile('invalid_files/no_entries_view_capture.vc');
+    });
+
+    async function checkRobustToFile(file: string, unsupported = false) {
+      const trace = new TraceFile(await getFixtureFile(file), undefined);
+      const processed = await new ParserFactory().processFiles(
+        [trace],
+        UTC_CONVERTER,
+        {},
+      );
+      expect(processed.parsers.length).toBe(0);
+      expect(processed.unsupportedFiles).toEqual(unsupported ? [trace] : []);
+    }
   });
 
   describe('real timestamp', () => {
     let parser: Parser<HierarchyTreeNode>;
 
     beforeAll(async () => {
-      parser = (await UnitTestUtils.getParser(
-        'traces/elapsed_and_real_timestamp/WindowManager.pb',
-      )) as Parser<HierarchyTreeNode>;
+      parser = await new LegacyParserProvider()
+        .addFile('traces/elapsed_and_real_timestamp/WindowManager.pb')
+        .getParser<HierarchyTreeNode>();
     });
 
     it('has expected descriptors', () => {
@@ -84,9 +72,9 @@ describe('Parser', () => {
 
     it('provides timestamps', () => {
       const expected = [
-        TimestampConverterUtils.makeRealTimestamp(1659107089075566202n),
-        TimestampConverterUtils.makeRealTimestamp(1659107089999048990n),
-        TimestampConverterUtils.makeRealTimestamp(1659107090010194213n),
+        makeRealTimestamp(1659107089075566202n),
+        makeRealTimestamp(1659107089999048990n),
+        makeRealTimestamp(1659107090010194213n),
       ];
       expect(assertDefined(parser.getTimestamps()).slice(0, 3)).toEqual(
         expected,
@@ -97,12 +85,12 @@ describe('Parser', () => {
       let entry = await parser.getEntry(0);
       expect(
         assertDefined(entry.getEagerPropertyByName('focusedApp')).getValue(),
-      ).toEqual('com.google.android.apps.nexuslauncher/.NexusLauncherActivity');
+      ).toBe('com.google.android.apps.nexuslauncher/.NexusLauncherActivity');
 
       entry = await parser.getEntry(parser.getLengthEntries() - 1);
       expect(
         assertDefined(entry.getEagerPropertyByName('focusedApp')).getValue(),
-      ).toEqual('com.google.android.apps.nexuslauncher/.NexusLauncherActivity');
+      ).toBe('com.google.android.apps.nexuslauncher/.NexusLauncherActivity');
     });
   });
 
@@ -110,16 +98,16 @@ describe('Parser', () => {
     let parser: Parser<HierarchyTreeNode>;
 
     beforeAll(async () => {
-      parser = (await UnitTestUtils.getParser(
-        'traces/elapsed_timestamp/WindowManager.pb',
-      )) as Parser<HierarchyTreeNode>;
+      parser = await new LegacyParserProvider()
+        .addFile('traces/elapsed_timestamp/WindowManager.pb')
+        .getParser<HierarchyTreeNode>();
     });
 
     it('provides timestamps', () => {
       const expected = [
-        TimestampConverterUtils.makeElapsedTimestamp(850254319343n),
-        TimestampConverterUtils.makeElapsedTimestamp(850763506110n),
-        TimestampConverterUtils.makeElapsedTimestamp(850782750048n),
+        makeElapsedTimestamp(850254319343n),
+        makeElapsedTimestamp(850763506110n),
+        makeElapsedTimestamp(850782750048n),
       ];
       expect(parser.getTimestamps()).toEqual(expected);
     });
@@ -128,12 +116,12 @@ describe('Parser', () => {
       let entry = await parser.getEntry(0);
       expect(
         assertDefined(entry.getEagerPropertyByName('focusedApp')).getValue(),
-      ).toEqual('com.google.android.apps.nexuslauncher/.NexusLauncherActivity');
+      ).toBe('com.google.android.apps.nexuslauncher/.NexusLauncherActivity');
 
       entry = await parser.getEntry(parser.getLengthEntries() - 1);
       expect(
         assertDefined(entry.getEagerPropertyByName('focusedApp')).getValue(),
-      ).toEqual('com.google.android.apps.nexuslauncher/.NexusLauncherActivity');
+      ).toBe('com.google.android.apps.nexuslauncher/.NexusLauncherActivity');
     });
   });
 });

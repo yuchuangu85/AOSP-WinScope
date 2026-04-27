@@ -20,6 +20,7 @@ exports.featureFlags = exports.FlagsForTesting = void 0;
 // into issues with initialization order which will be a pain.
 const zod_1 = require("zod");
 const feature_flag_1 = require("../public/feature_flag");
+const local_storage_1 = require("./local_storage");
 class Flags {
     store;
     flags;
@@ -124,27 +125,6 @@ class FlagImpl {
         return this.state !== feature_flag_1.OverrideState.DEFAULT;
     }
 }
-class LocalStorageStore {
-    static KEY = 'perfettoFeatureFlags';
-    load() {
-        const s = localStorage.getItem(LocalStorageStore.KEY);
-        let parsed;
-        try {
-            parsed = JSON.parse(s ?? '{}');
-        }
-        catch (e) {
-            return {};
-        }
-        if (typeof parsed !== 'object' || parsed === null) {
-            return {};
-        }
-        return parsed;
-    }
-    save(o) {
-        const s = JSON.stringify(o);
-        localStorage.setItem(LocalStorageStore.KEY, s);
-    }
-}
 exports.FlagsForTesting = Flags;
-exports.featureFlags = new Flags(new LocalStorageStore());
+exports.featureFlags = new Flags(new local_storage_1.LocalStorage('perfettoFeatureFlags'));
 //# sourceMappingURL=feature_flags.js.map

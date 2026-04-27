@@ -18,8 +18,9 @@ exports.stringifyJsonWithBigints = stringifyJsonWithBigints;
 // Bigints are simply serialized to a string, so the original object cannot be
 // recovered with JSON.parse(), as bigints will turn into strings.
 // Useful for e.g. tracing, where string arg values are required.
+function stringifyJsonWithBigints(
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function stringifyJsonWithBigints(object) {
-    return JSON.stringify(object, (_, value) => typeof value === 'bigint' ? value.toString() : value);
+object, space) {
+    return JSON.stringify(object, (_, value) => (typeof value === 'bigint' ? value.toString() : value), space);
 }
 //# sourceMappingURL=json_utils.js.map

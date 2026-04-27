@@ -40,7 +40,7 @@ class TickmarkPanel {
         return (0, mithril_1.default)('', { style: { height: `${this.height}px` } });
     }
     renderCanvas(ctx, size) {
-        ctx.fillStyle = '#999';
+        ctx.fillStyle = css_constants_1.COLOR_BORDER;
         ctx.fillRect(css_constants_1.TRACK_SHELL_WIDTH - 1, 0, 1, size.height);
         const trackSize = { ...size, width: size.width - css_constants_1.TRACK_SHELL_WIDTH };
         ctx.save();
@@ -58,7 +58,7 @@ class TickmarkPanel {
         const timespan = visibleWindow.toTimeSpan();
         if (size.width > 0 && timespan.duration > 0n) {
             const maxMajorTicks = (0, gridline_helper_1.getMaxMajorTicks)(size.width);
-            const offset = this.trace.timeline.timestampOffset();
+            const offset = this.trace.timeline.getTimeAxisOrigin();
             const tickGen = (0, gridline_helper_1.generateTicks)(timespan, maxMajorTicks, offset);
             for (const { type, time } of tickGen) {
                 const px = Math.floor(timescale.timeToPx(time));

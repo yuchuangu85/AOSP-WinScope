@@ -25,7 +25,7 @@ class default_1 {
     static dependencies = [dev_perfetto_TraceProcessorTrack_1.default];
     async onTraceLoad(ctx) {
         const kernel = new workspace_1.TrackNode({
-            title: 'Linux Kernel',
+            name: 'Linux Kernel',
             isSummary: true,
         });
         const rpm = await this.addRpmTracks(ctx);
@@ -51,17 +51,16 @@ class default_1 {
             trackId: query_result_1.NUM,
         });
         const rpm = new workspace_1.TrackNode({
-            title: 'Runtime Power Management',
+            name: 'Runtime Power Management',
             isSummary: true,
         });
         for (; it.valid(); it.next()) {
             const trackId = it.trackId;
-            const title = it.deviceName ?? `${trackId}`;
-            const uri = `/linux/rpm/${title}`;
+            const name = it.deviceName ?? `${trackId}`;
+            const uri = `/linux/rpm/${name}`;
             ctx.tracks.registerTrack({
                 uri,
-                title,
-                track: (0, trace_processor_slice_track_1.createTraceProcessorSliceTrack)({
+                renderer: await (0, trace_processor_slice_track_1.createTraceProcessorSliceTrack)({
                     trace: ctx,
                     uri,
                     trackIds: [trackId],
@@ -72,7 +71,7 @@ class default_1 {
                     groupName: `Linux Kernel Devices`,
                 },
             });
-            const track = new workspace_1.TrackNode({ uri, title });
+            const track = new workspace_1.TrackNode({ uri, name: name });
             rpm.addChildInOrder(track);
         }
         return rpm;

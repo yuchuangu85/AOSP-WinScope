@@ -1,18 +1,24 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const tslib_1 = require("tslib");
-const commands_1 = tslib_1.__importDefault(require("../core_plugins/commands"));
-const example_traces_1 = tslib_1.__importDefault(require("../core_plugins/example_traces"));
-const flags_page_1 = tslib_1.__importDefault(require("../core_plugins/flags_page"));
-const flow_events_1 = tslib_1.__importDefault(require("../core_plugins/flow_events"));
-const global_groups_1 = tslib_1.__importDefault(require("../core_plugins/global_groups"));
-const track_utils_1 = tslib_1.__importDefault(require("../core_plugins/track_utils"));
+const dev_perfetto_CoreCommands_1 = tslib_1.__importDefault(require("../core_plugins/dev.perfetto.CoreCommands"));
+const dev_perfetto_ExampleTraces_1 = tslib_1.__importDefault(require("../core_plugins/dev.perfetto.ExampleTraces"));
+const dev_perfetto_FlagsPage_1 = tslib_1.__importDefault(require("../core_plugins/dev.perfetto.FlagsPage"));
+const dev_perfetto_FlowEventsPanel_1 = tslib_1.__importDefault(require("../core_plugins/dev.perfetto.FlowEventsPanel"));
+const dev_perfetto_GlobalGroups_1 = tslib_1.__importDefault(require("../core_plugins/dev.perfetto.GlobalGroups"));
+const dev_perfetto_MultiTraceOpen_1 = tslib_1.__importDefault(require("../core_plugins/dev.perfetto.MultiTraceOpen"));
+const dev_perfetto_Notes_1 = tslib_1.__importDefault(require("../core_plugins/dev.perfetto.Notes"));
+const dev_perfetto_SettingsPage_1 = tslib_1.__importDefault(require("../core_plugins/dev.perfetto.SettingsPage"));
+const dev_perfetto_TracklUtils_1 = tslib_1.__importDefault(require("../core_plugins/dev.perfetto.TracklUtils"));
 exports.default = [
-    commands_1.default,
-    example_traces_1.default,
-    flags_page_1.default,
-    flow_events_1.default,
-    global_groups_1.default,
-    track_utils_1.default,
+    dev_perfetto_CoreCommands_1.default,
+    dev_perfetto_ExampleTraces_1.default,
+    dev_perfetto_FlagsPage_1.default,
+    dev_perfetto_FlowEventsPanel_1.default,
+    dev_perfetto_GlobalGroups_1.default,
+    dev_perfetto_MultiTraceOpen_1.default,
+    dev_perfetto_Notes_1.default,
+    dev_perfetto_SettingsPage_1.default,
+    dev_perfetto_TracklUtils_1.default,
 ];
 //# sourceMappingURL=all_core_plugins.js.map

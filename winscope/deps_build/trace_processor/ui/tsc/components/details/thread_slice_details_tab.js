@@ -25,18 +25,19 @@ const grid_layout_1 = require("../../widgets/grid_layout");
 const menu_1 = require("../../widgets/menu");
 const section_1 = require("../../widgets/section");
 const tree_1 = require("../../widgets/tree");
-const slice_args_1 = require("./slice_args");
+const args_1 = require("./args");
 const slice_details_1 = require("./slice_details");
 const slice_1 = require("../sql_utils/slice");
 const thread_state_1 = require("./thread_state");
 const core_types_1 = require("../sql_utils/core_types");
 const duration_1 = require("../widgets/duration");
 const slice_2 = require("../widgets/slice");
-const basic_table_1 = require("../../widgets/basic_table");
+const grid_1 = require("../../widgets/grid");
 const sql_table_registry_1 = require("../widgets/sql/table/sql_table_registry");
 const logging_1 = require("../../base/logging");
 const extensions_1 = require("../extensions");
 const trace_impl_1 = require("../../core/trace_impl");
+const slice_args_1 = require("./slice_args");
 function getTidFromSlice(slice) {
     return slice.thread?.tid;
 }
@@ -69,7 +70,7 @@ const ITEMS = [
         name: 'Ancestor slices',
         shouldDisplay: (slice) => slice.parentId !== undefined,
         run: (slice, trace) => extensions_1.extensions.addLegacySqlTableTab(trace, {
-            table: (0, logging_1.assertExists)((0, sql_table_registry_1.getSqlTableDescription)('slice')),
+            table: (0, logging_1.assertExists)((0, sql_table_registry_1.getSqlTableDescription)(trace, 'slice')),
             filters: [
                 {
                     op: (cols) => `${cols[0]} IN (SELECT id FROM _slice_ancestor_and_self(${slice.id}))`,
@@ -83,7 +84,7 @@ const ITEMS = [
         name: 'Descendant slices',
         shouldDisplay: () => true,
         run: (slice, trace) => extensions_1.extensions.addLegacySqlTableTab(trace, {
-            table: (0, logging_1.assertExists)((0, sql_table_registry_1.getSqlTableDescription)('slice')),
+            table: (0, logging_1.assertExists)((0, sql_table_registry_1.getSqlTableDescription)(trace, 'slice')),
             filters: [
                 {
                     op: (cols) => `${cols[0]} IN (SELECT id FROM _slice_descendant_and_self(${slice.id}))`,
@@ -195,8 +196,8 @@ class ThreadSliceDetailsPanel {
     renderRhs(trace, slice) {
         const precFlows = this.renderPrecedingFlows(slice);
         const followingFlows = this.renderFollowingFlows(slice);
-        const args = (0, slice_args_1.hasArgs)(slice.args) &&
-            (0, mithril_1.default)(section_1.Section, { title: 'Arguments' }, (0, mithril_1.default)(tree_1.Tree, (0, slice_args_1.renderArguments)(trace, slice.args)));
+        const args = (0, args_1.hasArgs)(slice.args) &&
+            (0, mithril_1.default)(section_1.Section, { title: 'Arguments' }, (0, mithril_1.default)(tree_1.Tree, (0, slice_args_1.renderSliceArguments)(trace, slice.args)));
         // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
         if (precFlows ?? followingFlows ?? args) {
             return (0, mithril_1.default)(grid_layout_1.GridLayoutColumn, precFlows, followingFlows, args);
@@ -211,28 +212,14 @@ class ThreadSliceDetailsPanel {
         if (inFlows.length > 0) {
             const isRunTask = slice.name === 'ThreadControllerImpl::RunTask' ||
                 slice.name === 'ThreadPool_RunTask';
-            return (0, mithril_1.default)(section_1.Section, { title: 'Preceding Flows' }, (0, mithril_1.default)((basic_table_1.BasicTable), {
-                columns: [
-                    {
-                        title: 'Slice',
-                        render: (flow) => (0, mithril_1.default)(slice_2.SliceRef, {
-                            id: (0, core_types_1.asSliceSqlId)(flow.begin.sliceId),
-                            name: flow.begin.sliceChromeCustomName ?? flow.begin.sliceName,
-                        }),
-                    },
-                    {
-                        title: 'Delay',
-                        render: (flow) => (0, mithril_1.default)(duration_1.DurationWidget, {
-                            dur: flow.end.sliceStartTs - flow.begin.sliceEndTs,
-                        }),
-                    },
-                    {
-                        title: 'Thread',
-                        render: (flow) => this.getThreadNameForFlow(flow.begin, !isRunTask),
-                    },
-                ],
-                data: inFlows,
-            }));
+            return (0, mithril_1.default)(section_1.Section, { title: 'Preceding Flows' }, (0, mithril_1.default)(grid_1.Grid, (0, mithril_1.default)(grid_1.GridHeader, (0, mithril_1.default)(grid_1.GridRow, (0, mithril_1.default)(grid_1.GridHeaderCell, 'Slice'), (0, mithril_1.default)(grid_1.GridHeaderCell, 'Delay'), (0, mithril_1.default)(grid_1.GridHeaderCell, 'Thread'))), (0, mithril_1.default)(grid_1.GridBody, inFlows.map((flow) => (0, mithril_1.default)(grid_1.GridRow, (0, mithril_1.default)(grid_1.GridDataCell, (0, mithril_1.default)(slice_2.SliceRef, {
+                trace: this.trace,
+                id: (0, core_types_1.asSliceSqlId)(flow.begin.sliceId),
+                name: flow.begin.sliceChromeCustomName ?? flow.begin.sliceName,
+            })), (0, mithril_1.default)(grid_1.GridDataCell, (0, mithril_1.default)(duration_1.DurationWidget, {
+                trace: this.trace,
+                dur: flow.end.sliceStartTs - flow.begin.sliceEndTs,
+            })), (0, mithril_1.default)(grid_1.GridDataCell, this.getThreadNameForFlow(flow.begin, !isRunTask)))))));
         }
         else {
             return null;
@@ -244,28 +231,14 @@ class ThreadSliceDetailsPanel {
         if (outFlows.length > 0) {
             const isPostTask = slice.name === 'ThreadPool_PostTask' ||
                 slice.name === 'SequenceManager PostTask';
-            return (0, mithril_1.default)(section_1.Section, { title: 'Following Flows' }, (0, mithril_1.default)((basic_table_1.BasicTable), {
-                columns: [
-                    {
-                        title: 'Slice',
-                        render: (flow) => (0, mithril_1.default)(slice_2.SliceRef, {
-                            id: (0, core_types_1.asSliceSqlId)(flow.end.sliceId),
-                            name: flow.end.sliceChromeCustomName ?? flow.end.sliceName,
-                        }),
-                    },
-                    {
-                        title: 'Delay',
-                        render: (flow) => (0, mithril_1.default)(duration_1.DurationWidget, {
-                            dur: flow.end.sliceStartTs - flow.begin.sliceEndTs,
-                        }),
-                    },
-                    {
-                        title: 'Thread',
-                        render: (flow) => this.getThreadNameForFlow(flow.end, !isPostTask),
-                    },
-                ],
-                data: outFlows,
-            }));
+            return (0, mithril_1.default)(section_1.Section, { title: 'Following Flows' }, (0, mithril_1.default)(grid_1.Grid, (0, mithril_1.default)(grid_1.GridHeader, (0, mithril_1.default)(grid_1.GridRow, (0, mithril_1.default)(grid_1.GridHeaderCell, 'Slice'), (0, mithril_1.default)(grid_1.GridHeaderCell, 'Delay'), (0, mithril_1.default)(grid_1.GridHeaderCell, 'Thread'))), (0, mithril_1.default)(grid_1.GridBody, outFlows.map((flow) => (0, mithril_1.default)(grid_1.GridRow, (0, mithril_1.default)(grid_1.GridDataCell, (0, mithril_1.default)(slice_2.SliceRef, {
+                trace: this.trace,
+                id: (0, core_types_1.asSliceSqlId)(flow.end.sliceId),
+                name: flow.end.sliceChromeCustomName ?? flow.end.sliceName,
+            })), (0, mithril_1.default)(grid_1.GridDataCell, (0, mithril_1.default)(duration_1.DurationWidget, {
+                trace: this.trace,
+                dur: flow.end.sliceStartTs - flow.begin.sliceEndTs,
+            })), (0, mithril_1.default)(grid_1.GridDataCell, this.getThreadNameForFlow(flow.end, !isPostTask)))))));
         }
         else {
             return null;

@@ -19,14 +19,12 @@ const tslib_1 = require("tslib");
 const mithril_1 = tslib_1.__importDefault(require("mithril"));
 const anchor_1 = require("../../widgets/anchor");
 const semantic_icons_1 = require("../../base/semantic_icons");
-const app_impl_1 = require("../../core/app_impl");
 class ThreadStateRef {
     view(vnode) {
         return (0, mithril_1.default)(anchor_1.Anchor, {
             icon: semantic_icons_1.Icons.UpdateSelection,
             onclick: () => {
-                // TODO(primiano): the Trace object should be properly injected here.
-                app_impl_1.AppImpl.instance.trace?.selection.selectSqlEvent('thread_state', vnode.attrs.id, {
+                vnode.attrs.trace.selection.selectSqlEvent('thread_state', vnode.attrs.id, {
                     switchToCurrentSelectionTab: vnode.attrs.switchToCurrentSelectionTab,
                     scrollToSelection: true,
                 });
@@ -35,10 +33,11 @@ class ThreadStateRef {
     }
 }
 exports.ThreadStateRef = ThreadStateRef;
-function threadStateRef(state) {
+function threadStateRef(trace, state) {
     if (state.thread === undefined)
         return null;
     return (0, mithril_1.default)(ThreadStateRef, {
+        trace,
         id: state.id,
     });
 }

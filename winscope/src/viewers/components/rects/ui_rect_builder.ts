@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import {CornerRadii} from 'common/geometry/corner_radii';
+import {Point} from 'common/geometry/point';
 import {Region} from 'common/geometry/region';
 import {TransformMatrix} from 'common/geometry/transform_matrix';
 import {UiRect} from './ui_rect';
@@ -31,11 +33,13 @@ export class UiRectBuilder {
   id: string | undefined;
   groupId: number | undefined;
   isClickable: boolean | undefined;
-  cornerRadius: number | undefined;
+  cornerRadii: CornerRadii | undefined;
   depth: number | undefined;
   hasContent: boolean | undefined;
   opacity: number | undefined;
   fillRegion: Region | undefined;
+  pointerLocationsInRect: Point[] = [];
+  rayLocationsInDisplay: Point[] = [];
 
   setX(value: number) {
     this.x = value;
@@ -97,8 +101,8 @@ export class UiRectBuilder {
     return this;
   }
 
-  setCornerRadius(value: number) {
-    this.cornerRadius = value;
+  setCornerRadii(value: CornerRadii | undefined) {
+    this.cornerRadii = value;
     return this;
   }
 
@@ -117,8 +121,18 @@ export class UiRectBuilder {
     return this;
   }
 
-  setFillRegion(region: Region | undefined) {
-    this.fillRegion = region;
+  setFillRegion(value: Region | undefined) {
+    this.fillRegion = value;
+    return this;
+  }
+
+  setPointerLocationsInRect(value: Point[]) {
+    this.pointerLocationsInRect = value;
+    return this;
+  }
+
+  setRayLocationsInDisplay(value: Point[]) {
+    this.rayLocationsInDisplay = value;
     return this;
   }
 
@@ -167,10 +181,6 @@ export class UiRectBuilder {
       throw new Error('isClickable not set');
     }
 
-    if (this.cornerRadius === undefined) {
-      throw new Error('cornerRadius not set');
-    }
-
     if (this.depth === undefined) {
       throw new Error('depth not set');
     }
@@ -187,12 +197,14 @@ export class UiRectBuilder {
       this.id,
       this.groupId,
       this.isClickable,
-      this.cornerRadius,
+      this.cornerRadii,
       this.transform,
       this.depth,
       this.hasContent,
       this.opacity,
       this.fillRegion,
+      this.pointerLocationsInRect,
+      this.rayLocationsInDisplay,
     );
   }
 }

@@ -1,5 +1,5 @@
 "use strict";
-// Copyright (C) 2024 The Android Open Source Project
+// Copyright (C) 2025 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.SplitPanel = exports.SplitPanelDrawerVisibility = void 0;
+exports.SplitPanel = exports.SplitPanelDrawerVisibility = exports.Tab = void 0;
 exports.toggleVisibility = toggleVisibility;
 const tslib_1 = require("tslib");
 const mithril_1 = tslib_1.__importDefault(require("mithril"));
@@ -22,6 +22,29 @@ const dom_utils_1 = require("../base/dom_utils");
 const drag_gesture_handler_1 = require("../base/drag_gesture_handler");
 const logging_1 = require("../base/logging");
 const button_1 = require("./button");
+const classnames_1 = require("../base/classnames");
+const semantic_icons_1 = require("../base/semantic_icons");
+class Tab {
+    view({ attrs, children }) {
+        const { active, hasCloseButton, ...rest } = attrs;
+        return (0, mithril_1.default)('.pf-split-panel__tab', {
+            ...rest,
+            className: (0, classnames_1.classNames)(active && 'pf-split-panel__tab--active'),
+            onauxclick: () => {
+                attrs.onClose?.();
+            },
+        }, (0, mithril_1.default)('.pf-split-panel__tab-title', children), hasCloseButton &&
+            (0, mithril_1.default)(button_1.Button, {
+                compact: true,
+                icon: semantic_icons_1.Icons.Close,
+                onclick: (e) => {
+                    e.stopPropagation();
+                    attrs.onClose?.();
+                },
+            }));
+    }
+}
+exports.Tab = Tab;
 var SplitPanelDrawerVisibility;
 (function (SplitPanelDrawerVisibility) {
     SplitPanelDrawerVisibility[SplitPanelDrawerVisibility["VISIBLE"] = 0] = "VISIBLE";
@@ -49,9 +72,9 @@ var SplitPanelDrawerVisibility;
  * |└────────────────────────────────────────────────────────────────┘|
  * │┌────────────────────────────────────────────────────────────────┐|
  * ││pf-split-panel__handle                                          ││
- * │|┌─────────────────────────────────┐┌───────────────────────────┐||
- * |||pf-split-panel__handle-content   ||pf-button-bar              |||
- * ||└─────────────────────────────────┘└───────────────────────────┘||
+ * │|┌─────────────────┐┌─────────────────────┐┌────────────────────┐||
+ * |||leftHandleContent||.pf-split-panel__tabs||.pf-button-bar      |||
+ * ||└─────────────────┘└─────────────────────┘└────────────────────┘||
  * |└────────────────────────────────────────────────────────────────┘|
  * │┌────────────────────────────────────────────────────────────────┐|
  * ││pf-split-panel__drawer                                          ││
@@ -73,7 +96,7 @@ class SplitPanel {
         this.resizableHeight = attrs.startingHeight ?? 100;
     }
     view({ attrs, children }) {
-        const { visibility = this.visibility, className, handleContent, onVisibilityChange, drawerContent, } = attrs;
+        const { leftHandleContent, drawerContent, visibility = this.visibility, className, onVisibilityChange, tabs, } = attrs;
         switch (visibility) {
             case SplitPanelDrawerVisibility.VISIBLE:
                 this.height = Math.min(Math.max(this.resizableHeight, 0), this.fullscreenHeight);
@@ -87,9 +110,11 @@ class SplitPanel {
         }
         return (0, mithril_1.default)('.pf-split-panel', {
             className,
-        }, 
-        // Note: Using BEM class naming conventions: See https://getbem.com/
-        (0, mithril_1.default)('.pf-split-panel__main', children), (0, mithril_1.default)('.pf-split-panel__handle', (0, mithril_1.default)('.pf-split-panel__handle-content', handleContent), this.renderTabResizeButtons(visibility, onVisibilityChange)), (0, mithril_1.default)('.pf-split-panel__drawer', {
+        }, (0, mithril_1.default)('.pf-split-panel__main', children), (0, mithril_1.default)('.pf-split-panel__handle', [
+            leftHandleContent,
+            (0, mithril_1.default)('.pf-split-panel__tabs', tabs),
+            this.renderTabResizeButtons(visibility, onVisibilityChange),
+        ]), (0, mithril_1.default)('.pf-split-panel__drawer', {
             style: { height: `${this.height}px` },
         }, drawerContent));
     }
@@ -128,7 +153,6 @@ class SplitPanel {
             title: 'Open fullscreen',
             disabled: visibility === SplitPanelDrawerVisibility.FULLSCREEN,
             icon: 'vertical_align_top',
-            compact: true,
             onclick: () => {
                 this.updatePanelVisibility(SplitPanelDrawerVisibility.FULLSCREEN, setVisibility);
             },
@@ -138,7 +162,6 @@ class SplitPanel {
             },
             title: isClosed ? 'Show panel' : 'Hide panel',
             icon: isClosed ? 'keyboard_arrow_up' : 'keyboard_arrow_down',
-            compact: true,
         }));
     }
     updatePanelVisibility(visibility, setVisibility) {

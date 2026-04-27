@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PopupMenu = exports.Menu = exports.MenuDivider = exports.MenuItem = void 0;
+exports.PopupMenu = exports.Menu = exports.MenuTitle = exports.MenuDivider = exports.MenuItem = void 0;
 const tslib_1 = require("tslib");
 const mithril_1 = tslib_1.__importDefault(require("mithril"));
 const classnames_1 = require("../base/classnames");
@@ -51,7 +51,8 @@ class MenuItem {
         return (0, mithril_1.default)('button.pf-menu-item' + (disabled ? '[disabled]' : ''), {
             ...htmlAttrs,
             className: classes,
-        }, icon && (0, mithril_1.default)(icon_1.Icon, { className: 'pf-left-icon', icon }), rightIcon && (0, mithril_1.default)(icon_1.Icon, { className: 'pf-right-icon', icon: rightIcon }), label);
+        }, icon && (0, mithril_1.default)(icon_1.Icon, { className: 'pf-menu-item__left-icon', icon }), (0, mithril_1.default)('.pf-menu-item__label', label), rightIcon &&
+            (0, mithril_1.default)(icon_1.Icon, { className: 'pf-menu-item__right-icon', icon: rightIcon }));
     }
 }
 exports.MenuItem = MenuItem;
@@ -62,6 +63,13 @@ class MenuDivider {
     }
 }
 exports.MenuDivider = MenuDivider;
+// An element which shows a dividing line between menu items.
+class MenuTitle {
+    view({ attrs }) {
+        return (0, mithril_1.default)('.pf-menu-title', attrs.label);
+    }
+}
+exports.MenuTitle = MenuTitle;
 // A siple container for a menu.
 // The menu contents are passed in as children, and are typically MenuItems or
 // MenuDividers, but really they can be any Mithril component.

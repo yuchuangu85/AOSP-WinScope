@@ -24,7 +24,7 @@ namespace perfetto {
 namespace protos {
 namespace pbzero {
 
-class InputMethodManagerServiceProto_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/24, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
+class InputMethodManagerServiceProto_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/26, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
  public:
   InputMethodManagerServiceProto_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
   explicit InputMethodManagerServiceProto_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
@@ -75,6 +75,10 @@ class InputMethodManagerServiceProto_Decoder : public ::protozero::TypedProtoDec
   bool show_ime_with_hard_keyboard() const { return at<23>().as_bool(); }
   bool has_accessibility_requesting_no_soft_keyboard() const { return at<24>().valid(); }
   bool accessibility_requesting_no_soft_keyboard() const { return at<24>().as_bool(); }
+  bool has_concurrent_multi_user_mode_enabled() const { return at<25>().valid(); }
+  bool concurrent_multi_user_mode_enabled() const { return at<25>().as_bool(); }
+  bool has_prevent_ime_startup_unless_text_editor() const { return at<26>().valid(); }
+  bool prevent_ime_startup_unless_text_editor() const { return at<26>().as_bool(); }
 };
 
 class InputMethodManagerServiceProto : public ::protozero::Message {
@@ -104,6 +108,8 @@ class InputMethodManagerServiceProto : public ::protozero::Message {
     kImeWindowVisibilityFieldNumber = 22,
     kShowImeWithHardKeyboardFieldNumber = 23,
     kAccessibilityRequestingNoSoftKeyboardFieldNumber = 24,
+    kConcurrentMultiUserModeEnabledFieldNumber = 25,
+    kPreventImeStartupUnlessTextEditorFieldNumber = 26,
   };
   static constexpr const char* GetName() { return ".perfetto.protos.InputMethodManagerServiceProto"; }
 
@@ -553,6 +559,42 @@ class InputMethodManagerServiceProto : public ::protozero::Message {
   static constexpr FieldMetadata_AccessibilityRequestingNoSoftKeyboard kAccessibilityRequestingNoSoftKeyboard{};
   void set_accessibility_requesting_no_soft_keyboard(bool value) {
     static constexpr uint32_t field_id = FieldMetadata_AccessibilityRequestingNoSoftKeyboard::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kBool>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_ConcurrentMultiUserModeEnabled =
+    ::protozero::proto_utils::FieldMetadata<
+      25,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kBool,
+      bool,
+      InputMethodManagerServiceProto>;
+
+  static constexpr FieldMetadata_ConcurrentMultiUserModeEnabled kConcurrentMultiUserModeEnabled{};
+  void set_concurrent_multi_user_mode_enabled(bool value) {
+    static constexpr uint32_t field_id = FieldMetadata_ConcurrentMultiUserModeEnabled::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kBool>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_PreventImeStartupUnlessTextEditor =
+    ::protozero::proto_utils::FieldMetadata<
+      26,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kBool,
+      bool,
+      InputMethodManagerServiceProto>;
+
+  static constexpr FieldMetadata_PreventImeStartupUnlessTextEditor kPreventImeStartupUnlessTextEditor{};
+  void set_prevent_ime_startup_unless_text_editor(bool value) {
+    static constexpr uint32_t field_id = FieldMetadata_PreventImeStartupUnlessTextEditor::kFieldId;
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<

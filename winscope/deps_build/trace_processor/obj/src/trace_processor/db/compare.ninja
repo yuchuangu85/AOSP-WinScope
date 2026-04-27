@@ -1,7 +1,0 @@
-defines = -D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS -D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS -DNDEBUG
-include_dirs = -I../buildtools/libcxx_config
-root_out_dir = .
-target_output_name = compare
-
-
-build obj/src/trace_processor/db/compare.stamp: stamp || obj/include/perfetto/trace_processor/trace_processor.stamp obj/src/trace_processor/containers/containers.stamp obj/include/perfetto/trace_processor/basic_types.stamp obj/include/perfetto/base/base.stamp obj/include/perfetto/public/base.stamp obj/include/perfetto/public/abi/base.stamp obj/include/perfetto/trace_processor/storage.stamp obj/buildtools/libc++.stamp obj/buildtools/libc++abi.stamp obj/include/perfetto/protozero/protozero.stamp obj/include/perfetto/public/protozero.stamp obj/protos/perfetto/trace_processor/zero.stamp obj/protos/perfetto/common/zero.stamp obj/src/protozero/protozero.stamp obj/src/base/base.stamp obj/include/perfetto/ext/base/base.stamp obj/src/base/perfetto_base_default_platform.stamp obj/protos/perfetto/perfetto_sql/zero.stamp

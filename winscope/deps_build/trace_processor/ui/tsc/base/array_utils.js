@@ -19,6 +19,7 @@ exports.arrayEquals = arrayEquals;
 exports.isArrayOf = isArrayOf;
 exports.removeFalsyValues = removeFalsyValues;
 exports.moveArrayItem = moveArrayItem;
+exports.valueIfAllEqual = valueIfAllEqual;
 // A function similar to Python's `range`.
 function range(n) {
     if (n < 0) {
@@ -65,5 +66,14 @@ function moveArrayItem(array, from, to) {
         --to;
     }
     array.splice(to, 0, value);
+}
+// If all values in the array are the same, returns that value. Otherwise
+// returns undefined. If the array is empty, returns undefined.
+function valueIfAllEqual(arr) {
+    if (arr.length === 0)
+        return undefined;
+    if (arr.every((val) => val === arr[0]))
+        return arr[0];
+    return undefined;
 }
 //# sourceMappingURL=array_utils.js.map

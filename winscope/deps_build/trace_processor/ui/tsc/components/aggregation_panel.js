@@ -16,90 +16,62 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AggregationPanel = void 0;
 const tslib_1 = require("tslib");
 const mithril_1 = tslib_1.__importDefault(require("mithril"));
-const colorizer_1 = require("./colorizer");
-const duration_1 = require("./widgets/duration");
-const thread_state_1 = require("./sql_utils/thread_state");
+const time_1 = require("../base/time");
+const box_1 = require("../widgets/box");
+const stack_1 = require("../widgets/stack");
+const data_grid_1 = require("./widgets/data_grid/data_grid");
 class AggregationPanel {
-    trace;
-    constructor({ attrs }) {
-        this.trace = attrs.trace;
-    }
     view({ attrs }) {
-        return (0, mithril_1.default)('.details-panel', (0, mithril_1.default)('.details-panel-heading.aggregation', attrs.data.extra !== undefined &&
-            attrs.data.extra.kind === 'THREAD_STATE'
-            ? this.showStateSummary(attrs.data.extra)
-            : null, this.showTimeRange(), (0, mithril_1.default)('table', (0, mithril_1.default)('tr', attrs.data.columns.map((col) => this.formatColumnHeading(col, attrs.model))), (0, mithril_1.default)('tr.sum', attrs.data.columnSums.map((sum) => {
-            const sumClass = sum === '' ? 'td' : 'td.sum-data';
-            return (0, mithril_1.default)(sumClass, sum);
-        })))), (0, mithril_1.default)('.details-table.aggregation', (0, mithril_1.default)('table', this.getRows(attrs.data))));
+        const { dataSource, sorting, columns, barChartData } = attrs;
+        return (0, mithril_1.default)(stack_1.Stack, { fillHeight: true, spacing: 'none' }, [
+            barChartData && (0, mithril_1.default)(stack_1.StackFixed, (0, mithril_1.default)(box_1.Box, this.renderBarChart(barChartData))),
+            (0, mithril_1.default)(stack_1.StackAuto, this.renderTable(dataSource, sorting, columns)),
+        ]);
     }
-    formatColumnHeading(col, model) {
-        const pref = model.getSortingPrefs();
-        let sortIcon = '';
-        if (pref && pref.column === col.columnId) {
-            sortIcon =
-                pref.direction === 'DESC' ? 'arrow_drop_down' : 'arrow_drop_up';
-        }
-        return (0, mithril_1.default)('th', {
-            onclick: () => {
-                model.toggleSortingColumn(col.columnId);
+    renderTable(dataSource, sorting, columns) {
+        const columnsById = new Map(columns.map((c) => [c.columnId, c]));
+        return (0, mithril_1.default)(data_grid_1.DataGrid, {
+            fillHeight: true,
+            showResetButton: false,
+            columns: columns.map((c) => {
+                return {
+                    name: c.columnId,
+                    title: c.title,
+                    aggregation: c.sum ? 'SUM' : undefined,
+                };
+            }),
+            data: dataSource,
+            initialSorting: sorting,
+            cellRenderer: (value, columnName) => {
+                const formatHint = columnsById.get(columnName)?.formatHint;
+                return this.renderCell(value, columnName, formatHint);
             },
-        }, col.title, (0, mithril_1.default)('i.material-icons', sortIcon));
+        });
     }
-    getRows(data) {
-        if (data.columns.length === 0)
-            return;
-        const rows = [];
-        for (let i = 0; i < data.columns[0].data.length; i++) {
-            const row = [];
-            for (let j = 0; j < data.columns.length; j++) {
-                row.push((0, mithril_1.default)('td', this.getFormattedData(data, i, j)));
-            }
-            rows.push((0, mithril_1.default)('tr', row));
-        }
-        return rows;
-    }
-    getFormattedData(data, rowIndex, columnIndex) {
-        switch (data.columns[columnIndex].kind) {
-            case 'STRING':
-                return data.strings[data.columns[columnIndex].data[rowIndex]];
-            case 'TIMESTAMP_NS':
-                return `${data.columns[columnIndex].data[rowIndex] / 1000000}`;
-            case 'STATE': {
-                const concatState = data.strings[data.columns[columnIndex].data[rowIndex]];
-                const split = concatState.split(',');
-                const ioWait = split[1] === 'NULL' ? undefined : !!Number.parseInt(split[1], 10);
-                return (0, thread_state_1.translateState)(split[0], ioWait);
-            }
-            case 'NUMBER':
-            default:
-                return data.columns[columnIndex].data[rowIndex];
-        }
-    }
-    showTimeRange() {
-        const selection = this.trace.selection.selection;
-        if (selection.kind !== 'area')
-            return undefined;
-        const duration = selection.end - selection.start;
-        return (0, mithril_1.default)('.time-range', 'Selected range: ', (0, mithril_1.default)(duration_1.DurationWidget, { dur: duration }));
-    }
-    // Thread state aggregation panel only
-    showStateSummary(data) {
-        if (data === undefined)
-            return undefined;
-        const states = [];
-        for (let i = 0; i < data.states.length; i++) {
-            const colorScheme = (0, colorizer_1.colorForState)(data.states[i]);
-            const width = (data.values[i] / data.totalMs) * 100;
-            states.push((0, mithril_1.default)('.state', {
+    renderBarChart(data) {
+        const summedValues = data.reduce((sum, item) => sum + item.value, 0);
+        return (0, mithril_1.default)('.pf-aggregation-panel__bar-chart', data.map((d) => {
+            const width = (d.value / summedValues) * 100;
+            return (0, mithril_1.default)('.pf-aggregation-panel__bar-chart-bar', {
                 style: {
-                    background: colorScheme.base.cssString,
-                    color: colorScheme.textBase.cssString,
+                    background: d.color.base.cssString,
+                    color: d.color.textBase.cssString,
+                    borderColor: d.color.variant.cssString,
                     width: `${width}%`,
                 },
-            }, `${data.states[i]}: ${data.values[i]} ms`));
+            }, d.title);
+        }));
+    }
+    renderCell(value, colName, formatHint) {
+        if (formatHint === 'DURATION_NS' && typeof value === 'bigint') {
+            return (0, mithril_1.default)('span.pf-data-grid__cell--number', time_1.Duration.humanise(value));
         }
-        return (0, mithril_1.default)('.states', states);
+        else if (formatHint === 'PERCENT' && typeof value === 'number') {
+            return (0, mithril_1.default)('span.pf-data-grid__cell--number', `${(value * 100).toFixed(2)}%`);
+        }
+        else {
+            return (0, data_grid_1.renderCell)(value, colName);
+        }
     }
 }
 exports.AggregationPanel = AggregationPanel;

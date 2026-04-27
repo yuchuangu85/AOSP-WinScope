@@ -20,8 +20,8 @@ const mithril_1 = tslib_1.__importDefault(require("mithril"));
 const details_shell_1 = require("../../../widgets/details_shell");
 const add_ephemeral_tab_1 = require("../../details/add_ephemeral_tab");
 const chart_1 = require("./chart");
-function addChartTab(chart) {
-    (0, add_ephemeral_tab_1.addEphemeralTab)(`${chart.chartType}Tab`, new ChartTab(chart));
+function addChartTab(trace, chart) {
+    (0, add_ephemeral_tab_1.addEphemeralTab)(trace, `${chart.chartType}Tab`, new ChartTab(chart));
 }
 class ChartTab {
     chart;

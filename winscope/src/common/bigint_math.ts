@@ -15,21 +15,32 @@
  */
 
 /**
- * BigintMath provides mathematical operations for bigints.
+ * Divides two bigints and rounds the result to the nearest integer.
+ *
+ * @param ns The numerator.
+ * @param div The denominator.
+ * @return The result of the division, rounded to the nearest integer.
  */
-export class BigintMath {
-  /**
-   * Divides two bigints and rounds the result to the nearest integer.
-   *
-   * @param ns The dividend.
-   * @param div The divisor.
-   * @return The rounded quotient.
-   */
-  static divideAndRound(ns: bigint, div: bigint): bigint {
-    let quot = ns / div;
-    if (ns % div >= div / 2n) {
-      quot += 1n;
-    }
-    return quot;
+export function divideAndRound(ns: bigint, div: bigint): bigint {
+  let quot = ns / div;
+  if (ns % div >= div / 2n) {
+    quot += 1n;
   }
+  return quot;
+}
+
+/**
+ * Gets the maximum value in an array of bigints.
+ *
+ * @param values The array of bigints.
+ * @return The maximum value in the array, or undefined if the array is empty.
+ */
+export function getMax(values: Array<bigint>): bigint | undefined {
+  let max: bigint | undefined;
+  for (const value of values) {
+    if (max === undefined || value > max) {
+      max = value;
+    }
+  }
+  return max;
 }

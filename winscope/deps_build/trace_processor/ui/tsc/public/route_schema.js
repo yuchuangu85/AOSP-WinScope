@@ -15,6 +15,9 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ROUTE_SCHEMA = void 0;
 const zod_1 = require("zod");
+// Args are parsed by the Router into strings or booleans only.
+// E.g. ?hideSidebar=true&url=a?b?c -> {hideSidebar: true, url: 'a?b?c'}
+const argSchema = zod_1.z.union([zod_1.z.string(), zod_1.z.boolean()]);
 // We use .catch(undefined) on every field below to make sure that passing an
 // invalid value doesn't invalidate the other keys which might be valid.
 // Zod default behaviour is atomic: either everything validates correctly or
@@ -56,7 +59,11 @@ exports.ROUTE_SCHEMA = zod_1.z
     query: zod_1.z.string().optional().catch(undefined),
     visStart: zod_1.z.string().optional().catch(undefined),
     visEnd: zod_1.z.string().optional().catch(undefined),
+    // Startup commands to execute on trace load (JSON-encoded array)
+    startupCommands: zod_1.z.string().optional().catch(undefined),
 })
+    // Allow arbitrary values to pass through, these may be forwarded to plugins.
+    .catchall(argSchema)
     // default({}) ensures at compile-time that every entry is either optional or
     // has a default value.
     .default({});

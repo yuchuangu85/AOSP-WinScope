@@ -1,4 +1,5 @@
-wasm/gen/protos/perfetto/trace/trace.descriptor: ..//protos/perfetto/common/trace_stats.proto\
+wasm/gen/protos/perfetto/trace/trace.descriptor: ..//protos/perfetto/common/system_info.proto\
+ ..//protos/perfetto/common/trace_stats.proto\
  ..//protos/perfetto/common/builtin_clock.proto\
  ..//protos/perfetto/config/android/android_game_intervention_list_config.proto\
  ..//protos/perfetto/config/android/android_input_event_config.proto\
@@ -8,6 +9,7 @@ wasm/gen/protos/perfetto/trace/trace.descriptor: ..//protos/perfetto/common/trac
  ..//protos/perfetto/config/android/android_system_property_config.proto\
  ..//protos/perfetto/config/android/android_sdk_sysprop_guard_config.proto\
  ..//protos/perfetto/config/android/app_wakelock_config.proto\
+ ..//protos/perfetto/config/android/cpu_per_uid_config.proto\
  ..//protos/perfetto/config/android/kernel_wakelocks_config.proto\
  ..//protos/perfetto/config/android/network_trace_config.proto\
  ..//protos/perfetto/config/android/packages_list_config.proto\
@@ -22,6 +24,7 @@ wasm/gen/protos/perfetto/trace/trace.descriptor: ..//protos/perfetto/common/trac
  ..//protos/perfetto/config/etw/etw_config.proto\
  ..//protos/perfetto/config/chrome/system_metrics.proto\
  ..//protos/perfetto/config/ftrace/ftrace_config.proto\
+ ..//protos/perfetto/config/ftrace/frozen_ftrace_config.proto\
  ..//protos/perfetto/config/gpu/gpu_counter_config.proto\
  ..//protos/perfetto/config/gpu/vulkan_memory_config.proto\
  ..//protos/perfetto/config/gpu/gpu_renderstages_config.proto\
@@ -31,6 +34,7 @@ wasm/gen/protos/perfetto/trace/trace.descriptor: ..//protos/perfetto/common/trac
  ..//protos/perfetto/config/power/android_power_config.proto\
  ..//protos/perfetto/config/statsd/atom_ids.proto\
  ..//protos/perfetto/config/statsd/statsd_tracing_config.proto\
+ ..//protos/perfetto/config/priority_boost/priority_boost_config.proto\
  ..//protos/perfetto/config/process_stats/process_stats_config.proto\
  ..//protos/perfetto/config/profiling/heapprofd_config.proto\
  ..//protos/perfetto/config/profiling/java_hprof_config.proto\
@@ -40,7 +44,7 @@ wasm/gen/protos/perfetto/trace/trace.descriptor: ..//protos/perfetto/common/trac
  ..//protos/perfetto/config/sys_stats/sys_stats_config.proto\
  ..//protos/perfetto/config/test_config.proto\
  ..//protos/perfetto/config/track_event/track_event_config.proto\
- ..//protos/perfetto/config/system_info/system_info.proto\
+ ..//protos/perfetto/config/system_info/system_info_config.proto\
  ..//protos/perfetto/config/chrome/histogram_samples.proto\
  ..//protos/perfetto/config/data_source_config.proto\
  ..//protos/perfetto/config/trace_config.proto\
@@ -52,6 +56,7 @@ wasm/gen/protos/perfetto/trace/trace.descriptor: ..//protos/perfetto/common/trac
  ..//protos/perfetto/trace/android/app_wakelock_data.proto\
  ..//protos/perfetto/trace/android/bluetooth_trace.proto\
  ..//protos/perfetto/trace/android/camera_event.proto\
+ ..//protos/perfetto/trace/android/cpu_per_uid_data.proto\
  ..//protos/perfetto/trace/android/frame_timeline_event.proto\
  ..//protos/perfetto/trace/android/gpu_mem_event.proto\
  ..//protos/perfetto/trace/android/graphics_frame_event.proto\
@@ -76,6 +81,7 @@ wasm/gen/protos/perfetto/trace/trace.descriptor: ..//protos/perfetto/common/trac
  ..//protos/perfetto/trace/etw/etw.proto\
  ..//protos/perfetto/trace/etw/etw_event.proto\
  ..//protos/perfetto/trace/etw/etw_event_bundle.proto\
+ ..//protos/perfetto/trace/evdev.proto\
  ..//protos/perfetto/trace/filesystem/inode_file_map.proto\
  ..//protos/perfetto/trace/ftrace/android_fs.proto\
  ..//protos/perfetto/trace/ftrace/bcl_exynos.proto\
@@ -94,6 +100,7 @@ wasm/gen/protos/perfetto/trace/trace.descriptor: ..//protos/perfetto/common/trac
  ..//protos/perfetto/trace/ftrace/dmabuf_heap.proto\
  ..//protos/perfetto/trace/ftrace/dpu.proto\
  ..//protos/perfetto/trace/ftrace/drm.proto\
+ ..//protos/perfetto/trace/ftrace/dwc3.proto\
  ..//protos/perfetto/trace/ftrace/ext4.proto\
  ..//protos/perfetto/trace/ftrace/f2fs.proto\
  ..//protos/perfetto/trace/ftrace/fastrpc.proto\
@@ -107,10 +114,12 @@ wasm/gen/protos/perfetto/trace/trace.descriptor: ..//protos/perfetto/common/trac
  ..//protos/perfetto/trace/ftrace/gpu_mem.proto\
  ..//protos/perfetto/trace/ftrace/gpu_scheduler.proto\
  ..//protos/perfetto/trace/ftrace/hyp.proto\
+ ..//protos/perfetto/trace/ftrace/hypervisor.proto\
  ..//protos/perfetto/trace/ftrace/i2c.proto\
  ..//protos/perfetto/trace/ftrace/ion.proto\
  ..//protos/perfetto/trace/ftrace/ipi.proto\
  ..//protos/perfetto/trace/ftrace/irq.proto\
+ ..//protos/perfetto/trace/ftrace/irq_vectors.proto\
  ..//protos/perfetto/trace/ftrace/kgsl.proto\
  ..//protos/perfetto/trace/ftrace/kmem.proto\
  ..//protos/perfetto/trace/ftrace/kvm.proto\
@@ -143,6 +152,7 @@ wasm/gen/protos/perfetto/trace/trace.descriptor: ..//protos/perfetto/common/trac
  ..//protos/perfetto/trace/ftrace/tcp.proto\
  ..//protos/perfetto/trace/ftrace/thermal.proto\
  ..//protos/perfetto/trace/ftrace/thermal_exynos.proto\
+ ..//protos/perfetto/trace/ftrace/timer.proto\
  ..//protos/perfetto/trace/ftrace/trusty.proto\
  ..//protos/perfetto/trace/ftrace/ufs.proto\
  ..//protos/perfetto/trace/ftrace/v4l2.proto\
@@ -154,6 +164,8 @@ wasm/gen/protos/perfetto/trace/trace.descriptor: ..//protos/perfetto/common/trac
  ..//protos/perfetto/trace/ftrace/ftrace_event.proto\
  ..//protos/perfetto/trace/ftrace/ftrace_stats.proto\
  ..//protos/perfetto/trace/ftrace/ftrace_event_bundle.proto\
+ ..//protos/perfetto/trace/generic_kernel/generic_power.proto\
+ ..//protos/perfetto/trace/generic_kernel/generic_task.proto\
  ..//protos/perfetto/common/gpu_counter_descriptor.proto\
  ..//protos/perfetto/trace/gpu/gpu_counter_event.proto\
  ..//protos/perfetto/trace/gpu/gpu_log.proto\
@@ -199,7 +211,6 @@ wasm/gen/protos/perfetto/trace/trace.descriptor: ..//protos/perfetto/common/trac
  ..//protos/perfetto/trace/ps/process_tree.proto\
  ..//protos/perfetto/trace/remote_clock_sync.proto\
  ..//protos/perfetto/trace/sys_stats/sys_stats.proto\
- ..//protos/perfetto/trace/system_info.proto\
  ..//protos/perfetto/trace/system_info/cpu_info.proto\
  ..//protos/perfetto/trace/trace_packet_defaults.proto\
  ..//protos/perfetto/trace/track_event/process_descriptor.proto\

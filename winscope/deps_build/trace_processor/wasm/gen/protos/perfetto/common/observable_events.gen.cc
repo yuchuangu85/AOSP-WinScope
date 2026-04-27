@@ -105,7 +105,8 @@ bool ObservableEvents_CloneTriggerHit::operator==(const ObservableEvents_CloneTr
    && ::protozero::internal::gen_helpers::EqualsField(trigger_name_, other.trigger_name_)
    && ::protozero::internal::gen_helpers::EqualsField(producer_name_, other.producer_name_)
    && ::protozero::internal::gen_helpers::EqualsField(producer_uid_, other.producer_uid_)
-   && ::protozero::internal::gen_helpers::EqualsField(boot_time_ns_, other.boot_time_ns_);
+   && ::protozero::internal::gen_helpers::EqualsField(boot_time_ns_, other.boot_time_ns_)
+   && ::protozero::internal::gen_helpers::EqualsField(trigger_delay_ms_, other.trigger_delay_ms_);
 }
 
 bool ObservableEvents_CloneTriggerHit::ParseFromArray(const void* raw, size_t size) {
@@ -132,6 +133,9 @@ bool ObservableEvents_CloneTriggerHit::ParseFromArray(const void* raw, size_t si
         break;
       case 5 /* boot_time_ns */:
         field.get(&boot_time_ns_);
+        break;
+      case 6 /* trigger_delay_ms */:
+        field.get(&trigger_delay_ms_);
         break;
       default:
         field.SerializeAndAppendTo(&unknown_fields_);
@@ -177,6 +181,11 @@ void ObservableEvents_CloneTriggerHit::Serialize(::protozero::Message* msg) cons
   // Field 5: boot_time_ns
   if (_has_field_[5]) {
     ::protozero::internal::gen_helpers::SerializeVarInt(5, boot_time_ns_, msg);
+  }
+
+  // Field 6: trigger_delay_ms
+  if (_has_field_[6]) {
+    ::protozero::internal::gen_helpers::SerializeVarInt(6, trigger_delay_ms_, msg);
   }
 
   protozero::internal::gen_helpers::SerializeUnknownFields(unknown_fields_, msg);

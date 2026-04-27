@@ -18,8 +18,10 @@ const tslib_1 = require("tslib");
 const mithril_1 = tslib_1.__importDefault(require("mithril"));
 const assets_1 = require("../../../base/assets");
 const utils_1 = require("../../../base/utils");
-const docs_chip_1 = require("./widgets/docs_chip");
 const classnames_1 = require("../../../base/classnames");
+const anchor_1 = require("../../../widgets/anchor");
+const semantic_icons_1 = require("../../../base/semantic_icons");
+const switch_1 = require("../../../widgets/switch");
 class Probe {
     view({ attrs }) {
         const onToggle = (enabled) => {
@@ -31,13 +33,14 @@ class Probe {
         const compact = !(0, utils_1.exists)(probe.description) &&
             !(0, utils_1.exists)(probe.image) &&
             (probe.settings ?? []).length === 0;
-        return (0, mithril_1.default)('.probe', {
+        return (0, mithril_1.default)('.pf-probe', {
             className: (0, classnames_1.classNames)(enabled && 'enabled', compact && 'compact'),
         }, probe.image &&
             (0, mithril_1.default)('img', {
                 src: (0, assets_1.assetSrc)(`assets/${probe.image}`),
                 onclick: () => onToggle(!enabled),
-            }), (0, mithril_1.default)('label', (0, mithril_1.default)(`input[type=checkbox]`, {
+            }), (0, mithril_1.default)(switch_1.Switch, {
+            className: 'pf-probe__switch',
             checked: enabled,
             disabled: forceEnabledDeps.length > 0,
             title: forceEnabledDeps.length > 0
@@ -46,10 +49,38 @@ class Probe {
             oninput: (e) => {
                 onToggle(e.target.checked);
             },
-        }), (0, mithril_1.default)('span', probe.title)), compact
+            label: probe.title,
+        }), compact
             ? ''
-            : (0, mithril_1.default)(`div${probe.image ? '' : '.extended-desc'}`, (0, mithril_1.default)('div', probe.description, probe.docsLink && (0, mithril_1.default)(docs_chip_1.DocsChip, { href: probe.docsLink })), (0, mithril_1.default)('.probe-config', Object.values(attrs.probe.settings ?? {}).map((widget) => widget.render()))));
+            : (0, mithril_1.default)(`div${probe.image ? '' : '.extended-desc'}`, probe.description &&
+                (0, mithril_1.default)('.pf-probe__descr', formatDescription(probe.description), probe.docsLink &&
+                    (0, mithril_1.default)(anchor_1.Anchor, { icon: semantic_icons_1.Icons.ExternalLink, href: probe.docsLink }, 'Docs')), (0, mithril_1.default)('.probe-config', Object.values(attrs.probe.settings ?? {}).map((widget) => widget.render()))));
     }
 }
 exports.Probe = Probe;
+/** Formats the probe.description turning ``` blocks into code snippets */
+function formatDescription(input) {
+    if (input === undefined)
+        return [];
+    const result = [];
+    const regex = /```(.*?)```/gs;
+    let lastIndex = 0;
+    for (const match of input.matchAll(regex)) {
+        const [fullMatch, codeContent] = match;
+        const matchStart = match.index ?? 0;
+        // Add preceding plain text
+        if (matchStart > lastIndex) {
+            const text = input.slice(lastIndex, matchStart);
+            result.push((0, mithril_1.default)('div', text));
+        }
+        // Add code block
+        result.push((0, mithril_1.default)('code', codeContent));
+        lastIndex = matchStart + fullMatch.length;
+    }
+    // Add remaining text after last match
+    if (lastIndex < input.length) {
+        result.push((0, mithril_1.default)('div', input.slice(lastIndex)));
+    }
+    return result;
+}
 //# sourceMappingURL=probe_renderer.js.map

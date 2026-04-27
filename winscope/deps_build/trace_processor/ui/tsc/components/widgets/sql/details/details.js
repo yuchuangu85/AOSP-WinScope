@@ -26,10 +26,11 @@ const anchor_1 = require("../../../../widgets/anchor");
 const error_1 = require("../../../../widgets/error");
 const sql_ref_1 = require("../../../../widgets/sql_ref");
 const tree_1 = require("../../../../widgets/tree");
-const slice_args_1 = require("../../../details/slice_args");
+const args_2 = require("../../../details/args");
 const duration_1 = require("../../../widgets/duration");
 const timestamp_1 = require("../../../widgets/timestamp");
 const sql_ref_renderer_registry_1 = require("./sql_ref_renderer_registry");
+const slice_args_1 = require("../../../details/slice_args");
 // This file contains the helper to render the details tree (based on Tree
 // widget) for an object represented by a SQL row in some table. The user passes
 // a typed schema of the tree and this impl handles fetching and rendering.
@@ -514,6 +515,7 @@ function renderValue(trace, key, value, data, sqlIdRefRenderers) {
             }
             else {
                 rhs = (0, mithril_1.default)(timestamp_1.Timestamp, {
+                    trace,
                     ts: time_1.Time.fromRaw(ts),
                 });
             }
@@ -528,6 +530,7 @@ function renderValue(trace, key, value, data, sqlIdRefRenderers) {
                 left: key,
                 right: typeof dur === 'bigint' &&
                     (0, mithril_1.default)(duration_1.DurationWidget, {
+                        trace,
                         dur,
                     }),
             });
@@ -539,6 +542,7 @@ function renderValue(trace, key, value, data, sqlIdRefRenderers) {
                 left: key,
                 right: typeof dur === 'bigint' &&
                     (0, mithril_1.default)(duration_1.DurationWidget, {
+                        trace,
                         dur,
                     }),
             });
@@ -560,7 +564,7 @@ function renderValue(trace, key, value, data, sqlIdRefRenderers) {
                     rhs = (0, error_1.renderError)(`Unknown table ${ref.tableName} (${ref.tableName}[${refData.id}])`);
                 }
                 else {
-                    const rendered = renderer.render(refData.data);
+                    const rendered = renderer.render(trace, refData.data);
                     rhs = rendered.value;
                     children = rendered.children;
                 }
@@ -574,10 +578,10 @@ function renderValue(trace, key, value, data, sqlIdRefRenderers) {
             if (args instanceof Err) {
                 return (0, error_1.renderError)(args.message);
             }
-            return ((0, slice_args_1.hasArgs)(args) &&
+            return ((0, args_2.hasArgs)(args) &&
                 (0, mithril_1.default)(tree_1.TreeNode, {
                     left: key,
-                }, (0, slice_args_1.renderArguments)(trace, args)));
+                }, (0, slice_args_1.renderSliceArguments)(trace, args)));
         case 'array': {
             const children = [];
             for (const child of value.data) {

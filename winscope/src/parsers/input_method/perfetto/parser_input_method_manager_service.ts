@@ -14,25 +14,24 @@
  * limitations under the License.
  */
 
-import {assertDefined} from 'common/assert_utils';
+import {assertDefined} from 'common/assert';
 import {ParserTimestampConverter} from 'common/time/timestamp_converter';
 import {HierarchyTreeManagerServiceFactory} from 'parsers/input_method/hierarchy_tree_manager_service_factory';
 import {AbstractParser} from 'parsers/perfetto/abstract_parser';
 import {FakeProtoTransformer} from 'parsers/perfetto/fake_proto_transformer';
-import {Utils} from 'parsers/perfetto/utils';
-import {TamperedMessageType} from 'parsers/tampered_message_type';
-import root from 'protos/ime/latest/json';
+import {queryEntry} from 'parsers/perfetto/utils';
+import {TAMPERED_WINSCOPE_EXTENSIONS} from 'trace/proto_utils/tampered_message_type';
 import {TraceFile} from 'trace/trace_file';
-import {TraceType} from 'trace/trace_type';
-import {HierarchyTreeNode} from 'trace/tree_node/hierarchy_tree_node';
+import {TraceType} from 'trace_api/trace_type';
 import {TraceProcessor} from 'trace_processor/trace_processor';
+import {HierarchyTreeNode} from 'tree_node/hierarchy_tree_node';
 
 export class ParserInputMethodManagerService extends AbstractParser<HierarchyTreeNode> {
-  private static readonly Wrapper = TamperedMessageType.tamper(
-    root.lookupType('perfetto.protos.Wrapper'),
+  private static readonly ENTRY_FIELD = assertDefined(
+    TAMPERED_WINSCOPE_EXTENSIONS.fields[
+      '.perfetto.protos.WinscopeExtensionsImpl.inputmethodManagerService'
+    ],
   );
-  private static readonly ENTRY_FIELD =
-    ParserInputMethodManagerService.Wrapper.fields['inputmethodManagerService'];
   private static readonly MANAGER_SERVICE_FIELD = assertDefined(
     ParserInputMethodManagerService.ENTRY_FIELD.tamperedMessageType,
   ).fields['inputMethodManagerService'];
@@ -63,7 +62,7 @@ export class ParserInputMethodManagerService extends AbstractParser<HierarchyTre
   }
 
   override async getEntry(index: number): Promise<HierarchyTreeNode> {
-    let entryProto = await Utils.queryEntry(
+    let entryProto = await queryEntry(
       this.traceProcessor,
       this.getTableName(),
       this.entryIndexToRowIdMap,

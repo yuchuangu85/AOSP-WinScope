@@ -14,11 +14,12 @@
 // limitations under the License.
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ProcessSchedulingTrack = exports.PROCESS_SCHEDULING_TRACK_KIND = void 0;
+const tslib_1 = require("tslib");
 const bigint_math_1 = require("../../base/bigint_math");
 const binary_search_1 = require("../../base/binary_search");
 const logging_1 = require("../../base/logging");
 const time_1 = require("../../base/time");
-const canvas_utils_1 = require("../../base/canvas_utils");
+const mithril_1 = tslib_1.__importDefault(require("mithril"));
 const colorizer_1 = require("../../components/colorizer");
 const track_helper_1 = require("../../components/tracks/track_helper");
 const checkerboard_1 = require("../../components/checkerboard");
@@ -37,6 +38,7 @@ class ProcessSchedulingTrack {
     threads;
     mousePos;
     utidHoveredInThisTrack = -1;
+    countHoveredInThisTrack = -1;
     fetcher = new track_helper_1.TimelineFetcher(this.onBoundsChange.bind(this));
     trackUuid = (0, uuid_1.uuidv4Sql)();
     constructor(trace, config, cpuCount, threads) {
@@ -76,8 +78,15 @@ class ProcessSchedulingTrack {
       `;
         };
         const trash = new disposable_stack_1.AsyncDisposableStack();
-        trash.use(await (0, sql_utils_1.createPerfettoTable)(this.trace.engine, `tmp_${this.trackUuid}`, getQuery()));
-        await (0, sql_utils_1.createVirtualTable)(this.trace.engine, `process_scheduling_${this.trackUuid}`, `__intrinsic_slice_mipmap((
+        trash.use(await (0, sql_utils_1.createPerfettoTable)({
+            engine: this.trace.engine,
+            name: `tmp_${this.trackUuid}`,
+            as: getQuery(),
+        }));
+        await (0, sql_utils_1.createVirtualTable)({
+            engine: this.trace.engine,
+            name: `process_scheduling_${this.trackUuid}`,
+            using: `__intrinsic_slice_mipmap((
         select
           s.id,
           s.ts,
@@ -97,7 +106,8 @@ class ProcessSchedulingTrack {
           ) as dur,
           s.cpu as depth
         from tmp_${this.trackUuid} s
-      ))`);
+      ))`,
+        });
         await trash.asyncDispose();
     }
     async onUpdate({ visibleWindow, resolution, }) {
@@ -121,12 +131,14 @@ class ProcessSchedulingTrack {
             resolution,
             length: numRows,
             maxCpu: this.cpuCount,
+            counts: new Uint32Array(numRows),
             starts: new BigInt64Array(numRows),
             ends: new BigInt64Array(numRows),
             cpus: new Uint32Array(numRows),
             utids: new Uint32Array(numRows),
         };
         const it = queryRes.iter({
+            count: query_result_1.NUM,
             ts: query_result_1.LONG,
             dur: query_result_1.LONG,
             cpu: query_result_1.NUM,
@@ -136,6 +148,7 @@ class ProcessSchedulingTrack {
             const start = time_1.Time.fromRaw(it.ts);
             const dur = it.dur;
             const end = time_1.Time.add(start, dur);
+            slices.counts[row] = it.count;
             slices.starts[row] = start;
             slices.ends[row] = end;
             slices.cpus[row] = it.cpu;
@@ -150,6 +163,7 @@ class ProcessSchedulingTrack {
         (z.ts / ${bucketSize}) * ${bucketSize} as ts,
         iif(s.dur = -1, s.dur, max(z.dur, ${bucketSize})) as dur,
         s.id,
+        z.count,
         z.depth as cpu,
         utid
       from process_scheduling_${this.trackUuid}(
@@ -160,6 +174,25 @@ class ProcessSchedulingTrack {
     }
     getHeight() {
         return TRACK_HEIGHT;
+    }
+    renderTooltip() {
+        if (this.utidHoveredInThisTrack === -1 || this.mousePos === undefined) {
+            return undefined;
+        }
+        const hoveredThread = this.threads.get(this.utidHoveredInThisTrack);
+        if (!hoveredThread) {
+            return undefined;
+        }
+        const tidText = `T: ${hoveredThread.threadName} [${hoveredThread.tid}]`;
+        const count = this.countHoveredInThisTrack;
+        const countDiv = count > 1 && (0, mithril_1.default)('div', `and ${count - 1} other events`);
+        if (hoveredThread.pid !== undefined) {
+            const pidText = `P: ${hoveredThread.procName} [${hoveredThread.pid}]`;
+            return (0, mithril_1.default)('.tooltip', [(0, mithril_1.default)('div', pidText), (0, mithril_1.default)('div', tidText), countDiv]);
+        }
+        else {
+            return (0, mithril_1.default)('.tooltip', tidText, countDiv);
+        }
     }
     render({ ctx, size, timescale, visibleWindow }) {
         // TODO: fonts and colors should come from the CSS and not hardcoded here.
@@ -206,18 +239,6 @@ class ProcessSchedulingTrack {
             const y = MARGIN_TOP + cpuTrackHeight * cpu + cpu;
             ctx.fillRect(rectStart, y, rectWidth, cpuTrackHeight);
         }
-        const hoveredThread = this.threads.get(this.utidHoveredInThisTrack);
-        if (hoveredThread !== undefined && this.mousePos !== undefined) {
-            const tidText = `T: ${hoveredThread.threadName} [${hoveredThread.tid}]`;
-            // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-            if (hoveredThread.pid) {
-                const pidText = `P: ${hoveredThread.procName} [${hoveredThread.pid}]`;
-                (0, canvas_utils_1.drawTrackHoverTooltip)(ctx, this.mousePos, size, pidText, tidText);
-            }
-            else {
-                (0, canvas_utils_1.drawTrackHoverTooltip)(ctx, this.mousePos, size, tidText);
-            }
-        }
     }
     onMouseMove({ x, y, timescale }) {
         const data = this.fetcher.data;
@@ -226,6 +247,7 @@ class ProcessSchedulingTrack {
             return;
         if (y < MARGIN_TOP || y > MARGIN_TOP + RECT_HEIGHT) {
             this.utidHoveredInThisTrack = -1;
+            this.countHoveredInThisTrack = -1;
             this.trace.timeline.hoveredUtid = undefined;
             this.trace.timeline.hoveredPid = undefined;
             return;
@@ -236,17 +258,22 @@ class ProcessSchedulingTrack {
         const [i, j] = (0, binary_search_1.searchRange)(data.starts, t, (0, binary_search_1.searchEq)(data.cpus, cpu));
         if (i === j || i >= data.starts.length || t > data.ends[i]) {
             this.utidHoveredInThisTrack = -1;
+            this.countHoveredInThisTrack = -1;
             this.trace.timeline.hoveredUtid = undefined;
             this.trace.timeline.hoveredPid = undefined;
             return;
         }
         const utid = data.utids[i];
+        const count = data.counts[i];
         this.utidHoveredInThisTrack = utid;
+        this.countHoveredInThisTrack = count;
         const threadInfo = this.threads.get(utid);
         // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
         const pid = threadInfo ? (threadInfo.pid ? threadInfo.pid : -1) : -1;
         this.trace.timeline.hoveredUtid = utid;
         this.trace.timeline.hoveredPid = pid;
+        // Trigger redraw to update tooltip
+        mithril_1.default.redraw();
     }
     onMouseOut() {
         this.utidHoveredInThisTrack = -1;

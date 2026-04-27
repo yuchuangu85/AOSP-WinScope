@@ -98,23 +98,25 @@ const char* FtraceConfig_KprobeEvent_KprobeType_Name(::perfetto::protos::pbzero:
   return "PBZERO_UNKNOWN_ENUM_VALUE";
 }
 
-class FtraceConfig_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/30, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
+class FtraceConfig_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/35, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
  public:
   FtraceConfig_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
   explicit FtraceConfig_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
   explicit FtraceConfig_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
   bool has_ftrace_events() const { return at<1>().valid(); }
   ::protozero::RepeatedFieldIterator<::protozero::ConstChars> ftrace_events() const { return GetRepeated<::protozero::ConstChars>(1); }
-  bool has_kprobe_events() const { return at<30>().valid(); }
-  ::protozero::RepeatedFieldIterator<::protozero::ConstBytes> kprobe_events() const { return GetRepeated<::protozero::ConstBytes>(30); }
   bool has_atrace_categories() const { return at<2>().valid(); }
   ::protozero::RepeatedFieldIterator<::protozero::ConstChars> atrace_categories() const { return GetRepeated<::protozero::ConstChars>(2); }
   bool has_atrace_apps() const { return at<3>().valid(); }
   ::protozero::RepeatedFieldIterator<::protozero::ConstChars> atrace_apps() const { return GetRepeated<::protozero::ConstChars>(3); }
   bool has_atrace_categories_prefer_sdk() const { return at<28>().valid(); }
   ::protozero::RepeatedFieldIterator<::protozero::ConstChars> atrace_categories_prefer_sdk() const { return GetRepeated<::protozero::ConstChars>(28); }
+  bool has_atrace_userspace_only() const { return at<34>().valid(); }
+  bool atrace_userspace_only() const { return at<34>().as_bool(); }
   bool has_buffer_size_kb() const { return at<10>().valid(); }
   uint32_t buffer_size_kb() const { return at<10>().as_uint32(); }
+  bool has_buffer_size_lower_bound() const { return at<27>().valid(); }
+  bool buffer_size_lower_bound() const { return at<27>().as_bool(); }
   bool has_drain_period_ms() const { return at<11>().valid(); }
   uint32_t drain_period_ms() const { return at<11>().as_uint32(); }
   bool has_drain_buffer_percent() const { return at<29>().valid(); }
@@ -127,10 +129,10 @@ class FtraceConfig_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_I
   bool symbolize_ksyms() const { return at<13>().as_bool(); }
   bool has_ksyms_mem_policy() const { return at<17>().valid(); }
   int32_t ksyms_mem_policy() const { return at<17>().as_int32(); }
-  bool has_initialize_ksyms_synchronously_for_testing() const { return at<14>().valid(); }
-  bool initialize_ksyms_synchronously_for_testing() const { return at<14>().as_bool(); }
   bool has_throttle_rss_stat() const { return at<15>().valid(); }
   bool throttle_rss_stat() const { return at<15>().as_bool(); }
+  bool has_denser_generic_event_encoding() const { return at<32>().valid(); }
+  bool denser_generic_event_encoding() const { return at<32>().as_bool(); }
   bool has_disable_generic_events() const { return at<16>().valid(); }
   bool disable_generic_events() const { return at<16>().as_bool(); }
   bool has_syscall_events() const { return at<18>().valid(); }
@@ -141,14 +143,22 @@ class FtraceConfig_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_I
   ::protozero::RepeatedFieldIterator<::protozero::ConstChars> function_filters() const { return GetRepeated<::protozero::ConstChars>(20); }
   bool has_function_graph_roots() const { return at<21>().valid(); }
   ::protozero::RepeatedFieldIterator<::protozero::ConstChars> function_graph_roots() const { return GetRepeated<::protozero::ConstChars>(21); }
+  bool has_function_graph_max_depth() const { return at<33>().valid(); }
+  uint32_t function_graph_max_depth() const { return at<33>().as_uint32(); }
+  bool has_kprobe_events() const { return at<30>().valid(); }
+  ::protozero::RepeatedFieldIterator<::protozero::ConstBytes> kprobe_events() const { return GetRepeated<::protozero::ConstBytes>(30); }
   bool has_preserve_ftrace_buffer() const { return at<23>().valid(); }
   bool preserve_ftrace_buffer() const { return at<23>().as_bool(); }
   bool has_use_monotonic_raw_clock() const { return at<24>().valid(); }
   bool use_monotonic_raw_clock() const { return at<24>().as_bool(); }
   bool has_instance_name() const { return at<25>().valid(); }
   ::protozero::ConstChars instance_name() const { return at<25>().as_string(); }
-  bool has_buffer_size_lower_bound() const { return at<27>().valid(); }
-  bool buffer_size_lower_bound() const { return at<27>().as_bool(); }
+  bool has_debug_ftrace_abi() const { return at<31>().valid(); }
+  bool debug_ftrace_abi() const { return at<31>().as_bool(); }
+  bool has_tids_to_trace() const { return at<35>().valid(); }
+  ::protozero::RepeatedFieldIterator<uint32_t> tids_to_trace() const { return GetRepeated<uint32_t>(35); }
+  bool has_initialize_ksyms_synchronously_for_testing() const { return at<14>().valid(); }
+  bool initialize_ksyms_synchronously_for_testing() const { return at<14>().as_bool(); }
 };
 
 class FtraceConfig : public ::protozero::Message {
@@ -156,34 +166,39 @@ class FtraceConfig : public ::protozero::Message {
   using Decoder = FtraceConfig_Decoder;
   enum : int32_t {
     kFtraceEventsFieldNumber = 1,
-    kKprobeEventsFieldNumber = 30,
     kAtraceCategoriesFieldNumber = 2,
     kAtraceAppsFieldNumber = 3,
     kAtraceCategoriesPreferSdkFieldNumber = 28,
+    kAtraceUserspaceOnlyFieldNumber = 34,
     kBufferSizeKbFieldNumber = 10,
+    kBufferSizeLowerBoundFieldNumber = 27,
     kDrainPeriodMsFieldNumber = 11,
     kDrainBufferPercentFieldNumber = 29,
     kCompactSchedFieldNumber = 12,
     kPrintFilterFieldNumber = 22,
     kSymbolizeKsymsFieldNumber = 13,
     kKsymsMemPolicyFieldNumber = 17,
-    kInitializeKsymsSynchronouslyForTestingFieldNumber = 14,
     kThrottleRssStatFieldNumber = 15,
+    kDenserGenericEventEncodingFieldNumber = 32,
     kDisableGenericEventsFieldNumber = 16,
     kSyscallEventsFieldNumber = 18,
     kEnableFunctionGraphFieldNumber = 19,
     kFunctionFiltersFieldNumber = 20,
     kFunctionGraphRootsFieldNumber = 21,
+    kFunctionGraphMaxDepthFieldNumber = 33,
+    kKprobeEventsFieldNumber = 30,
     kPreserveFtraceBufferFieldNumber = 23,
     kUseMonotonicRawClockFieldNumber = 24,
     kInstanceNameFieldNumber = 25,
-    kBufferSizeLowerBoundFieldNumber = 27,
+    kDebugFtraceAbiFieldNumber = 31,
+    kTidsToTraceFieldNumber = 35,
+    kInitializeKsymsSynchronouslyForTestingFieldNumber = 14,
   };
   static constexpr const char* GetName() { return ".perfetto.protos.FtraceConfig"; }
 
-  using KprobeEvent = ::perfetto::protos::pbzero::FtraceConfig_KprobeEvent;
   using CompactSchedConfig = ::perfetto::protos::pbzero::FtraceConfig_CompactSchedConfig;
   using PrintFilter = ::perfetto::protos::pbzero::FtraceConfig_PrintFilter;
+  using KprobeEvent = ::perfetto::protos::pbzero::FtraceConfig_KprobeEvent;
 
   using KsymsMemPolicy = ::perfetto::protos::pbzero::FtraceConfig_KsymsMemPolicy;
   static inline const char* KsymsMemPolicy_Name(KsymsMemPolicy value) {
@@ -216,20 +231,6 @@ class FtraceConfig : public ::protozero::Message {
       ::protozero::proto_utils::ProtoSchemaType::kString>
         ::Append(*this, field_id, value);
   }
-
-  using FieldMetadata_KprobeEvents =
-    ::protozero::proto_utils::FieldMetadata<
-      30,
-      ::protozero::proto_utils::RepetitionType::kRepeatedNotPacked,
-      ::protozero::proto_utils::ProtoSchemaType::kMessage,
-      FtraceConfig_KprobeEvent,
-      FtraceConfig>;
-
-  static constexpr FieldMetadata_KprobeEvents kKprobeEvents{};
-  template <typename T = FtraceConfig_KprobeEvent> T* add_kprobe_events() {
-    return BeginNestedMessage<T>(30);
-  }
-
 
   using FieldMetadata_AtraceCategories =
     ::protozero::proto_utils::FieldMetadata<
@@ -303,6 +304,24 @@ class FtraceConfig : public ::protozero::Message {
         ::Append(*this, field_id, value);
   }
 
+  using FieldMetadata_AtraceUserspaceOnly =
+    ::protozero::proto_utils::FieldMetadata<
+      34,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kBool,
+      bool,
+      FtraceConfig>;
+
+  static constexpr FieldMetadata_AtraceUserspaceOnly kAtraceUserspaceOnly{};
+  void set_atrace_userspace_only(bool value) {
+    static constexpr uint32_t field_id = FieldMetadata_AtraceUserspaceOnly::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kBool>
+        ::Append(*this, field_id, value);
+  }
+
   using FieldMetadata_BufferSizeKb =
     ::protozero::proto_utils::FieldMetadata<
       10,
@@ -318,6 +337,24 @@ class FtraceConfig : public ::protozero::Message {
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
       ::protozero::proto_utils::ProtoSchemaType::kUint32>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_BufferSizeLowerBound =
+    ::protozero::proto_utils::FieldMetadata<
+      27,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kBool,
+      bool,
+      FtraceConfig>;
+
+  static constexpr FieldMetadata_BufferSizeLowerBound kBufferSizeLowerBound{};
+  void set_buffer_size_lower_bound(bool value) {
+    static constexpr uint32_t field_id = FieldMetadata_BufferSizeLowerBound::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kBool>
         ::Append(*this, field_id, value);
   }
 
@@ -421,24 +458,6 @@ class FtraceConfig : public ::protozero::Message {
         ::Append(*this, field_id, value);
   }
 
-  using FieldMetadata_InitializeKsymsSynchronouslyForTesting =
-    ::protozero::proto_utils::FieldMetadata<
-      14,
-      ::protozero::proto_utils::RepetitionType::kNotRepeated,
-      ::protozero::proto_utils::ProtoSchemaType::kBool,
-      bool,
-      FtraceConfig>;
-
-  static constexpr FieldMetadata_InitializeKsymsSynchronouslyForTesting kInitializeKsymsSynchronouslyForTesting{};
-  void set_initialize_ksyms_synchronously_for_testing(bool value) {
-    static constexpr uint32_t field_id = FieldMetadata_InitializeKsymsSynchronouslyForTesting::kFieldId;
-    // Call the appropriate protozero::Message::Append(field_id, ...)
-    // method based on the type of the field.
-    ::protozero::internal::FieldWriter<
-      ::protozero::proto_utils::ProtoSchemaType::kBool>
-        ::Append(*this, field_id, value);
-  }
-
   using FieldMetadata_ThrottleRssStat =
     ::protozero::proto_utils::FieldMetadata<
       15,
@@ -450,6 +469,24 @@ class FtraceConfig : public ::protozero::Message {
   static constexpr FieldMetadata_ThrottleRssStat kThrottleRssStat{};
   void set_throttle_rss_stat(bool value) {
     static constexpr uint32_t field_id = FieldMetadata_ThrottleRssStat::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kBool>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_DenserGenericEventEncoding =
+    ::protozero::proto_utils::FieldMetadata<
+      32,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kBool,
+      bool,
+      FtraceConfig>;
+
+  static constexpr FieldMetadata_DenserGenericEventEncoding kDenserGenericEventEncoding{};
+  void set_denser_generic_event_encoding(bool value) {
+    static constexpr uint32_t field_id = FieldMetadata_DenserGenericEventEncoding::kFieldId;
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
@@ -565,6 +602,38 @@ class FtraceConfig : public ::protozero::Message {
         ::Append(*this, field_id, value);
   }
 
+  using FieldMetadata_FunctionGraphMaxDepth =
+    ::protozero::proto_utils::FieldMetadata<
+      33,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kUint32,
+      uint32_t,
+      FtraceConfig>;
+
+  static constexpr FieldMetadata_FunctionGraphMaxDepth kFunctionGraphMaxDepth{};
+  void set_function_graph_max_depth(uint32_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_FunctionGraphMaxDepth::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint32>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_KprobeEvents =
+    ::protozero::proto_utils::FieldMetadata<
+      30,
+      ::protozero::proto_utils::RepetitionType::kRepeatedNotPacked,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      FtraceConfig_KprobeEvent,
+      FtraceConfig>;
+
+  static constexpr FieldMetadata_KprobeEvents kKprobeEvents{};
+  template <typename T = FtraceConfig_KprobeEvent> T* add_kprobe_events() {
+    return BeginNestedMessage<T>(30);
+  }
+
+
   using FieldMetadata_PreserveFtraceBuffer =
     ::protozero::proto_utils::FieldMetadata<
       23,
@@ -625,21 +694,130 @@ class FtraceConfig : public ::protozero::Message {
         ::Append(*this, field_id, value);
   }
 
-  using FieldMetadata_BufferSizeLowerBound =
+  using FieldMetadata_DebugFtraceAbi =
     ::protozero::proto_utils::FieldMetadata<
-      27,
+      31,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kBool,
       bool,
       FtraceConfig>;
 
-  static constexpr FieldMetadata_BufferSizeLowerBound kBufferSizeLowerBound{};
-  void set_buffer_size_lower_bound(bool value) {
-    static constexpr uint32_t field_id = FieldMetadata_BufferSizeLowerBound::kFieldId;
+  static constexpr FieldMetadata_DebugFtraceAbi kDebugFtraceAbi{};
+  void set_debug_ftrace_abi(bool value) {
+    static constexpr uint32_t field_id = FieldMetadata_DebugFtraceAbi::kFieldId;
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
       ::protozero::proto_utils::ProtoSchemaType::kBool>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_TidsToTrace =
+    ::protozero::proto_utils::FieldMetadata<
+      35,
+      ::protozero::proto_utils::RepetitionType::kRepeatedNotPacked,
+      ::protozero::proto_utils::ProtoSchemaType::kUint32,
+      uint32_t,
+      FtraceConfig>;
+
+  static constexpr FieldMetadata_TidsToTrace kTidsToTrace{};
+  void add_tids_to_trace(uint32_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_TidsToTrace::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint32>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_InitializeKsymsSynchronouslyForTesting =
+    ::protozero::proto_utils::FieldMetadata<
+      14,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kBool,
+      bool,
+      FtraceConfig>;
+
+  static constexpr FieldMetadata_InitializeKsymsSynchronouslyForTesting kInitializeKsymsSynchronouslyForTesting{};
+  void set_initialize_ksyms_synchronously_for_testing(bool value) {
+    static constexpr uint32_t field_id = FieldMetadata_InitializeKsymsSynchronouslyForTesting::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kBool>
+        ::Append(*this, field_id, value);
+  }
+};
+
+class FtraceConfig_KprobeEvent_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/2, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
+ public:
+  FtraceConfig_KprobeEvent_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
+  explicit FtraceConfig_KprobeEvent_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
+  explicit FtraceConfig_KprobeEvent_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
+  bool has_probe() const { return at<1>().valid(); }
+  ::protozero::ConstChars probe() const { return at<1>().as_string(); }
+  bool has_type() const { return at<2>().valid(); }
+  int32_t type() const { return at<2>().as_int32(); }
+};
+
+class FtraceConfig_KprobeEvent : public ::protozero::Message {
+ public:
+  using Decoder = FtraceConfig_KprobeEvent_Decoder;
+  enum : int32_t {
+    kProbeFieldNumber = 1,
+    kTypeFieldNumber = 2,
+  };
+  static constexpr const char* GetName() { return ".perfetto.protos.FtraceConfig.KprobeEvent"; }
+
+
+  using KprobeType = ::perfetto::protos::pbzero::FtraceConfig_KprobeEvent_KprobeType;
+  static inline const char* KprobeType_Name(KprobeType value) {
+    return ::perfetto::protos::pbzero::FtraceConfig_KprobeEvent_KprobeType_Name(value);
+  }
+  static inline const KprobeType KPROBE_TYPE_UNKNOWN = KprobeType::KPROBE_TYPE_UNKNOWN;
+  static inline const KprobeType KPROBE_TYPE_KPROBE = KprobeType::KPROBE_TYPE_KPROBE;
+  static inline const KprobeType KPROBE_TYPE_KRETPROBE = KprobeType::KPROBE_TYPE_KRETPROBE;
+  static inline const KprobeType KPROBE_TYPE_BOTH = KprobeType::KPROBE_TYPE_BOTH;
+
+  using FieldMetadata_Probe =
+    ::protozero::proto_utils::FieldMetadata<
+      1,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kString,
+      std::string,
+      FtraceConfig_KprobeEvent>;
+
+  static constexpr FieldMetadata_Probe kProbe{};
+  void set_probe(const char* data, size_t size) {
+    AppendBytes(FieldMetadata_Probe::kFieldId, data, size);
+  }
+  void set_probe(::protozero::ConstChars chars) {
+    AppendBytes(FieldMetadata_Probe::kFieldId, chars.data, chars.size);
+  }
+  void set_probe(std::string value) {
+    static constexpr uint32_t field_id = FieldMetadata_Probe::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kString>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_Type =
+    ::protozero::proto_utils::FieldMetadata<
+      2,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kEnum,
+      FtraceConfig_KprobeEvent_KprobeType,
+      FtraceConfig_KprobeEvent>;
+
+  static constexpr FieldMetadata_Type kType{};
+  void set_type(FtraceConfig_KprobeEvent_KprobeType value) {
+    static constexpr uint32_t field_id = FieldMetadata_Type::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kEnum>
         ::Append(*this, field_id, value);
   }
 };
@@ -863,79 +1041,6 @@ class FtraceConfig_CompactSchedConfig : public ::protozero::Message {
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
       ::protozero::proto_utils::ProtoSchemaType::kBool>
-        ::Append(*this, field_id, value);
-  }
-};
-
-class FtraceConfig_KprobeEvent_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/2, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
- public:
-  FtraceConfig_KprobeEvent_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
-  explicit FtraceConfig_KprobeEvent_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
-  explicit FtraceConfig_KprobeEvent_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
-  bool has_probe() const { return at<1>().valid(); }
-  ::protozero::ConstChars probe() const { return at<1>().as_string(); }
-  bool has_type() const { return at<2>().valid(); }
-  int32_t type() const { return at<2>().as_int32(); }
-};
-
-class FtraceConfig_KprobeEvent : public ::protozero::Message {
- public:
-  using Decoder = FtraceConfig_KprobeEvent_Decoder;
-  enum : int32_t {
-    kProbeFieldNumber = 1,
-    kTypeFieldNumber = 2,
-  };
-  static constexpr const char* GetName() { return ".perfetto.protos.FtraceConfig.KprobeEvent"; }
-
-
-  using KprobeType = ::perfetto::protos::pbzero::FtraceConfig_KprobeEvent_KprobeType;
-  static inline const char* KprobeType_Name(KprobeType value) {
-    return ::perfetto::protos::pbzero::FtraceConfig_KprobeEvent_KprobeType_Name(value);
-  }
-  static inline const KprobeType KPROBE_TYPE_UNKNOWN = KprobeType::KPROBE_TYPE_UNKNOWN;
-  static inline const KprobeType KPROBE_TYPE_KPROBE = KprobeType::KPROBE_TYPE_KPROBE;
-  static inline const KprobeType KPROBE_TYPE_KRETPROBE = KprobeType::KPROBE_TYPE_KRETPROBE;
-  static inline const KprobeType KPROBE_TYPE_BOTH = KprobeType::KPROBE_TYPE_BOTH;
-
-  using FieldMetadata_Probe =
-    ::protozero::proto_utils::FieldMetadata<
-      1,
-      ::protozero::proto_utils::RepetitionType::kNotRepeated,
-      ::protozero::proto_utils::ProtoSchemaType::kString,
-      std::string,
-      FtraceConfig_KprobeEvent>;
-
-  static constexpr FieldMetadata_Probe kProbe{};
-  void set_probe(const char* data, size_t size) {
-    AppendBytes(FieldMetadata_Probe::kFieldId, data, size);
-  }
-  void set_probe(::protozero::ConstChars chars) {
-    AppendBytes(FieldMetadata_Probe::kFieldId, chars.data, chars.size);
-  }
-  void set_probe(std::string value) {
-    static constexpr uint32_t field_id = FieldMetadata_Probe::kFieldId;
-    // Call the appropriate protozero::Message::Append(field_id, ...)
-    // method based on the type of the field.
-    ::protozero::internal::FieldWriter<
-      ::protozero::proto_utils::ProtoSchemaType::kString>
-        ::Append(*this, field_id, value);
-  }
-
-  using FieldMetadata_Type =
-    ::protozero::proto_utils::FieldMetadata<
-      2,
-      ::protozero::proto_utils::RepetitionType::kNotRepeated,
-      ::protozero::proto_utils::ProtoSchemaType::kEnum,
-      FtraceConfig_KprobeEvent_KprobeType,
-      FtraceConfig_KprobeEvent>;
-
-  static constexpr FieldMetadata_Type kType{};
-  void set_type(FtraceConfig_KprobeEvent_KprobeType value) {
-    static constexpr uint32_t field_id = FieldMetadata_Type::kFieldId;
-    // Call the appropriate protozero::Message::Append(field_id, ...)
-    // method based on the type of the field.
-    ::protozero::internal::FieldWriter<
-      ::protozero::proto_utils::ProtoSchemaType::kEnum>
         ::Append(*this, field_id, value);
   }
 };

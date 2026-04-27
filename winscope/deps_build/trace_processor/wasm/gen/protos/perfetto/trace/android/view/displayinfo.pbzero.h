@@ -24,7 +24,7 @@ namespace perfetto {
 namespace protos {
 namespace pbzero {
 
-class DisplayInfoProto_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/7, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
+class DisplayInfoProto_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/8, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
  public:
   DisplayInfoProto_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
   explicit DisplayInfoProto_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
@@ -43,6 +43,8 @@ class DisplayInfoProto_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIE
   int32_t flags() const { return at<6>().as_int32(); }
   bool has_cutout() const { return at<7>().valid(); }
   ::protozero::ConstBytes cutout() const { return at<7>().as_bytes(); }
+  bool has_type() const { return at<8>().valid(); }
+  int32_t type() const { return at<8>().as_int32(); }
 };
 
 class DisplayInfoProto : public ::protozero::Message {
@@ -56,6 +58,7 @@ class DisplayInfoProto : public ::protozero::Message {
     kNameFieldNumber = 5,
     kFlagsFieldNumber = 6,
     kCutoutFieldNumber = 7,
+    kTypeFieldNumber = 8,
   };
   static constexpr const char* GetName() { return ".perfetto.protos.DisplayInfoProto"; }
 
@@ -187,6 +190,24 @@ class DisplayInfoProto : public ::protozero::Message {
     return BeginNestedMessage<T>(7);
   }
 
+
+  using FieldMetadata_Type =
+    ::protozero::proto_utils::FieldMetadata<
+      8,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kInt32,
+      int32_t,
+      DisplayInfoProto>;
+
+  static constexpr FieldMetadata_Type kType{};
+  void set_type(int32_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_Type::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kInt32>
+        ::Append(*this, field_id, value);
+  }
 };
 
 } // Namespace.

@@ -25,7 +25,6 @@ const perfetto_version_1 = require("../gen/perfetto_version");
 const modal_1 = require("../widgets/modal");
 const animation_1 = require("./animation");
 const download_utils_1 = require("../base/download_utils");
-const globals_1 = require("./globals");
 const help_modal_1 = require("./help_modal");
 const trace_share_utils_1 = require("./trace_share_utils");
 const trace_converter_1 = require("./trace_converter");
@@ -37,9 +36,12 @@ const clipboard_1 = require("../base/clipboard");
 const classnames_1 = require("../base/classnames");
 const hotkeys_1 = require("../base/hotkeys");
 const assets_1 = require("../base/assets");
-const GITILES_URL = 'https://android.googlesource.com/platform/external/perfetto';
+const logging_1 = require("../base/logging");
+const icon_1 = require("../widgets/icon");
+const button_1 = require("../widgets/button");
+const GITILES_URL = 'https://github.com/google/perfetto';
 function getBugReportUrl() {
-    if (globals_1.globals.isInternalUser) {
+    if (app_impl_1.AppImpl.instance.isInternalUser) {
         return 'https://goto.google.com/perfetto-ui-bug';
     }
     else {
@@ -53,7 +55,7 @@ const HIRING_BANNER_FLAG = feature_flags_1.featureFlags.register({
     defaultValue: false,
 });
 function shouldShowHiringBanner() {
-    return globals_1.globals.isInternalUser && HIRING_BANNER_FLAG.get();
+    return app_impl_1.AppImpl.instance.isInternalUser && HIRING_BANNER_FLAG.get();
 }
 async function openCurrentTraceWithOldUI(trace) {
     app_impl_1.AppImpl.instance.analytics.logEvent('Trace Actions', 'Open current trace in legacy UI');
@@ -74,33 +76,40 @@ function downloadTrace(trace) {
     if (!trace.traceInfo.downloadable)
         return;
     app_impl_1.AppImpl.instance.analytics.logEvent('Trace Actions', 'Download trace');
-    let url = '';
-    let fileName = `trace${trace_1.TRACE_SUFFIX}`;
     const src = trace.traceInfo.source;
+    const filePickerAcceptTypes = [
+        {
+            description: 'Perfetto trace',
+            accept: { '*/*': ['.pftrace'] },
+        },
+    ];
     if (src.type === 'URL') {
-        url = src.url;
-        fileName = url.split('/').slice(-1)[0];
+        const fileName = src.url.split('/').slice(-1)[0];
+        (0, download_utils_1.downloadUrl)({ url: src.url, fileName });
     }
     else if (src.type === 'ARRAY_BUFFER') {
         const blob = new Blob([src.buffer], { type: 'application/octet-stream' });
-        const inputFileName = window.prompt('Please enter a name for your file or leave blank');
-        if (inputFileName) {
-            fileName = `${inputFileName}.perfetto_trace.gz`;
-        }
-        else if (src.fileName) {
-            fileName = src.fileName;
-        }
-        url = URL.createObjectURL(blob);
+        const fileName = src.fileName ?? `trace${trace_1.TRACE_SUFFIX}`;
+        (0, download_utils_1.download)({
+            content: blob,
+            fileName,
+            filePicker: {
+                types: filePickerAcceptTypes,
+            },
+        });
     }
     else if (src.type === 'FILE') {
-        const file = src.file;
-        url = URL.createObjectURL(file);
-        fileName = file.name;
+        (0, download_utils_1.download)({
+            content: src.file,
+            fileName: src.file.name,
+            filePicker: {
+                types: filePickerAcceptTypes,
+            },
+        });
     }
     else {
         throw new Error(`Download from ${JSON.stringify(src)} is not supported`);
     }
-    (0, download_utils_1.downloadUrl)(fileName, url);
 }
 function recordMetatrace(engine) {
     app_impl_1.AppImpl.instance.analytics.logEvent('Trace Actions', 'Record metatrace');
@@ -119,14 +128,14 @@ Alternatively, connect to a trace_processor_shell --httpd instance.
 `;
         (0, modal_1.showModal)({
             title: `Trace processor doesn't have high-precision timers`,
-            content: (0, mithril_1.default)('.modal-pre', PROMPT),
+            content: (0, mithril_1.default)('.pf-modal-pre', PROMPT),
             buttons: [
                 {
                     text: 'YES, record metatrace',
                     primary: true,
                     action: () => {
                         (0, metatracing_1.enableMetatracing)();
-                        engine.enableMetatrace();
+                        engine.enableMetatrace((0, logging_1.assertExists)((0, metatracing_1.getEnabledMetatracingCategories)()));
                     },
                 },
                 {
@@ -136,7 +145,8 @@ Alternatively, connect to a trace_processor_shell --httpd instance.
         });
     }
     else {
-        engine.enableMetatrace();
+        (0, metatracing_1.enableMetatracing)();
+        engine.enableMetatrace((0, logging_1.assertExists)((0, metatracing_1.getEnabledMetatracingCategories)()));
     }
 }
 async function toggleMetatrace(e) {
@@ -149,7 +159,10 @@ async function finaliseMetatrace(engine) {
     if (result.error.length !== 0) {
         throw new Error(`Failed to read metatrace: ${result.error}`);
     }
-    (0, download_utils_1.downloadData)('metatrace', result.metatrace, jsEvents);
+    (0, download_utils_1.download)({
+        fileName: 'metatrace',
+        content: new Blob([result.metatrace, jsEvents]),
+    });
 }
 class EngineRPCWidget {
     view({ attrs }) {
@@ -162,7 +175,7 @@ class EngineRPCWidget {
         if (engine !== undefined) {
             mode = engine.mode;
             if (engine.failed !== undefined) {
-                cssClass += '.red';
+                cssClass += '.pf-sidebar__dbg-info-square--red';
                 title = 'Query engine crashed\n' + engine.failed;
                 failed = true;
             }
@@ -182,7 +195,7 @@ class EngineRPCWidget {
             }
         }
         if (mode === 'HTTP_RPC') {
-            cssClass += '.green';
+            cssClass += '.pf-sidebar__dbg-info-square--green';
             label = 'RPC';
             title += '\n(Query engine: native accelerator over HTTP+RPC)';
         }
@@ -191,7 +204,7 @@ class EngineRPCWidget {
             title += '\n(Query engine: built-in WASM)';
         }
         const numReqs = attrs.trace?.engine.numRequestsPending ?? 0;
-        return (0, mithril_1.default)(`.dbg-info-square${cssClass}`, { title }, (0, mithril_1.default)('div', label), (0, mithril_1.default)('div', `${failed ? 'FAIL' : numReqs}`));
+        return (0, mithril_1.default)(`.pf-sidebar__dbg-info-square${cssClass}`, { title }, (0, mithril_1.default)('div', label), (0, mithril_1.default)('div', `${failed ? 'FAIL' : numReqs}`));
     }
 }
 const ServiceWorkerWidget = {
@@ -206,12 +219,12 @@ const ServiceWorkerWidget = {
         }
         else if (ctl.bypassed) {
             label = 'OFF';
-            cssClass = '.red';
+            cssClass = '.pf-sidebar__dbg-info-square--red';
             title += 'Bypassed, using live network. Double-click to re-enable';
         }
         else if (ctl.installing) {
             label = 'UPD';
-            cssClass = '.amber';
+            cssClass = '.pf-sidebar__dbg-info-square--amber';
             title += 'Installing / updating ...';
         }
         else if (!navigator.serviceWorker.controller) {
@@ -220,7 +233,7 @@ const ServiceWorkerWidget = {
         }
         else {
             label = 'ON';
-            cssClass = '.green';
+            cssClass = '.pf-sidebar__dbg-info-square--green';
             title += 'Serving from cache. Ready for offline use';
         }
         const toggle = async () => {
@@ -245,13 +258,13 @@ const ServiceWorkerWidget = {
                 ],
             });
         };
-        return (0, mithril_1.default)(`.dbg-info-square${cssClass}`, { title, ondblclick: toggle }, (0, mithril_1.default)('div', 'SW'), (0, mithril_1.default)('div', label));
+        return (0, mithril_1.default)(`.pf-sidebar__dbg-info-square${cssClass}`, { title, ondblclick: toggle }, (0, mithril_1.default)('div', 'SW'), (0, mithril_1.default)('div', label));
     },
 };
 class SidebarFooter {
     view({ attrs }) {
-        return (0, mithril_1.default)('.sidebar-footer', (0, mithril_1.default)(EngineRPCWidget, attrs), (0, mithril_1.default)(ServiceWorkerWidget), (0, mithril_1.default)('.version', (0, mithril_1.default)('a', {
-            href: `${GITILES_URL}/+/${perfetto_version_1.SCM_REVISION}/ui`,
+        return (0, mithril_1.default)('.pf-sidebar__footer', (0, mithril_1.default)(EngineRPCWidget, attrs), (0, mithril_1.default)(ServiceWorkerWidget), (0, mithril_1.default)('.pf-sidebar__version', (0, mithril_1.default)('a', {
+            href: `${GITILES_URL}/tree/${perfetto_version_1.SCM_REVISION}/ui`,
             title: `Channel: ${(0, channels_1.getCurrentChannel)()}`,
             target: '_blank',
         }, perfetto_version_1.VERSION)));
@@ -259,7 +272,7 @@ class SidebarFooter {
 }
 class HiringBanner {
     view() {
-        return (0, mithril_1.default)('.hiring-banner', (0, mithril_1.default)('a', {
+        return (0, mithril_1.default)('.pf-hiring-banner', (0, mithril_1.default)('a', {
             href: 'http://go/perfetto-open-roles',
             target: '_blank',
         }, "We're hiring!"));
@@ -276,8 +289,8 @@ class Sidebar {
         const sidebar = app_impl_1.AppImpl.instance.sidebar;
         if (!sidebar.enabled)
             return null;
-        return (0, mithril_1.default)('nav.sidebar', {
-            class: sidebar.visible ? 'show-sidebar' : 'hide-sidebar',
+        return (0, mithril_1.default)('nav.pf-sidebar', {
+            class: sidebar.visible ? undefined : 'pf-sidebar--hidden',
             // 150 here matches --sidebar-timing in the css.
             // TODO(hjd): Should link to the CSS variable.
             ontransitionstart: (e) => {
@@ -290,11 +303,11 @@ class Sidebar {
                     return;
                 this._redrawWhileAnimating.stop();
             },
-        }, shouldShowHiringBanner() ? (0, mithril_1.default)(HiringBanner) : null, (0, mithril_1.default)(`header.${(0, channels_1.getCurrentChannel)()}`, (0, mithril_1.default)(`img[src=${(0, assets_1.assetSrc)('assets/brand.png')}].brand`), (0, mithril_1.default)('button.sidebar-button', {
+        }, shouldShowHiringBanner() ? (0, mithril_1.default)(HiringBanner) : null, (0, mithril_1.default)(`header.pf-sidebar__channel--${(0, channels_1.getCurrentChannel)()}`, (0, mithril_1.default)(`img[src=${(0, assets_1.assetSrc)('assets/brand.png')}].pf-sidebar__brand`), (0, mithril_1.default)(button_1.Button, {
+            icon: 'menu',
+            className: 'pf-sidebar-button',
             onclick: () => sidebar.toggleVisibility(),
-        }, (0, mithril_1.default)('i.material-icons', {
-            title: sidebar.visible ? 'Hide menu' : 'Show menu',
-        }, 'menu'))), (0, mithril_1.default)('.sidebar-scroll', (0, mithril_1.default)('.sidebar-scroll-container', ...Object.keys(sidebar_1.SIDEBAR_SECTIONS).map((s) => this.renderSection(s)), (0, mithril_1.default)(SidebarFooter, attrs))));
+        })), (0, mithril_1.default)('.pf-sidebar__scroll', (0, mithril_1.default)('.pf-sidebar__scroll-container', ...Object.keys(sidebar_1.SIDEBAR_SECTIONS).map((s) => this.renderSection(s)), (0, mithril_1.default)(SidebarFooter, attrs))));
     }
     renderSection(sectionId) {
         const section = sidebar_1.SIDEBAR_SECTIONS[sectionId];
@@ -307,11 +320,11 @@ class Sidebar {
         if (menuItems.length === 0)
             return undefined;
         const expanded = (0, utils_1.getOrCreate)(this._sectionExpanded, sectionId, () => true);
-        return (0, mithril_1.default)(`section${expanded ? '.expanded' : ''}`, (0, mithril_1.default)('.section-header', {
+        return (0, mithril_1.default)(`section${expanded ? '.pf-sidebar__section--expanded' : ''}`, (0, mithril_1.default)('.pf-sidebar__section-header', {
             onclick: () => {
                 this._sectionExpanded.set(sectionId, !expanded);
             },
-        }, (0, mithril_1.default)('h1', { title: section.title }, section.title), (0, mithril_1.default)('h2', section.summary)), (0, mithril_1.default)('.section-content', (0, mithril_1.default)('ul', menuItems)));
+        }, (0, mithril_1.default)('h1', { title: section.title }, section.title), (0, mithril_1.default)('h2', section.summary)), (0, mithril_1.default)('.pf-sidebar__section-content', (0, mithril_1.default)('ul', menuItems)));
     }
     renderItem(item) {
         let href = '#';
@@ -364,7 +377,11 @@ class Sidebar {
             target,
             disabled,
             title: tooltip,
-        }, (0, utils_1.exists)(item.icon) && (0, mithril_1.default)('i.material-icons', valueOrCallback(item.icon)), text));
+        }, (0, utils_1.exists)(item.icon) &&
+            (0, mithril_1.default)(icon_1.Icon, {
+                className: 'pf-sidebar__button-icon',
+                icon: valueOrCallback(item.icon),
+            }), text));
     }
     // Creates the onClick handlers for the items which provided a function in the
     // `action` member. The function can be either sync or async.
@@ -443,7 +460,7 @@ function registerTraceMenuItems(trace) {
             href: trace.traceInfo.traceUrl,
             action: () => (0, clipboard_1.copyToClipboard)(trace.traceInfo.traceUrl),
             tooltip: 'Click to copy the URL',
-            cssClass: 'trace-file-name',
+            cssClass: 'pf-sidebar__trace-file-name',
         });
     trace.sidebar.addMenuItem({
         section: 'current_trace',
@@ -451,7 +468,7 @@ function registerTraceMenuItems(trace) {
         href: '#!/viewer',
         icon: 'line_style',
     });
-    globals_1.globals.isInternalUser &&
+    app_impl_1.AppImpl.instance.isInternalUser &&
         trace.sidebar.addMenuItem({
             section: 'current_trace',
             text: 'Share',

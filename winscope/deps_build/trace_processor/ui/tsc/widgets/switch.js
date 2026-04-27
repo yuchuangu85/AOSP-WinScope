@@ -19,14 +19,14 @@ const mithril_1 = tslib_1.__importDefault(require("mithril"));
 const classnames_1 = require("../base/classnames");
 class Switch {
     view({ attrs }) {
-        const { label, checked, disabled, className, ...htmlAttrs } = attrs;
+        const { label, labelLeft, checked, disabled, className, ...htmlAttrs } = attrs;
         const classes = (0, classnames_1.classNames)(disabled && 'pf-disabled', className);
         // The default checkbox is removed and an entirely new one created inside
         // the span element in CSS.
         return (0, mithril_1.default)('label.pf-switch', {
             ...htmlAttrs,
             className: classes,
-        }, (0, mithril_1.default)('input[type=checkbox]', { disabled, checked }), (0, mithril_1.default)('span'), label);
+        }, labelLeft && (0, mithril_1.default)('span.pf-switch-label-left', labelLeft), (0, mithril_1.default)('input[type=checkbox]', { disabled, checked }), (0, mithril_1.default)('span.pf-switch-visual'), label !== undefined && (0, mithril_1.default)('span.pf-switch-label', label));
     }
 }
 exports.Switch = Switch;

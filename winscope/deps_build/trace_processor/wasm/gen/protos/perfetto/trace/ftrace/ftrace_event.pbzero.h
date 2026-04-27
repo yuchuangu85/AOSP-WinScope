@@ -74,6 +74,7 @@ class ClkSetRateFtraceEvent;
 class ClockDisableFtraceEvent;
 class ClockEnableFtraceEvent;
 class ClockSetRateFtraceEvent;
+class CmaAllocFinishFtraceEvent;
 class CmaAllocInfoFtraceEvent;
 class CmaAllocStartFtraceEvent;
 class ConsoleFtraceEvent;
@@ -97,6 +98,7 @@ class DmaFenceSignaledFtraceEvent;
 class DmaFenceWaitEndFtraceEvent;
 class DmaFenceWaitStartFtraceEvent;
 class DmaHeapStatFtraceEvent;
+class DmabufRssStatFtraceEvent;
 class DoSysOpenFtraceEvent;
 class DpuDispDpuUnderrunFtraceEvent;
 class DpuDispVblankIrqEnableFtraceEvent;
@@ -112,6 +114,21 @@ class DrmVblankEventFtraceEvent;
 class DsiCmdFifoStatusFtraceEvent;
 class DsiRxFtraceEvent;
 class DsiTxFtraceEvent;
+class Dwc3AllocRequestFtraceEvent;
+class Dwc3CompleteTrbFtraceEvent;
+class Dwc3CtrlReqFtraceEvent;
+class Dwc3EpDequeueFtraceEvent;
+class Dwc3EpQueueFtraceEvent;
+class Dwc3EventFtraceEvent;
+class Dwc3FreeRequestFtraceEvent;
+class Dwc3GadgetEpCmdFtraceEvent;
+class Dwc3GadgetEpDisableFtraceEvent;
+class Dwc3GadgetEpEnableFtraceEvent;
+class Dwc3GadgetGenericCmdFtraceEvent;
+class Dwc3GadgetGivebackFtraceEvent;
+class Dwc3PrepareTrbFtraceEvent;
+class Dwc3ReadlFtraceEvent;
+class Dwc3WritelFtraceEvent;
 class Ext4AllocDaBlocksFtraceEvent;
 class Ext4AllocateBlocksFtraceEvent;
 class Ext4AllocateInodeFtraceEvent;
@@ -261,16 +278,31 @@ class GoogleIrmEventFtraceEvent;
 class GpuFrequencyFtraceEvent;
 class GpuMemTotalFtraceEvent;
 class GpuWorkPeriodFtraceEvent;
+class HostFfaCallFtraceEvent;
 class HostHcallFtraceEvent;
 class HostMemAbortFtraceEvent;
 class HostSmcFtraceEvent;
+class HrtimerCancelFtraceEvent;
+class HrtimerExpireEntryFtraceEvent;
+class HrtimerExpireExitFtraceEvent;
+class HrtimerStartFtraceEvent;
 class HypEnterFtraceEvent;
 class HypExitFtraceEvent;
+class HypervisorHostHcallFtraceEvent;
+class HypervisorHostMemAbortFtraceEvent;
+class HypervisorHostSmcFtraceEvent;
+class HypervisorHypEnterFtraceEvent;
+class HypervisorHypExitFtraceEvent;
+class HypervisorIommuIdmapCompleteFtraceEvent;
+class HypervisorIommuIdmapFtraceEvent;
+class HypervisorPsciMemProtectFtraceEvent;
+class HypervisorVcpuIllegalTrapFtraceEvent;
 class I2cReadFtraceEvent;
 class I2cReplyFtraceEvent;
 class I2cResultFtraceEvent;
 class I2cWriteFtraceEvent;
 class InetSockSetStateFtraceEvent;
+class IommuIdmapFtraceEvent;
 class IommuMapRangeFtraceEvent;
 class IommuSecPtblMapRangeEndFtraceEvent;
 class IommuSecPtblMapRangeStartFtraceEvent;
@@ -345,6 +377,8 @@ class KvmUnmapHvaRangeFtraceEvent;
 class KvmUserspaceExitFtraceEvent;
 class KvmVcpuWakeupFtraceEvent;
 class KvmWfxArm64FtraceEvent;
+class LocalTimerEntryFtraceEvent;
+class LocalTimerExitFtraceEvent;
 class LowmemoryKillFtraceEvent;
 class LwisTracingMarkWriteFtraceEvent;
 class MaliGpuPowerStateFtraceEvent;
@@ -403,6 +437,7 @@ class MdpVideoUnderrunDoneFtraceEvent;
 class MigratePagesEndFtraceEvent;
 class MigratePagesStartFtraceEvent;
 class MigrateRetryFtraceEvent;
+class MmAllocContigMigrateRangeInfoFtraceEvent;
 class MmCompactionBeginFtraceEvent;
 class MmCompactionDeferCompactionFtraceEvent;
 class MmCompactionDeferResetFtraceEvent;
@@ -443,6 +478,7 @@ class ParamSetValueCpmFtraceEvent;
 class PixelMmKswapdDoneFtraceEvent;
 class PixelMmKswapdWakeFtraceEvent;
 class PrintFtraceEvent;
+class PsciMemProtectFtraceEvent;
 class RegulatorDisableCompleteFtraceEvent;
 class RegulatorDisableFtraceEvent;
 class RegulatorEnableCompleteFtraceEvent;
@@ -502,6 +538,10 @@ class TcpRetransmitSkbFtraceEvent;
 class ThermalExynosAcpmBulkFtraceEvent;
 class ThermalExynosAcpmHighOverheadFtraceEvent;
 class ThermalTemperatureFtraceEvent;
+class TimerCancelFtraceEvent;
+class TimerExpireEntryFtraceEvent;
+class TimerExpireExitFtraceEvent;
+class TimerStartFtraceEvent;
 class TracingMarkWriteFtraceEvent;
 class TrapRegFtraceEvent;
 class TrustyEnqueueNopFtraceEvent;
@@ -552,7 +592,7 @@ namespace perfetto {
 namespace protos {
 namespace pbzero {
 
-class FtraceEvent_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/550, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
+class FtraceEvent_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/590, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
  public:
   FtraceEvent_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
   explicit FtraceEvent_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
@@ -1621,6 +1661,86 @@ class FtraceEvent_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID
   ::protozero::ConstBytes dpu_disp_dpu_underrun() const { return at<549>().as_bytes(); }
   bool has_dpu_disp_vblank_irq_enable() const { return at<550>().valid(); }
   ::protozero::ConstBytes dpu_disp_vblank_irq_enable() const { return at<550>().as_bytes(); }
+  bool has_hrtimer_start() const { return at<551>().valid(); }
+  ::protozero::ConstBytes hrtimer_start() const { return at<551>().as_bytes(); }
+  bool has_hrtimer_cancel() const { return at<552>().valid(); }
+  ::protozero::ConstBytes hrtimer_cancel() const { return at<552>().as_bytes(); }
+  bool has_hrtimer_expire_entry() const { return at<553>().valid(); }
+  ::protozero::ConstBytes hrtimer_expire_entry() const { return at<553>().as_bytes(); }
+  bool has_hrtimer_expire_exit() const { return at<554>().valid(); }
+  ::protozero::ConstBytes hrtimer_expire_exit() const { return at<554>().as_bytes(); }
+  bool has_timer_start() const { return at<555>().valid(); }
+  ::protozero::ConstBytes timer_start() const { return at<555>().as_bytes(); }
+  bool has_timer_cancel() const { return at<556>().valid(); }
+  ::protozero::ConstBytes timer_cancel() const { return at<556>().as_bytes(); }
+  bool has_timer_expire_entry() const { return at<557>().valid(); }
+  ::protozero::ConstBytes timer_expire_entry() const { return at<557>().as_bytes(); }
+  bool has_timer_expire_exit() const { return at<558>().valid(); }
+  ::protozero::ConstBytes timer_expire_exit() const { return at<558>().as_bytes(); }
+  bool has_local_timer_entry() const { return at<559>().valid(); }
+  ::protozero::ConstBytes local_timer_entry() const { return at<559>().as_bytes(); }
+  bool has_local_timer_exit() const { return at<560>().valid(); }
+  ::protozero::ConstBytes local_timer_exit() const { return at<560>().as_bytes(); }
+  bool has_dwc3_alloc_request() const { return at<561>().valid(); }
+  ::protozero::ConstBytes dwc3_alloc_request() const { return at<561>().as_bytes(); }
+  bool has_dwc3_complete_trb() const { return at<562>().valid(); }
+  ::protozero::ConstBytes dwc3_complete_trb() const { return at<562>().as_bytes(); }
+  bool has_dwc3_ctrl_req() const { return at<563>().valid(); }
+  ::protozero::ConstBytes dwc3_ctrl_req() const { return at<563>().as_bytes(); }
+  bool has_dwc3_ep_dequeue() const { return at<564>().valid(); }
+  ::protozero::ConstBytes dwc3_ep_dequeue() const { return at<564>().as_bytes(); }
+  bool has_dwc3_ep_queue() const { return at<565>().valid(); }
+  ::protozero::ConstBytes dwc3_ep_queue() const { return at<565>().as_bytes(); }
+  bool has_dwc3_event() const { return at<566>().valid(); }
+  ::protozero::ConstBytes dwc3_event() const { return at<566>().as_bytes(); }
+  bool has_dwc3_free_request() const { return at<567>().valid(); }
+  ::protozero::ConstBytes dwc3_free_request() const { return at<567>().as_bytes(); }
+  bool has_dwc3_gadget_ep_cmd() const { return at<568>().valid(); }
+  ::protozero::ConstBytes dwc3_gadget_ep_cmd() const { return at<568>().as_bytes(); }
+  bool has_dwc3_gadget_ep_disable() const { return at<569>().valid(); }
+  ::protozero::ConstBytes dwc3_gadget_ep_disable() const { return at<569>().as_bytes(); }
+  bool has_dwc3_gadget_ep_enable() const { return at<570>().valid(); }
+  ::protozero::ConstBytes dwc3_gadget_ep_enable() const { return at<570>().as_bytes(); }
+  bool has_dwc3_gadget_generic_cmd() const { return at<571>().valid(); }
+  ::protozero::ConstBytes dwc3_gadget_generic_cmd() const { return at<571>().as_bytes(); }
+  bool has_dwc3_gadget_giveback() const { return at<572>().valid(); }
+  ::protozero::ConstBytes dwc3_gadget_giveback() const { return at<572>().as_bytes(); }
+  bool has_dwc3_prepare_trb() const { return at<573>().valid(); }
+  ::protozero::ConstBytes dwc3_prepare_trb() const { return at<573>().as_bytes(); }
+  bool has_dwc3_readl() const { return at<574>().valid(); }
+  ::protozero::ConstBytes dwc3_readl() const { return at<574>().as_bytes(); }
+  bool has_dwc3_writel() const { return at<575>().valid(); }
+  ::protozero::ConstBytes dwc3_writel() const { return at<575>().as_bytes(); }
+  bool has_cma_alloc_finish() const { return at<576>().valid(); }
+  ::protozero::ConstBytes cma_alloc_finish() const { return at<576>().as_bytes(); }
+  bool has_mm_alloc_contig_migrate_range_info() const { return at<577>().valid(); }
+  ::protozero::ConstBytes mm_alloc_contig_migrate_range_info() const { return at<577>().as_bytes(); }
+  bool has_host_ffa_call() const { return at<578>().valid(); }
+  ::protozero::ConstBytes host_ffa_call() const { return at<578>().as_bytes(); }
+  bool has_dmabuf_rss_stat() const { return at<579>().valid(); }
+  ::protozero::ConstBytes dmabuf_rss_stat() const { return at<579>().as_bytes(); }
+  bool has_iommu_idmap() const { return at<580>().valid(); }
+  ::protozero::ConstBytes iommu_idmap() const { return at<580>().as_bytes(); }
+  bool has_psci_mem_protect() const { return at<581>().valid(); }
+  ::protozero::ConstBytes psci_mem_protect() const { return at<581>().as_bytes(); }
+  bool has_hypervisor_host_hcall() const { return at<582>().valid(); }
+  ::protozero::ConstBytes hypervisor_host_hcall() const { return at<582>().as_bytes(); }
+  bool has_hypervisor_host_smc() const { return at<583>().valid(); }
+  ::protozero::ConstBytes hypervisor_host_smc() const { return at<583>().as_bytes(); }
+  bool has_hypervisor_hyp_exit() const { return at<584>().valid(); }
+  ::protozero::ConstBytes hypervisor_hyp_exit() const { return at<584>().as_bytes(); }
+  bool has_hypervisor_iommu_idmap() const { return at<585>().valid(); }
+  ::protozero::ConstBytes hypervisor_iommu_idmap() const { return at<585>().as_bytes(); }
+  bool has_hypervisor_psci_mem_protect() const { return at<586>().valid(); }
+  ::protozero::ConstBytes hypervisor_psci_mem_protect() const { return at<586>().as_bytes(); }
+  bool has_hypervisor_host_mem_abort() const { return at<587>().valid(); }
+  ::protozero::ConstBytes hypervisor_host_mem_abort() const { return at<587>().as_bytes(); }
+  bool has_hypervisor_hyp_enter() const { return at<588>().valid(); }
+  ::protozero::ConstBytes hypervisor_hyp_enter() const { return at<588>().as_bytes(); }
+  bool has_hypervisor_iommu_idmap_complete() const { return at<589>().valid(); }
+  ::protozero::ConstBytes hypervisor_iommu_idmap_complete() const { return at<589>().as_bytes(); }
+  bool has_hypervisor_vcpu_illegal_trap() const { return at<590>().valid(); }
+  ::protozero::ConstBytes hypervisor_vcpu_illegal_trap() const { return at<590>().as_bytes(); }
 };
 
 class FtraceEvent : public ::protozero::Message {
@@ -2159,6 +2279,46 @@ class FtraceEvent : public ::protozero::Message {
     kMaliGpuPowerStateFieldNumber = 548,
     kDpuDispDpuUnderrunFieldNumber = 549,
     kDpuDispVblankIrqEnableFieldNumber = 550,
+    kHrtimerStartFieldNumber = 551,
+    kHrtimerCancelFieldNumber = 552,
+    kHrtimerExpireEntryFieldNumber = 553,
+    kHrtimerExpireExitFieldNumber = 554,
+    kTimerStartFieldNumber = 555,
+    kTimerCancelFieldNumber = 556,
+    kTimerExpireEntryFieldNumber = 557,
+    kTimerExpireExitFieldNumber = 558,
+    kLocalTimerEntryFieldNumber = 559,
+    kLocalTimerExitFieldNumber = 560,
+    kDwc3AllocRequestFieldNumber = 561,
+    kDwc3CompleteTrbFieldNumber = 562,
+    kDwc3CtrlReqFieldNumber = 563,
+    kDwc3EpDequeueFieldNumber = 564,
+    kDwc3EpQueueFieldNumber = 565,
+    kDwc3EventFieldNumber = 566,
+    kDwc3FreeRequestFieldNumber = 567,
+    kDwc3GadgetEpCmdFieldNumber = 568,
+    kDwc3GadgetEpDisableFieldNumber = 569,
+    kDwc3GadgetEpEnableFieldNumber = 570,
+    kDwc3GadgetGenericCmdFieldNumber = 571,
+    kDwc3GadgetGivebackFieldNumber = 572,
+    kDwc3PrepareTrbFieldNumber = 573,
+    kDwc3ReadlFieldNumber = 574,
+    kDwc3WritelFieldNumber = 575,
+    kCmaAllocFinishFieldNumber = 576,
+    kMmAllocContigMigrateRangeInfoFieldNumber = 577,
+    kHostFfaCallFieldNumber = 578,
+    kDmabufRssStatFieldNumber = 579,
+    kIommuIdmapFieldNumber = 580,
+    kPsciMemProtectFieldNumber = 581,
+    kHypervisorHostHcallFieldNumber = 582,
+    kHypervisorHostSmcFieldNumber = 583,
+    kHypervisorHypExitFieldNumber = 584,
+    kHypervisorIommuIdmapFieldNumber = 585,
+    kHypervisorPsciMemProtectFieldNumber = 586,
+    kHypervisorHostMemAbortFieldNumber = 587,
+    kHypervisorHypEnterFieldNumber = 588,
+    kHypervisorIommuIdmapCompleteFieldNumber = 589,
+    kHypervisorVcpuIllegalTrapFieldNumber = 590,
   };
   static constexpr const char* GetName() { return ".perfetto.protos.FtraceEvent"; }
 
@@ -9620,6 +9780,566 @@ class FtraceEvent : public ::protozero::Message {
   static constexpr FieldMetadata_DpuDispVblankIrqEnable kDpuDispVblankIrqEnable{};
   template <typename T = DpuDispVblankIrqEnableFtraceEvent> T* set_dpu_disp_vblank_irq_enable() {
     return BeginNestedMessage<T>(550);
+  }
+
+
+  using FieldMetadata_HrtimerStart =
+    ::protozero::proto_utils::FieldMetadata<
+      551,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      HrtimerStartFtraceEvent,
+      FtraceEvent>;
+
+  static constexpr FieldMetadata_HrtimerStart kHrtimerStart{};
+  template <typename T = HrtimerStartFtraceEvent> T* set_hrtimer_start() {
+    return BeginNestedMessage<T>(551);
+  }
+
+
+  using FieldMetadata_HrtimerCancel =
+    ::protozero::proto_utils::FieldMetadata<
+      552,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      HrtimerCancelFtraceEvent,
+      FtraceEvent>;
+
+  static constexpr FieldMetadata_HrtimerCancel kHrtimerCancel{};
+  template <typename T = HrtimerCancelFtraceEvent> T* set_hrtimer_cancel() {
+    return BeginNestedMessage<T>(552);
+  }
+
+
+  using FieldMetadata_HrtimerExpireEntry =
+    ::protozero::proto_utils::FieldMetadata<
+      553,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      HrtimerExpireEntryFtraceEvent,
+      FtraceEvent>;
+
+  static constexpr FieldMetadata_HrtimerExpireEntry kHrtimerExpireEntry{};
+  template <typename T = HrtimerExpireEntryFtraceEvent> T* set_hrtimer_expire_entry() {
+    return BeginNestedMessage<T>(553);
+  }
+
+
+  using FieldMetadata_HrtimerExpireExit =
+    ::protozero::proto_utils::FieldMetadata<
+      554,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      HrtimerExpireExitFtraceEvent,
+      FtraceEvent>;
+
+  static constexpr FieldMetadata_HrtimerExpireExit kHrtimerExpireExit{};
+  template <typename T = HrtimerExpireExitFtraceEvent> T* set_hrtimer_expire_exit() {
+    return BeginNestedMessage<T>(554);
+  }
+
+
+  using FieldMetadata_TimerStart =
+    ::protozero::proto_utils::FieldMetadata<
+      555,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      TimerStartFtraceEvent,
+      FtraceEvent>;
+
+  static constexpr FieldMetadata_TimerStart kTimerStart{};
+  template <typename T = TimerStartFtraceEvent> T* set_timer_start() {
+    return BeginNestedMessage<T>(555);
+  }
+
+
+  using FieldMetadata_TimerCancel =
+    ::protozero::proto_utils::FieldMetadata<
+      556,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      TimerCancelFtraceEvent,
+      FtraceEvent>;
+
+  static constexpr FieldMetadata_TimerCancel kTimerCancel{};
+  template <typename T = TimerCancelFtraceEvent> T* set_timer_cancel() {
+    return BeginNestedMessage<T>(556);
+  }
+
+
+  using FieldMetadata_TimerExpireEntry =
+    ::protozero::proto_utils::FieldMetadata<
+      557,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      TimerExpireEntryFtraceEvent,
+      FtraceEvent>;
+
+  static constexpr FieldMetadata_TimerExpireEntry kTimerExpireEntry{};
+  template <typename T = TimerExpireEntryFtraceEvent> T* set_timer_expire_entry() {
+    return BeginNestedMessage<T>(557);
+  }
+
+
+  using FieldMetadata_TimerExpireExit =
+    ::protozero::proto_utils::FieldMetadata<
+      558,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      TimerExpireExitFtraceEvent,
+      FtraceEvent>;
+
+  static constexpr FieldMetadata_TimerExpireExit kTimerExpireExit{};
+  template <typename T = TimerExpireExitFtraceEvent> T* set_timer_expire_exit() {
+    return BeginNestedMessage<T>(558);
+  }
+
+
+  using FieldMetadata_LocalTimerEntry =
+    ::protozero::proto_utils::FieldMetadata<
+      559,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      LocalTimerEntryFtraceEvent,
+      FtraceEvent>;
+
+  static constexpr FieldMetadata_LocalTimerEntry kLocalTimerEntry{};
+  template <typename T = LocalTimerEntryFtraceEvent> T* set_local_timer_entry() {
+    return BeginNestedMessage<T>(559);
+  }
+
+
+  using FieldMetadata_LocalTimerExit =
+    ::protozero::proto_utils::FieldMetadata<
+      560,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      LocalTimerExitFtraceEvent,
+      FtraceEvent>;
+
+  static constexpr FieldMetadata_LocalTimerExit kLocalTimerExit{};
+  template <typename T = LocalTimerExitFtraceEvent> T* set_local_timer_exit() {
+    return BeginNestedMessage<T>(560);
+  }
+
+
+  using FieldMetadata_Dwc3AllocRequest =
+    ::protozero::proto_utils::FieldMetadata<
+      561,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      Dwc3AllocRequestFtraceEvent,
+      FtraceEvent>;
+
+  static constexpr FieldMetadata_Dwc3AllocRequest kDwc3AllocRequest{};
+  template <typename T = Dwc3AllocRequestFtraceEvent> T* set_dwc3_alloc_request() {
+    return BeginNestedMessage<T>(561);
+  }
+
+
+  using FieldMetadata_Dwc3CompleteTrb =
+    ::protozero::proto_utils::FieldMetadata<
+      562,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      Dwc3CompleteTrbFtraceEvent,
+      FtraceEvent>;
+
+  static constexpr FieldMetadata_Dwc3CompleteTrb kDwc3CompleteTrb{};
+  template <typename T = Dwc3CompleteTrbFtraceEvent> T* set_dwc3_complete_trb() {
+    return BeginNestedMessage<T>(562);
+  }
+
+
+  using FieldMetadata_Dwc3CtrlReq =
+    ::protozero::proto_utils::FieldMetadata<
+      563,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      Dwc3CtrlReqFtraceEvent,
+      FtraceEvent>;
+
+  static constexpr FieldMetadata_Dwc3CtrlReq kDwc3CtrlReq{};
+  template <typename T = Dwc3CtrlReqFtraceEvent> T* set_dwc3_ctrl_req() {
+    return BeginNestedMessage<T>(563);
+  }
+
+
+  using FieldMetadata_Dwc3EpDequeue =
+    ::protozero::proto_utils::FieldMetadata<
+      564,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      Dwc3EpDequeueFtraceEvent,
+      FtraceEvent>;
+
+  static constexpr FieldMetadata_Dwc3EpDequeue kDwc3EpDequeue{};
+  template <typename T = Dwc3EpDequeueFtraceEvent> T* set_dwc3_ep_dequeue() {
+    return BeginNestedMessage<T>(564);
+  }
+
+
+  using FieldMetadata_Dwc3EpQueue =
+    ::protozero::proto_utils::FieldMetadata<
+      565,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      Dwc3EpQueueFtraceEvent,
+      FtraceEvent>;
+
+  static constexpr FieldMetadata_Dwc3EpQueue kDwc3EpQueue{};
+  template <typename T = Dwc3EpQueueFtraceEvent> T* set_dwc3_ep_queue() {
+    return BeginNestedMessage<T>(565);
+  }
+
+
+  using FieldMetadata_Dwc3Event =
+    ::protozero::proto_utils::FieldMetadata<
+      566,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      Dwc3EventFtraceEvent,
+      FtraceEvent>;
+
+  static constexpr FieldMetadata_Dwc3Event kDwc3Event{};
+  template <typename T = Dwc3EventFtraceEvent> T* set_dwc3_event() {
+    return BeginNestedMessage<T>(566);
+  }
+
+
+  using FieldMetadata_Dwc3FreeRequest =
+    ::protozero::proto_utils::FieldMetadata<
+      567,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      Dwc3FreeRequestFtraceEvent,
+      FtraceEvent>;
+
+  static constexpr FieldMetadata_Dwc3FreeRequest kDwc3FreeRequest{};
+  template <typename T = Dwc3FreeRequestFtraceEvent> T* set_dwc3_free_request() {
+    return BeginNestedMessage<T>(567);
+  }
+
+
+  using FieldMetadata_Dwc3GadgetEpCmd =
+    ::protozero::proto_utils::FieldMetadata<
+      568,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      Dwc3GadgetEpCmdFtraceEvent,
+      FtraceEvent>;
+
+  static constexpr FieldMetadata_Dwc3GadgetEpCmd kDwc3GadgetEpCmd{};
+  template <typename T = Dwc3GadgetEpCmdFtraceEvent> T* set_dwc3_gadget_ep_cmd() {
+    return BeginNestedMessage<T>(568);
+  }
+
+
+  using FieldMetadata_Dwc3GadgetEpDisable =
+    ::protozero::proto_utils::FieldMetadata<
+      569,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      Dwc3GadgetEpDisableFtraceEvent,
+      FtraceEvent>;
+
+  static constexpr FieldMetadata_Dwc3GadgetEpDisable kDwc3GadgetEpDisable{};
+  template <typename T = Dwc3GadgetEpDisableFtraceEvent> T* set_dwc3_gadget_ep_disable() {
+    return BeginNestedMessage<T>(569);
+  }
+
+
+  using FieldMetadata_Dwc3GadgetEpEnable =
+    ::protozero::proto_utils::FieldMetadata<
+      570,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      Dwc3GadgetEpEnableFtraceEvent,
+      FtraceEvent>;
+
+  static constexpr FieldMetadata_Dwc3GadgetEpEnable kDwc3GadgetEpEnable{};
+  template <typename T = Dwc3GadgetEpEnableFtraceEvent> T* set_dwc3_gadget_ep_enable() {
+    return BeginNestedMessage<T>(570);
+  }
+
+
+  using FieldMetadata_Dwc3GadgetGenericCmd =
+    ::protozero::proto_utils::FieldMetadata<
+      571,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      Dwc3GadgetGenericCmdFtraceEvent,
+      FtraceEvent>;
+
+  static constexpr FieldMetadata_Dwc3GadgetGenericCmd kDwc3GadgetGenericCmd{};
+  template <typename T = Dwc3GadgetGenericCmdFtraceEvent> T* set_dwc3_gadget_generic_cmd() {
+    return BeginNestedMessage<T>(571);
+  }
+
+
+  using FieldMetadata_Dwc3GadgetGiveback =
+    ::protozero::proto_utils::FieldMetadata<
+      572,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      Dwc3GadgetGivebackFtraceEvent,
+      FtraceEvent>;
+
+  static constexpr FieldMetadata_Dwc3GadgetGiveback kDwc3GadgetGiveback{};
+  template <typename T = Dwc3GadgetGivebackFtraceEvent> T* set_dwc3_gadget_giveback() {
+    return BeginNestedMessage<T>(572);
+  }
+
+
+  using FieldMetadata_Dwc3PrepareTrb =
+    ::protozero::proto_utils::FieldMetadata<
+      573,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      Dwc3PrepareTrbFtraceEvent,
+      FtraceEvent>;
+
+  static constexpr FieldMetadata_Dwc3PrepareTrb kDwc3PrepareTrb{};
+  template <typename T = Dwc3PrepareTrbFtraceEvent> T* set_dwc3_prepare_trb() {
+    return BeginNestedMessage<T>(573);
+  }
+
+
+  using FieldMetadata_Dwc3Readl =
+    ::protozero::proto_utils::FieldMetadata<
+      574,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      Dwc3ReadlFtraceEvent,
+      FtraceEvent>;
+
+  static constexpr FieldMetadata_Dwc3Readl kDwc3Readl{};
+  template <typename T = Dwc3ReadlFtraceEvent> T* set_dwc3_readl() {
+    return BeginNestedMessage<T>(574);
+  }
+
+
+  using FieldMetadata_Dwc3Writel =
+    ::protozero::proto_utils::FieldMetadata<
+      575,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      Dwc3WritelFtraceEvent,
+      FtraceEvent>;
+
+  static constexpr FieldMetadata_Dwc3Writel kDwc3Writel{};
+  template <typename T = Dwc3WritelFtraceEvent> T* set_dwc3_writel() {
+    return BeginNestedMessage<T>(575);
+  }
+
+
+  using FieldMetadata_CmaAllocFinish =
+    ::protozero::proto_utils::FieldMetadata<
+      576,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      CmaAllocFinishFtraceEvent,
+      FtraceEvent>;
+
+  static constexpr FieldMetadata_CmaAllocFinish kCmaAllocFinish{};
+  template <typename T = CmaAllocFinishFtraceEvent> T* set_cma_alloc_finish() {
+    return BeginNestedMessage<T>(576);
+  }
+
+
+  using FieldMetadata_MmAllocContigMigrateRangeInfo =
+    ::protozero::proto_utils::FieldMetadata<
+      577,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      MmAllocContigMigrateRangeInfoFtraceEvent,
+      FtraceEvent>;
+
+  static constexpr FieldMetadata_MmAllocContigMigrateRangeInfo kMmAllocContigMigrateRangeInfo{};
+  template <typename T = MmAllocContigMigrateRangeInfoFtraceEvent> T* set_mm_alloc_contig_migrate_range_info() {
+    return BeginNestedMessage<T>(577);
+  }
+
+
+  using FieldMetadata_HostFfaCall =
+    ::protozero::proto_utils::FieldMetadata<
+      578,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      HostFfaCallFtraceEvent,
+      FtraceEvent>;
+
+  static constexpr FieldMetadata_HostFfaCall kHostFfaCall{};
+  template <typename T = HostFfaCallFtraceEvent> T* set_host_ffa_call() {
+    return BeginNestedMessage<T>(578);
+  }
+
+
+  using FieldMetadata_DmabufRssStat =
+    ::protozero::proto_utils::FieldMetadata<
+      579,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      DmabufRssStatFtraceEvent,
+      FtraceEvent>;
+
+  static constexpr FieldMetadata_DmabufRssStat kDmabufRssStat{};
+  template <typename T = DmabufRssStatFtraceEvent> T* set_dmabuf_rss_stat() {
+    return BeginNestedMessage<T>(579);
+  }
+
+
+  using FieldMetadata_IommuIdmap =
+    ::protozero::proto_utils::FieldMetadata<
+      580,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      IommuIdmapFtraceEvent,
+      FtraceEvent>;
+
+  static constexpr FieldMetadata_IommuIdmap kIommuIdmap{};
+  template <typename T = IommuIdmapFtraceEvent> T* set_iommu_idmap() {
+    return BeginNestedMessage<T>(580);
+  }
+
+
+  using FieldMetadata_PsciMemProtect =
+    ::protozero::proto_utils::FieldMetadata<
+      581,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      PsciMemProtectFtraceEvent,
+      FtraceEvent>;
+
+  static constexpr FieldMetadata_PsciMemProtect kPsciMemProtect{};
+  template <typename T = PsciMemProtectFtraceEvent> T* set_psci_mem_protect() {
+    return BeginNestedMessage<T>(581);
+  }
+
+
+  using FieldMetadata_HypervisorHostHcall =
+    ::protozero::proto_utils::FieldMetadata<
+      582,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      HypervisorHostHcallFtraceEvent,
+      FtraceEvent>;
+
+  static constexpr FieldMetadata_HypervisorHostHcall kHypervisorHostHcall{};
+  template <typename T = HypervisorHostHcallFtraceEvent> T* set_hypervisor_host_hcall() {
+    return BeginNestedMessage<T>(582);
+  }
+
+
+  using FieldMetadata_HypervisorHostSmc =
+    ::protozero::proto_utils::FieldMetadata<
+      583,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      HypervisorHostSmcFtraceEvent,
+      FtraceEvent>;
+
+  static constexpr FieldMetadata_HypervisorHostSmc kHypervisorHostSmc{};
+  template <typename T = HypervisorHostSmcFtraceEvent> T* set_hypervisor_host_smc() {
+    return BeginNestedMessage<T>(583);
+  }
+
+
+  using FieldMetadata_HypervisorHypExit =
+    ::protozero::proto_utils::FieldMetadata<
+      584,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      HypervisorHypExitFtraceEvent,
+      FtraceEvent>;
+
+  static constexpr FieldMetadata_HypervisorHypExit kHypervisorHypExit{};
+  template <typename T = HypervisorHypExitFtraceEvent> T* set_hypervisor_hyp_exit() {
+    return BeginNestedMessage<T>(584);
+  }
+
+
+  using FieldMetadata_HypervisorIommuIdmap =
+    ::protozero::proto_utils::FieldMetadata<
+      585,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      HypervisorIommuIdmapFtraceEvent,
+      FtraceEvent>;
+
+  static constexpr FieldMetadata_HypervisorIommuIdmap kHypervisorIommuIdmap{};
+  template <typename T = HypervisorIommuIdmapFtraceEvent> T* set_hypervisor_iommu_idmap() {
+    return BeginNestedMessage<T>(585);
+  }
+
+
+  using FieldMetadata_HypervisorPsciMemProtect =
+    ::protozero::proto_utils::FieldMetadata<
+      586,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      HypervisorPsciMemProtectFtraceEvent,
+      FtraceEvent>;
+
+  static constexpr FieldMetadata_HypervisorPsciMemProtect kHypervisorPsciMemProtect{};
+  template <typename T = HypervisorPsciMemProtectFtraceEvent> T* set_hypervisor_psci_mem_protect() {
+    return BeginNestedMessage<T>(586);
+  }
+
+
+  using FieldMetadata_HypervisorHostMemAbort =
+    ::protozero::proto_utils::FieldMetadata<
+      587,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      HypervisorHostMemAbortFtraceEvent,
+      FtraceEvent>;
+
+  static constexpr FieldMetadata_HypervisorHostMemAbort kHypervisorHostMemAbort{};
+  template <typename T = HypervisorHostMemAbortFtraceEvent> T* set_hypervisor_host_mem_abort() {
+    return BeginNestedMessage<T>(587);
+  }
+
+
+  using FieldMetadata_HypervisorHypEnter =
+    ::protozero::proto_utils::FieldMetadata<
+      588,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      HypervisorHypEnterFtraceEvent,
+      FtraceEvent>;
+
+  static constexpr FieldMetadata_HypervisorHypEnter kHypervisorHypEnter{};
+  template <typename T = HypervisorHypEnterFtraceEvent> T* set_hypervisor_hyp_enter() {
+    return BeginNestedMessage<T>(588);
+  }
+
+
+  using FieldMetadata_HypervisorIommuIdmapComplete =
+    ::protozero::proto_utils::FieldMetadata<
+      589,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      HypervisorIommuIdmapCompleteFtraceEvent,
+      FtraceEvent>;
+
+  static constexpr FieldMetadata_HypervisorIommuIdmapComplete kHypervisorIommuIdmapComplete{};
+  template <typename T = HypervisorIommuIdmapCompleteFtraceEvent> T* set_hypervisor_iommu_idmap_complete() {
+    return BeginNestedMessage<T>(589);
+  }
+
+
+  using FieldMetadata_HypervisorVcpuIllegalTrap =
+    ::protozero::proto_utils::FieldMetadata<
+      590,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      HypervisorVcpuIllegalTrapFtraceEvent,
+      FtraceEvent>;
+
+  static constexpr FieldMetadata_HypervisorVcpuIllegalTrap kHypervisorVcpuIllegalTrap{};
+  template <typename T = HypervisorVcpuIllegalTrapFtraceEvent> T* set_hypervisor_vcpu_illegal_trap() {
+    return BeginNestedMessage<T>(590);
   }
 
 };

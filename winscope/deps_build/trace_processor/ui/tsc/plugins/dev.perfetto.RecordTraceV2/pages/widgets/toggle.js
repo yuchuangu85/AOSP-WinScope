@@ -16,6 +16,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.Toggle = void 0;
 const tslib_1 = require("tslib");
 const mithril_1 = tslib_1.__importDefault(require("mithril"));
+const switch_1 = require("../../../../widgets/switch");
 class Toggle {
     attrs;
     _enabled;
@@ -39,6 +40,18 @@ class Toggle {
         }
     }
     render() {
+        return (0, mithril_1.default)('.pf-toggle', { className: this.attrs.cssClass }, [
+            (0, mithril_1.default)(switch_1.Switch, {
+                className: 'pf-toggle__switch',
+                checked: this._enabled,
+                oninput: (e) => {
+                    this.setEnabled(e.target.checked);
+                    this.attrs.onChange?.(this._enabled);
+                },
+                label: this.attrs.title,
+            }),
+            (0, mithril_1.default)('.pf-toggle__desc', this.attrs.descr),
+        ]);
         return (0, mithril_1.default)(`.toggle${this._enabled ? '.enabled' : ''}${this.attrs.cssClass ?? ''}`, (0, mithril_1.default)('label', (0, mithril_1.default)(`input[type=checkbox]`, {
             checked: this._enabled,
             oninput: (e) => {

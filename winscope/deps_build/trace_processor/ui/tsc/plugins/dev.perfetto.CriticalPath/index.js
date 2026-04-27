@@ -21,6 +21,7 @@ const query_result_tab_1 = require("../../components/query_table/query_result_ta
 const modal_1 = require("../../widgets/modal");
 const exposed_commands_1 = require("../../public/exposed_commands");
 const utils_1 = require("../../public/utils");
+const query_result_1 = require("../../trace_processor/query_result");
 const criticalPathSliceColumns = {
     ts: 'ts',
     dur: 'dur',
@@ -87,17 +88,41 @@ function showModalErrorThreadStateRequired() {
 // If utid is undefined, returns the utid for the selected thread state track,
 // if any. If it's defined, looks up the info about that specific utid.
 async function getThreadInfoForUtidOrSelection(trace, utid) {
-    if (utid === undefined) {
-        const selection = trace.selection.selection;
-        if (selection.kind === 'track_event') {
-            if (selection.utid !== undefined) {
-                utid = (0, core_types_1.asUtid)(selection.utid);
-            }
-        }
-    }
-    if (utid === undefined)
+    const resolvedUtid = utid ?? (await getUtid(trace));
+    if (resolvedUtid === undefined)
         return undefined;
-    return (0, thread_1.getThreadInfo)(trace.engine, utid);
+    return await (0, thread_1.getThreadInfo)(trace.engine, resolvedUtid);
+}
+/**
+ * Get the utid for the current selection. We either grab the utid from the
+ * track tags, or we look it up from the dataset.
+ *
+ * Returns undefined if the selection doesn't really have a utid.
+ */
+async function getUtid(trace) {
+    // No utid passed, look up the utid from the selected track.
+    const selection = trace.selection.selection;
+    if (selection.kind !== 'track_event')
+        return undefined;
+    const trackUri = selection.trackUri;
+    const track = trace.tracks.getTrack(trackUri);
+    if (track === undefined)
+        return undefined;
+    if (track.tags &&
+        'utid' in track.tags &&
+        typeof track.tags.utid === 'number') {
+        return (0, core_types_1.asUtid)(track.tags.utid);
+    }
+    const dataset = track.renderer.getDataset?.();
+    if (dataset === undefined)
+        return undefined;
+    if (!dataset.implements({ utid: query_result_1.NUM }))
+        return undefined;
+    const result = await trace.engine.query(`
+    SELECT utid FROM (${dataset.query()}) WHERE id = ${selection.eventId}
+  `);
+    const firstRow = result.firstRow({ utid: query_result_1.NUM });
+    return (0, core_types_1.asUtid)(firstRow?.utid);
 }
 class default_1 {
     static id = 'dev.perfetto.CriticalPath';
@@ -137,7 +162,7 @@ class default_1 {
                     trace_bounds.end_ts - trace_bounds.start_ts) cr,
                   trace_bounds
                 JOIN thread USING(utid)
-                JOIN process USING(upid)
+                LEFT JOIN process USING(upid)
               `,
                         columns: sliceLiteColumnNames,
                     },
@@ -178,7 +203,7 @@ class default_1 {
             },
         });
         ctx.commands.registerCommand({
-            id: 'perfetto.CriticalPathLite_AreaSelection',
+            id: 'dev.perfetto.CriticalPathLite_AreaSelection',
             name: 'Critical path lite (over area selection)',
             callback: async () => {
                 const trackUtid = getFirstUtidOfSelectionOrVisibleWindow(ctx);
@@ -205,7 +230,7 @@ class default_1 {
                       ${window.start},
                       ${window.end} - ${window.start}) cr
                 JOIN thread USING(utid)
-                JOIN process USING(upid)
+                LEFT JOIN process USING(upid)
                 `,
                         columns: criticalPathsliceLiteColumnNames,
                     },
@@ -217,7 +242,7 @@ class default_1 {
             },
         });
         ctx.commands.registerCommand({
-            id: 'perfetto.CriticalPath_AreaSelection',
+            id: 'dev.perfetto.CriticalPath_AreaSelection',
             name: 'Critical path  (over area selection)',
             callback: async () => {
                 const trackUtid = getFirstUtidOfSelectionOrVisibleWindow(ctx);
@@ -248,7 +273,7 @@ class default_1 {
             },
         });
         ctx.commands.registerCommand({
-            id: 'perfetto.CriticalPathPprof_AreaSelection',
+            id: 'dev.perfetto.CriticalPathPprof_AreaSelection',
             name: 'Critical path pprof (over area selection)',
             callback: async () => {
                 const trackUtid = getFirstUtidOfSelectionOrVisibleWindow(ctx);

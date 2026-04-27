@@ -20,7 +20,6 @@ const query_result_1 = require("../../trace_processor/query_result");
 class default_1 {
     static id = 'com.android.TrustyTeeCpuTimeline';
     async onTraceLoad(ctx) {
-        const title = 'Trusty Tee CPU Timeline';
         const uri = `com.android.TrustyTeeCpuTimeline#TrustyTeeCpuTimeline`;
         const query = `
       SELECT
@@ -40,8 +39,7 @@ class default_1 {
     `;
         ctx.tracks.registerTrack({
             uri,
-            title,
-            track: new dataset_slice_track_1.DatasetSliceTrack({
+            renderer: new dataset_slice_track_1.DatasetSliceTrack({
                 trace: ctx,
                 uri,
                 dataset: new dataset_1.SourceDataset({
@@ -63,7 +61,11 @@ class default_1 {
                 },
             }),
         });
-        const trackNode = new workspace_1.TrackNode({ uri, title, sortOrder: -100 });
+        const trackNode = new workspace_1.TrackNode({
+            uri,
+            name: 'Trusty Tee CPU Timeline',
+            sortOrder: -100,
+        });
         ctx.workspace.addChildInOrder(trackNode);
     }
 }

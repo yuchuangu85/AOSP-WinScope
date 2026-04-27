@@ -13,24 +13,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CardList = exports.Card = void 0;
+exports.CardStack = exports.Card = void 0;
 const tslib_1 = require("tslib");
 const mithril_1 = tslib_1.__importDefault(require("mithril"));
 const classnames_1 = require("../base/classnames");
 class Card {
     view(vnode) {
-        const { borderless, className, ...htmlAttrs } = vnode.attrs;
+        const { interactive, ...attrs } = vnode.attrs;
         return (0, mithril_1.default)('.pf-card', {
-            className: (0, classnames_1.classNames)(borderless && 'pf-card--borderless', className),
-            ...htmlAttrs,
+            ...attrs,
+            class: (0, classnames_1.classNames)(attrs.className, interactive && 'pf-interactive'),
         }, vnode.children);
     }
 }
 exports.Card = Card;
-class CardList {
-    view(vnode) {
-        return (0, mithril_1.default)('.pf-card-list', vnode.children);
+class CardStack {
+    view({ attrs, children }) {
+        const { direction = 'vertical', ...htmlAttrs } = attrs;
+        const directionClass = direction === 'horizontal' ? '.pf-card-stack--horizontal' : '';
+        return (0, mithril_1.default)('.pf-card-stack' + directionClass, htmlAttrs, children);
     }
 }
-exports.CardList = CardList;
+exports.CardStack = CardStack;
 //# sourceMappingURL=card.js.map

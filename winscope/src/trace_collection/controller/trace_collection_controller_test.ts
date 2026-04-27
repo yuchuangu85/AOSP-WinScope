@@ -203,8 +203,8 @@ describe('TraceCollectionController', () => {
       expect(stopCurrentSession).toHaveBeenCalledTimes(1);
       expect(clearPreviousConfigFiles).toHaveBeenCalledTimes(1);
       expect(runShellCmdSpy.calls.allArgs().slice(1, 3).flat()).toEqual([
-        `su root rm -rf ${WINSCOPE_BACKUP_DIR}`,
-        `su root mkdir ${WINSCOPE_BACKUP_DIR}`,
+        `rm -rf ${WINSCOPE_BACKUP_DIR}`,
+        `mkdir ${WINSCOPE_BACKUP_DIR}`,
       ]);
       startSpy.calls.allArgs().forEach((args, index) => {
         expect(args[0].traceName).toEqual(targets[index].traceName);
@@ -278,7 +278,7 @@ describe('TraceCollectionController', () => {
         },
       ];
       const expectedCommands = [
-        `cat << EOF >> /data/misc/perfetto-configs/winscope-proxy-dump.conf
+        `cat << EOF > /data/misc/perfetto-configs/winscope-proxy-dump.conf
 data_sources: {
   config {
     name: "android.surfaceflinger.layers"
@@ -286,14 +286,13 @@ data_sources: {
       mode: MODE_DUMP
       trace_flags: TRACE_FLAG_INPUT
       trace_flags: TRACE_FLAG_COMPOSITION
+      trace_flags: TRACE_FLAG_EXTRA
       trace_flags: TRACE_FLAG_HWC
       trace_flags: TRACE_FLAG_BUFFERS
       trace_flags: TRACE_FLAG_VIRTUAL_DISPLAYS
     }
   }
 }
-EOF`,
-        `cat << EOF >> /data/misc/perfetto-configs/winscope-proxy-dump.conf
 buffers: {
   size_kb: 500000
   fill_policy: RING_BUFFER
@@ -324,8 +323,8 @@ echo 'Dumped perfetto'`,
 
       const expectedCommands = [
         'perfetto --query',
-        `su root rm -rf ${WINSCOPE_BACKUP_DIR}`,
-        `su root mkdir ${WINSCOPE_BACKUP_DIR}`,
+        `rm -rf ${WINSCOPE_BACKUP_DIR}`,
+        `mkdir ${WINSCOPE_BACKUP_DIR}`,
       ].concat(commands);
       runShellCmdSpy.calls.allArgs().forEach((args, index) => {
         expect(args[0]).toEqual(expectedCommands[index]);
@@ -338,18 +337,13 @@ echo 'Dumped perfetto'`,
     const data = Uint8Array.from([]);
     const devicePath = 'archive/test_path';
     const fetchedPath = 'test_path';
-    let findSpy: jasmine.Spy;
-    let pullSpy: jasmine.Spy;
-
     beforeEach(async () => {
-      findSpy = spyOn(
-        MockAdbDeviceConnection.prototype,
-        'findFiles',
-      ).and.returnValue(Promise.resolve([devicePath, devicePath]));
-      pullSpy = spyOn(
-        MockAdbDeviceConnection.prototype,
-        'pullFile',
-      ).and.returnValue(Promise.resolve(data));
+      spyOn(MockAdbDeviceConnection.prototype, 'findFiles').and.returnValue(
+        Promise.resolve([devicePath, devicePath]),
+      );
+      spyOn(MockAdbDeviceConnection.prototype, 'pullFile').and.returnValue(
+        Promise.resolve(data),
+      );
     });
 
     it('fetches last tracing session data', async () => {

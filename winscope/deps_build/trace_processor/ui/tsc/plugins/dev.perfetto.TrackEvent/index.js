@@ -39,7 +39,9 @@ class default_1 {
         g.parent_id as parentId,
         g.is_counter AS isCounter,
         g.name,
+        g.description,
         g.unit,
+        g.y_axis_share_key as yAxisShareKey,
         g.builtin_counter_type as builtinCounterType,
         g.has_data AS hasData,
         g.has_children AS hasChildren,
@@ -60,7 +62,9 @@ class default_1 {
             parentId: query_result_1.NUM_NULL,
             isCounter: query_result_1.NUM,
             name: query_result_1.STR_NULL,
+            description: query_result_1.STR_NULL,
             unit: query_result_1.STR_NULL,
+            yAxisShareKey: query_result_1.STR_NULL,
             builtinCounterType: query_result_1.STR_NULL,
             hasData: query_result_1.NUM,
             hasChildren: query_result_1.NUM,
@@ -74,7 +78,7 @@ class default_1 {
         const processGroupsPlugin = ctx.plugins.getPlugin(dev_perfetto_ProcessThreadGroups_1.default);
         const trackIdToTrackNode = new Map();
         for (; it.valid(); it.next()) {
-            const { upid, utid, parentId, isCounter, name, unit, builtinCounterType, hasData, hasChildren, trackIds: rawTrackIds, orderId, threadName, tid, pid, processName, } = it;
+            const { upid, utid, parentId, isCounter, name, description, unit, yAxisShareKey, builtinCounterType, hasData, hasChildren, trackIds: rawTrackIds, orderId, threadName, tid, pid, processName, } = it;
             // Don't add track_event tracks which don't have any data and don't have
             // any children.
             if (!hasData && !hasChildren) {
@@ -82,7 +86,7 @@ class default_1 {
             }
             const kind = isCounter ? track_kinds_1.COUNTER_TRACK_KIND : track_kinds_1.SLICE_TRACK_KIND;
             const trackIds = rawTrackIds.split(',').map((v) => Number(v));
-            const title = (0, utils_1.getTrackName)({
+            const trackName = (0, utils_1.getTrackName)({
                 name,
                 utid,
                 upid,
@@ -103,37 +107,46 @@ class default_1 {
                 const trackId = trackIds[0];
                 ctx.tracks.registerTrack({
                     uri,
-                    title,
+                    description: description ?? undefined,
                     tags: {
                         kind,
                         trackIds: [trackIds[0]],
                         upid: upid ?? undefined,
                         utid: utid ?? undefined,
                     },
-                    track: new trace_processor_counter_track_1.TraceProcessorCounterTrack(ctx, uri, {
+                    renderer: new trace_processor_counter_track_1.TraceProcessorCounterTrack(ctx, uri, {
                         unit: unit ?? undefined,
-                    }, trackId, title),
+                        // We combine the yAxisShareKey with the parentId to ensure that
+                        // only tracks under the same parent are grouped.
+                        yRangeSharingKey: yAxisShareKey === null
+                            ? undefined
+                            : `trackEvent-${parentId}-${yAxisShareKey}`,
+                    }, trackId, trackName),
                 });
             }
             else if (hasData) {
                 ctx.tracks.registerTrack({
                     uri,
-                    title,
+                    description: description ?? undefined,
                     tags: {
                         kind,
                         trackIds: trackIds,
                         upid: upid ?? undefined,
                         utid: utid ?? undefined,
                     },
-                    track: (0, trace_processor_slice_track_1.createTraceProcessorSliceTrack)({ trace: ctx, uri, trackIds }),
+                    renderer: await (0, trace_processor_slice_track_1.createTraceProcessorSliceTrack)({
+                        trace: ctx,
+                        uri,
+                        trackIds,
+                    }),
                 });
             }
             const parent = this.findParentTrackNode(ctx, processGroupsPlugin, trackIdToTrackNode, parentId ?? undefined, upid ?? undefined, utid ?? undefined, hasChildren);
             const node = new workspace_1.TrackNode({
-                title,
+                name: trackName,
                 sortOrder: orderId,
                 isSummary: hasData === 0,
-                uri: uri,
+                uri,
             });
             parent.addChildInOrder(node);
             trackIdToTrackNode.set(trackIds[0], node);
@@ -156,7 +169,7 @@ class default_1 {
         let node = this.parentTrackNodes.get(id);
         if (node === undefined) {
             node = new workspace_1.TrackNode({
-                title: 'Global Track Events',
+                name: 'Global Track Events',
                 isSummary: true,
             });
             ctx.workspace.addChildInOrder(node);

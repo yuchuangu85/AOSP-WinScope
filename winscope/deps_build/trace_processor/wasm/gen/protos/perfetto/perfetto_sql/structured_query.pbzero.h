@@ -23,6 +23,7 @@ class PerfettoSqlStructuredQuery_IntervalIntersect;
 class PerfettoSqlStructuredQuery_SelectColumn;
 class PerfettoSqlStructuredQuery_SimpleSlices;
 class PerfettoSqlStructuredQuery_Sql;
+class PerfettoSqlStructuredQuery_Sql_Dependency;
 class PerfettoSqlStructuredQuery_Table;
 namespace perfetto_pbzero_enum_PerfettoSqlStructuredQuery_Filter {
 enum Operator : int32_t;
@@ -146,13 +147,15 @@ const char* PerfettoSqlStructuredQuery_Filter_Operator_Name(::perfetto::protos::
   return "PBZERO_UNKNOWN_ENUM_VALUE";
 }
 
-class PerfettoSqlStructuredQuery_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/10, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
+class PerfettoSqlStructuredQuery_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/11, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
  public:
   PerfettoSqlStructuredQuery_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
   explicit PerfettoSqlStructuredQuery_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
   explicit PerfettoSqlStructuredQuery_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
   bool has_id() const { return at<1>().valid(); }
   ::protozero::ConstChars id() const { return at<1>().as_string(); }
+  bool has_referenced_modules() const { return at<11>().valid(); }
+  ::protozero::RepeatedFieldIterator<::protozero::ConstChars> referenced_modules() const { return GetRepeated<::protozero::ConstChars>(11); }
   bool has_table() const { return at<2>().valid(); }
   ::protozero::ConstBytes table() const { return at<2>().as_bytes(); }
   bool has_sql() const { return at<3>().valid(); }
@@ -178,6 +181,7 @@ class PerfettoSqlStructuredQuery : public ::protozero::Message {
   using Decoder = PerfettoSqlStructuredQuery_Decoder;
   enum : int32_t {
     kIdFieldNumber = 1,
+    kReferencedModulesFieldNumber = 11,
     kTableFieldNumber = 2,
     kSqlFieldNumber = 3,
     kSimpleSlicesFieldNumber = 4,
@@ -215,6 +219,30 @@ class PerfettoSqlStructuredQuery : public ::protozero::Message {
   }
   void set_id(std::string value) {
     static constexpr uint32_t field_id = FieldMetadata_Id::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kString>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_ReferencedModules =
+    ::protozero::proto_utils::FieldMetadata<
+      11,
+      ::protozero::proto_utils::RepetitionType::kRepeatedNotPacked,
+      ::protozero::proto_utils::ProtoSchemaType::kString,
+      std::string,
+      PerfettoSqlStructuredQuery>;
+
+  static constexpr FieldMetadata_ReferencedModules kReferencedModules{};
+  void add_referenced_modules(const char* data, size_t size) {
+    AppendBytes(FieldMetadata_ReferencedModules::kFieldId, data, size);
+  }
+  void add_referenced_modules(::protozero::ConstChars chars) {
+    AppendBytes(FieldMetadata_ReferencedModules::kFieldId, chars.data, chars.size);
+  }
+  void add_referenced_modules(std::string value) {
+    static constexpr uint32_t field_id = FieldMetadata_ReferencedModules::kFieldId;
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
@@ -359,44 +387,47 @@ class PerfettoSqlStructuredQuery : public ::protozero::Message {
 
 };
 
-class PerfettoSqlStructuredQuery_SelectColumn_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/2, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
+class PerfettoSqlStructuredQuery_SelectColumn_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/3, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
  public:
   PerfettoSqlStructuredQuery_SelectColumn_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
   explicit PerfettoSqlStructuredQuery_SelectColumn_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
   explicit PerfettoSqlStructuredQuery_SelectColumn_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
-  bool has_column_name() const { return at<1>().valid(); }
-  ::protozero::ConstChars column_name() const { return at<1>().as_string(); }
+  bool has_column_name_or_expression() const { return at<3>().valid(); }
+  ::protozero::ConstChars column_name_or_expression() const { return at<3>().as_string(); }
   bool has_alias() const { return at<2>().valid(); }
   ::protozero::ConstChars alias() const { return at<2>().as_string(); }
+  bool has_column_name() const { return at<1>().valid(); }
+  ::protozero::ConstChars column_name() const { return at<1>().as_string(); }
 };
 
 class PerfettoSqlStructuredQuery_SelectColumn : public ::protozero::Message {
  public:
   using Decoder = PerfettoSqlStructuredQuery_SelectColumn_Decoder;
   enum : int32_t {
-    kColumnNameFieldNumber = 1,
+    kColumnNameOrExpressionFieldNumber = 3,
     kAliasFieldNumber = 2,
+    kColumnNameFieldNumber = 1,
   };
   static constexpr const char* GetName() { return ".perfetto.protos.PerfettoSqlStructuredQuery.SelectColumn"; }
 
 
-  using FieldMetadata_ColumnName =
+  using FieldMetadata_ColumnNameOrExpression =
     ::protozero::proto_utils::FieldMetadata<
-      1,
+      3,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kString,
       std::string,
       PerfettoSqlStructuredQuery_SelectColumn>;
 
-  static constexpr FieldMetadata_ColumnName kColumnName{};
-  void set_column_name(const char* data, size_t size) {
-    AppendBytes(FieldMetadata_ColumnName::kFieldId, data, size);
+  static constexpr FieldMetadata_ColumnNameOrExpression kColumnNameOrExpression{};
+  void set_column_name_or_expression(const char* data, size_t size) {
+    AppendBytes(FieldMetadata_ColumnNameOrExpression::kFieldId, data, size);
   }
-  void set_column_name(::protozero::ConstChars chars) {
-    AppendBytes(FieldMetadata_ColumnName::kFieldId, chars.data, chars.size);
+  void set_column_name_or_expression(::protozero::ConstChars chars) {
+    AppendBytes(FieldMetadata_ColumnNameOrExpression::kFieldId, chars.data, chars.size);
   }
-  void set_column_name(std::string value) {
-    static constexpr uint32_t field_id = FieldMetadata_ColumnName::kFieldId;
+  void set_column_name_or_expression(std::string value) {
+    static constexpr uint32_t field_id = FieldMetadata_ColumnNameOrExpression::kFieldId;
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
@@ -421,6 +452,30 @@ class PerfettoSqlStructuredQuery_SelectColumn : public ::protozero::Message {
   }
   void set_alias(std::string value) {
     static constexpr uint32_t field_id = FieldMetadata_Alias::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kString>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_ColumnName =
+    ::protozero::proto_utils::FieldMetadata<
+      1,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kString,
+      std::string,
+      PerfettoSqlStructuredQuery_SelectColumn>;
+
+  static constexpr FieldMetadata_ColumnName kColumnName{};
+  void set_column_name(const char* data, size_t size) {
+    AppendBytes(FieldMetadata_ColumnName::kFieldId, data, size);
+  }
+  void set_column_name(::protozero::ConstChars chars) {
+    AppendBytes(FieldMetadata_ColumnName::kFieldId, chars.data, chars.size);
+  }
+  void set_column_name(std::string value) {
+    static constexpr uint32_t field_id = FieldMetadata_ColumnName::kFieldId;
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
@@ -792,7 +847,7 @@ class PerfettoSqlStructuredQuery_IntervalIntersect : public ::protozero::Message
 
 };
 
-class PerfettoSqlStructuredQuery_Sql_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/3, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
+class PerfettoSqlStructuredQuery_Sql_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/4, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
  public:
   PerfettoSqlStructuredQuery_Sql_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
   explicit PerfettoSqlStructuredQuery_Sql_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
@@ -801,6 +856,8 @@ class PerfettoSqlStructuredQuery_Sql_Decoder : public ::protozero::TypedProtoDec
   ::protozero::ConstChars sql() const { return at<1>().as_string(); }
   bool has_column_names() const { return at<2>().valid(); }
   ::protozero::RepeatedFieldIterator<::protozero::ConstChars> column_names() const { return GetRepeated<::protozero::ConstChars>(2); }
+  bool has_dependencies() const { return at<4>().valid(); }
+  ::protozero::RepeatedFieldIterator<::protozero::ConstBytes> dependencies() const { return GetRepeated<::protozero::ConstBytes>(4); }
   bool has_preamble() const { return at<3>().valid(); }
   ::protozero::ConstChars preamble() const { return at<3>().as_string(); }
 };
@@ -811,10 +868,12 @@ class PerfettoSqlStructuredQuery_Sql : public ::protozero::Message {
   enum : int32_t {
     kSqlFieldNumber = 1,
     kColumnNamesFieldNumber = 2,
+    kDependenciesFieldNumber = 4,
     kPreambleFieldNumber = 3,
   };
   static constexpr const char* GetName() { return ".perfetto.protos.PerfettoSqlStructuredQuery.Sql"; }
 
+  using Dependency = ::perfetto::protos::pbzero::PerfettoSqlStructuredQuery_Sql_Dependency;
 
   using FieldMetadata_Sql =
     ::protozero::proto_utils::FieldMetadata<
@@ -864,6 +923,20 @@ class PerfettoSqlStructuredQuery_Sql : public ::protozero::Message {
         ::Append(*this, field_id, value);
   }
 
+  using FieldMetadata_Dependencies =
+    ::protozero::proto_utils::FieldMetadata<
+      4,
+      ::protozero::proto_utils::RepetitionType::kRepeatedNotPacked,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      PerfettoSqlStructuredQuery_Sql_Dependency,
+      PerfettoSqlStructuredQuery_Sql>;
+
+  static constexpr FieldMetadata_Dependencies kDependencies{};
+  template <typename T = PerfettoSqlStructuredQuery_Sql_Dependency> T* add_dependencies() {
+    return BeginNestedMessage<T>(4);
+  }
+
+
   using FieldMetadata_Preamble =
     ::protozero::proto_utils::FieldMetadata<
       3,
@@ -887,6 +960,66 @@ class PerfettoSqlStructuredQuery_Sql : public ::protozero::Message {
       ::protozero::proto_utils::ProtoSchemaType::kString>
         ::Append(*this, field_id, value);
   }
+};
+
+class PerfettoSqlStructuredQuery_Sql_Dependency_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/2, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
+ public:
+  PerfettoSqlStructuredQuery_Sql_Dependency_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
+  explicit PerfettoSqlStructuredQuery_Sql_Dependency_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
+  explicit PerfettoSqlStructuredQuery_Sql_Dependency_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
+  bool has_alias() const { return at<1>().valid(); }
+  ::protozero::ConstChars alias() const { return at<1>().as_string(); }
+  bool has_query() const { return at<2>().valid(); }
+  ::protozero::ConstBytes query() const { return at<2>().as_bytes(); }
+};
+
+class PerfettoSqlStructuredQuery_Sql_Dependency : public ::protozero::Message {
+ public:
+  using Decoder = PerfettoSqlStructuredQuery_Sql_Dependency_Decoder;
+  enum : int32_t {
+    kAliasFieldNumber = 1,
+    kQueryFieldNumber = 2,
+  };
+  static constexpr const char* GetName() { return ".perfetto.protos.PerfettoSqlStructuredQuery.Sql.Dependency"; }
+
+
+  using FieldMetadata_Alias =
+    ::protozero::proto_utils::FieldMetadata<
+      1,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kString,
+      std::string,
+      PerfettoSqlStructuredQuery_Sql_Dependency>;
+
+  static constexpr FieldMetadata_Alias kAlias{};
+  void set_alias(const char* data, size_t size) {
+    AppendBytes(FieldMetadata_Alias::kFieldId, data, size);
+  }
+  void set_alias(::protozero::ConstChars chars) {
+    AppendBytes(FieldMetadata_Alias::kFieldId, chars.data, chars.size);
+  }
+  void set_alias(std::string value) {
+    static constexpr uint32_t field_id = FieldMetadata_Alias::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kString>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_Query =
+    ::protozero::proto_utils::FieldMetadata<
+      2,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      PerfettoSqlStructuredQuery,
+      PerfettoSqlStructuredQuery_Sql_Dependency>;
+
+  static constexpr FieldMetadata_Query kQuery{};
+  template <typename T = PerfettoSqlStructuredQuery> T* set_query() {
+    return BeginNestedMessage<T>(2);
+  }
+
 };
 
 class PerfettoSqlStructuredQuery_SimpleSlices_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/4, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
@@ -1020,10 +1153,10 @@ class PerfettoSqlStructuredQuery_Table_Decoder : public ::protozero::TypedProtoD
   explicit PerfettoSqlStructuredQuery_Table_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
   bool has_table_name() const { return at<1>().valid(); }
   ::protozero::ConstChars table_name() const { return at<1>().as_string(); }
-  bool has_module_name() const { return at<2>().valid(); }
-  ::protozero::ConstChars module_name() const { return at<2>().as_string(); }
   bool has_column_names() const { return at<3>().valid(); }
   ::protozero::RepeatedFieldIterator<::protozero::ConstChars> column_names() const { return GetRepeated<::protozero::ConstChars>(3); }
+  bool has_module_name() const { return at<2>().valid(); }
+  ::protozero::ConstChars module_name() const { return at<2>().as_string(); }
 };
 
 class PerfettoSqlStructuredQuery_Table : public ::protozero::Message {
@@ -1031,8 +1164,8 @@ class PerfettoSqlStructuredQuery_Table : public ::protozero::Message {
   using Decoder = PerfettoSqlStructuredQuery_Table_Decoder;
   enum : int32_t {
     kTableNameFieldNumber = 1,
-    kModuleNameFieldNumber = 2,
     kColumnNamesFieldNumber = 3,
+    kModuleNameFieldNumber = 2,
   };
   static constexpr const char* GetName() { return ".perfetto.protos.PerfettoSqlStructuredQuery.Table"; }
 
@@ -1061,30 +1194,6 @@ class PerfettoSqlStructuredQuery_Table : public ::protozero::Message {
         ::Append(*this, field_id, value);
   }
 
-  using FieldMetadata_ModuleName =
-    ::protozero::proto_utils::FieldMetadata<
-      2,
-      ::protozero::proto_utils::RepetitionType::kNotRepeated,
-      ::protozero::proto_utils::ProtoSchemaType::kString,
-      std::string,
-      PerfettoSqlStructuredQuery_Table>;
-
-  static constexpr FieldMetadata_ModuleName kModuleName{};
-  void set_module_name(const char* data, size_t size) {
-    AppendBytes(FieldMetadata_ModuleName::kFieldId, data, size);
-  }
-  void set_module_name(::protozero::ConstChars chars) {
-    AppendBytes(FieldMetadata_ModuleName::kFieldId, chars.data, chars.size);
-  }
-  void set_module_name(std::string value) {
-    static constexpr uint32_t field_id = FieldMetadata_ModuleName::kFieldId;
-    // Call the appropriate protozero::Message::Append(field_id, ...)
-    // method based on the type of the field.
-    ::protozero::internal::FieldWriter<
-      ::protozero::proto_utils::ProtoSchemaType::kString>
-        ::Append(*this, field_id, value);
-  }
-
   using FieldMetadata_ColumnNames =
     ::protozero::proto_utils::FieldMetadata<
       3,
@@ -1102,6 +1211,30 @@ class PerfettoSqlStructuredQuery_Table : public ::protozero::Message {
   }
   void add_column_names(std::string value) {
     static constexpr uint32_t field_id = FieldMetadata_ColumnNames::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kString>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_ModuleName =
+    ::protozero::proto_utils::FieldMetadata<
+      2,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kString,
+      std::string,
+      PerfettoSqlStructuredQuery_Table>;
+
+  static constexpr FieldMetadata_ModuleName kModuleName{};
+  void set_module_name(const char* data, size_t size) {
+    AppendBytes(FieldMetadata_ModuleName::kFieldId, data, size);
+  }
+  void set_module_name(::protozero::ConstChars chars) {
+    AppendBytes(FieldMetadata_ModuleName::kFieldId, chars.data, chars.size);
+  }
+  void set_module_name(std::string value) {
+    static constexpr uint32_t field_id = FieldMetadata_ModuleName::kFieldId;
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<

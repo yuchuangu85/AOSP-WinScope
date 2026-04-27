@@ -35,14 +35,13 @@ class default_1 {
             const name = `Gpu ${it.gpuId} Frequency`;
             ctx.tracks.registerTrack({
                 uri,
-                title: name,
                 tags: {
                     kind: track_kinds_1.COUNTER_TRACK_KIND,
                     trackIds: [it.id],
                 },
-                track: new trace_processor_counter_track_1.TraceProcessorCounterTrack(ctx, uri, {}, it.id, name),
+                renderer: new trace_processor_counter_track_1.TraceProcessorCounterTrack(ctx, uri, {}, it.id, name),
             });
-            const track = new workspace_1.TrackNode({ uri, title: name, sortOrder: -20 });
+            const track = new workspace_1.TrackNode({ uri, name, sortOrder: -20 });
             ctx.workspace.addChildInOrder(track);
         }
     }

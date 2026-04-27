@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ANDROID_LOGS_TRACK_KIND = exports.HEAP_PROFILE_TRACK_KIND = exports.CPU_PROFILE_TRACK_KIND = exports.CPUSS_ESTIMATE_TRACK_KIND = exports.COUNTER_TRACK_KIND = exports.INSTRUMENTS_SAMPLES_PROFILE_TRACK_KIND = exports.PERF_SAMPLES_PROFILE_TRACK_KIND = exports.SLICE_TRACK_KIND = exports.THREAD_STATE_TRACK_KIND = exports.CPU_FREQ_TRACK_KIND = exports.CPU_SLICE_TRACK_KIND = void 0;
+exports.ANDROID_LOGS_TRACK_KIND = exports.HEAP_PROFILE_TRACK_KIND = exports.CPU_PROFILE_TRACK_KIND = exports.COUNTER_TRACK_KIND = exports.INSTRUMENTS_SAMPLES_PROFILE_TRACK_KIND = exports.PERF_SAMPLES_PROFILE_TRACK_KIND = exports.SLICE_TRACK_KIND = exports.THREAD_STATE_TRACK_KIND = exports.CPU_FREQ_TRACK_KIND = exports.CPU_SLICE_TRACK_KIND = void 0;
 // This file contains a list of well known (to the core) track kinds.
 // This file exists purely to keep legacy systems in place without introducing a
 // ton of circular imports.
@@ -24,7 +24,6 @@ exports.SLICE_TRACK_KIND = 'SliceTrack';
 exports.PERF_SAMPLES_PROFILE_TRACK_KIND = 'PerfSamplesProfileTrack';
 exports.INSTRUMENTS_SAMPLES_PROFILE_TRACK_KIND = 'InstrumentsSamplesProfileTrack';
 exports.COUNTER_TRACK_KIND = 'CounterTrack';
-exports.CPUSS_ESTIMATE_TRACK_KIND = 'CpuSubsystemEstimateTrack';
 exports.CPU_PROFILE_TRACK_KIND = 'CpuProfileTrack';
 exports.HEAP_PROFILE_TRACK_KIND = 'HeapProfileTrack';
 exports.ANDROID_LOGS_TRACK_KIND = 'AndroidLogTrack';

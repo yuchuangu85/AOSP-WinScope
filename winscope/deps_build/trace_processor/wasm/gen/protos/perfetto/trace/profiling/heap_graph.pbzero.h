@@ -379,7 +379,7 @@ class HeapGraph : public ::protozero::Message {
   }
 };
 
-class HeapGraphObject_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/9, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
+class HeapGraphObject_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/10, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
  public:
   HeapGraphObject_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
   explicit HeapGraphObject_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
@@ -402,6 +402,8 @@ class HeapGraphObject_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIEL
   int64_t native_allocation_registry_size_field() const { return at<8>().as_int64(); }
   bool has_heap_type_delta() const { return at<9>().valid(); }
   int32_t heap_type_delta() const { return at<9>().as_int32(); }
+  bool has_runtime_internal_object_id() const { return at<10>().valid(); }
+  ::protozero::PackedRepeatedFieldIterator<::protozero::proto_utils::ProtoWireType::kVarInt, uint64_t> runtime_internal_object_id(bool* parse_error_ptr) const { return GetPackedRepeated<::protozero::proto_utils::ProtoWireType::kVarInt, uint64_t>(10, parse_error_ptr); }
 };
 
 class HeapGraphObject : public ::protozero::Message {
@@ -417,6 +419,7 @@ class HeapGraphObject : public ::protozero::Message {
     kReferenceObjectIdFieldNumber = 5,
     kNativeAllocationRegistrySizeFieldFieldNumber = 8,
     kHeapTypeDeltaFieldNumber = 9,
+    kRuntimeInternalObjectIdFieldNumber = 10,
   };
   static constexpr const char* GetName() { return ".perfetto.protos.HeapGraphObject"; }
 
@@ -582,6 +585,20 @@ class HeapGraphObject : public ::protozero::Message {
     ::protozero::internal::FieldWriter<
       ::protozero::proto_utils::ProtoSchemaType::kEnum>
         ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_RuntimeInternalObjectId =
+    ::protozero::proto_utils::FieldMetadata<
+      10,
+      ::protozero::proto_utils::RepetitionType::kRepeatedPacked,
+      ::protozero::proto_utils::ProtoSchemaType::kUint64,
+      uint64_t,
+      HeapGraphObject>;
+
+  static constexpr FieldMetadata_RuntimeInternalObjectId kRuntimeInternalObjectId{};
+  void set_runtime_internal_object_id(const ::protozero::PackedVarInt& packed_buffer) {
+    AppendBytes(FieldMetadata_RuntimeInternalObjectId::kFieldId, packed_buffer.data(),
+                packed_buffer.size());
   }
 };
 

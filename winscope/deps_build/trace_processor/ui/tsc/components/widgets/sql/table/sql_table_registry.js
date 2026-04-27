@@ -16,7 +16,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.sqlTableRegistry = void 0;
 exports.getSqlTableDescription = getSqlTableDescription;
 exports.sqlTableRegistry = {};
-function getSqlTableDescription(name) {
-    return exports.sqlTableRegistry[name];
+function getSqlTableDescription(trace, name) {
+    return exports.sqlTableRegistry[name]?.(trace);
 }
 //# sourceMappingURL=sql_table_registry.js.map

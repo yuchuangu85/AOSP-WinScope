@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CheckHttpRpcConnection = CheckHttpRpcConnection;
+exports.checkHttpRpcConnection = checkHttpRpcConnection;
 const tslib_1 = require("tslib");
 const mithril_1 = tslib_1.__importDefault(require("mithril"));
 const protos_1 = tslib_1.__importDefault(require("../protos"));
@@ -143,7 +143,7 @@ Trace processor RPC API: ${tpStatus.apiVersion}
 // trying to load a new trace. We do this ahead of time just to have a
 // consistent UX (i.e. so that the user can tell if the RPC is working without
 // having to open a trace).
-async function CheckHttpRpcConnection() {
+async function checkHttpRpcConnection() {
     const state = await http_rpc_engine_1.HttpRpcEngine.checkConnection();
     app_impl_1.AppImpl.instance.httpRpc.httpRpcAvailable = state.connected;
     if (!state.connected) {
@@ -226,7 +226,7 @@ async function showDialogVersionMismatch(tpStatus, url) {
     let result = MismatchedVersionDialog.Dismissed;
     await (0, modal_1.showModal)({
         title: 'Version mismatch',
-        content: (0, mithril_1.default)('.modal-pre', getVersionMismatchMessage(tpStatus)),
+        content: (0, mithril_1.default)('.pf-modal-pre', getVersionMismatchMessage(tpStatus)),
         buttons: [
             {
                 primary: true,
@@ -261,7 +261,7 @@ async function showDialogIncompatibleRPC(tpStatus) {
     let result = IncompatibleRpcDialogResult.Dismissed;
     await (0, modal_1.showModal)({
         title: 'Incompatible RPC version',
-        content: (0, mithril_1.default)('.modal-pre', getIncompatibleRpcMessage(tpStatus)),
+        content: (0, mithril_1.default)('.pf-modal-pre', getIncompatibleRpcMessage(tpStatus)),
         buttons: [
             {
                 text: 'Use builtin Wasm',
@@ -291,7 +291,7 @@ async function showDialogToUsePreloadedTrace(tpStatus) {
     let result = PreloadedDialogResult.Dismissed;
     await (0, modal_1.showModal)({
         title: 'Use trace processor native acceleration?',
-        content: (0, mithril_1.default)('.modal-pre', getPromptMessage(tpStatus)),
+        content: (0, mithril_1.default)('.pf-modal-pre', getPromptMessage(tpStatus)),
         buttons: [
             {
                 text: 'YES, use loaded trace',

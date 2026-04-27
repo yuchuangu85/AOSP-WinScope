@@ -43,7 +43,7 @@ function renderDetails(trace, slice, durationBreakdown) {
             label: 'Slices with the same name',
             onclick: () => {
                 extensions_1.extensions.addLegacySqlTableTab(trace, {
-                    table: (0, logging_1.assertExists)((0, sql_table_registry_1.getSqlTableDescription)('slice')),
+                    table: (0, logging_1.assertExists)((0, sql_table_registry_1.getSqlTableDescription)(trace, 'slice')),
                     filters: [
                         {
                             op: (cols) => `${cols[0]} = ${(0, string_utils_1.sqliteString)(slice.name)}`,
@@ -60,24 +60,25 @@ function renderDetails(trace, slice, durationBreakdown) {
             : slice.category,
     }), (0, mithril_1.default)(tree_1.TreeNode, {
         left: 'Start time',
-        right: (0, mithril_1.default)(timestamp_1.Timestamp, { ts: slice.ts }),
+        right: (0, mithril_1.default)(timestamp_1.Timestamp, { trace, ts: slice.ts }),
     }), (0, utils_1.exists)(slice.absTime) &&
         (0, mithril_1.default)(tree_1.TreeNode, { left: 'Absolute Time', right: slice.absTime }), (0, mithril_1.default)(tree_1.TreeNode, {
         left: 'Duration',
-        right: (0, mithril_1.default)(duration_1.DurationWidget, { dur: slice.dur }),
+        right: (0, mithril_1.default)(duration_1.DurationWidget, { trace, dur: slice.dur }),
     }, (0, utils_1.exists)(durationBreakdown) &&
         slice.dur > 0 &&
         (0, mithril_1.default)(thread_state_1.BreakdownByThreadStateTreeNode, {
+            trace,
             data: durationBreakdown,
             dur: slice.dur,
-        })), renderThreadDuration(slice), slice.thread &&
+        })), renderThreadDuration(trace, slice), slice.thread &&
         (0, mithril_1.default)(tree_1.TreeNode, {
             left: 'Thread',
-            right: (0, thread_1.renderThreadRef)(slice.thread),
+            right: (0, thread_1.renderThreadRef)(trace, slice.thread),
         }), slice.process &&
         (0, mithril_1.default)(tree_1.TreeNode, {
             left: 'Process',
-            right: (0, process_1.renderProcessRef)(slice.process),
+            right: (0, process_1.renderProcessRef)(trace, slice.process),
         }), slice.process &&
         (0, utils_1.exists)(slice.process.uid) &&
         (0, mithril_1.default)(tree_1.TreeNode, {
@@ -98,7 +99,7 @@ function renderDetails(trace, slice, durationBreakdown) {
         right: (0, mithril_1.default)(sql_ref_1.SqlRef, { table: 'slice', id: slice.id }),
     })));
 }
-function renderThreadDuration(sliceInfo) {
+function renderThreadDuration(trace, sliceInfo) {
     if ((0, utils_1.exists)(sliceInfo.threadTs) && (0, utils_1.exists)(sliceInfo.threadDur)) {
         // If we have valid thread duration, also display a percentage of
         // |threadDur| compared to |dur|.
@@ -107,7 +108,7 @@ function renderThreadDuration(sliceInfo) {
         return (0, mithril_1.default)(tree_1.TreeNode, {
             left: 'Thread duration',
             right: [
-                (0, mithril_1.default)(duration_1.DurationWidget, { dur: sliceInfo.threadDur }),
+                (0, mithril_1.default)(duration_1.DurationWidget, { trace, dur: sliceInfo.threadDur }),
                 threadDurFractionSuffix,
             ],
         });

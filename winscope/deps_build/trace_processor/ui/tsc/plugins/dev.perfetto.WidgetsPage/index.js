@@ -13,14 +13,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 Object.defineProperty(exports, "__esModule", { value: true });
+const tslib_1 = require("tslib");
+const mithril_1 = tslib_1.__importDefault(require("mithril"));
 const widgets_page_1 = require("./widgets_page");
 class default_1 {
     static id = 'dev.perfetto.WidgetsPage';
     static onActivate(app) {
         app.pages.registerPage({
             route: '/widgets',
-            page: widgets_page_1.WidgetsPage,
-            traceless: true,
+            render: () => (0, mithril_1.default)(widgets_page_1.WidgetsPage, { app }),
         });
         app.sidebar.addMenuItem({
             section: 'navigation',

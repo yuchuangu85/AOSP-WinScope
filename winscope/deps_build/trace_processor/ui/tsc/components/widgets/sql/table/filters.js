@@ -21,10 +21,10 @@ exports.areFiltersEqual = areFiltersEqual;
 exports.renderFilters = renderFilters;
 const tslib_1 = require("tslib");
 const mithril_1 = tslib_1.__importDefault(require("mithril"));
-const button_1 = require("../../../../widgets/button");
-const common_1 = require("../../../../widgets/common");
 const sql_column_1 = require("./sql_column");
 const sql_utils_1 = require("../../../../trace_processor/sql_utils");
+const chip_1 = require("../../../../widgets/chip");
+const stack_1 = require("../../../../widgets/stack");
 // A class representing a set of filters. As it's common for multiple components to share the same set of filters (e.g.
 // table viewer and associated charts), this class allows sharing the same set of filters between multiple components
 // and them being notified when the filters change.
@@ -90,12 +90,13 @@ function areFiltersEqual(a, b) {
     return a.every((f, i) => isFilterEqual(f, b[i]));
 }
 function renderFilters(filters) {
-    return (0, mithril_1.default)(button_1.ButtonBar, filters.get().map((filter) => (0, mithril_1.default)(button_1.Button, {
-        label: filterTitle(filter),
-        icon: 'close',
-        intent: common_1.Intent.Primary,
-        onclick: () => filters.removeFilter(filter),
-    })));
+    return (0, mithril_1.default)(stack_1.Stack, { orientation: 'horizontal' }, [
+        filters.get().map((filter) => (0, mithril_1.default)(chip_1.Chip, {
+            label: filterTitle(filter),
+            removable: true,
+            onRemove: () => filters.removeFilter(filter),
+        })),
+    ]);
 }
 class StandardFilters {
     static valueEquals(col, value) {
@@ -108,6 +109,32 @@ class StandardFilters {
         return {
             columns: [col],
             op: (cols) => `${cols[0]} = ${(0, sql_utils_1.sqlValueToSqliteString)(value)}`,
+        };
+    }
+    static valueNotEquals(col, value) {
+        if (value === null) {
+            return {
+                columns: [col],
+                op: (cols) => `${cols[0]} IS NOT NULL`,
+            };
+        }
+        return {
+            columns: [col],
+            op: (cols) => `${cols[0]} != ${(0, sql_utils_1.sqlValueToSqliteString)(value)}`,
+        };
+    }
+    static valueIsOneOf(col, values) {
+        if (values.length === 1)
+            return StandardFilters.valueEquals(col, values[0]);
+        if (values.length === 0) {
+            return {
+                columns: [],
+                op: () => 'FALSE',
+            };
+        }
+        return {
+            op: (cols) => `${cols[0]} IN (${values.map(sql_utils_1.sqlValueToSqliteString).join(', ')})`,
+            columns: [col],
         };
     }
 }

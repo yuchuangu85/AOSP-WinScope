@@ -43,7 +43,7 @@ class TracedConnectioManagementDialog {
     checks;
     view({ attrs }) {
         const provider = attrs.provider;
-        return (0, mithril_1.default)('.record-page', (0, mithril_1.default)('div', 'Forward port 8037 with ssh from the local host to the ' +
+        return (0, mithril_1.default)('.pf-record-page', (0, mithril_1.default)('div', 'Forward port 8037 with ssh from the local host to the ' +
             'remote host where traced is running and invoke websocket_bridge.'), (0, mithril_1.default)('br'), (0, mithril_1.default)('code', "ssh -L8037:localhost:8037 <remote-machine> 'websocket_bridge'"), (0, mithril_1.default)('header', 'Connect a new target'), (0, mithril_1.default)('div', (0, mithril_1.default)('input', {
             placeholder: 'remote_machine:8037',
             onchange: (e) => this.testConnection(e.target.value ?? ''),

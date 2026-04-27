@@ -44,11 +44,12 @@ const flow_events_renderer_1 = require("./flow_events_renderer");
 const gridline_helper_1 = require("./gridline_helper");
 const timeline_interactions_1 = require("./timeline_interactions");
 const track_view_1 = require("./track_view");
-const vertical_line_helper_1 = require("./vertical_line_helper");
+const vertical_line_helper_1 = require("../../base/vertical_line_helper");
 const feature_flags_1 = require("../../core/feature_flags");
 const empty_state_1 = require("../../widgets/empty_state");
 const button_1 = require("../../widgets/button");
 const common_1 = require("../../widgets/common");
+const cursor_tooltip_1 = require("../../widgets/cursor_tooltip");
 const VIRTUAL_TRACK_SCROLLING = feature_flags_1.featureFlags.register({
     id: 'virtualTrackScrolling',
     name: 'Virtual track scrolling',
@@ -74,6 +75,7 @@ class TrackTreeView {
     constructor({ attrs }) {
         this.trace = attrs.trace;
     }
+    hoveredTrackNode;
     view({ attrs }) {
         const { trace, scrollToNewTracks, canReorderNodes, canRemoveNodes, className, rootNode, trackFilter, filtersApplied, } = attrs;
         const renderedTracks = new Array();
@@ -93,44 +95,50 @@ class TrackTreeView {
             // Skip nodes that don't match the filter and have no matching children.
             if (!filterMatches(node))
                 return undefined;
+            if (node.headless) {
+                // Headless nodes are invisible, just render children.
+                return node.children.map((track) => {
+                    return renderTrack(track, depth, stickyTop);
+                });
+            }
             const trackView = new track_view_1.TrackView(trace, node, top);
             renderedTracks.push(trackView);
-            let childDepth = depth;
-            let childStickyTop = stickyTop;
-            if (!node.headless) {
-                top += trackView.height;
-                ++childDepth;
-                childStickyTop += trackView.height;
-            }
-            const children = (node.headless || node.expanded || filtersApplied) &&
+            // Advance the global top position.
+            top += trackView.height;
+            // Advance the sticky top position for our children, if we are sticky.
+            const childStickyTop = node.isSummary
+                ? stickyTop + trackView.height
+                : stickyTop;
+            const children = (node.expanded || filtersApplied) &&
                 node.hasChildren &&
-                node.children.map((track) => renderTrack(track, childDepth, childStickyTop));
-            if (node.headless) {
-                return children;
-            }
-            else {
-                const isTrackOnScreen = () => {
-                    if (VIRTUAL_TRACK_SCROLLING.get()) {
-                        return this.canvasRect?.overlaps({
-                            left: 0,
-                            right: 1,
-                            ...trackView.verticalBounds,
-                        });
-                    }
-                    else {
-                        return true;
-                    }
-                };
-                return trackView.renderDOM({
-                    lite: !Boolean(isTrackOnScreen()),
-                    scrollToOnCreate: scrollToNewTracks,
-                    reorderable: canReorderNodes,
-                    removable: canRemoveNodes,
-                    stickyTop,
-                    depth,
-                    collapsible: !filtersApplied,
-                }, children);
-            }
+                node.children.map((track) => renderTrack(track, depth + 1, childStickyTop));
+            const isTrackOnScreen = (() => {
+                if (VIRTUAL_TRACK_SCROLLING.get()) {
+                    return this.canvasRect?.overlaps({
+                        left: 0,
+                        right: 1,
+                        ...trackView.verticalBounds,
+                    });
+                }
+                else {
+                    return true;
+                }
+            })();
+            return trackView.renderDOM({
+                lite: !Boolean(isTrackOnScreen),
+                scrollToOnCreate: scrollToNewTracks,
+                reorderable: canReorderNodes,
+                removable: canRemoveNodes,
+                stickyTop,
+                depth,
+                collapsible: !filtersApplied,
+                onTrackMouseOver: () => {
+                    this.hoveredTrackNode = node;
+                },
+                onTrackMouseOut: () => {
+                    this.hoveredTrackNode = undefined;
+                },
+            }, children);
         };
         const trackVnodes = rootNode.children.map((track) => renderTrack(track));
         // If there are no truthy vnode values, show "empty state" placeholder.
@@ -143,6 +151,7 @@ class TrackTreeView {
                     title: `No tracks match track filter`,
                 }, (0, mithril_1.default)(button_1.Button, {
                     intent: common_1.Intent.Primary,
+                    variant: button_1.ButtonVariant.Filled,
                     label: 'Clear track filter',
                     onclick: () => trace.tracks.filters.clearAll(),
                 }));
@@ -178,7 +187,17 @@ class TrackTreeView {
                     }
                 }
             },
-        }, (0, mithril_1.default)('', { ref: TRACK_CONTAINER_REF }, trackVnodes));
+        }, (0, mithril_1.default)('', { ref: TRACK_CONTAINER_REF }, trackVnodes), this.hoveredTrackNode && this.renderPopup(this.hoveredTrackNode));
+    }
+    renderPopup(trackNode) {
+        const track = trackNode.uri
+            ? this.trace.tracks.getTrack(trackNode.uri)
+            : undefined;
+        const tooltipNodes = track?.renderer.renderTooltip?.();
+        if (!Boolean(tooltipNodes)) {
+            return;
+        }
+        return (0, mithril_1.default)(cursor_tooltip_1.CursorTooltip, { className: 'pf-track__tooltip' }, tooltipNodes);
     }
     oncreate(vnode) {
         this.trash.use(vnode.attrs.trace.perfDebugging.addContainer({
@@ -238,10 +257,12 @@ class TrackTreeView {
             (0, flow_events_renderer_1.renderFlows)(this.trace, ctx, size, renderedTracks, rootNode, timescale);
             this.drawHoveredNoteVertical(ctx, timescale, size);
             this.drawHoveredCursorVertical(ctx, timescale, size);
-            this.drawWakeupVertical(ctx, timescale, size);
             this.drawNoteVerticals(ctx, timescale, size);
             this.drawAreaSelection(ctx, timescale, size);
             this.updateInteractions(timelineRect, timescale, size, renderedTracks);
+            this.trace.tracks.overlays.forEach((overlay) => {
+                overlay.render(ctx, timescale, size, renderedTracks);
+            });
             const renderTime = performance.now() - start;
             this.updatePerfStats(renderTime, renderedTracks.length, tracksOnCanvas);
         }
@@ -254,11 +275,11 @@ class TrackTreeView {
         }
     }
     drawGridLines(ctx, timescale, size) {
-        ctx.strokeStyle = css_constants_1.TRACK_BORDER_COLOR;
+        ctx.strokeStyle = css_constants_1.COLOR_BORDER_SECONDARY;
         ctx.lineWidth = 1;
         if (size.width > 0 && timescale.timeSpan.duration > 0n) {
             const maxMajorTicks = (0, gridline_helper_1.getMaxMajorTicks)(size.width);
-            const offset = this.trace.timeline.timestampOffset();
+            const offset = this.trace.timeline.getTimeAxisOrigin();
             for (const { type, time } of (0, gridline_helper_1.generateTicks)(timescale.timeSpan.toTimeSpan(), maxMajorTicks, offset)) {
                 const px = Math.floor(timescale.timeToPx(time));
                 if (type === gridline_helper_1.TickType.MAJOR) {
@@ -364,7 +385,7 @@ class TrackTreeView {
                 onClick: () => {
                     // If a track hasn't intercepted the click, treat this as a
                     // deselection event.
-                    trace.selection.clear();
+                    trace.selection.clearSelection();
                 },
                 drag: {
                     minDistance: 1,
@@ -374,6 +395,7 @@ class TrackTreeView {
                             this.areaDrag = new InProgressAreaSelection(timescale.pxToHpTime(e.dragStart.x), e.dragStart.y);
                         }
                         this.areaDrag.update(e, timescale);
+                        this.trace.raf.scheduleCanvasRedraw();
                         trace.timeline.selectedSpan = this.areaDrag.timeSpan().toTimeSpan();
                     },
                     onDragEnd: (e) => {
@@ -408,14 +430,14 @@ class TrackTreeView {
     }
     drawAreaSelection(ctx, timescale, size) {
         if (this.areaDrag) {
-            ctx.strokeStyle = css_constants_1.SELECTION_STROKE_COLOR;
+            ctx.strokeStyle = css_constants_1.COLOR_ACCENT;
             ctx.lineWidth = 1;
             const rect = this.areaDrag.rect(timescale);
             ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
         }
         if (this.handleDrag) {
             const rect = this.handleDrag.hBounds(timescale);
-            ctx.strokeStyle = css_constants_1.SELECTION_STROKE_COLOR;
+            ctx.strokeStyle = css_constants_1.COLOR_ACCENT;
             ctx.lineWidth = 1;
             ctx.beginPath();
             ctx.moveTo(rect.left, 0);
@@ -432,7 +454,7 @@ class TrackTreeView {
         if (selection.kind === 'area') {
             const startPx = timescale.timeToPx(selection.start);
             const endPx = timescale.timeToPx(selection.end);
-            ctx.strokeStyle = '#8398e6';
+            ctx.strokeStyle = css_constants_1.COLOR_ACCENT;
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.moveTo(startPx, 0);
@@ -454,12 +476,6 @@ class TrackTreeView {
     drawHoveredNoteVertical(ctx, timescale, size) {
         if (this.trace.timeline.hoveredNoteTimestamp !== undefined) {
             (0, vertical_line_helper_1.drawVerticalLineAtTime)(ctx, timescale, this.trace.timeline.hoveredNoteTimestamp, size.height, `#aaa`);
-        }
-    }
-    drawWakeupVertical(ctx, timescale, size) {
-        const selection = this.trace.selection.selection;
-        if (selection.kind === 'track_event' && selection.wakeupTs) {
-            (0, vertical_line_helper_1.drawVerticalLineAtTime)(ctx, timescale, selection.wakeupTs, size.height, `black`);
         }
     }
     drawNoteVerticals(ctx, timescale, size) {

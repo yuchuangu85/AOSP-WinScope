@@ -19,8 +19,10 @@ const mithril_1 = tslib_1.__importDefault(require("mithril"));
 const logging_1 = require("../base/logging");
 const registry_1 = require("../base/registry");
 const router_1 = require("./router");
+const mithril_utils_1 = require("../base/mithril_utils");
 class PageManagerImpl {
     registry = new registry_1.Registry((x) => x.route);
+    previousPages = new Map();
     registerPage(pageHandler) {
         (0, logging_1.assertTrue)(/^\/\w*$/.exec(pageHandler.route) !== null);
         // The pluginId is injected by the proxy in AppImpl / TraceImpl. If this is
@@ -29,36 +31,37 @@ class PageManagerImpl {
         return this.registry.register(pageHandler);
     }
     // Called by index.ts upon the main frame redraw callback.
-    renderPageForCurrentRoute(trace) {
+    renderPageForCurrentRoute() {
         const route = router_1.Router.parseFragment(location.hash);
-        const res = this.renderPageForRoute(trace, route.page, route.subpage);
-        if (res !== undefined) {
-            return res;
-        }
-        // If either the route doesn't exist or requires a trace but the trace is
-        // not loaded, fall back on the default route /.
-        return (0, logging_1.assertExists)(this.renderPageForRoute(trace, '/', ''));
+        this.previousPages.set(route.page, {
+            page: route.page,
+            subpage: route.subpage,
+        });
+        // Render all pages, but display all inactive pages with display: none and
+        // avoid calling their view functions. This makes sure DOM state such as
+        // scrolling position is retained between page flips, which can be handy
+        // when quickly switching between pages that have long scrolling content
+        // such as the viewer page.
+        return Array.from(this.previousPages.entries())
+            .map(([key, { page, subpage }]) => {
+            const maybeRenderedPage = this.renderPageForRoute(page, subpage);
+            // If either the route doesn't exist or requires a trace but the trace
+            // is not loaded, fall back on the default route.
+            const renderedPage = maybeRenderedPage ?? (0, logging_1.assertExists)(this.renderPageForRoute('/', ''));
+            return [key, renderedPage];
+        })
+            .map(([key, page]) => {
+            return (0, mithril_1.default)(mithril_utils_1.Gate, { open: key === route.page }, page);
+        });
     }
     // Will return undefined if either: (1) the route does not exist; (2) the
     // route exists, it requires a trace, but there is no trace loaded.
-    renderPageForRoute(coreTrace, page, subpage) {
+    renderPageForRoute(page, subpage) {
         const handler = this.registry.tryGet(page);
         if (handler === undefined) {
             return undefined;
         }
-        const pluginId = (0, logging_1.assertExists)(handler?.pluginId);
-        const trace = coreTrace?.forkForPlugin(pluginId);
-        const traceRequired = !handler?.traceless;
-        if (traceRequired && trace === undefined) {
-            return undefined;
-        }
-        if (traceRequired) {
-            return (0, mithril_1.default)(handler.page, {
-                subpage,
-                trace: (0, logging_1.assertExists)(trace),
-            });
-        }
-        return (0, mithril_1.default)(handler.page, { subpage, trace });
+        return handler.render(subpage);
     }
 }
 exports.PageManagerImpl = PageManagerImpl;

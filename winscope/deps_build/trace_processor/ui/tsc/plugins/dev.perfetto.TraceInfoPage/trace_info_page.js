@@ -18,6 +18,8 @@ const tslib_1 = require("tslib");
 const mithril_1 = tslib_1.__importDefault(require("mithril"));
 const query_result_1 = require("../../trace_processor/query_result");
 const logging_1 = require("../../base/logging");
+const icon_1 = require("../../widgets/icon");
+const tooltip_1 = require("../../widgets/tooltip");
 /**
  * Extracts and copies fields from a source object based on the keys present in
  * a spec object, effectively creating a new object that includes only the
@@ -92,12 +94,17 @@ class StatsSection {
         const tableRows = data.map((row) => {
             const help = [];
             if (Boolean(row.description)) {
-                help.push((0, mithril_1.default)('i.material-icons.contextual-help', 'help_outline'));
+                help.push((0, mithril_1.default)(tooltip_1.Tooltip, {
+                    trigger: (0, mithril_1.default)(icon_1.Icon, {
+                        icon: 'help_outline',
+                        className: 'pf-trace-info-page__help-icon',
+                    }),
+                }, `${row.description}`));
             }
             const idx = row.idx !== '' ? `[${row.idx}]` : '';
-            return (0, mithril_1.default)('tr', (0, mithril_1.default)('td.name', { title: row.description }, `${row.name}${idx}`, help), (0, mithril_1.default)('td', `${row.value}`), (0, mithril_1.default)('td', `${row.severity} (${row.source})`));
+            return (0, mithril_1.default)('tr', (0, mithril_1.default)('td.name', `${row.name}${idx}`, help), (0, mithril_1.default)('td', `${row.value}`), (0, mithril_1.default)('td', `${row.severity} (${row.source})`));
         });
-        return (0, mithril_1.default)(`section${attrs.cssClass}`, (0, mithril_1.default)('h2', attrs.title), (0, mithril_1.default)('h3', attrs.subTitle), (0, mithril_1.default)('table', (0, mithril_1.default)('thead', (0, mithril_1.default)('tr', (0, mithril_1.default)('td', 'Name'), (0, mithril_1.default)('td', 'Value'), (0, mithril_1.default)('td', 'Type'))), (0, mithril_1.default)('tbody', tableRows)));
+        return (0, mithril_1.default)(`section${attrs.cssClass}`, (0, mithril_1.default)('h2', attrs.title), (0, mithril_1.default)('h4', attrs.subTitle), (0, mithril_1.default)('table', (0, mithril_1.default)('thead', (0, mithril_1.default)('tr', (0, mithril_1.default)('td', 'Name'), (0, mithril_1.default)('td', 'Value'), (0, mithril_1.default)('td', 'Type'))), (0, mithril_1.default)('tbody', tableRows)));
     }
 }
 class LoadingErrors {
@@ -105,7 +112,7 @@ class LoadingErrors {
         const errors = attrs.trace.loadingErrors;
         if (errors.length === 0)
             return;
-        return (0, mithril_1.default)(`section.errors`, (0, mithril_1.default)('h2', `Loading errors`), (0, mithril_1.default)('h3', `The following errors were encountered while loading the trace:`), (0, mithril_1.default)('pre.metric-error', errors.join('\n')));
+        return (0, mithril_1.default)(`section.errors`, (0, mithril_1.default)('h2', `Loading errors`), (0, mithril_1.default)('h4', `The following errors were encountered while loading the trace:`), (0, mithril_1.default)('pre.metric-error', errors.join('\n')));
     }
 }
 const traceMetadataRowSpec = { name: query_result_1.UNKNOWN, value: query_result_1.UNKNOWN };
@@ -155,6 +162,63 @@ class TraceMetadata {
             return (0, mithril_1.default)('tr', (0, mithril_1.default)('td.name', `${row.name}`), (0, mithril_1.default)('td', `${row.value}`));
         });
         return (0, mithril_1.default)('section', (0, mithril_1.default)('h2', 'System info and metadata'), (0, mithril_1.default)('table', (0, mithril_1.default)('thead', (0, mithril_1.default)('tr', (0, mithril_1.default)('td', 'Name'), (0, mithril_1.default)('td', 'Value'))), (0, mithril_1.default)('tbody', tableRows)));
+    }
+}
+const machineRowSpec = {
+    id: query_result_1.UNKNOWN,
+    rawId: query_result_1.UNKNOWN,
+    sysname: query_result_1.UNKNOWN,
+    release: query_result_1.UNKNOWN,
+    version: query_result_1.UNKNOWN,
+    arch: query_result_1.UNKNOWN,
+    numCpus: query_result_1.UNKNOWN,
+    androidBuildFingerprint: query_result_1.UNKNOWN,
+    androidDeviceManufacturer: query_result_1.UNKNOWN,
+    androidSdkVersion: query_result_1.UNKNOWN,
+};
+class MachineListSection {
+    data;
+    oncreate({ attrs }) {
+        const engine = attrs.engine;
+        const query = `
+      select
+        id,
+        raw_id as rawId,
+        sysname,
+        release,
+        version,
+        arch,
+        num_cpus as numCpus,
+        android_build_fingerprint as androidBuildFingerprint,
+        android_device_manufacturer as androidDeviceManufacturer,
+        android_sdk_version as androidSdkVersion
+      from machine
+    `;
+        engine.query(query).then((resp) => {
+            const tableRows = [];
+            const it = resp.iter(machineRowSpec);
+            for (; it.valid(); it.next()) {
+                tableRows.push(pickFields(it, machineRowSpec));
+            }
+            this.data = tableRows;
+        });
+    }
+    view() {
+        const data = this.data;
+        if (data === undefined || data.length <= 1) {
+            return undefined;
+        }
+        const machineTables = data.map((row) => {
+            const tableRows = [];
+            for (const key of Object.keys(machineRowSpec)) {
+                const value = row[key];
+                if (value !== undefined && value !== null) {
+                    tableRows.push((0, mithril_1.default)('tr', (0, mithril_1.default)('td.name', key), (0, mithril_1.default)('td', `${value}`)));
+                }
+            }
+            return (0, mithril_1.default)('', (0, mithril_1.default)('h3', `Machine ${row.id}`), (0, mithril_1.default)('table', (0, mithril_1.default)('thead', (0, mithril_1.default)('tr', (0, mithril_1.default)('td', 'Name'), (0, mithril_1.default)('td', 'Value'))), (0, mithril_1.default)('tbody', tableRows)));
+        });
+        return (0, mithril_1.default)('section', (0, mithril_1.default)('h2', 'Machines'), (0, mithril_1.default)('h4', 'System information of the machines involved in the trace.'), machineTables);
     }
 }
 const androidGameInterventionRowSpec = {
@@ -302,11 +366,11 @@ class TraceInfoPage {
     }
     view({ attrs }) {
         const engine = (0, logging_1.assertExists)(this.engine);
-        return (0, mithril_1.default)('.trace-info-page', (0, mithril_1.default)(LoadingErrors, { trace: attrs.trace }), (0, mithril_1.default)(StatsSection, {
+        return (0, mithril_1.default)('.pf-trace-info-page', (0, mithril_1.default)(LoadingErrors, { trace: attrs.trace }), (0, mithril_1.default)(StatsSection, {
             engine,
             queryId: 'info_errors',
             title: 'Import errors',
-            cssClass: '.errors',
+            cssClass: '.pf-trace-info-page__errors',
             subTitle: `The following errors have been encountered while importing
                the trace. These errors are usually non-fatal but indicate that
                one or more tracks might be missing or showing erroneous data.`,
@@ -315,12 +379,12 @@ class TraceInfoPage {
             engine,
             queryId: 'info_data_losses',
             title: 'Data losses',
-            cssClass: '.errors',
+            cssClass: '.pf-trace-info-page__errors',
             subTitle: `These counters are collected at trace recording time. The
                trace data for one or more data sources was dropped and hence
                some track contents will be incomplete.`,
             sqlConstraints: `severity = 'data_loss' and value > 0`,
-        }), (0, mithril_1.default)(TraceMetadata, { engine }), (0, mithril_1.default)(PackageListSection, { engine }), (0, mithril_1.default)(AndroidGameInterventionList, { engine }), (0, mithril_1.default)(StatsSection, {
+        }), (0, mithril_1.default)(TraceMetadata, { engine }), (0, mithril_1.default)(MachineListSection, { engine }), (0, mithril_1.default)(PackageListSection, { engine }), (0, mithril_1.default)(AndroidGameInterventionList, { engine }), (0, mithril_1.default)(StatsSection, {
             engine,
             queryId: 'info_all',
             title: 'Debugging stats',

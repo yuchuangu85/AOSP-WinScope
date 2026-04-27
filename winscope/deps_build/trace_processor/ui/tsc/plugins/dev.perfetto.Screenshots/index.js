@@ -27,14 +27,16 @@ class default_1 {
     `);
         const { count } = res.firstRow({ count: query_result_1.NUM });
         if (count > 0) {
-            const title = 'Screenshots';
             const uri = '/screenshots';
             ctx.tracks.registerTrack({
                 uri,
-                title,
-                track: (0, screenshots_track_1.createScreenshotsTrack)(ctx, uri),
+                renderer: (0, screenshots_track_1.createScreenshotsTrack)(ctx, uri),
             });
-            const trackNode = new workspace_1.TrackNode({ uri, title, sortOrder: -60 });
+            const trackNode = new workspace_1.TrackNode({
+                uri,
+                name: 'Screenshots',
+                sortOrder: -60,
+            });
             ctx.workspace.addChildInOrder(trackNode);
         }
     }

@@ -59,16 +59,18 @@ function getReferrer() {
         return document.referrer.split('?')[0];
     }
 }
-function initAnalytics(testingMode, embeddedMode) {
+function initAnalytics(testingMode, embeddedMode, enable) {
     // Only initialize logging on the official site and on localhost (to catch
     // analytics bugs when testing locally).
     // Skip analytics is the fragment has "testing=1", this is used by UI tests.
     // Skip analytics in embeddedMode since iFrames do not have the same access to
     // local storage.
+    // Skip analytics if the user has disabled analytics.
     if ((window.location.origin.startsWith('http://localhost:') ||
         window.location.origin.endsWith('.perfetto.dev')) &&
         !testingMode &&
-        !embeddedMode) {
+        !embeddedMode &&
+        enable) {
         return new AnalyticsImpl();
     }
     return new NullAnalytics();

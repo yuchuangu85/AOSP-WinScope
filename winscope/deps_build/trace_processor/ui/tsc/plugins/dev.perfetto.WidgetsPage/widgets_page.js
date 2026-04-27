@@ -1,5 +1,5 @@
 "use strict";
-// Copyright (C) 2023 The Android Open Source Project
+// Copyright (C) 2025 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -40,7 +40,6 @@ const text_input_1 = require("../../widgets/text_input");
 const text_paragraph_1 = require("../../widgets/text_paragraph");
 const tree_1 = require("../../widgets/tree");
 const vega_view_1 = require("../../components/widgets/vega_view");
-const table_showcase_1 = require("./table_showcase");
 const treetable_1 = require("../../components/widgets/treetable");
 const common_1 = require("../../widgets/common");
 const virtual_table_1 = require("../../widgets/virtual_table");
@@ -50,10 +49,20 @@ const middle_ellipsis_1 = require("../../widgets/middle_ellipsis");
 const chip_1 = require("../../widgets/chip");
 const track_shell_1 = require("../../widgets/track_shell");
 const copyable_link_1 = require("../../widgets/copyable_link");
+const copy_to_clipboard_button_1 = require("../../widgets/copy_to_clipboard_button");
 const virtual_overlay_canvas_1 = require("../../widgets/virtual_overlay_canvas");
 const split_panel_1 = require("../../widgets/split_panel");
-const tabbed_split_panel_1 = require("../../widgets/tabbed_split_panel");
 const language_1 = require("../../base/perfetto_sql_lang/language");
+const cursor_tooltip_1 = require("../../widgets/cursor_tooltip");
+const multiselect_input_1 = require("../../widgets/multiselect_input");
+const data_grid_1 = require("../../components/widgets/data_grid/data_grid");
+const sql_data_source_1 = require("../../components/widgets/data_grid/sql_data_source");
+const card_1 = require("../../widgets/card");
+const stack_1 = require("../../widgets/stack");
+const tooltip_1 = require("../../widgets/tooltip");
+const tabs_1 = require("../../widgets/tabs");
+const code_snippet_1 = require("../../widgets/code_snippet");
+const grid_1 = require("../../widgets/grid");
 const DATA_ENGLISH_LETTER_FREQUENCY = {
     table: [
         { category: 'a', amount: 8.167 },
@@ -278,6 +287,7 @@ const options = {
     xyzzy: false,
     thud: false,
 };
+let currentTab = 'foo';
 function PortalButton() {
     let portalOpen = false;
     return {
@@ -287,7 +297,6 @@ function PortalButton() {
             return [
                 (0, mithril_1.default)(button_1.Button, {
                     label: 'Toggle Portal',
-                    intent: common_1.Intent.Primary,
                     onclick: () => {
                         portalOpen = !portalOpen;
                     },
@@ -368,7 +377,7 @@ class WidgetShowcase {
         if (listItems.length === 0) {
             return null;
         }
-        return (0, mithril_1.default)('.widget-controls', (0, mithril_1.default)('h3', 'Options'), (0, mithril_1.default)('ul', listItems));
+        return (0, mithril_1.default)('.pf-widget-controls', (0, mithril_1.default)('h3', 'Options'), (0, mithril_1.default)('ul', listItems));
     }
     oninit({ attrs: { initialOpts: opts } }) {
         this.opts = opts;
@@ -400,8 +409,8 @@ class WidgetShowcase {
         return [
             (0, mithril_1.default)(WidgetTitle, { label }),
             description && (0, mithril_1.default)('p', description),
-            (0, mithril_1.default)('.widget-block', (0, mithril_1.default)('div', {
-                class: (0, classnames_1.classNames)('widget-container', wide && 'widget-container-wide'),
+            (0, mithril_1.default)('.pf-widget-block', (0, mithril_1.default)('div', {
+                class: (0, classnames_1.classNames)('pf-widget-container', wide && 'pf-widget-container--wide'),
             }, renderWidget(this.optValues)), this.renderOptions(listItems)),
         ];
     }
@@ -565,17 +574,75 @@ function SegmentedButtonsDemo({ attrs }) {
         },
     };
 }
+function RadioButtonGroupDemo() {
+    let setting = 'no';
+    console.log(setting);
+    return {
+        view: ({ attrs }) => {
+            return (0, mithril_1.default)(button_1.ButtonGroup, [
+                (0, mithril_1.default)(button_1.Button, {
+                    ...attrs,
+                    label: 'Yes',
+                    active: setting === 'yes',
+                    onclick: () => {
+                        setting = 'yes';
+                    },
+                }),
+                (0, mithril_1.default)(button_1.Button, {
+                    ...attrs,
+                    label: 'Maybe',
+                    active: setting === 'maybe',
+                    onclick: () => {
+                        setting = 'maybe';
+                    },
+                }),
+                (0, mithril_1.default)(button_1.Button, {
+                    ...attrs,
+                    label: 'No',
+                    active: setting === 'no',
+                    onclick: () => {
+                        setting = 'no';
+                    },
+                }),
+            ]);
+        },
+    };
+}
 class WidgetsPage {
-    view() {
-        return (0, mithril_1.default)('.widgets-page', (0, mithril_1.default)('h1', 'Widgets'), (0, mithril_1.default)(WidgetShowcase, {
+    view({ attrs }) {
+        return (0, mithril_1.default)('.pf-widgets-page', (0, mithril_1.default)('h1', 'Widgets'), (0, mithril_1.default)(WidgetShowcase, {
             label: 'Button',
-            renderWidget: ({ label, icon, rightIcon, ...rest }) => (0, mithril_1.default)(button_1.Button, {
-                icon: arg(icon, 'send'),
-                rightIcon: arg(rightIcon, 'arrow_forward'),
-                label: arg(label, 'Button', ''),
-                onclick: () => alert('button pressed'),
-                ...rest,
-            }),
+            renderWidget: ({ label, icon, rightIcon, showAsGrid, showInlineWithText, ...rest }) => Boolean(showAsGrid)
+                ? (0, mithril_1.default)('', {
+                    style: {
+                        display: 'grid',
+                        gridTemplateColumns: 'auto auto auto',
+                        gap: '4px',
+                    },
+                }, Object.values(common_1.Intent).map((intent) => {
+                    return Object.values(button_1.ButtonVariant).map((variant) => {
+                        return (0, mithril_1.default)(button_1.Button, {
+                            style: {
+                                width: '80px',
+                            },
+                            ...rest,
+                            label: variant,
+                            variant,
+                            intent,
+                        });
+                    });
+                }))
+                : (0, mithril_1.default)('', [
+                    Boolean(showInlineWithText) && 'Inline',
+                    (0, mithril_1.default)(button_1.Button, {
+                        icon: arg(icon, 'send'),
+                        rightIcon: arg(rightIcon, 'arrow_forward'),
+                        label: arg(label, 'Button', ''),
+                        onclick: () => console.log('button pressed'),
+                        ...rest,
+                    }),
+                    Boolean(showInlineWithText) && 'text',
+                ]),
             initialOpts: {
                 label: true,
                 icon: true,
@@ -585,6 +652,10 @@ class WidgetsPage {
                 active: false,
                 compact: false,
                 loading: false,
+                variant: new EnumOption(button_1.ButtonVariant.Filled, Object.values(button_1.ButtonVariant)),
+                showAsGrid: false,
+                showInlineWithText: false,
+                rounded: false,
             },
         }), (0, mithril_1.default)(WidgetShowcase, {
             label: 'Segmented Buttons',
@@ -597,6 +668,26 @@ class WidgetsPage {
                 disabled: false,
             },
         }), (0, mithril_1.default)(WidgetShowcase, {
+            label: 'ButtonGroup',
+            renderWidget: (opts) => (0, mithril_1.default)(stack_1.Stack, [
+                (0, mithril_1.default)(button_1.ButtonGroup, [
+                    (0, mithril_1.default)(button_1.Button, {
+                        label: 'Commit',
+                        ...opts,
+                    }),
+                    (0, mithril_1.default)(button_1.Button, {
+                        icon: semantic_icons_1.Icons.ContextMenu,
+                        ...opts,
+                    }),
+                ]),
+                (0, mithril_1.default)(RadioButtonGroupDemo, opts),
+            ]),
+            initialOpts: {
+                variant: new EnumOption(button_1.ButtonVariant.Filled, Object.values(button_1.ButtonVariant)),
+                disabled: false,
+                intent: new EnumOption(common_1.Intent.None, Object.values(common_1.Intent)),
+            },
+        }), (0, mithril_1.default)(WidgetShowcase, {
             label: 'Checkbox',
             renderWidget: (opts) => (0, mithril_1.default)(checkbox_1.Checkbox, { label: 'Checkbox', ...opts }),
             initialOpts: {
@@ -605,20 +696,45 @@ class WidgetsPage {
         }), (0, mithril_1.default)(WidgetShowcase, {
             label: 'Switch',
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            renderWidget: ({ label, ...rest }) => (0, mithril_1.default)(switch_1.Switch, { label: arg(label, 'Switch'), ...rest }),
+            renderWidget: ({ label, labelLeft, ...rest }) => (0, mithril_1.default)(switch_1.Switch, {
+                label: arg(label, 'Switch'),
+                labelLeft: arg(labelLeft, 'Left Label'),
+                ...rest,
+            }),
             initialOpts: {
                 label: true,
+                labelLeft: false,
                 disabled: false,
             },
         }), (0, mithril_1.default)(WidgetShowcase, {
+            label: 'Anchor',
+            renderWidget: ({ icon, showInlineWithText, long }) => (0, mithril_1.default)('', [
+                Boolean(showInlineWithText) && 'Inline',
+                (0, mithril_1.default)(anchor_1.Anchor, {
+                    icon: arg(icon, 'open_in_new'),
+                    href: 'https://perfetto.dev/docs/',
+                    target: '_blank',
+                }, Boolean(long)
+                    ? 'This is some really long text and it will probably overflow the container'
+                    : 'Link'),
+                Boolean(showInlineWithText) && 'text',
+            ]),
+            initialOpts: {
+                icon: true,
+                showInlineWithText: false,
+                long: false,
+            },
+        }), (0, mithril_1.default)(WidgetShowcase, {
             label: 'Text Input',
-            renderWidget: ({ placeholder, ...rest }) => (0, mithril_1.default)(text_input_1.TextInput, {
+            renderWidget: ({ placeholder, leftIcon, ...rest }) => (0, mithril_1.default)(text_input_1.TextInput, {
                 placeholder: arg(placeholder, 'Placeholder...', ''),
+                leftIcon: arg(leftIcon, 'search'),
                 ...rest,
             }),
             initialOpts: {
                 placeholder: true,
                 disabled: false,
+                leftIcon: true,
             },
         }), (0, mithril_1.default)(WidgetShowcase, {
             label: 'Select',
@@ -640,14 +756,40 @@ class WidgetsPage {
                 content: true,
             },
         }), (0, mithril_1.default)(WidgetShowcase, {
-            label: 'Anchor',
-            renderWidget: ({ icon }) => (0, mithril_1.default)(anchor_1.Anchor, {
-                icon: arg(icon, 'open_in_new'),
-                href: 'https://perfetto.dev/docs/',
-                target: '_blank',
-            }, 'This is some really long text and it will probably overflow the container'),
+            label: 'Card',
+            description: `A card is a simple container with a shadow and rounded
+          corners. It can be used to display grouped content in a visually
+          appealing way.`,
+            renderWidget: ({ interactive }) => (0, mithril_1.default)(card_1.Card, { interactive }, [
+                (0, mithril_1.default)('h1', { style: { margin: 'unset' } }, 'Welcome!'),
+                (0, mithril_1.default)('p', 'Would you like to start your journey?'),
+                (0, mithril_1.default)(stack_1.Stack, { orientation: 'horizontal' }, [
+                    (0, mithril_1.default)(button_1.Button, {
+                        variant: button_1.ButtonVariant.Filled,
+                        label: 'No thanks...',
+                    }),
+                    (0, mithril_1.default)(button_1.Button, {
+                        intent: common_1.Intent.Primary,
+                        variant: button_1.ButtonVariant.Filled,
+                        label: "Let's go!",
+                    }),
+                ]),
+            ]),
+            initialOpts: { interactive: true },
+        }), (0, mithril_1.default)(WidgetShowcase, {
+            label: 'CardStack',
+            description: `A container component that can be used to display
+          multiple Card elements in a vertical stack. Cards placed in this list
+          automatically have their borders adjusted to appear as one continuous
+          card with thin borders between them.`,
+            renderWidget: ({ direction, interactive }) => (0, mithril_1.default)(card_1.CardStack, { direction }, [
+                (0, mithril_1.default)(card_1.Card, { interactive }, (0, mithril_1.default)(switch_1.Switch, { label: 'Option 1' })),
+                (0, mithril_1.default)(card_1.Card, { interactive }, (0, mithril_1.default)(switch_1.Switch, { label: 'Option 2' })),
+                (0, mithril_1.default)(card_1.Card, { interactive }, (0, mithril_1.default)(switch_1.Switch, { label: 'Option 3' })),
+            ]),
             initialOpts: {
-                icon: true,
+                direction: new EnumOption('vertical', ['vertical', 'horizontal']),
+                interactive: true,
             },
         }), (0, mithril_1.default)(WidgetShowcase, {
             label: 'CopyableLink',
@@ -659,10 +801,15 @@ class WidgetsPage {
                 noicon: false,
             },
         }), (0, mithril_1.default)(WidgetShowcase, {
-            label: 'Table',
-            renderWidget: () => (0, mithril_1.default)(table_showcase_1.TableShowcase),
-            initialOpts: {},
-            wide: true,
+            label: 'CopyToClipboardButton',
+            renderWidget: (opts) => (0, mithril_1.default)(copy_to_clipboard_button_1.CopyToClipboardButton, {
+                textToCopy: 'Text to copy',
+                ...opts,
+            }),
+            initialOpts: {
+                label: 'Copy',
+                variant: new EnumOption(button_1.ButtonVariant.Outlined, Object.values(button_1.ButtonVariant)),
+            },
         }), (0, mithril_1.default)(WidgetShowcase, {
             label: 'Portal',
             description: `A portal is a div rendered out of normal flow
@@ -702,7 +849,23 @@ class WidgetsPage {
         }), (0, mithril_1.default)(WidgetShowcase, {
             label: 'Icon',
             renderWidget: (opts) => (0, mithril_1.default)(icon_1.Icon, { icon: 'star', ...opts }),
-            initialOpts: { filled: false },
+            initialOpts: {
+                filled: false,
+                intent: new EnumOption(common_1.Intent.None, Object.values(common_1.Intent)),
+            },
+        }), (0, mithril_1.default)(WidgetShowcase, {
+            label: 'Tooltip',
+            description: `A tooltip is a hover-only, useful as an alternative to the browser's inbuilt 'title' tooltip.`,
+            renderWidget: (opts) => (0, mithril_1.default)(tooltip_1.Tooltip, {
+                trigger: (0, mithril_1.default)(icon_1.Icon, { icon: 'Warning' }),
+                ...opts,
+            }, lorem()),
+            initialOpts: {
+                position: new EnumOption(popup_1.PopupPosition.Auto, Object.values(popup_1.PopupPosition)),
+                showArrow: true,
+                offset: 0,
+                edgeOffset: 0,
+            },
         }), (0, mithril_1.default)(WidgetShowcase, {
             label: 'MultiSelect panel',
             renderWidget: ({ ...rest }) => (0, mithril_1.default)(multiselect_1.MultiSelect, {
@@ -750,6 +913,12 @@ class WidgetsPage {
                 repeatCheckedItemsAtTop: false,
             },
         }), (0, mithril_1.default)(WidgetShowcase, {
+            label: 'MultiselectInput',
+            description: `Tag input with options`,
+            renderWidget: () => {
+                return (0, mithril_1.default)(MultiselectInputDemo);
+            },
+        }), (0, mithril_1.default)(WidgetShowcase, {
             label: 'Menu',
             renderWidget: () => (0, mithril_1.default)(menu_1.Menu, (0, mithril_1.default)(menu_1.MenuItem, { label: 'New', icon: 'add' }), (0, mithril_1.default)(menu_1.MenuItem, { label: 'Open', icon: 'folder_open' }), (0, mithril_1.default)(menu_1.MenuItem, { label: 'Save', icon: 'save', disabled: true }), (0, mithril_1.default)(menu_1.MenuDivider), (0, mithril_1.default)(menu_1.MenuItem, { label: 'Delete', icon: 'delete' }), (0, mithril_1.default)(menu_1.MenuDivider), (0, mithril_1.default)(menu_1.MenuItem, { label: 'Share', icon: 'share' }, (0, mithril_1.default)(menu_1.MenuItem, { label: 'Everyone', icon: 'public' }), (0, mithril_1.default)(menu_1.MenuItem, { label: 'Friends', icon: 'group' }), (0, mithril_1.default)(menu_1.MenuItem, { label: 'Specific people', icon: 'person_add' }, (0, mithril_1.default)(menu_1.MenuItem, { label: 'Alice', icon: 'person' }), (0, mithril_1.default)(menu_1.MenuItem, { label: 'Bob', icon: 'person' }))), (0, mithril_1.default)(menu_1.MenuItem, { label: 'More', icon: 'more_horiz' }, (0, mithril_1.default)(menu_1.MenuItem, { label: 'Query', icon: 'database' }), (0, mithril_1.default)(menu_1.MenuItem, { label: 'Download', icon: 'download' }), (0, mithril_1.default)(menu_1.MenuItem, { label: 'Clone', icon: 'copy_all' }))),
         }), (0, mithril_1.default)(WidgetShowcase, {
@@ -764,6 +933,10 @@ class WidgetsPage {
             initialOpts: {
                 popupPosition: new EnumOption(popup_1.PopupPosition.Bottom, Object.values(popup_1.PopupPosition)),
             },
+        }), (0, mithril_1.default)(WidgetShowcase, {
+            label: 'CursorTooltip',
+            description: 'A tooltip that follows the mouse around.',
+            renderWidget: () => (0, mithril_1.default)(CursorTooltipShowcase),
         }), (0, mithril_1.default)(WidgetShowcase, {
             label: 'Spinner',
             description: `Simple spinner, rotates forever.
@@ -836,20 +1009,29 @@ class WidgetsPage {
             label: 'Nested Popups',
             renderWidget: () => (0, mithril_1.default)(popup_1.Popup, {
                 trigger: (0, mithril_1.default)(button_1.Button, { label: 'Open the popup' }),
-            }, (0, mithril_1.default)(menu_1.PopupMenu, {
-                trigger: (0, mithril_1.default)(button_1.Button, { label: 'Select an option' }),
-            }, (0, mithril_1.default)(menu_1.MenuItem, { label: 'Option 1' }), (0, mithril_1.default)(menu_1.MenuItem, { label: 'Option 2' })), (0, mithril_1.default)(button_1.Button, {
-                label: 'Done',
-                dismissPopup: true,
-            })),
+            }, (0, mithril_1.default)(button_1.ButtonBar, [
+                (0, mithril_1.default)(menu_1.PopupMenu, {
+                    trigger: (0, mithril_1.default)(button_1.Button, { label: 'Select an option' }),
+                }, (0, mithril_1.default)(menu_1.MenuItem, { label: 'Option 1' }), (0, mithril_1.default)(menu_1.MenuItem, { label: 'Option 2' })),
+                (0, mithril_1.default)(button_1.Button, {
+                    label: 'Done',
+                    dismissPopup: true,
+                }),
+            ])),
         }), (0, mithril_1.default)(WidgetShowcase, {
             label: 'Callout',
-            renderWidget: () => (0, mithril_1.default)(callout_1.Callout, {
-                icon: 'info',
+            renderWidget: ({ icon, ...opts }) => (0, mithril_1.default)(callout_1.Callout, {
+                icon: Boolean(icon) ? 'info' : undefined,
+                ...opts,
             }, 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. ' +
                 'Nulla rhoncus tempor neque, sed malesuada eros dapibus vel. ' +
                 'Aliquam in ligula vitae tortor porttitor laoreet iaculis ' +
                 'finibus est.'),
+            initialOpts: {
+                intent: new EnumOption(common_1.Intent.None, Object.values(common_1.Intent)),
+                dismissable: false,
+                icon: true,
+            },
         }), (0, mithril_1.default)(WidgetShowcase, {
             label: 'Editor',
             renderWidget: () => (0, mithril_1.default)(editor_1.Editor, {
@@ -936,6 +1118,37 @@ class WidgetsPage {
             },
         }), (0, mithril_1.default)(WidgetShowcase, {
             label: 'Modal',
+            description: `Shows a dialog box in the center of the screen over the
+                      top of other elements.`,
+            renderWidget: () => (0, mithril_1.default)(button_1.Button, {
+                label: 'Show Modal',
+                onclick: () => {
+                    (0, modal_1.showModal)({
+                        title: 'Attention',
+                        icon: semantic_icons_1.Icons.Help,
+                        content: () => [
+                            (0, mithril_1.default)('', 'This is a modal dialog'),
+                            (0, mithril_1.default)(popup_1.Popup, {
+                                trigger: (0, mithril_1.default)(button_1.Button, {
+                                    variant: button_1.ButtonVariant.Filled,
+                                    label: 'Open Popup',
+                                }),
+                            }, 'Popup content'),
+                        ],
+                        buttons: [
+                            {
+                                text: 'Cancel',
+                            },
+                            {
+                                text: 'OK',
+                                primary: true,
+                            },
+                        ],
+                    });
+                },
+            }),
+        }), (0, mithril_1.default)(WidgetShowcase, {
+            label: 'Advanced Modal',
             description: `A helper for modal dialog.`,
             renderWidget: () => (0, mithril_1.default)(ModalShowcase),
         }), (0, mithril_1.default)(WidgetShowcase, {
@@ -1005,17 +1218,27 @@ class WidgetsPage {
             description: `A little chip or tag`,
             renderWidget: (opts) => {
                 const { icon, ...rest } = opts;
-                return (0, mithril_1.default)(chip_1.ChipBar, (0, mithril_1.default)(chip_1.Chip, {
+                return (0, mithril_1.default)(stack_1.Stack, { orientation: 'horizontal' }, (0, mithril_1.default)(chip_1.Chip, {
                     label: 'Foo',
                     icon: icon === true ? 'info' : undefined,
                     ...rest,
-                }), (0, mithril_1.default)(chip_1.Chip, { label: 'Bar', ...rest }), (0, mithril_1.default)(chip_1.Chip, { label: 'Baz', ...rest }));
+                }), (0, mithril_1.default)(chip_1.Chip, {
+                    label: 'Bar',
+                    icon: icon === true ? 'warning' : undefined,
+                    ...rest,
+                }), (0, mithril_1.default)(chip_1.Chip, {
+                    label: 'Baz',
+                    icon: icon === true ? 'error' : undefined,
+                    ...rest,
+                }));
             },
             initialOpts: {
                 intent: new EnumOption(common_1.Intent.None, Object.values(common_1.Intent)),
                 icon: true,
                 compact: false,
                 rounded: false,
+                disabled: false,
+                removable: true,
             },
         }), (0, mithril_1.default)(WidgetShowcase, {
             label: 'TrackShell',
@@ -1067,7 +1290,7 @@ class WidgetsPage {
                 const rowCount = 65536;
                 const rowHeight = 20;
                 return (0, mithril_1.default)(virtual_overlay_canvas_1.VirtualOverlayCanvas, {
-                    className: 'virtual-canvas',
+                    className: 'pf-virtual-canvas',
                     overflowY: 'auto',
                     onCanvasRedraw({ ctx, canvasRect }) {
                         ctx.strokeStyle = 'red';
@@ -1096,47 +1319,440 @@ class WidgetsPage {
             initialOpts: {},
         }), (0, mithril_1.default)(WidgetShowcase, {
             label: 'SplitPanel',
-            description: `Horizontal split panel with draggable handle and controls.`,
+            description: `Resizeable split panel with optional tabs.`,
             renderWidget: (opts) => {
-                return (0, mithril_1.default)('', { style: { height: '400px', width: '400px', border: 'solid 2px red' } }, (0, mithril_1.default)(split_panel_1.SplitPanel, {
-                    drawerContent: 'Drawer Content',
-                    handleContent: Boolean(opts.handleContent) && 'Handle Content',
-                }, 'Main Content'));
-            },
-            initialOpts: {
-                handleContent: false,
-            },
-        }), (0, mithril_1.default)(WidgetShowcase, {
-            label: 'TabbedSplitPanel',
-            description: `SplitPanel + tabs.`,
-            renderWidget: (opts) => {
-                return (0, mithril_1.default)('', { style: { height: '400px', width: '400px', border: 'solid 2px red' } }, (0, mithril_1.default)(tabbed_split_panel_1.TabbedSplitPanel, {
-                    leftHandleContent: Boolean(opts.leftContent) &&
-                        (0, mithril_1.default)(button_1.Button, { icon: 'Menu', compact: true }),
-                    tabs: [
-                        {
-                            key: 'foo',
-                            title: 'Foo',
-                            content: 'Foo content',
-                            hasCloseButton: opts.showCloseButtons,
-                        },
-                        {
-                            key: 'bar',
-                            title: 'Bar',
-                            content: 'Bar content',
-                            hasCloseButton: opts.showCloseButtons,
-                        },
+                return (0, mithril_1.default)('', {
+                    style: {
+                        height: '400px',
+                        width: '400px',
+                        border: 'solid 2px gray',
+                    },
+                }, (0, mithril_1.default)(split_panel_1.SplitPanel, {
+                    leftHandleContent: [
+                        Boolean(opts.leftContent) && (0, mithril_1.default)(button_1.Button, { icon: 'Menu' }),
                     ],
+                    drawerContent: 'Drawer Content',
+                    tabs: Boolean(opts.tabs) &&
+                        (0, mithril_1.default)('.pf-split-panel__tabs', (0, mithril_1.default)(split_panel_1.Tab, { active: true, hasCloseButton: opts.showCloseButtons }, 'Foo'), (0, mithril_1.default)(split_panel_1.Tab, { hasCloseButton: opts.showCloseButtons }, 'Bar')),
                 }, 'Main Content'));
             },
             initialOpts: {
                 leftContent: true,
+                tabs: true,
                 showCloseButtons: true,
+            },
+        }), renderWidgetShowcase({
+            label: 'Grid',
+            description: `
+          Presentation layer for grid/table elements. Defines a consistent look
+          and feel for grids but leaves the data and interaction handling to the
+          user. For instance, it provides slots and callbacks for sorting, column
+          reordering and column level aggregations, but doesn't have any
+          opinions about the data or how they should be manipulated.
+        `,
+            renderWidget: ({ reorderable, ...rest }) => (0, mithril_1.default)('', { style: { height: '400px', width: '400px', overflow: 'hidden' } }, (0, mithril_1.default)(grid_1.Grid, rest, [
+                (0, mithril_1.default)(grid_1.GridHeader, [
+                    (0, mithril_1.default)(grid_1.GridRow, [
+                        (0, mithril_1.default)(grid_1.GridHeaderCell, {
+                            key: 'id',
+                            sort: 'ASC',
+                            onSort: () => { },
+                            aggregation: {
+                                left: 'Σ',
+                                right: 15,
+                            },
+                            reorderable: reorderable ? { handle: 'left' } : undefined,
+                        }, 'ID'),
+                        (0, mithril_1.default)(grid_1.GridHeaderCell, {
+                            key: 'lang',
+                            onSort: () => { },
+                            menuItems: [
+                                (0, mithril_1.default)(menu_1.MenuItem, { label: 'Filter nulls' }),
+                                (0, mithril_1.default)(menu_1.MenuItem, { label: 'Show only nulls' }),
+                            ],
+                            reorderable: reorderable ? { handle: 'left' } : undefined,
+                            thickRightBorder: true,
+                        }, 'Language'),
+                        (0, mithril_1.default)(grid_1.GridHeaderCell, {
+                            key: 'year',
+                            aggregation: {
+                                left: 'AVG',
+                                right: 1998.3,
+                            },
+                            reorderable: reorderable ? { handle: 'right' } : undefined,
+                        }, 'Year'),
+                        (0, mithril_1.default)(grid_1.GridHeaderCell, {
+                            key: 'creator',
+                            reorderable: reorderable ? { handle: 'right' } : undefined,
+                        }, 'Creator'),
+                        (0, mithril_1.default)(grid_1.GridHeaderCell, {
+                            key: 'typing',
+                            reorderable: reorderable ? { handle: 'right' } : undefined,
+                        }, 'Typing'),
+                    ]),
+                ]),
+                (0, mithril_1.default)(grid_1.GridBody, [
+                    (0, mithril_1.default)(grid_1.GridRow, [
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 1),
+                        (0, mithril_1.default)(grid_1.GridDataCell, {
+                            menuItems: [
+                                (0, mithril_1.default)(menu_1.MenuItem, { label: 'Filter to "TypeScript"' }),
+                                (0, mithril_1.default)(menu_1.MenuItem, { label: 'Exclude "TypeScript"' }),
+                            ],
+                            thickRightBorder: true,
+                        }, 'TypeScript'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 2012),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'Microsoft'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'Static'),
+                    ]),
+                    (0, mithril_1.default)(grid_1.GridRow, [
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 2),
+                        (0, mithril_1.default)(grid_1.GridDataCell, { thickRightBorder: true }, 'JavaScript'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 1995),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'Brendan Eich'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'Dynamic'),
+                    ]),
+                    (0, mithril_1.default)(grid_1.GridRow, [
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 3),
+                        (0, mithril_1.default)(grid_1.GridDataCell, { thickRightBorder: true }, 'Python'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 1991),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'Guido van Rossum'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'Dynamic'),
+                    ]),
+                    (0, mithril_1.default)(grid_1.GridRow, [
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 4),
+                        (0, mithril_1.default)(grid_1.GridDataCell, { thickRightBorder: true }, 'Java'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 1995),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'James Gosling'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'Static'),
+                    ]),
+                    (0, mithril_1.default)(grid_1.GridRow, [
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 5),
+                        (0, mithril_1.default)(grid_1.GridDataCell, { thickRightBorder: true }, 'C++'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 1985),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'Bjarne Stroustrup'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'Static'),
+                    ]),
+                    (0, mithril_1.default)(grid_1.GridRow, [
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 6),
+                        (0, mithril_1.default)(grid_1.GridDataCell, { thickRightBorder: true }, 'Go'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 2009),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'Google'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'Static'),
+                    ]),
+                    (0, mithril_1.default)(grid_1.GridRow, [
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 7),
+                        (0, mithril_1.default)(grid_1.GridDataCell, { thickRightBorder: true }, 'Rust'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 2010),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'Graydon Hoare'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'Static'),
+                    ]),
+                    (0, mithril_1.default)(grid_1.GridRow, [
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 8),
+                        (0, mithril_1.default)(grid_1.GridDataCell, { thickRightBorder: true }, 'Ruby'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 1995),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'Yukihiro Matsumoto'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'Dynamic'),
+                    ]),
+                    (0, mithril_1.default)(grid_1.GridRow, [
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 9),
+                        (0, mithril_1.default)(grid_1.GridDataCell, { thickRightBorder: true }, 'Swift'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 2014),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'Apple'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'Static'),
+                    ]),
+                    (0, mithril_1.default)(grid_1.GridRow, [
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 10),
+                        (0, mithril_1.default)(grid_1.GridDataCell, { thickRightBorder: true }, 'Kotlin'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 2011),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'JetBrains'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'Static'),
+                    ]),
+                    (0, mithril_1.default)(grid_1.GridRow, [
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 11),
+                        (0, mithril_1.default)(grid_1.GridDataCell, { thickRightBorder: true }, 'PHP'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 1995),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'Rasmus Lerdorf'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'Dynamic'),
+                    ]),
+                    (0, mithril_1.default)(grid_1.GridRow, [
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 12),
+                        (0, mithril_1.default)(grid_1.GridDataCell, { thickRightBorder: true }, 'C#'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 2000),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'Microsoft'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'Static'),
+                    ]),
+                    (0, mithril_1.default)(grid_1.GridRow, [
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 13),
+                        (0, mithril_1.default)(grid_1.GridDataCell, { thickRightBorder: true }, 'Perl'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 1987),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'Larry Wall'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'Dynamic'),
+                    ]),
+                    (0, mithril_1.default)(grid_1.GridRow, [
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 14),
+                        (0, mithril_1.default)(grid_1.GridDataCell, { thickRightBorder: true }, 'Scala'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 2004),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'Martin Odersky'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'Static'),
+                    ]),
+                    (0, mithril_1.default)(grid_1.GridRow, [
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 15),
+                        (0, mithril_1.default)(grid_1.GridDataCell, { thickRightBorder: true }, 'Haskell'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 1990),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'Lennart Augustsson, et al.'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'Static'),
+                    ]),
+                    (0, mithril_1.default)(grid_1.GridRow, [
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 16),
+                        (0, mithril_1.default)(grid_1.GridDataCell, { thickRightBorder: true }, 'Lua'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 1993),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'Roberto Ierusalimschy, et al.'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'Dynamic'),
+                    ]),
+                    (0, mithril_1.default)(grid_1.GridRow, [
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 17),
+                        (0, mithril_1.default)(grid_1.GridDataCell, { thickRightBorder: true }, 'Dart'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 2011),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'Google'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'Static'),
+                    ]),
+                    (0, mithril_1.default)(grid_1.GridRow, [
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 18),
+                        (0, mithril_1.default)(grid_1.GridDataCell, { thickRightBorder: true }, 'Elixir'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 2012),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'José Valim'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'Dynamic'),
+                    ]),
+                    (0, mithril_1.default)(grid_1.GridRow, [
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 19),
+                        (0, mithril_1.default)(grid_1.GridDataCell, { thickRightBorder: true }, 'Clojure'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 2007),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'Rich Hickey'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'Dynamic'),
+                    ]),
+                    (0, mithril_1.default)(grid_1.GridRow, [
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 20),
+                        (0, mithril_1.default)(grid_1.GridDataCell, { thickRightBorder: true }, 'F#'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 2005),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'Microsoft'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'Static'),
+                    ]),
+                    (0, mithril_1.default)(grid_1.GridRow, [
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 21),
+                        (0, mithril_1.default)(grid_1.GridDataCell, { thickRightBorder: true }, 'Lisp'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, { align: 'right' }, 1958),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'John McCarthy'),
+                        (0, mithril_1.default)(grid_1.GridDataCell, 'Dynamic'),
+                    ]),
+                ]),
+            ])),
+            initialOpts: {
+                fillHeight: true,
+                reorderable: true,
+            },
+        }), renderWidgetShowcase({
+            label: 'DataGrid (memory backed)',
+            description: `An interactive data explorer and viewer.`,
+            renderWidget: ({ readonlyFilters, readonlySorting, aggregation, ...rest }) => (0, mithril_1.default)(data_grid_1.DataGrid, {
+                ...rest,
+                filters: readonlyFilters ? [] : undefined,
+                sorting: readonlySorting ? { direction: 'UNSORTED' } : undefined,
+                columns: [
+                    {
+                        name: 'id',
+                        title: 'ID',
+                        aggregation: aggregation ? 'COUNT' : undefined,
+                    },
+                    { name: 'ts', title: 'Timestamp' },
+                    {
+                        name: 'dur',
+                        aggregation: aggregation ? 'SUM' : undefined,
+                        title: 'Duration',
+                    },
+                    { name: 'name', title: 'Name' },
+                    { name: 'data', title: 'Data' },
+                    { name: 'maybe_null', title: 'Maybe Null?' },
+                    { name: 'category', title: 'Category' },
+                ],
+                data: [
+                    {
+                        id: 1,
+                        name: 'foo',
+                        ts: 123n,
+                        dur: 16n,
+                        data: new Uint8Array(),
+                        maybe_null: null,
+                        category: 'aaa',
+                    },
+                    {
+                        id: 2,
+                        name: 'bar',
+                        ts: 185n,
+                        dur: 4n,
+                        data: new Uint8Array([1, 2, 3]),
+                        maybe_null: 'Non null',
+                        category: 'aaa',
+                    },
+                    {
+                        id: 3,
+                        name: 'baz',
+                        ts: 575n,
+                        dur: 12n,
+                        data: new Uint8Array([1, 2, 3]),
+                        maybe_null: null,
+                        category: 'aaa',
+                    },
+                ],
+            }),
+            initialOpts: {
+                showFiltersInToolbar: true,
+                readonlyFilters: false,
+                readonlySorting: false,
+                aggregation: false,
+            },
+        }), renderWidgetShowcase({
+            label: 'DataGrid (query backed)',
+            description: `An interactive data explorer and viewer - fetched from SQL.`,
+            renderWidget: ({ readonlyFilters, readonlySorting, aggregation, ...rest }) => {
+                const trace = attrs.app.trace;
+                if (trace) {
+                    return (0, mithril_1.default)(QueryDataGrid, {
+                        ...rest,
+                        engine: trace.engine,
+                        query: `
+                SELECT
+                  ts.id as id,
+                  dur,
+                  state,
+                  thread.name as thread_name,
+                  dur,
+                  io_wait,
+                  ucpu
+                FROM thread_state ts
+                JOIN thread USING(utid)
+              `,
+                        filters: readonlyFilters ? [] : undefined,
+                        sorting: readonlySorting ? { direction: 'UNSORTED' } : undefined,
+                        columns: [
+                            {
+                                name: 'id',
+                                title: 'ID',
+                                aggregation: aggregation ? 'COUNT' : undefined,
+                            },
+                            {
+                                name: 'dur',
+                                title: 'Duration',
+                                aggregation: aggregation ? 'SUM' : undefined,
+                            },
+                            { name: 'state', title: 'State' },
+                            { name: 'thread_name', title: 'Thread' },
+                            { name: 'ucpu', title: 'CPU' },
+                            { name: 'io_wait', title: 'IO Wait' },
+                        ],
+                        maxRowsPerPage: 10,
+                    });
+                }
+                else {
+                    return 'Load a trace to start';
+                }
+            },
+            initialOpts: {
+                showFiltersInToolbar: true,
+                readonlyFilters: false,
+                readonlySorting: false,
+                aggregation: false,
+            },
+        }), (0, mithril_1.default)(WidgetShowcase, {
+            label: 'TabStrip',
+            description: `A simple tab strip`,
+            renderWidget: () => {
+                return (0, mithril_1.default)(tabs_1.TabStrip, {
+                    tabs: [
+                        { key: 'foo', title: 'Foo' },
+                        { key: 'bar', title: 'Bar' },
+                        { key: 'baz', title: 'Baz' },
+                    ],
+                    currentTabKey: currentTab,
+                    onTabChange: (key) => {
+                        currentTab = key;
+                    },
+                });
+            },
+            initialOpts: {},
+        }), (0, mithril_1.default)(WidgetShowcase, {
+            label: 'CodeSnippet',
+            renderWidget: ({ wide }) => (0, mithril_1.default)(code_snippet_1.CodeSnippet, {
+                language: 'SQL',
+                text: Boolean(wide)
+                    ? 'SELECT a_very_long_column_name, another_super_long_column_name, yet_another_ridiculously_long_column_name FROM a_table_with_an_unnecessarily_long_name WHERE some_condition_is_true AND another_condition_is_also_true;'
+                    : 'SELECT * FROM slice LIMIT 10;',
+            }),
+            initialOpts: {
+                wide: false,
             },
         }));
     }
 }
 exports.WidgetsPage = WidgetsPage;
+function renderWidgetShowcase(attrs) {
+    return (0, mithril_1.default)(WidgetShowcase, attrs);
+}
+function CursorTooltipShowcase() {
+    let show = false;
+    return {
+        view() {
+            return (0, mithril_1.default)('', {
+                style: {
+                    width: '150px',
+                    height: '150px',
+                    border: '1px dashed gray',
+                    userSelect: 'none',
+                    color: 'gray',
+                    textAlign: 'center',
+                    lineHeight: '150px',
+                },
+                onmouseover: () => (show = true),
+                onmouseout: () => (show = false),
+            }, 'Hover here...', show && (0, mithril_1.default)(cursor_tooltip_1.CursorTooltip, 'Hi!'));
+        },
+    };
+}
+function MultiselectInputDemo() {
+    const options = [
+        'foo',
+        'bar',
+        'baz',
+        'qux',
+        'quux',
+        'corge',
+        'grault',
+        'garply',
+        'waldo',
+        'fred',
+    ];
+    let selectedOptions = [];
+    return {
+        view() {
+            return (0, mithril_1.default)(multiselect_input_1.MultiselectInput, {
+                options: options.map((o) => ({ key: o, label: o })),
+                selectedOptions,
+                onOptionAdd: (key) => selectedOptions.push(key),
+                onOptionRemove: (key) => {
+                    selectedOptions = selectedOptions.filter((x) => x !== key);
+                },
+            });
+        },
+    };
+}
+function QueryDataGrid(vnode) {
+    const dataSource = new sql_data_source_1.SQLDataSource(vnode.attrs.engine, vnode.attrs.query);
+    return {
+        view({ attrs }) {
+            return (0, mithril_1.default)(data_grid_1.DataGrid, { ...attrs, data: dataSource });
+        },
+    };
+}
 class ModalShowcase {
     static counter = 0;
     static log(txt) {
@@ -1153,7 +1769,7 @@ class ModalShowcase {
         const logOnClose = () => ModalShowcase.log(`Close ${id}`);
         let content;
         if (staticContent) {
-            content = (0, mithril_1.default)('.modal-pre', 'Content of the modal dialog.\nEnd of content');
+            content = (0, mithril_1.default)('.pf-modal-pre', 'Content of the modal dialog.\nEnd of content');
         }
         else {
             // The humble counter is basically the VDOM 'Hello world'!
@@ -1162,7 +1778,6 @@ class ModalShowcase {
                 return {
                     view: () => {
                         return (0, mithril_1.default)('', `Counter value: ${counter}`, (0, mithril_1.default)(button_1.Button, {
-                            intent: common_1.Intent.Primary,
                             label: 'Increment Counter',
                             onclick: () => ++counter,
                         }));

@@ -96,6 +96,7 @@ class MultiSelect {
                 const eventTarget = event.target;
                 this.searchText = eventTarget.value;
             },
+            leftIcon: semantic_icons_1.Icons.Search,
             value: this.searchText,
             placeholder: 'Filter options...',
             className: 'pf-search-box',

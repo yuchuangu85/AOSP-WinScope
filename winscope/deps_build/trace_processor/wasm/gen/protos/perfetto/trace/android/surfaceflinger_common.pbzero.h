@@ -15,6 +15,7 @@
 namespace perfetto {
 namespace protos {
 namespace pbzero {
+class BoxShadowSettings_BoxShadowParams;
 class RectProto;
 class RegionProto;
 class TransformProto;
@@ -50,6 +51,219 @@ const char* TrustedOverlay_Name(::perfetto::protos::pbzero::TrustedOverlay value
   }
   return "PBZERO_UNKNOWN_ENUM_VALUE";
 }
+
+class BorderSettings_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/2, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
+ public:
+  BorderSettings_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
+  explicit BorderSettings_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
+  explicit BorderSettings_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
+  bool has_stroke_width() const { return at<1>().valid(); }
+  float stroke_width() const { return at<1>().as_float(); }
+  bool has_color() const { return at<2>().valid(); }
+  int32_t color() const { return at<2>().as_int32(); }
+};
+
+class BorderSettings : public ::protozero::Message {
+ public:
+  using Decoder = BorderSettings_Decoder;
+  enum : int32_t {
+    kStrokeWidthFieldNumber = 1,
+    kColorFieldNumber = 2,
+  };
+  static constexpr const char* GetName() { return ".perfetto.protos.BorderSettings"; }
+
+
+  using FieldMetadata_StrokeWidth =
+    ::protozero::proto_utils::FieldMetadata<
+      1,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kFloat,
+      float,
+      BorderSettings>;
+
+  static constexpr FieldMetadata_StrokeWidth kStrokeWidth{};
+  void set_stroke_width(float value) {
+    static constexpr uint32_t field_id = FieldMetadata_StrokeWidth::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kFloat>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_Color =
+    ::protozero::proto_utils::FieldMetadata<
+      2,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kInt32,
+      int32_t,
+      BorderSettings>;
+
+  static constexpr FieldMetadata_Color kColor{};
+  void set_color(int32_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_Color::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kInt32>
+        ::Append(*this, field_id, value);
+  }
+};
+
+class BoxShadowSettings_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/1, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
+ public:
+  BoxShadowSettings_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
+  explicit BoxShadowSettings_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
+  explicit BoxShadowSettings_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
+  bool has_box_shadows() const { return at<1>().valid(); }
+  ::protozero::RepeatedFieldIterator<::protozero::ConstBytes> box_shadows() const { return GetRepeated<::protozero::ConstBytes>(1); }
+};
+
+class BoxShadowSettings : public ::protozero::Message {
+ public:
+  using Decoder = BoxShadowSettings_Decoder;
+  enum : int32_t {
+    kBoxShadowsFieldNumber = 1,
+  };
+  static constexpr const char* GetName() { return ".perfetto.protos.BoxShadowSettings"; }
+
+  using BoxShadowParams = ::perfetto::protos::pbzero::BoxShadowSettings_BoxShadowParams;
+
+  using FieldMetadata_BoxShadows =
+    ::protozero::proto_utils::FieldMetadata<
+      1,
+      ::protozero::proto_utils::RepetitionType::kRepeatedNotPacked,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      BoxShadowSettings_BoxShadowParams,
+      BoxShadowSettings>;
+
+  static constexpr FieldMetadata_BoxShadows kBoxShadows{};
+  template <typename T = BoxShadowSettings_BoxShadowParams> T* add_box_shadows() {
+    return BeginNestedMessage<T>(1);
+  }
+
+};
+
+class BoxShadowSettings_BoxShadowParams_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/5, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
+ public:
+  BoxShadowSettings_BoxShadowParams_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
+  explicit BoxShadowSettings_BoxShadowParams_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
+  explicit BoxShadowSettings_BoxShadowParams_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
+  bool has_blur_radius() const { return at<1>().valid(); }
+  float blur_radius() const { return at<1>().as_float(); }
+  bool has_spread_radius() const { return at<2>().valid(); }
+  float spread_radius() const { return at<2>().as_float(); }
+  bool has_color() const { return at<3>().valid(); }
+  int32_t color() const { return at<3>().as_int32(); }
+  bool has_offset_x() const { return at<4>().valid(); }
+  float offset_x() const { return at<4>().as_float(); }
+  bool has_offset_y() const { return at<5>().valid(); }
+  float offset_y() const { return at<5>().as_float(); }
+};
+
+class BoxShadowSettings_BoxShadowParams : public ::protozero::Message {
+ public:
+  using Decoder = BoxShadowSettings_BoxShadowParams_Decoder;
+  enum : int32_t {
+    kBlurRadiusFieldNumber = 1,
+    kSpreadRadiusFieldNumber = 2,
+    kColorFieldNumber = 3,
+    kOffsetXFieldNumber = 4,
+    kOffsetYFieldNumber = 5,
+  };
+  static constexpr const char* GetName() { return ".perfetto.protos.BoxShadowSettings.BoxShadowParams"; }
+
+
+  using FieldMetadata_BlurRadius =
+    ::protozero::proto_utils::FieldMetadata<
+      1,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kFloat,
+      float,
+      BoxShadowSettings_BoxShadowParams>;
+
+  static constexpr FieldMetadata_BlurRadius kBlurRadius{};
+  void set_blur_radius(float value) {
+    static constexpr uint32_t field_id = FieldMetadata_BlurRadius::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kFloat>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_SpreadRadius =
+    ::protozero::proto_utils::FieldMetadata<
+      2,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kFloat,
+      float,
+      BoxShadowSettings_BoxShadowParams>;
+
+  static constexpr FieldMetadata_SpreadRadius kSpreadRadius{};
+  void set_spread_radius(float value) {
+    static constexpr uint32_t field_id = FieldMetadata_SpreadRadius::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kFloat>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_Color =
+    ::protozero::proto_utils::FieldMetadata<
+      3,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kInt32,
+      int32_t,
+      BoxShadowSettings_BoxShadowParams>;
+
+  static constexpr FieldMetadata_Color kColor{};
+  void set_color(int32_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_Color::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kInt32>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_OffsetX =
+    ::protozero::proto_utils::FieldMetadata<
+      4,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kFloat,
+      float,
+      BoxShadowSettings_BoxShadowParams>;
+
+  static constexpr FieldMetadata_OffsetX kOffsetX{};
+  void set_offset_x(float value) {
+    static constexpr uint32_t field_id = FieldMetadata_OffsetX::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kFloat>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_OffsetY =
+    ::protozero::proto_utils::FieldMetadata<
+      5,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kFloat,
+      float,
+      BoxShadowSettings_BoxShadowParams>;
+
+  static constexpr FieldMetadata_OffsetY kOffsetY{};
+  void set_offset_y(float value) {
+    static constexpr uint32_t field_id = FieldMetadata_OffsetY::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kFloat>
+        ::Append(*this, field_id, value);
+  }
+};
 
 class ColorTransformProto_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/1, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
  public:

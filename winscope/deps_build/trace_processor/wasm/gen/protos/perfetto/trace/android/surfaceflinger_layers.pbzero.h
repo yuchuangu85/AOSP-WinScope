@@ -18,8 +18,11 @@ namespace pbzero {
 class ActiveBufferProto;
 class BarrierLayerProto;
 class BlurRegion;
+class BorderSettings;
+class BoxShadowSettings;
 class ColorProto;
 class ColorTransformProto;
+class CornerRadiiProto;
 class DisplayProto;
 class FloatRectProto;
 class InputWindowInfoProto;
@@ -291,6 +294,106 @@ class ActiveBufferProto : public ::protozero::Message {
   }
 };
 
+class CornerRadiiProto_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/4, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
+ public:
+  CornerRadiiProto_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
+  explicit CornerRadiiProto_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
+  explicit CornerRadiiProto_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
+  bool has_tl() const { return at<1>().valid(); }
+  float tl() const { return at<1>().as_float(); }
+  bool has_tr() const { return at<2>().valid(); }
+  float tr() const { return at<2>().as_float(); }
+  bool has_bl() const { return at<3>().valid(); }
+  float bl() const { return at<3>().as_float(); }
+  bool has_br() const { return at<4>().valid(); }
+  float br() const { return at<4>().as_float(); }
+};
+
+class CornerRadiiProto : public ::protozero::Message {
+ public:
+  using Decoder = CornerRadiiProto_Decoder;
+  enum : int32_t {
+    kTlFieldNumber = 1,
+    kTrFieldNumber = 2,
+    kBlFieldNumber = 3,
+    kBrFieldNumber = 4,
+  };
+  static constexpr const char* GetName() { return ".perfetto.protos.CornerRadiiProto"; }
+
+
+  using FieldMetadata_Tl =
+    ::protozero::proto_utils::FieldMetadata<
+      1,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kFloat,
+      float,
+      CornerRadiiProto>;
+
+  static constexpr FieldMetadata_Tl kTl{};
+  void set_tl(float value) {
+    static constexpr uint32_t field_id = FieldMetadata_Tl::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kFloat>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_Tr =
+    ::protozero::proto_utils::FieldMetadata<
+      2,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kFloat,
+      float,
+      CornerRadiiProto>;
+
+  static constexpr FieldMetadata_Tr kTr{};
+  void set_tr(float value) {
+    static constexpr uint32_t field_id = FieldMetadata_Tr::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kFloat>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_Bl =
+    ::protozero::proto_utils::FieldMetadata<
+      3,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kFloat,
+      float,
+      CornerRadiiProto>;
+
+  static constexpr FieldMetadata_Bl kBl{};
+  void set_bl(float value) {
+    static constexpr uint32_t field_id = FieldMetadata_Bl::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kFloat>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_Br =
+    ::protozero::proto_utils::FieldMetadata<
+      4,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kFloat,
+      float,
+      CornerRadiiProto>;
+
+  static constexpr FieldMetadata_Br kBr{};
+  void set_br(float value) {
+    static constexpr uint32_t field_id = FieldMetadata_Br::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kFloat>
+        ::Append(*this, field_id, value);
+  }
+};
+
 class FloatRectProto_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/4, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
  public:
   FloatRectProto_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
@@ -449,7 +552,7 @@ class PositionProto : public ::protozero::Message {
   }
 };
 
-class LayerProto_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/59, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
+class LayerProto_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/66, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
  public:
   LayerProto_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
   explicit LayerProto_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
@@ -572,6 +675,20 @@ class LayerProto_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=
   uint32_t original_id() const { return at<58>().as_uint32(); }
   bool has_trusted_overlay() const { return at<59>().valid(); }
   int32_t trusted_overlay() const { return at<59>().as_int32(); }
+  bool has_background_blur_scale() const { return at<60>().valid(); }
+  float background_blur_scale() const { return at<60>().as_float(); }
+  bool has_corner_radii() const { return at<61>().valid(); }
+  ::protozero::ConstBytes corner_radii() const { return at<61>().as_bytes(); }
+  bool has_requested_corner_radii() const { return at<62>().valid(); }
+  ::protozero::ConstBytes requested_corner_radii() const { return at<62>().as_bytes(); }
+  bool has_client_drawn_corner_radii() const { return at<63>().valid(); }
+  ::protozero::ConstBytes client_drawn_corner_radii() const { return at<63>().as_bytes(); }
+  bool has_system_content_priority() const { return at<64>().valid(); }
+  int32_t system_content_priority() const { return at<64>().as_int32(); }
+  bool has_box_shadow_settings() const { return at<65>().valid(); }
+  ::protozero::ConstBytes box_shadow_settings() const { return at<65>().as_bytes(); }
+  bool has_border_settings() const { return at<66>().valid(); }
+  ::protozero::ConstBytes border_settings() const { return at<66>().as_bytes(); }
 };
 
 class LayerProto : public ::protozero::Message {
@@ -637,6 +754,13 @@ class LayerProto : public ::protozero::Message {
     kDestinationFrameFieldNumber = 57,
     kOriginalIdFieldNumber = 58,
     kTrustedOverlayFieldNumber = 59,
+    kBackgroundBlurScaleFieldNumber = 60,
+    kCornerRadiiFieldNumber = 61,
+    kRequestedCornerRadiiFieldNumber = 62,
+    kClientDrawnCornerRadiiFieldNumber = 63,
+    kSystemContentPriorityFieldNumber = 64,
+    kBoxShadowSettingsFieldNumber = 65,
+    kBorderSettingsFieldNumber = 66,
   };
   static constexpr const char* GetName() { return ".perfetto.protos.LayerProto"; }
 
@@ -1611,6 +1735,112 @@ class LayerProto : public ::protozero::Message {
       ::protozero::proto_utils::ProtoSchemaType::kEnum>
         ::Append(*this, field_id, value);
   }
+
+  using FieldMetadata_BackgroundBlurScale =
+    ::protozero::proto_utils::FieldMetadata<
+      60,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kFloat,
+      float,
+      LayerProto>;
+
+  static constexpr FieldMetadata_BackgroundBlurScale kBackgroundBlurScale{};
+  void set_background_blur_scale(float value) {
+    static constexpr uint32_t field_id = FieldMetadata_BackgroundBlurScale::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kFloat>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_CornerRadii =
+    ::protozero::proto_utils::FieldMetadata<
+      61,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      CornerRadiiProto,
+      LayerProto>;
+
+  static constexpr FieldMetadata_CornerRadii kCornerRadii{};
+  template <typename T = CornerRadiiProto> T* set_corner_radii() {
+    return BeginNestedMessage<T>(61);
+  }
+
+
+  using FieldMetadata_RequestedCornerRadii =
+    ::protozero::proto_utils::FieldMetadata<
+      62,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      CornerRadiiProto,
+      LayerProto>;
+
+  static constexpr FieldMetadata_RequestedCornerRadii kRequestedCornerRadii{};
+  template <typename T = CornerRadiiProto> T* set_requested_corner_radii() {
+    return BeginNestedMessage<T>(62);
+  }
+
+
+  using FieldMetadata_ClientDrawnCornerRadii =
+    ::protozero::proto_utils::FieldMetadata<
+      63,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      CornerRadiiProto,
+      LayerProto>;
+
+  static constexpr FieldMetadata_ClientDrawnCornerRadii kClientDrawnCornerRadii{};
+  template <typename T = CornerRadiiProto> T* set_client_drawn_corner_radii() {
+    return BeginNestedMessage<T>(63);
+  }
+
+
+  using FieldMetadata_SystemContentPriority =
+    ::protozero::proto_utils::FieldMetadata<
+      64,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kInt32,
+      int32_t,
+      LayerProto>;
+
+  static constexpr FieldMetadata_SystemContentPriority kSystemContentPriority{};
+  void set_system_content_priority(int32_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_SystemContentPriority::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kInt32>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_BoxShadowSettings =
+    ::protozero::proto_utils::FieldMetadata<
+      65,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      BoxShadowSettings,
+      LayerProto>;
+
+  static constexpr FieldMetadata_BoxShadowSettings kBoxShadowSettings{};
+  template <typename T = BoxShadowSettings> T* set_box_shadow_settings() {
+    return BeginNestedMessage<T>(65);
+  }
+
+
+  using FieldMetadata_BorderSettings =
+    ::protozero::proto_utils::FieldMetadata<
+      66,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      BorderSettings,
+      LayerProto>;
+
+  static constexpr FieldMetadata_BorderSettings kBorderSettings{};
+  template <typename T = BorderSettings> T* set_border_settings() {
+    return BeginNestedMessage<T>(66);
+  }
+
 };
 
 class LayerProto_MetadataEntry_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/2, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {

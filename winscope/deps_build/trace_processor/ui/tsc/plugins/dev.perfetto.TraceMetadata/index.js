@@ -14,15 +14,23 @@
 // limitations under the License.
 Object.defineProperty(exports, "__esModule", { value: true });
 const tslib_1 = require("tslib");
-const query_result_1 = require("../../trace_processor/query_result");
-const query_slice_track_1 = require("../../components/tracks/query_slice_track");
+const mithril_1 = tslib_1.__importDefault(require("mithril"));
+const time_1 = require("../../base/time");
+const dataset_slice_track_1 = require("../../components/tracks/dataset_slice_track");
+const timestamp_1 = require("../../components/widgets/timestamp");
 const workspace_1 = require("../../public/workspace");
+const dataset_1 = require("../../trace_processor/dataset");
+const query_result_1 = require("../../trace_processor/query_result");
+const details_shell_1 = require("../../widgets/details_shell");
+const grid_layout_1 = require("../../widgets/grid_layout");
+const section_1 = require("../../widgets/section");
+const tree_1 = require("../../widgets/tree");
 const dev_perfetto_StandardGroups_1 = tslib_1.__importDefault(require("../dev.perfetto.StandardGroups"));
 class default_1 {
     static id = 'dev.perfetto.TraceMetadata';
     static dependencies = [dev_perfetto_StandardGroups_1.default];
-    async onTraceLoad(ctx) {
-        const res = await ctx.engine.query(`
+    async onTraceLoad(trace) {
+        const res = await trace.engine.query(`
       select count() as cnt from (select 1 from clock_snapshot limit 1)
     `);
         const row = res.firstRow({ cnt: query_result_1.NUM });
@@ -30,26 +38,74 @@ class default_1 {
             return;
         }
         const uri = `/clock_snapshots`;
-        const title = 'Clock Snapshots';
-        const track = await (0, query_slice_track_1.createQuerySliceTrack)({
-            trace: ctx,
+        const track = new dataset_slice_track_1.DatasetSliceTrack({
+            trace,
             uri,
-            data: {
-                sqlSource: `
-          select ts, 0 as dur, 'Snapshot' as name
-          from clock_snapshot
-          `,
+            dataset: new dataset_1.SourceDataset({
+                src: `
+          SELECT
+            id,
+            ts,
+            'Snapshot' as name,
+            clock_id,
+            clock_name,
+            clock_value,
+            snapshot_id,
+            machine_id,
+            0 as dur
+          FROM clock_snapshot
+        `,
+                schema: {
+                    id: query_result_1.NUM,
+                    ts: query_result_1.LONG,
+                    dur: query_result_1.LONG,
+                    name: query_result_1.STR,
+                    clock_id: query_result_1.NUM,
+                    clock_name: query_result_1.STR_NULL,
+                    clock_value: query_result_1.LONG,
+                    snapshot_id: query_result_1.NUM,
+                    machine_id: query_result_1.NUM_NULL,
+                },
+            }),
+            detailsPanel: (row) => {
+                return {
+                    render() {
+                        return (0, mithril_1.default)(details_shell_1.DetailsShell, {
+                            title: 'Clock Snapshot',
+                        }, (0, mithril_1.default)(grid_layout_1.GridLayout, (0, mithril_1.default)(grid_layout_1.GridLayoutColumn, (0, mithril_1.default)(section_1.Section, { title: 'Details' }, (0, mithril_1.default)(tree_1.Tree, (0, mithril_1.default)(tree_1.TreeNode, {
+                            left: 'ID',
+                            right: row.id,
+                        }), (0, mithril_1.default)(tree_1.TreeNode, {
+                            left: 'Timestamp',
+                            right: (0, mithril_1.default)(timestamp_1.Timestamp, { trace, ts: time_1.Time.fromRaw(row.ts) }),
+                        }), (0, mithril_1.default)(tree_1.TreeNode, {
+                            left: 'clock_id',
+                            right: row.clock_id,
+                        }), (0, mithril_1.default)(tree_1.TreeNode, {
+                            left: 'clock_name',
+                            right: row.clock_name ?? 'NULL',
+                        }), (0, mithril_1.default)(tree_1.TreeNode, {
+                            left: 'clock_value',
+                            right: row.clock_value.toLocaleString(),
+                        }), (0, mithril_1.default)(tree_1.TreeNode, {
+                            left: 'snapshot_id',
+                            right: row.snapshot_id,
+                        }), (0, mithril_1.default)(tree_1.TreeNode, {
+                            left: 'machine_id ',
+                            right: row.machine_id ?? 'NULL',
+                        }))))));
+                    },
+                };
             },
         });
-        ctx.tracks.registerTrack({
+        trace.tracks.registerTrack({
             uri,
-            title,
-            track,
+            renderer: track,
         });
-        const trackNode = new workspace_1.TrackNode({ uri, title });
-        const group = ctx.plugins
+        const trackNode = new workspace_1.TrackNode({ uri, name: 'Clock Snapshots' });
+        const group = trace.plugins
             .getPlugin(dev_perfetto_StandardGroups_1.default)
-            .getOrCreateStandardGroup(ctx.workspace, 'SYSTEM');
+            .getOrCreateStandardGroup(trace.workspace, 'SYSTEM');
         group.addChildInOrder(trackNode);
     }
 }

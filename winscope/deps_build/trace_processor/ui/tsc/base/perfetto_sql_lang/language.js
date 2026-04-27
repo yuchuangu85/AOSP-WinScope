@@ -31,6 +31,7 @@ exports.language = language_1.LRLanguage.define({
             (0, highlight_1.styleTags)({
                 'Keyword': highlight_1.tags.keyword,
                 'Boolean': highlight_1.tags.bool,
+                'Null': highlight_1.tags.null,
                 'String': highlight_1.tags.string,
                 'Number': highlight_1.tags.number,
                 'LineComment': highlight_1.tags.lineComment,

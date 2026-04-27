@@ -29,11 +29,10 @@ function toggleHelp() {
     (0, modal_1.showModal)({
         title: 'Perfetto Help',
         content: () => (0, mithril_1.default)(KeyMappingsHelp),
-        buttons: [],
     });
 }
 function keycap(glyph) {
-    return (0, mithril_1.default)('.keycap', glyph);
+    return (0, mithril_1.default)(hotkey_glyphs_1.Keycap, { spacing: 'large' }, glyph);
 }
 // A fallback keyboard map based on the QWERTY keymap. Converts keyboard event
 // codes to their associated glyphs on an English QWERTY keyboard.
@@ -72,12 +71,15 @@ class KeyMappingsHelp {
         });
     }
     view() {
-        return (0, mithril_1.default)('.help', (0, mithril_1.default)('h2', 'Navigation'), (0, mithril_1.default)('table', (0, mithril_1.default)('tr', (0, mithril_1.default)('td', this.codeToKeycap(wasd_navigation_handler_1.KeyMapping.KEY_ZOOM_IN), '/', this.codeToKeycap(wasd_navigation_handler_1.KeyMapping.KEY_ZOOM_OUT)), (0, mithril_1.default)('td', 'Zoom in/out')), (0, mithril_1.default)('tr', (0, mithril_1.default)('td', this.codeToKeycap(wasd_navigation_handler_1.KeyMapping.KEY_PAN_LEFT), '/', this.codeToKeycap(wasd_navigation_handler_1.KeyMapping.KEY_PAN_RIGHT)), (0, mithril_1.default)('td', 'Pan left/right'))), (0, mithril_1.default)('h2', 'Mouse Controls'), (0, mithril_1.default)('table', (0, mithril_1.default)('tr', (0, mithril_1.default)('td', 'Click'), (0, mithril_1.default)('td', 'Select event')), (0, mithril_1.default)('tr', (0, mithril_1.default)('td', 'Ctrl + Scroll wheel'), (0, mithril_1.default)('td', 'Zoom in/out')), (0, mithril_1.default)('tr', (0, mithril_1.default)('td', 'Click + Drag'), (0, mithril_1.default)('td', 'Select area')), (0, mithril_1.default)('tr', (0, mithril_1.default)('td', 'Shift + Click + Drag'), (0, mithril_1.default)('td', 'Pan left/right'))), (0, mithril_1.default)('h2', 'Running commands from the viewer page'), (0, mithril_1.default)('table', (0, mithril_1.default)('tr', (0, mithril_1.default)('td', keycap('>'), ' in the (empty) search box'), (0, mithril_1.default)('td', 'Switch to command mode'))), (0, mithril_1.default)('h2', 'Making SQL queries from the viewer page'), (0, mithril_1.default)('table', (0, mithril_1.default)('tr', (0, mithril_1.default)('td', keycap(':'), ' in the (empty) search box'), (0, mithril_1.default)('td', 'Switch to query mode')), (0, mithril_1.default)('tr', (0, mithril_1.default)('td', keycap('Enter')), (0, mithril_1.default)('td', 'Execute query')), (0, mithril_1.default)('tr', (0, mithril_1.default)('td', keycap('Ctrl'), ' + ', keycap('Enter')), (0, mithril_1.default)('td', 'Execute query and pin output ' +
+        return (0, mithril_1.default)('.pf-help-modal', (0, mithril_1.default)('h2', 'Navigation'), (0, mithril_1.default)('table', (0, mithril_1.default)('tr', (0, mithril_1.default)('td', this.codeToKeycap(wasd_navigation_handler_1.KeyMapping.KEY_ZOOM_IN), '/', this.codeToKeycap(wasd_navigation_handler_1.KeyMapping.KEY_ZOOM_OUT)), (0, mithril_1.default)('td', 'Zoom in/out')), (0, mithril_1.default)('tr', (0, mithril_1.default)('td', this.codeToKeycap(wasd_navigation_handler_1.KeyMapping.KEY_PAN_LEFT), '/', this.codeToKeycap(wasd_navigation_handler_1.KeyMapping.KEY_PAN_RIGHT)), (0, mithril_1.default)('td', 'Pan left/right'))), (0, mithril_1.default)('h2', 'Mouse Controls'), (0, mithril_1.default)('table', (0, mithril_1.default)('tr', (0, mithril_1.default)('td', 'Click'), (0, mithril_1.default)('td', 'Select event')), (0, mithril_1.default)('tr', (0, mithril_1.default)('td', 'Ctrl + Scroll wheel'), (0, mithril_1.default)('td', 'Zoom in/out')), (0, mithril_1.default)('tr', (0, mithril_1.default)('td', 'Click + Drag'), (0, mithril_1.default)('td', 'Select area')), (0, mithril_1.default)('tr', (0, mithril_1.default)('td', 'Shift + Click + Drag'), (0, mithril_1.default)('td', 'Pan left/right'))), (0, mithril_1.default)('h2', 'Running commands from the viewer page'), (0, mithril_1.default)('table', (0, mithril_1.default)('tr', (0, mithril_1.default)('td', keycap('>'), ' in the (empty) search box'), (0, mithril_1.default)('td', 'Switch to command mode'))), (0, mithril_1.default)('h2', 'Making SQL queries from the viewer page'), (0, mithril_1.default)('table', (0, mithril_1.default)('tr', (0, mithril_1.default)('td', keycap(':'), ' in the (empty) search box'), (0, mithril_1.default)('td', 'Switch to query mode')), (0, mithril_1.default)('tr', (0, mithril_1.default)('td', keycap('Enter')), (0, mithril_1.default)('td', 'Execute query')), (0, mithril_1.default)('tr', (0, mithril_1.default)('td', keycap('Ctrl'), ' + ', keycap('Enter')), (0, mithril_1.default)('td', 'Execute query and pin output ' +
             '(output will not be replaced by regular query input)'))), (0, mithril_1.default)('h2', 'Making SQL queries from the query page'), (0, mithril_1.default)('table', (0, mithril_1.default)('tr', (0, mithril_1.default)('td', keycap('Ctrl'), ' + ', keycap('Enter')), (0, mithril_1.default)('td', 'Execute query')), (0, mithril_1.default)('tr', (0, mithril_1.default)('td', keycap('Ctrl'), ' + ', keycap('Enter'), ' (with selection)'), (0, mithril_1.default)('td', 'Execute selection'))), (0, mithril_1.default)('h2', 'Command Hotkeys'), (0, mithril_1.default)('table', app_impl_1.AppImpl.instance.commands.commands
             .filter(({ defaultHotkey }) => defaultHotkey)
             .sort((a, b) => a.name.localeCompare(b.name))
             .map(({ defaultHotkey, name }) => {
-            return (0, mithril_1.default)('tr', (0, mithril_1.default)('td', (0, mithril_1.default)(hotkey_glyphs_1.HotkeyGlyphs, { hotkey: (0, logging_1.assertExists)(defaultHotkey) })), (0, mithril_1.default)('td', name));
+            return (0, mithril_1.default)('tr', (0, mithril_1.default)('td', (0, mithril_1.default)(hotkey_glyphs_1.HotkeyGlyphs, {
+                spacing: 'large',
+                hotkey: (0, logging_1.assertExists)(defaultHotkey),
+            })), (0, mithril_1.default)('td', name));
         })));
     }
     codeToKeycap(code) {

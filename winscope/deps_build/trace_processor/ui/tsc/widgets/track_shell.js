@@ -28,6 +28,7 @@ const chip_1 = require("./chip");
 const common_1 = require("./common");
 const middle_ellipsis_1 = require("./middle_ellipsis");
 const popup_1 = require("./popup");
+const stack_1 = require("./stack");
 class TrackShell {
     mouseDownPos;
     selectionOccurred = false;
@@ -184,7 +185,11 @@ class TrackShell {
                     icon: collapsed ? semantic_icons_1.Icons.ExpandDown : semantic_icons_1.Icons.ExpandUp,
                 })
                 : (0, mithril_1.default)('.pf-track__title-spacer'), (0, mithril_1.default)(TrackTitle, { title: attrs.title }), chips &&
-                (0, mithril_1.default)(chip_1.ChipBar, { className: 'pf-track__chips' }, chips.map((chip) => (0, mithril_1.default)(chip_1.Chip, { label: chip, compact: true, rounded: true }))), (0, mithril_1.default)(button_1.ButtonBar, {
+                (0, mithril_1.default)(stack_1.Stack, {
+                    className: 'pf-track__chips',
+                    spacing: 'small',
+                    orientation: 'horizontal',
+                }, chips.map((chip) => (0, mithril_1.default)(chip_1.Chip, { label: chip, compact: true, rounded: true }))), (0, mithril_1.default)(button_1.ButtonBar, {
                 className: 'pf-track__buttons',
                 // Block button clicks from hitting the shell's on click event
                 onclick: (e) => e.stopPropagation(),
@@ -251,6 +256,7 @@ function renderCrashButton(error, pluginId) {
     }, (0, mithril_1.default)('.pf-track__crash-popup', (0, mithril_1.default)('span', 'This track has crashed.'), pluginId && (0, mithril_1.default)('span', `Owning plugin: ${pluginId}`), (0, mithril_1.default)(button_1.Button, {
         label: 'View & Report Crash',
         intent: common_1.Intent.Primary,
+        variant: button_1.ButtonVariant.Filled,
         className: popup_1.Popup.DISMISS_POPUP_GROUP_CLASS,
         onclick: () => {
             throw error;

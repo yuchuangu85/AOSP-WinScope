@@ -57,7 +57,7 @@ const char* KernelWakelockData_Wakelock_Type_Name(::perfetto::protos::pbzero::Ke
   return "PBZERO_UNKNOWN_ENUM_VALUE";
 }
 
-class KernelWakelockData_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/3, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
+class KernelWakelockData_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/4, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
  public:
   KernelWakelockData_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
   explicit KernelWakelockData_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
@@ -68,6 +68,8 @@ class KernelWakelockData_Decoder : public ::protozero::TypedProtoDecoder</*MAX_F
   ::protozero::PackedRepeatedFieldIterator<::protozero::proto_utils::ProtoWireType::kVarInt, uint32_t> wakelock_id(bool* parse_error_ptr) const { return GetPackedRepeated<::protozero::proto_utils::ProtoWireType::kVarInt, uint32_t>(2, parse_error_ptr); }
   bool has_time_held_millis() const { return at<3>().valid(); }
   ::protozero::PackedRepeatedFieldIterator<::protozero::proto_utils::ProtoWireType::kVarInt, uint64_t> time_held_millis(bool* parse_error_ptr) const { return GetPackedRepeated<::protozero::proto_utils::ProtoWireType::kVarInt, uint64_t>(3, parse_error_ptr); }
+  bool has_error_flags() const { return at<4>().valid(); }
+  uint64_t error_flags() const { return at<4>().as_uint64(); }
 };
 
 class KernelWakelockData : public ::protozero::Message {
@@ -77,6 +79,7 @@ class KernelWakelockData : public ::protozero::Message {
     kWakelockFieldNumber = 1,
     kWakelockIdFieldNumber = 2,
     kTimeHeldMillisFieldNumber = 3,
+    kErrorFlagsFieldNumber = 4,
   };
   static constexpr const char* GetName() { return ".perfetto.protos.KernelWakelockData"; }
 
@@ -122,6 +125,24 @@ class KernelWakelockData : public ::protozero::Message {
   void set_time_held_millis(const ::protozero::PackedVarInt& packed_buffer) {
     AppendBytes(FieldMetadata_TimeHeldMillis::kFieldId, packed_buffer.data(),
                 packed_buffer.size());
+  }
+
+  using FieldMetadata_ErrorFlags =
+    ::protozero::proto_utils::FieldMetadata<
+      4,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kUint64,
+      uint64_t,
+      KernelWakelockData>;
+
+  static constexpr FieldMetadata_ErrorFlags kErrorFlags{};
+  void set_error_flags(uint64_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_ErrorFlags::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint64>
+        ::Append(*this, field_id, value);
   }
 };
 

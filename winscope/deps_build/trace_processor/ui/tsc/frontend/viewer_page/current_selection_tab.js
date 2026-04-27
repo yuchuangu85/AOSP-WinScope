@@ -59,7 +59,7 @@ class CurrentSelectionTab {
         return {
             isLoading: false,
             content: (0, mithril_1.default)(empty_state_1.EmptyState, {
-                className: 'pf-noselection',
+                fillHeight: true,
                 title: message,
             }),
         };
@@ -121,7 +121,7 @@ class CurrentSelectionTab {
     renderTrackDetailsPanel(trace, trackUri) {
         const track = trace.tracks.getTrack(trackUri);
         if (track) {
-            return (0, mithril_1.default)(details_shell_1.DetailsShell, { title: 'Track', description: track.title }, (0, mithril_1.default)(grid_layout_1.GridLayout, (0, mithril_1.default)(grid_layout_1.GridLayoutColumn, (0, mithril_1.default)(section_1.Section, { title: 'Details' }, (0, mithril_1.default)(tree_1.Tree, (0, mithril_1.default)(tree_1.TreeNode, { left: 'Name', right: track.title }), (0, mithril_1.default)(tree_1.TreeNode, { left: 'URI', right: track.uri }), (0, mithril_1.default)(tree_1.TreeNode, { left: 'Plugin ID', right: track.pluginId }), (0, mithril_1.default)(tree_1.TreeNode, { left: 'Tags' }, track.tags &&
+            return (0, mithril_1.default)(details_shell_1.DetailsShell, { title: 'Track', description: track.uri }, (0, mithril_1.default)(grid_layout_1.GridLayout, (0, mithril_1.default)(grid_layout_1.GridLayoutColumn, (0, mithril_1.default)(section_1.Section, { title: 'Details' }, (0, mithril_1.default)(tree_1.Tree, (0, mithril_1.default)(tree_1.TreeNode, { left: 'URI', right: track.uri }), (0, mithril_1.default)(tree_1.TreeNode, { left: 'Plugin ID', right: track.pluginId }), (0, mithril_1.default)(tree_1.TreeNode, { left: 'Tags' }, track.tags &&
                 Object.entries(track.tags).map(([key, value]) => {
                     return (0, mithril_1.default)(tree_1.TreeNode, { left: key, right: value?.toString() });
                 })))))));

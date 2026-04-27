@@ -34,7 +34,7 @@ class default_1 {
           group_concat(distinct t.id) as trackIds,
           count() as trackCount
         from track t
-        where t.name = "Suspend/Resume Latency"
+        where t.type = 'suspend_resume'
       )
       select
         t.trackIds as trackIds,
@@ -59,15 +59,13 @@ class default_1 {
         const trackIds = rawTrackIds.split(',').map((v) => Number(v));
         const maxDepth = it.maxDepth;
         const uri = `/suspend_resume_latency`;
-        const displayName = `Suspend/Resume Latency`;
         ctx.tracks.registerTrack({
             uri,
-            title: displayName,
             tags: {
                 trackIds,
                 kind: track_kinds_1.SLICE_TRACK_KIND,
             },
-            track: (0, trace_processor_slice_track_1.createTraceProcessorSliceTrack)({
+            renderer: await (0, trace_processor_slice_track_1.createTraceProcessorSliceTrack)({
                 trace: ctx,
                 uri,
                 maxDepth,
@@ -76,7 +74,7 @@ class default_1 {
             }),
         });
         // Display the track in the UI.
-        const track = new workspace_1.TrackNode({ uri, title: displayName });
+        const track = new workspace_1.TrackNode({ uri, name: 'Suspend/Resume Latency' });
         ctx.workspace.addChildInOrder(track);
     }
 }

@@ -19,20 +19,21 @@ class default_1 {
     static id = 'com.google.android.GoogleCamera';
     async onTraceLoad(ctx) {
         ctx.commands.registerCommand({
-            id: 'com.google.android.GoogleCamera#LoadGoogleCameraStartupView',
+            id: 'com.google.android.LoadGoogleCameraStartupView',
             name: 'Load google camera startup view',
             callback: () => {
                 this.loadGCAStartupView(ctx);
             },
         });
         ctx.commands.registerCommand({
-            id: 'com.google.android.GoogleCamera#PinCameraRelatedTracks',
+            id: 'com.google.android.PinCameraRelatedTracks',
             name: 'Pin camera related tracks',
-            callback: (trackNames) => {
-                trackNames = prompt('List of additional track names that you would like to pin separated by commas', '');
-                const trackNameList = trackNames.split(',').map(function (item) {
-                    return item.trim();
-                });
+            callback: async () => {
+                const promptResult = await ctx.omnibox.prompt('List of additional track names that you would like to pin separated by commas');
+                const rawTrackNames = promptResult ?? '';
+                const trackNameList = rawTrackNames
+                    .split(',')
+                    .map((item) => item.trim());
                 this.pinTracks(ctx, trackNameList);
             },
         });
@@ -44,7 +45,7 @@ class default_1 {
     pinTracks(ctx, trackNames) {
         ctx.workspace.flatTracks.forEach((track) => {
             trackNames.forEach((trackName) => {
-                if (track.title.match(trackName)) {
+                if (track.name.match(trackName)) {
                     track.pin();
                 }
             });

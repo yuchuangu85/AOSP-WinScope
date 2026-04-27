@@ -13,27 +13,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import {assertDefined} from 'common/assert_utils';
+import {assertDefined} from 'common/assert';
+import {getPerfettoParser} from 'test/unit/fixture_utils';
 import {
-  TimestampConverterUtils,
+  makeRealTimestamp,
   timestampEqualityTester,
-} from 'common/time/test_utils';
+} from 'test/unit/time_test_helpers';
 import {TraceBuilder} from 'test/unit/trace_builder';
-import {UnitTestUtils} from 'test/unit/utils';
-import {CoarseVersion} from 'trace/coarse_version';
-import {CustomQueryType} from 'trace/custom_query';
-import {Parser} from 'trace/parser';
-import {Trace} from 'trace/trace';
-import {TraceType} from 'trace/trace_type';
-import {HierarchyTreeNode} from 'trace/tree_node/hierarchy_tree_node';
+import {CoarseVersion} from 'trace_api/coarse_version';
+import {CustomQueryType} from 'trace_api/custom_query';
+import {Parser} from 'trace_api/parser';
+import {Trace} from 'trace_api/trace';
+import {TraceType} from 'trace_api/trace_type';
+import {HierarchyTreeNode} from 'tree_node/hierarchy_tree_node';
 
-describe('Perfetto ParserWindowManager', () => {
+describe('PerfettoParserWindowManager', () => {
   let parser: Parser<HierarchyTreeNode>;
   let trace: Trace<HierarchyTreeNode>;
 
   beforeAll(async () => {
     jasmine.addCustomEqualityTester(timestampEqualityTester);
-    parser = (await UnitTestUtils.getPerfettoParser(
+    parser = (await getPerfettoParser(
       TraceType.WINDOW_MANAGER,
       'traces/perfetto/windowmanager.perfetto-trace',
     )) as Parser<HierarchyTreeNode>;
@@ -53,9 +53,9 @@ describe('Perfetto ParserWindowManager', () => {
 
   it('provides timestamps', () => {
     const expected = [
-      TimestampConverterUtils.makeRealTimestamp(1719409456335086006n),
-      TimestampConverterUtils.makeRealTimestamp(1719409456922787137n),
-      TimestampConverterUtils.makeRealTimestamp(1719409456929933622n),
+      makeRealTimestamp(1719409456335086006n),
+      makeRealTimestamp(1719409456922787137n),
+      makeRealTimestamp(1719409456929933622n),
     ];
     expect(assertDefined(parser.getTimestamps()).slice(0, 3)).toEqual(expected);
   });
@@ -63,14 +63,14 @@ describe('Perfetto ParserWindowManager', () => {
   it('retrieves trace entry', async () => {
     const entry = await parser.getEntry(1);
     expect(entry).toBeInstanceOf(HierarchyTreeNode);
-    expect(entry.id).toEqual('WindowManagerState root');
+    expect(entry.id).toBe('WindowManagerState root');
   });
 
   it('supports WM_WINDOWS_TOKEN_AND_TITLE custom query', async () => {
     const tokenAndTitles = await trace
       .sliceEntries(0, 1)
       .customQuery(CustomQueryType.WM_WINDOWS_TOKEN_AND_TITLE);
-    expect(tokenAndTitles.length).toEqual(69);
+    expect(tokenAndTitles.length).toBe(69);
     expect(tokenAndTitles).toContain({token: '86f4c23', title: 'Leaf:36:36'});
   });
 });

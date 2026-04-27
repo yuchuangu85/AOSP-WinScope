@@ -14,20 +14,21 @@
  * limitations under the License.
  */
 
-import {assertDefined} from 'common/assert_utils';
+import {assertBigInt, assertDefined} from 'common/assert';
+import {NOT_IMPLEMENTED_ERROR} from 'common/errors';
 import {INVALID_TIME_NS, Timestamp} from 'common/time/time';
 import {TimestampConverter} from 'common/time/timestamp_converter';
-import {UserNotifier} from 'common/user_notifier';
 import {Analytics} from 'logging/analytics';
 import {TraceSearchQueryFailed} from 'messaging/user_warnings';
-import {CoarseVersion} from 'trace/coarse_version';
+import {UserNotifier} from 'services/user_notifier';
+import {CoarseVersion} from 'trace_api/coarse_version';
 import {
   CustomQueryParserResultTypeMap,
   CustomQueryType,
-} from 'trace/custom_query';
-import {AbsoluteEntryIndex, EntriesRange} from 'trace/index_types';
-import {Parser} from 'trace/parser';
-import {TraceType} from 'trace/trace_type';
+} from 'trace_api/custom_query';
+import {AbsoluteEntryIndex, EntriesRange} from 'trace_api/index_types';
+import {Parser} from 'trace_api/parser';
+import {TraceType} from 'trace_api/trace_type';
 import {QueryResult} from 'trace_processor/query_result';
 import {TraceProcessorFactory} from 'trace_processor/trace_processor_factory';
 
@@ -48,6 +49,10 @@ export class ParserSearch implements Parser<QueryResult> {
     return TraceType.SEARCH;
   }
 
+  isPerfetto(): boolean {
+    return true;
+  }
+
   getLengthEntries(): number {
     const queryResult = this.validateQueryResult();
     const numRows = queryResult.numRows();
@@ -65,11 +70,21 @@ export class ParserSearch implements Parser<QueryResult> {
     return this.validateQueryResult();
   }
 
+  getAllEntries(): Promise<QueryResult[]> {
+    throw NOT_IMPLEMENTED_ERROR;
+  }
+
+  getRangeOfEntries(
+    entriesRange: EntriesRange,
+  ): Promise<Array<QueryResult | undefined>> {
+    throw NOT_IMPLEMENTED_ERROR;
+  }
+
   customQuery<Q extends CustomQueryType>(
     type: Q,
     entriesRange: EntriesRange,
   ): Promise<CustomQueryParserResultTypeMap[Q]> {
-    throw new Error('not implemented');
+    throw NOT_IMPLEMENTED_ERROR;
   }
 
   getDescriptors(): string[] {
@@ -85,16 +100,20 @@ export class ParserSearch implements Parser<QueryResult> {
   }
 
   createTimestamps(): void {
-    throw new Error('not implemented');
+    throw NOT_IMPLEMENTED_ERROR;
+  }
+
+  canConvertToPerfetto(): boolean {
+    return false;
   }
 
   async parse() {
-    const tp = await TraceProcessorFactory.getSingleInstance();
+    const tp = TraceProcessorFactory.getSingleInstance();
     try {
-      this.queryResult = await tp.queryAllRows(this.query);
+      this.queryResult = await tp.query(this.query);
       if (this.hasTimestamps() && this.queryResult.numRows() > 0) {
         for (const it = this.queryResult.iter({}); it.valid(); it.next()) {
-          const ns = it.get('ts') as bigint;
+          const ns = assertBigInt(it.get('ts'));
           if (ns === INVALID_TIME_NS) {
             this.timestamps.push(this.timestampConverter.makeZeroTimestamp());
           } else {

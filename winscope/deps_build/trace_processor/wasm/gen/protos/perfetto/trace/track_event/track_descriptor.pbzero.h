@@ -24,6 +24,10 @@ namespace perfetto_pbzero_enum_TrackDescriptor {
 enum ChildTracksOrdering : int32_t;
 }  // namespace perfetto_pbzero_enum_TrackDescriptor
 using TrackDescriptor_ChildTracksOrdering = perfetto_pbzero_enum_TrackDescriptor::ChildTracksOrdering;
+namespace perfetto_pbzero_enum_TrackDescriptor {
+enum SiblingMergeBehavior : int32_t;
+}  // namespace perfetto_pbzero_enum_TrackDescriptor
+using TrackDescriptor_SiblingMergeBehavior = perfetto_pbzero_enum_TrackDescriptor::SiblingMergeBehavior;
 } // Namespace pbzero.
 } // Namespace protos.
 } // Namespace perfetto.
@@ -65,7 +69,40 @@ const char* TrackDescriptor_ChildTracksOrdering_Name(::perfetto::protos::pbzero:
   return "PBZERO_UNKNOWN_ENUM_VALUE";
 }
 
-class TrackDescriptor_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/13, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
+namespace perfetto_pbzero_enum_TrackDescriptor {
+enum SiblingMergeBehavior : int32_t {
+  SIBLING_MERGE_BEHAVIOR_UNSPECIFIED = 0,
+  SIBLING_MERGE_BEHAVIOR_BY_TRACK_NAME = 1,
+  SIBLING_MERGE_BEHAVIOR_NONE = 2,
+  SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY = 3,
+};
+} // namespace perfetto_pbzero_enum_TrackDescriptor
+using TrackDescriptor_SiblingMergeBehavior = perfetto_pbzero_enum_TrackDescriptor::SiblingMergeBehavior;
+
+
+constexpr TrackDescriptor_SiblingMergeBehavior TrackDescriptor_SiblingMergeBehavior_MIN = TrackDescriptor_SiblingMergeBehavior::SIBLING_MERGE_BEHAVIOR_UNSPECIFIED;
+constexpr TrackDescriptor_SiblingMergeBehavior TrackDescriptor_SiblingMergeBehavior_MAX = TrackDescriptor_SiblingMergeBehavior::SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY;
+
+
+PERFETTO_PROTOZERO_CONSTEXPR14_OR_INLINE
+const char* TrackDescriptor_SiblingMergeBehavior_Name(::perfetto::protos::pbzero::TrackDescriptor_SiblingMergeBehavior value) {
+  switch (value) {
+  case ::perfetto::protos::pbzero::TrackDescriptor_SiblingMergeBehavior::SIBLING_MERGE_BEHAVIOR_UNSPECIFIED:
+    return "SIBLING_MERGE_BEHAVIOR_UNSPECIFIED";
+
+  case ::perfetto::protos::pbzero::TrackDescriptor_SiblingMergeBehavior::SIBLING_MERGE_BEHAVIOR_BY_TRACK_NAME:
+    return "SIBLING_MERGE_BEHAVIOR_BY_TRACK_NAME";
+
+  case ::perfetto::protos::pbzero::TrackDescriptor_SiblingMergeBehavior::SIBLING_MERGE_BEHAVIOR_NONE:
+    return "SIBLING_MERGE_BEHAVIOR_NONE";
+
+  case ::perfetto::protos::pbzero::TrackDescriptor_SiblingMergeBehavior::SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY:
+    return "SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY";
+  }
+  return "PBZERO_UNKNOWN_ENUM_VALUE";
+}
+
+class TrackDescriptor_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/17, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
  public:
   TrackDescriptor_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
   explicit TrackDescriptor_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
@@ -80,6 +117,8 @@ class TrackDescriptor_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIEL
   ::protozero::ConstChars static_name() const { return at<10>().as_string(); }
   bool has_atrace_name() const { return at<13>().valid(); }
   ::protozero::ConstChars atrace_name() const { return at<13>().as_string(); }
+  bool has_description() const { return at<14>().valid(); }
+  ::protozero::ConstChars description() const { return at<14>().as_string(); }
   bool has_process() const { return at<3>().valid(); }
   ::protozero::ConstBytes process() const { return at<3>().as_bytes(); }
   bool has_chrome_process() const { return at<6>().valid(); }
@@ -96,6 +135,12 @@ class TrackDescriptor_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIEL
   int32_t child_ordering() const { return at<11>().as_int32(); }
   bool has_sibling_order_rank() const { return at<12>().valid(); }
   int32_t sibling_order_rank() const { return at<12>().as_int32(); }
+  bool has_sibling_merge_behavior() const { return at<15>().valid(); }
+  int32_t sibling_merge_behavior() const { return at<15>().as_int32(); }
+  bool has_sibling_merge_key() const { return at<16>().valid(); }
+  ::protozero::ConstChars sibling_merge_key() const { return at<16>().as_string(); }
+  bool has_sibling_merge_key_int() const { return at<17>().valid(); }
+  uint64_t sibling_merge_key_int() const { return at<17>().as_uint64(); }
 };
 
 class TrackDescriptor : public ::protozero::Message {
@@ -107,6 +152,7 @@ class TrackDescriptor : public ::protozero::Message {
     kNameFieldNumber = 2,
     kStaticNameFieldNumber = 10,
     kAtraceNameFieldNumber = 13,
+    kDescriptionFieldNumber = 14,
     kProcessFieldNumber = 3,
     kChromeProcessFieldNumber = 6,
     kThreadFieldNumber = 4,
@@ -115,6 +161,9 @@ class TrackDescriptor : public ::protozero::Message {
     kDisallowMergingWithSystemTracksFieldNumber = 9,
     kChildOrderingFieldNumber = 11,
     kSiblingOrderRankFieldNumber = 12,
+    kSiblingMergeBehaviorFieldNumber = 15,
+    kSiblingMergeKeyFieldNumber = 16,
+    kSiblingMergeKeyIntFieldNumber = 17,
   };
   static constexpr const char* GetName() { return ".perfetto.protos.TrackDescriptor"; }
 
@@ -123,10 +172,19 @@ class TrackDescriptor : public ::protozero::Message {
   static inline const char* ChildTracksOrdering_Name(ChildTracksOrdering value) {
     return ::perfetto::protos::pbzero::TrackDescriptor_ChildTracksOrdering_Name(value);
   }
+
+  using SiblingMergeBehavior = ::perfetto::protos::pbzero::TrackDescriptor_SiblingMergeBehavior;
+  static inline const char* SiblingMergeBehavior_Name(SiblingMergeBehavior value) {
+    return ::perfetto::protos::pbzero::TrackDescriptor_SiblingMergeBehavior_Name(value);
+  }
   static inline const ChildTracksOrdering UNKNOWN = ChildTracksOrdering::UNKNOWN;
   static inline const ChildTracksOrdering LEXICOGRAPHIC = ChildTracksOrdering::LEXICOGRAPHIC;
   static inline const ChildTracksOrdering CHRONOLOGICAL = ChildTracksOrdering::CHRONOLOGICAL;
   static inline const ChildTracksOrdering EXPLICIT = ChildTracksOrdering::EXPLICIT;
+  static inline const SiblingMergeBehavior SIBLING_MERGE_BEHAVIOR_UNSPECIFIED = SiblingMergeBehavior::SIBLING_MERGE_BEHAVIOR_UNSPECIFIED;
+  static inline const SiblingMergeBehavior SIBLING_MERGE_BEHAVIOR_BY_TRACK_NAME = SiblingMergeBehavior::SIBLING_MERGE_BEHAVIOR_BY_TRACK_NAME;
+  static inline const SiblingMergeBehavior SIBLING_MERGE_BEHAVIOR_NONE = SiblingMergeBehavior::SIBLING_MERGE_BEHAVIOR_NONE;
+  static inline const SiblingMergeBehavior SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY = SiblingMergeBehavior::SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY;
 
   using FieldMetadata_Uuid =
     ::protozero::proto_utils::FieldMetadata<
@@ -229,6 +287,30 @@ class TrackDescriptor : public ::protozero::Message {
   }
   void set_atrace_name(std::string value) {
     static constexpr uint32_t field_id = FieldMetadata_AtraceName::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kString>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_Description =
+    ::protozero::proto_utils::FieldMetadata<
+      14,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kString,
+      std::string,
+      TrackDescriptor>;
+
+  static constexpr FieldMetadata_Description kDescription{};
+  void set_description(const char* data, size_t size) {
+    AppendBytes(FieldMetadata_Description::kFieldId, data, size);
+  }
+  void set_description(::protozero::ConstChars chars) {
+    AppendBytes(FieldMetadata_Description::kFieldId, chars.data, chars.size);
+  }
+  void set_description(std::string value) {
+    static constexpr uint32_t field_id = FieldMetadata_Description::kFieldId;
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
@@ -357,6 +439,66 @@ class TrackDescriptor : public ::protozero::Message {
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
       ::protozero::proto_utils::ProtoSchemaType::kInt32>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_SiblingMergeBehavior =
+    ::protozero::proto_utils::FieldMetadata<
+      15,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kEnum,
+      TrackDescriptor_SiblingMergeBehavior,
+      TrackDescriptor>;
+
+  static constexpr FieldMetadata_SiblingMergeBehavior kSiblingMergeBehavior{};
+  void set_sibling_merge_behavior(TrackDescriptor_SiblingMergeBehavior value) {
+    static constexpr uint32_t field_id = FieldMetadata_SiblingMergeBehavior::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kEnum>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_SiblingMergeKey =
+    ::protozero::proto_utils::FieldMetadata<
+      16,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kString,
+      std::string,
+      TrackDescriptor>;
+
+  static constexpr FieldMetadata_SiblingMergeKey kSiblingMergeKey{};
+  void set_sibling_merge_key(const char* data, size_t size) {
+    AppendBytes(FieldMetadata_SiblingMergeKey::kFieldId, data, size);
+  }
+  void set_sibling_merge_key(::protozero::ConstChars chars) {
+    AppendBytes(FieldMetadata_SiblingMergeKey::kFieldId, chars.data, chars.size);
+  }
+  void set_sibling_merge_key(std::string value) {
+    static constexpr uint32_t field_id = FieldMetadata_SiblingMergeKey::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kString>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_SiblingMergeKeyInt =
+    ::protozero::proto_utils::FieldMetadata<
+      17,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kUint64,
+      uint64_t,
+      TrackDescriptor>;
+
+  static constexpr FieldMetadata_SiblingMergeKeyInt kSiblingMergeKeyInt{};
+  void set_sibling_merge_key_int(uint64_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_SiblingMergeKeyInt::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint64>
         ::Append(*this, field_id, value);
   }
 };

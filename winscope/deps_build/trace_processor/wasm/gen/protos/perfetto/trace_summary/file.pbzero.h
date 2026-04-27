@@ -16,8 +16,9 @@ namespace perfetto {
 namespace protos {
 namespace pbzero {
 class PerfettoSqlStructuredQuery;
-class TraceMetricV2;
+class TraceMetricV2Bundle;
 class TraceMetricV2Spec;
+class TraceMetricV2TemplateSpec;
 class TraceSummary_Metadata;
 } // Namespace pbzero.
 } // Namespace protos.
@@ -27,13 +28,13 @@ namespace perfetto {
 namespace protos {
 namespace pbzero {
 
-class TraceSummary_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/2, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
+class TraceSummary_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/3, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
  public:
   TraceSummary_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
   explicit TraceSummary_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
   explicit TraceSummary_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
-  bool has_metric() const { return at<1>().valid(); }
-  ::protozero::RepeatedFieldIterator<::protozero::ConstBytes> metric() const { return GetRepeated<::protozero::ConstBytes>(1); }
+  bool has_metric_bundles() const { return at<3>().valid(); }
+  ::protozero::RepeatedFieldIterator<::protozero::ConstBytes> metric_bundles() const { return GetRepeated<::protozero::ConstBytes>(3); }
   bool has_metadata() const { return at<2>().valid(); }
   ::protozero::RepeatedFieldIterator<::protozero::ConstBytes> metadata() const { return GetRepeated<::protozero::ConstBytes>(2); }
 };
@@ -42,24 +43,24 @@ class TraceSummary : public ::protozero::Message {
  public:
   using Decoder = TraceSummary_Decoder;
   enum : int32_t {
-    kMetricFieldNumber = 1,
+    kMetricBundlesFieldNumber = 3,
     kMetadataFieldNumber = 2,
   };
   static constexpr const char* GetName() { return ".perfetto.protos.TraceSummary"; }
 
   using Metadata = ::perfetto::protos::pbzero::TraceSummary_Metadata;
 
-  using FieldMetadata_Metric =
+  using FieldMetadata_MetricBundles =
     ::protozero::proto_utils::FieldMetadata<
-      1,
+      3,
       ::protozero::proto_utils::RepetitionType::kRepeatedNotPacked,
       ::protozero::proto_utils::ProtoSchemaType::kMessage,
-      TraceMetricV2,
+      TraceMetricV2Bundle,
       TraceSummary>;
 
-  static constexpr FieldMetadata_Metric kMetric{};
-  template <typename T = TraceMetricV2> T* add_metric() {
-    return BeginNestedMessage<T>(1);
+  static constexpr FieldMetadata_MetricBundles kMetricBundles{};
+  template <typename T = TraceMetricV2Bundle> T* add_metric_bundles() {
+    return BeginNestedMessage<T>(3);
   }
 
 
@@ -148,7 +149,7 @@ class TraceSummary_Metadata : public ::protozero::Message {
   }
 };
 
-class TraceSummarySpec_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/2, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
+class TraceSummarySpec_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/3, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
  public:
   TraceSummarySpec_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
   explicit TraceSummarySpec_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
@@ -157,6 +158,8 @@ class TraceSummarySpec_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIE
   ::protozero::RepeatedFieldIterator<::protozero::ConstBytes> metric_spec() const { return GetRepeated<::protozero::ConstBytes>(1); }
   bool has_query() const { return at<2>().valid(); }
   ::protozero::RepeatedFieldIterator<::protozero::ConstBytes> query() const { return GetRepeated<::protozero::ConstBytes>(2); }
+  bool has_metric_template_spec() const { return at<3>().valid(); }
+  ::protozero::RepeatedFieldIterator<::protozero::ConstBytes> metric_template_spec() const { return GetRepeated<::protozero::ConstBytes>(3); }
 };
 
 class TraceSummarySpec : public ::protozero::Message {
@@ -165,6 +168,7 @@ class TraceSummarySpec : public ::protozero::Message {
   enum : int32_t {
     kMetricSpecFieldNumber = 1,
     kQueryFieldNumber = 2,
+    kMetricTemplateSpecFieldNumber = 3,
   };
   static constexpr const char* GetName() { return ".perfetto.protos.TraceSummarySpec"; }
 
@@ -194,6 +198,20 @@ class TraceSummarySpec : public ::protozero::Message {
   static constexpr FieldMetadata_Query kQuery{};
   template <typename T = PerfettoSqlStructuredQuery> T* add_query() {
     return BeginNestedMessage<T>(2);
+  }
+
+
+  using FieldMetadata_MetricTemplateSpec =
+    ::protozero::proto_utils::FieldMetadata<
+      3,
+      ::protozero::proto_utils::RepetitionType::kRepeatedNotPacked,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      TraceMetricV2TemplateSpec,
+      TraceSummarySpec>;
+
+  static constexpr FieldMetadata_MetricTemplateSpec kMetricTemplateSpec{};
+  template <typename T = TraceMetricV2TemplateSpec> T* add_metric_template_spec() {
+    return BeginNestedMessage<T>(3);
   }
 
 };

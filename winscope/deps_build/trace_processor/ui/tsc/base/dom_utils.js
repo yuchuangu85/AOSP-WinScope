@@ -81,8 +81,8 @@ function currentTargetOffset(e) {
     return new geom_1.Vector2D({ x: e.offsetX, y: e.offsetY });
 }
 // Adds an event listener to a DOM element, returning a disposable to remove it.
-function bindEventListener(element, event, handler) {
-    element.addEventListener(event, handler);
+function bindEventListener(element, event, handler, options) {
+    element.addEventListener(event, handler, options);
     return {
         [Symbol.dispose]() {
             element.removeEventListener(event, handler);

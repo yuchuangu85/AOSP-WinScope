@@ -14,18 +14,20 @@
  * limitations under the License.d
  */
 
-import {assertDefined} from 'common/assert_utils';
+import {assertDefined} from 'common/assert';
 import {InMemoryStorage} from 'common/store/in_memory_storage';
 import {Store} from 'common/store/store';
 import {TracePositionUpdate} from 'messaging/winscope_event';
+import {getImeTraceEntries} from 'test/unit/fixture_utils';
 import {TraceBuilder} from 'test/unit/trace_builder';
-import {TreeNodeUtils} from 'test/unit/tree_node_utils';
+import {makeEmptyTrace} from 'test/unit/trace_utils';
+import {makePropertyNode} from 'test/unit/tree_node_test_helpers';
+import {treeNodeEqualityTester} from 'test/unit/ui_tree_node_utils';
 import {UserNotifierChecker} from 'test/unit/user_notifier_checker';
-import {UnitTestUtils} from 'test/unit/utils';
-import {Traces} from 'trace/traces';
-import {ImeTraceType, TraceType} from 'trace/trace_type';
-import {HierarchyTreeNode} from 'trace/tree_node/hierarchy_tree_node';
-import {PropertyTreeNode} from 'trace/tree_node/property_tree_node';
+import {ImeTraceType, TraceType} from 'trace_api/trace_type';
+import {Traces} from 'trace_api/traces';
+import {HierarchyTreeNode} from 'tree_node/hierarchy_tree_node';
+import {PropertyTreeNode} from 'tree_node/property_tree_node';
 import {ImeUiData} from 'viewers/common/ime_ui_data';
 import {PresenterInputMethodClients} from 'viewers/viewer_input_method_clients/presenter_input_method_clients';
 import {PresenterInputMethodManagerService} from 'viewers/viewer_input_method_manager_service/presenter_input_method_manager_service';
@@ -77,7 +79,7 @@ the default for its data type.`,
 
   override async setUpTestEnvironment(): Promise<void> {
     let secondEntries: Map<TraceType, HierarchyTreeNode>;
-    [this.entries, secondEntries] = await UnitTestUtils.getImeTraceEntries();
+    [this.entries, secondEntries] = await getImeTraceEntries();
     this.traces = new Traces();
     const traceEntries = [assertDefined(this.entries.get(this.imeTraceType))];
     const secondEntry = secondEntries.get(this.imeTraceType);
@@ -126,7 +128,7 @@ the default for its data type.`,
   override createPresenterWithEmptyTrace(
     callback: NotifyHierarchyViewCallbackType<ImeUiData>,
   ): AbstractPresenterInputMethod {
-    const trace = UnitTestUtils.makeEmptyTrace(this.imeTraceType);
+    const trace = makeEmptyTrace(this.imeTraceType);
     const traces = new Traces();
     traces.addTrace(trace);
     return new this.PresenterInputMethod(
@@ -164,14 +166,14 @@ the default for its data type.`,
 
   override executePropertiesChecksAfterPositionUpdate(uiData: UiDataHierarchy) {
     const trees = assertDefined(uiData.hierarchyTrees);
-    expect(trees.length).toEqual(this.numberOfNestedChildren);
+    expect(trees.length).toBe(this.numberOfNestedChildren);
   }
 
   override executePropertiesChecksAfterSecondPositionUpdate(
     uiData: UiDataHierarchy,
   ) {
     const trees = assertDefined(uiData.hierarchyTrees);
-    expect(trees.length).toEqual(1);
+    expect(trees.length).toBe(1);
   }
 
   override executeSpecializedTests() {
@@ -188,13 +190,13 @@ the default for its data type.`,
       let userNotifierChecker: UserNotifierChecker;
 
       beforeAll(async () => {
-        jasmine.addCustomEqualityTester(TreeNodeUtils.treeNodeEqualityTester);
+        jasmine.addCustomEqualityTester(treeNodeEqualityTester);
         userNotifierChecker = new UserNotifierChecker();
         Presenter = this.PresenterInputMethod;
         imeTraceType = this.imeTraceType;
         await this.setUpTestEnvironment();
+        traces = new Traces();
         entries = assertDefined(this.entries);
-        await loadTraces();
       });
 
       afterEach(() => {
@@ -213,7 +215,7 @@ the default for its data type.`,
         );
         const selectedItem = {
           name: '',
-          treeNode: TreeNodeUtils.makePropertyNode('', '', null),
+          treeNode: makePropertyNode('', '', undefined),
         };
         element.dispatchEvent(
           new CustomEvent(ViewerEvents.AdditionalPropertySelected, {
@@ -274,7 +276,7 @@ the default for its data type.`,
 
         await presenter.onHighlightedIdChange(selectedTree.id);
         expect(uiData.propertiesTree).toEqual(propertiesTree);
-        expect(uiData.highlightedItem).toEqual('');
+        expect(uiData.highlightedItem).toBe('');
       });
 
       if (this.getPropertiesTree) {
@@ -332,11 +334,6 @@ the default for its data type.`,
           new InMemoryStorage(),
           callback as NotifyHierarchyViewCallbackType<ImeUiData>,
         );
-      }
-
-      async function loadTraces() {
-        traces = new Traces();
-        entries = (await UnitTestUtils.getImeTraceEntries())[0];
       }
     });
   }

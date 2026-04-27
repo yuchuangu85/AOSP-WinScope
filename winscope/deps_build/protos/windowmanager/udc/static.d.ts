@@ -540,10 +540,10 @@ export namespace com {
                 interface IBarControllerProto {
 
                     /** BarControllerProto state */
-                    state?: (android.app.StatusBarManagerProto.WindowState|null);
+                    state?: (android_common.app.StatusBarManagerProto.WindowState|null);
 
                     /** BarControllerProto transientState */
-                    transientState?: (android.app.StatusBarManagerProto.TransientWindowState|null);
+                    transientState?: (android_common.app.StatusBarManagerProto.TransientWindowState|null);
                 }
 
                 /** Represents a BarControllerProto. */
@@ -556,10 +556,10 @@ export namespace com {
                     constructor(properties?: com.android.server.wm.IBarControllerProto);
 
                     /** BarControllerProto state. */
-                    public state: android.app.StatusBarManagerProto.WindowState;
+                    public state: android_common.app.StatusBarManagerProto.WindowState;
 
                     /** BarControllerProto transientState. */
-                    public transientState: android.app.StatusBarManagerProto.TransientWindowState;
+                    public transientState: android_common.app.StatusBarManagerProto.TransientWindowState;
 
                     /**
                      * Creates a new BarControllerProto instance using the specified properties.
@@ -646,7 +646,7 @@ export namespace com {
                     enabled?: (boolean|null);
 
                     /** WindowOrientationListenerProto rotation */
-                    rotation?: (android.view.SurfaceProto.Rotation|null);
+                    rotation?: (android_common.view.SurfaceProto.Rotation|null);
                 }
 
                 /** Represents a WindowOrientationListenerProto. */
@@ -662,7 +662,7 @@ export namespace com {
                     public enabled: boolean;
 
                     /** WindowOrientationListenerProto rotation. */
-                    public rotation: android.view.SurfaceProto.Rotation;
+                    public rotation: android_common.view.SurfaceProto.Rotation;
 
                     /**
                      * Creates a new WindowOrientationListenerProto instance using the specified properties.
@@ -1237,10 +1237,10 @@ export namespace com {
                     rotationMode?: (com.android.server.wm.WindowManagerPolicyProto.UserRotationMode|null);
 
                     /** WindowManagerPolicyProto rotation */
-                    rotation?: (android.view.SurfaceProto.Rotation|null);
+                    rotation?: (android_common.view.SurfaceProto.Rotation|null);
 
                     /** WindowManagerPolicyProto orientation */
-                    orientation?: (android.content.ActivityInfoProto.ScreenOrientation|null);
+                    orientation?: (android_common.content.ActivityInfoProto.ScreenOrientation|null);
 
                     /** WindowManagerPolicyProto screenOnFully */
                     screenOnFully?: (boolean|null);
@@ -1307,10 +1307,10 @@ export namespace com {
                     public rotationMode: com.android.server.wm.WindowManagerPolicyProto.UserRotationMode;
 
                     /** WindowManagerPolicyProto rotation. */
-                    public rotation: android.view.SurfaceProto.Rotation;
+                    public rotation: android_common.view.SurfaceProto.Rotation;
 
                     /** WindowManagerPolicyProto orientation. */
-                    public orientation: android.content.ActivityInfoProto.ScreenOrientation;
+                    public orientation: android_common.content.ActivityInfoProto.ScreenOrientation;
 
                     /** WindowManagerPolicyProto screenOnFully. */
                     public screenOnFully: boolean;
@@ -1454,7 +1454,7 @@ export namespace com {
                     appTransitionState?: (com.android.server.wm.AppTransitionProto.AppState|null);
 
                     /** AppTransitionProto lastUsedAppTransition */
-                    lastUsedAppTransition?: (android.view.TransitionTypeEnum|null);
+                    lastUsedAppTransition?: (android_common.view.TransitionTypeEnum|null);
                 }
 
                 /** Represents an AppTransitionProto. */
@@ -1470,7 +1470,7 @@ export namespace com {
                     public appTransitionState: com.android.server.wm.AppTransitionProto.AppState;
 
                     /** AppTransitionProto lastUsedAppTransition. */
-                    public lastUsedAppTransition: android.view.TransitionTypeEnum;
+                    public lastUsedAppTransition: android_common.view.TransitionTypeEnum;
 
                     /**
                      * Creates a new AppTransitionProto instance using the specified properties.
@@ -1589,7 +1589,7 @@ export namespace com {
                     dpi?: (number|null);
 
                     /** DisplayContentProto displayInfo */
-                    displayInfo?: (android.view.IDisplayInfoProto|null);
+                    displayInfo?: (android_common.view.IDisplayInfoProto|null);
 
                     /** DisplayContentProto rotation */
                     rotation?: (number|null);
@@ -1673,7 +1673,7 @@ export namespace com {
                     sleepTokens?: (string[]|null);
 
                     /** DisplayContentProto keepClearAreas */
-                    keepClearAreas?: (android.graphics.IRectProto[]|null);
+                    keepClearAreas?: (android_common.graphics.IRectProto[]|null);
 
                     /** DisplayContentProto minSizeOfResizeableTaskDp */
                     minSizeOfResizeableTaskDp?: (number|null);
@@ -1689,6 +1689,9 @@ export namespace com {
 
                     /** DisplayContentProto currentFocusIdentifier */
                     currentFocusIdentifier?: (com.android.server.wm.IIdentifierProto|null);
+
+                    /** DisplayContentProto remoteInsetsControlTarget */
+                    remoteInsetsControlTarget?: (com.android.server.wm.IRemoteInsetsControlTargetProto|null);
                 }
 
                 /** Represents a DisplayContentProto. */
@@ -1725,7 +1728,7 @@ export namespace com {
                     public dpi: number;
 
                     /** DisplayContentProto displayInfo. */
-                    public displayInfo?: (android.view.IDisplayInfoProto|null);
+                    public displayInfo?: (android_common.view.IDisplayInfoProto|null);
 
                     /** DisplayContentProto rotation. */
                     public rotation: number;
@@ -1809,7 +1812,7 @@ export namespace com {
                     public sleepTokens: string[];
 
                     /** DisplayContentProto keepClearAreas. */
-                    public keepClearAreas: android.graphics.IRectProto[];
+                    public keepClearAreas: android_common.graphics.IRectProto[];
 
                     /** DisplayContentProto minSizeOfResizeableTaskDp. */
                     public minSizeOfResizeableTaskDp: number;
@@ -1825,6 +1828,9 @@ export namespace com {
 
                     /** DisplayContentProto currentFocusIdentifier. */
                     public currentFocusIdentifier?: (com.android.server.wm.IIdentifierProto|null);
+
+                    /** DisplayContentProto remoteInsetsControlTarget. */
+                    public remoteInsetsControlTarget?: (com.android.server.wm.IRemoteInsetsControlTargetProto|null);
 
                     /**
                      * Creates a new DisplayContentProto instance using the specified properties.
@@ -2156,13 +2162,13 @@ export namespace com {
                 interface IDisplayFramesProto {
 
                     /** DisplayFramesProto stableBounds */
-                    stableBounds?: (android.graphics.IRectProto|null);
+                    stableBounds?: (android_common.graphics.IRectProto|null);
 
                     /** DisplayFramesProto dock */
-                    dock?: (android.graphics.IRectProto|null);
+                    dock?: (android_common.graphics.IRectProto|null);
 
                     /** DisplayFramesProto current */
-                    current?: (android.graphics.IRectProto|null);
+                    current?: (android_common.graphics.IRectProto|null);
                 }
 
                 /** Represents a DisplayFramesProto. */
@@ -2175,13 +2181,13 @@ export namespace com {
                     constructor(properties?: com.android.server.wm.IDisplayFramesProto);
 
                     /** DisplayFramesProto stableBounds. */
-                    public stableBounds?: (android.graphics.IRectProto|null);
+                    public stableBounds?: (android_common.graphics.IRectProto|null);
 
                     /** DisplayFramesProto dock. */
-                    public dock?: (android.graphics.IRectProto|null);
+                    public dock?: (android_common.graphics.IRectProto|null);
 
                     /** DisplayFramesProto current. */
-                    public current?: (android.graphics.IRectProto|null);
+                    public current?: (android_common.graphics.IRectProto|null);
 
                     /**
                      * Creates a new DisplayFramesProto instance using the specified properties.
@@ -2489,10 +2495,10 @@ export namespace com {
                 interface IPinnedTaskControllerProto {
 
                     /** PinnedTaskControllerProto defaultBounds */
-                    defaultBounds?: (android.graphics.IRectProto|null);
+                    defaultBounds?: (android_common.graphics.IRectProto|null);
 
                     /** PinnedTaskControllerProto movementBounds */
-                    movementBounds?: (android.graphics.IRectProto|null);
+                    movementBounds?: (android_common.graphics.IRectProto|null);
                 }
 
                 /** Represents a PinnedTaskControllerProto. */
@@ -2505,10 +2511,10 @@ export namespace com {
                     constructor(properties?: com.android.server.wm.IPinnedTaskControllerProto);
 
                     /** PinnedTaskControllerProto defaultBounds. */
-                    public defaultBounds?: (android.graphics.IRectProto|null);
+                    public defaultBounds?: (android_common.graphics.IRectProto|null);
 
                     /** PinnedTaskControllerProto movementBounds. */
-                    public movementBounds?: (android.graphics.IRectProto|null);
+                    public movementBounds?: (android_common.graphics.IRectProto|null);
 
                     /**
                      * Creates a new PinnedTaskControllerProto instance using the specified properties.
@@ -2601,10 +2607,10 @@ export namespace com {
                     fillsParent?: (boolean|null);
 
                     /** TaskProto bounds */
-                    bounds?: (android.graphics.IRectProto|null);
+                    bounds?: (android_common.graphics.IRectProto|null);
 
                     /** TaskProto displayedBounds */
-                    displayedBounds?: (android.graphics.IRectProto|null);
+                    displayedBounds?: (android_common.graphics.IRectProto|null);
 
                     /** TaskProto deferRemoval */
                     deferRemoval?: (boolean|null);
@@ -2649,10 +2655,10 @@ export namespace com {
                     minHeight?: (number|null);
 
                     /** TaskProto adjustedBounds */
-                    adjustedBounds?: (android.graphics.IRectProto|null);
+                    adjustedBounds?: (android_common.graphics.IRectProto|null);
 
                     /** TaskProto lastNonFullscreenBounds */
-                    lastNonFullscreenBounds?: (android.graphics.IRectProto|null);
+                    lastNonFullscreenBounds?: (android_common.graphics.IRectProto|null);
 
                     /** TaskProto adjustedForIme */
                     adjustedForIme?: (boolean|null);
@@ -2680,6 +2686,9 @@ export namespace com {
 
                     /** TaskProto taskFragment */
                     taskFragment?: (com.android.server.wm.ITaskFragmentProto|null);
+
+                    /** TaskProto taskName */
+                    taskName?: (string|null);
                 }
 
                 /** Represents a TaskProto. */
@@ -2701,10 +2710,10 @@ export namespace com {
                     public fillsParent: boolean;
 
                     /** TaskProto bounds. */
-                    public bounds?: (android.graphics.IRectProto|null);
+                    public bounds?: (android_common.graphics.IRectProto|null);
 
                     /** TaskProto displayedBounds. */
-                    public displayedBounds?: (android.graphics.IRectProto|null);
+                    public displayedBounds?: (android_common.graphics.IRectProto|null);
 
                     /** TaskProto deferRemoval. */
                     public deferRemoval: boolean;
@@ -2749,10 +2758,10 @@ export namespace com {
                     public minHeight: number;
 
                     /** TaskProto adjustedBounds. */
-                    public adjustedBounds?: (android.graphics.IRectProto|null);
+                    public adjustedBounds?: (android_common.graphics.IRectProto|null);
 
                     /** TaskProto lastNonFullscreenBounds. */
-                    public lastNonFullscreenBounds?: (android.graphics.IRectProto|null);
+                    public lastNonFullscreenBounds?: (android_common.graphics.IRectProto|null);
 
                     /** TaskProto adjustedForIme. */
                     public adjustedForIme: boolean;
@@ -2780,6 +2789,9 @@ export namespace com {
 
                     /** TaskProto taskFragment. */
                     public taskFragment?: (com.android.server.wm.ITaskFragmentProto|null);
+
+                    /** TaskProto taskName. */
+                    public taskName: string;
 
                     /**
                      * Creates a new TaskProto instance using the specified properties.
@@ -3047,7 +3059,7 @@ export namespace com {
                     visibleSetFromTransferredStartingWindow?: (boolean|null);
 
                     /** ActivityRecordProto frozenBounds */
-                    frozenBounds?: (android.graphics.IRectProto[]|null);
+                    frozenBounds?: (android_common.graphics.IRectProto[]|null);
 
                     /** ActivityRecordProto visible */
                     visible?: (boolean|null);
@@ -3117,6 +3129,12 @@ export namespace com {
 
                     /** ActivityRecordProto requestOpenInBrowserEducationTimestamp */
                     requestOpenInBrowserEducationTimestamp?: (Long|null);
+
+                    /** ActivityRecordProto shouldAllowSimulateRequestedOrientationForCameraCompat */
+                    shouldAllowSimulateRequestedOrientationForCameraCompat?: (boolean|null);
+
+                    /** ActivityRecordProto safeRegionBounds */
+                    safeRegionBounds?: (android_common.graphics.IRectProto|null);
                 }
 
                 /** Represents an ActivityRecordProto. */
@@ -3192,7 +3210,7 @@ export namespace com {
                     public visibleSetFromTransferredStartingWindow: boolean;
 
                     /** ActivityRecordProto frozenBounds. */
-                    public frozenBounds: android.graphics.IRectProto[];
+                    public frozenBounds: android_common.graphics.IRectProto[];
 
                     /** ActivityRecordProto visible. */
                     public visible: boolean;
@@ -3262,6 +3280,12 @@ export namespace com {
 
                     /** ActivityRecordProto requestOpenInBrowserEducationTimestamp. */
                     public requestOpenInBrowserEducationTimestamp: Long;
+
+                    /** ActivityRecordProto shouldAllowSimulateRequestedOrientationForCameraCompat. */
+                    public shouldAllowSimulateRequestedOrientationForCameraCompat: boolean;
+
+                    /** ActivityRecordProto safeRegionBounds. */
+                    public safeRegionBounds?: (android_common.graphics.IRectProto|null);
 
                     /**
                      * Creates a new ActivityRecordProto instance using the specified properties.
@@ -3478,28 +3502,28 @@ export namespace com {
                     stackId?: (number|null);
 
                     /** WindowStateProto attributes */
-                    attributes?: (android.view.IWindowLayoutParamsProto|null);
+                    attributes?: (android_common.view.IWindowLayoutParamsProto|null);
 
                     /** WindowStateProto givenContentInsets */
-                    givenContentInsets?: (android.graphics.IRectProto|null);
+                    givenContentInsets?: (android_common.graphics.IRectProto|null);
 
                     /** WindowStateProto frame */
-                    frame?: (android.graphics.IRectProto|null);
+                    frame?: (android_common.graphics.IRectProto|null);
 
                     /** WindowStateProto containingFrame */
-                    containingFrame?: (android.graphics.IRectProto|null);
+                    containingFrame?: (android_common.graphics.IRectProto|null);
 
                     /** WindowStateProto parentFrame */
-                    parentFrame?: (android.graphics.IRectProto|null);
+                    parentFrame?: (android_common.graphics.IRectProto|null);
 
                     /** WindowStateProto contentFrame */
-                    contentFrame?: (android.graphics.IRectProto|null);
+                    contentFrame?: (android_common.graphics.IRectProto|null);
 
                     /** WindowStateProto contentInsets */
-                    contentInsets?: (android.graphics.IRectProto|null);
+                    contentInsets?: (android_common.graphics.IRectProto|null);
 
                     /** WindowStateProto surfaceInsets */
-                    surfaceInsets?: (android.graphics.IRectProto|null);
+                    surfaceInsets?: (android_common.graphics.IRectProto|null);
 
                     /** WindowStateProto animator */
                     animator?: (com.android.server.wm.IWindowStateAnimatorProto|null);
@@ -3511,7 +3535,7 @@ export namespace com {
                     childWindows?: (com.android.server.wm.IWindowStateProto[]|null);
 
                     /** WindowStateProto surfacePosition */
-                    surfacePosition?: (android.graphics.IRectProto|null);
+                    surfacePosition?: (android_common.graphics.IRectProto|null);
 
                     /** WindowStateProto requestedWidth */
                     requestedWidth?: (number|null);
@@ -3532,34 +3556,34 @@ export namespace com {
                     isReadyForDisplay?: (boolean|null);
 
                     /** WindowStateProto displayFrame */
-                    displayFrame?: (android.graphics.IRectProto|null);
+                    displayFrame?: (android_common.graphics.IRectProto|null);
 
                     /** WindowStateProto overscanFrame */
-                    overscanFrame?: (android.graphics.IRectProto|null);
+                    overscanFrame?: (android_common.graphics.IRectProto|null);
 
                     /** WindowStateProto visibleFrame */
-                    visibleFrame?: (android.graphics.IRectProto|null);
+                    visibleFrame?: (android_common.graphics.IRectProto|null);
 
                     /** WindowStateProto decorFrame */
-                    decorFrame?: (android.graphics.IRectProto|null);
+                    decorFrame?: (android_common.graphics.IRectProto|null);
 
                     /** WindowStateProto outsetFrame */
-                    outsetFrame?: (android.graphics.IRectProto|null);
+                    outsetFrame?: (android_common.graphics.IRectProto|null);
 
                     /** WindowStateProto overscanInsets */
-                    overscanInsets?: (android.graphics.IRectProto|null);
+                    overscanInsets?: (android_common.graphics.IRectProto|null);
 
                     /** WindowStateProto visibleInsets */
-                    visibleInsets?: (android.graphics.IRectProto|null);
+                    visibleInsets?: (android_common.graphics.IRectProto|null);
 
                     /** WindowStateProto stableInsets */
-                    stableInsets?: (android.graphics.IRectProto|null);
+                    stableInsets?: (android_common.graphics.IRectProto|null);
 
                     /** WindowStateProto outsets */
-                    outsets?: (android.graphics.IRectProto|null);
+                    outsets?: (android_common.graphics.IRectProto|null);
 
                     /** WindowStateProto cutout */
-                    cutout?: (android.view.IDisplayCutoutProto|null);
+                    cutout?: (android_common.view.IDisplayCutoutProto|null);
 
                     /** WindowStateProto removeOnExit */
                     removeOnExit?: (boolean|null);
@@ -3595,22 +3619,22 @@ export namespace com {
                     globalScale?: (number|null);
 
                     /** WindowStateProto keepClearAreas */
-                    keepClearAreas?: (android.graphics.IRectProto[]|null);
+                    keepClearAreas?: (android_common.graphics.IRectProto[]|null);
 
                     /** WindowStateProto unrestrictedKeepClearAreas */
-                    unrestrictedKeepClearAreas?: (android.graphics.IRectProto[]|null);
+                    unrestrictedKeepClearAreas?: (android_common.graphics.IRectProto[]|null);
 
                     /** WindowStateProto mergedLocalInsetsSources */
-                    mergedLocalInsetsSources?: (android.view.IInsetsSourceProto[]|null);
+                    mergedLocalInsetsSources?: (android_common.view.IInsetsSourceProto[]|null);
 
                     /** WindowStateProto requestedVisibleTypes */
                     requestedVisibleTypes?: (number|null);
 
                     /** WindowStateProto dimBounds */
-                    dimBounds?: (android.graphics.IRectProto|null);
+                    dimBounds?: (android_common.graphics.IRectProto|null);
 
-                    /** WindowStateProto prepareSyncSeqId */
-                    prepareSyncSeqId?: (number|null);
+                    /** WindowStateProto bufferSeqId */
+                    bufferSeqId?: (number|null);
 
                     /** WindowStateProto syncSeqId */
                     syncSeqId?: (number|null);
@@ -3638,28 +3662,28 @@ export namespace com {
                     public stackId: number;
 
                     /** WindowStateProto attributes. */
-                    public attributes?: (android.view.IWindowLayoutParamsProto|null);
+                    public attributes?: (android_common.view.IWindowLayoutParamsProto|null);
 
                     /** WindowStateProto givenContentInsets. */
-                    public givenContentInsets?: (android.graphics.IRectProto|null);
+                    public givenContentInsets?: (android_common.graphics.IRectProto|null);
 
                     /** WindowStateProto frame. */
-                    public frame?: (android.graphics.IRectProto|null);
+                    public frame?: (android_common.graphics.IRectProto|null);
 
                     /** WindowStateProto containingFrame. */
-                    public containingFrame?: (android.graphics.IRectProto|null);
+                    public containingFrame?: (android_common.graphics.IRectProto|null);
 
                     /** WindowStateProto parentFrame. */
-                    public parentFrame?: (android.graphics.IRectProto|null);
+                    public parentFrame?: (android_common.graphics.IRectProto|null);
 
                     /** WindowStateProto contentFrame. */
-                    public contentFrame?: (android.graphics.IRectProto|null);
+                    public contentFrame?: (android_common.graphics.IRectProto|null);
 
                     /** WindowStateProto contentInsets. */
-                    public contentInsets?: (android.graphics.IRectProto|null);
+                    public contentInsets?: (android_common.graphics.IRectProto|null);
 
                     /** WindowStateProto surfaceInsets. */
-                    public surfaceInsets?: (android.graphics.IRectProto|null);
+                    public surfaceInsets?: (android_common.graphics.IRectProto|null);
 
                     /** WindowStateProto animator. */
                     public animator?: (com.android.server.wm.IWindowStateAnimatorProto|null);
@@ -3671,7 +3695,7 @@ export namespace com {
                     public childWindows: com.android.server.wm.IWindowStateProto[];
 
                     /** WindowStateProto surfacePosition. */
-                    public surfacePosition?: (android.graphics.IRectProto|null);
+                    public surfacePosition?: (android_common.graphics.IRectProto|null);
 
                     /** WindowStateProto requestedWidth. */
                     public requestedWidth: number;
@@ -3692,34 +3716,34 @@ export namespace com {
                     public isReadyForDisplay: boolean;
 
                     /** WindowStateProto displayFrame. */
-                    public displayFrame?: (android.graphics.IRectProto|null);
+                    public displayFrame?: (android_common.graphics.IRectProto|null);
 
                     /** WindowStateProto overscanFrame. */
-                    public overscanFrame?: (android.graphics.IRectProto|null);
+                    public overscanFrame?: (android_common.graphics.IRectProto|null);
 
                     /** WindowStateProto visibleFrame. */
-                    public visibleFrame?: (android.graphics.IRectProto|null);
+                    public visibleFrame?: (android_common.graphics.IRectProto|null);
 
                     /** WindowStateProto decorFrame. */
-                    public decorFrame?: (android.graphics.IRectProto|null);
+                    public decorFrame?: (android_common.graphics.IRectProto|null);
 
                     /** WindowStateProto outsetFrame. */
-                    public outsetFrame?: (android.graphics.IRectProto|null);
+                    public outsetFrame?: (android_common.graphics.IRectProto|null);
 
                     /** WindowStateProto overscanInsets. */
-                    public overscanInsets?: (android.graphics.IRectProto|null);
+                    public overscanInsets?: (android_common.graphics.IRectProto|null);
 
                     /** WindowStateProto visibleInsets. */
-                    public visibleInsets?: (android.graphics.IRectProto|null);
+                    public visibleInsets?: (android_common.graphics.IRectProto|null);
 
                     /** WindowStateProto stableInsets. */
-                    public stableInsets?: (android.graphics.IRectProto|null);
+                    public stableInsets?: (android_common.graphics.IRectProto|null);
 
                     /** WindowStateProto outsets. */
-                    public outsets?: (android.graphics.IRectProto|null);
+                    public outsets?: (android_common.graphics.IRectProto|null);
 
                     /** WindowStateProto cutout. */
-                    public cutout?: (android.view.IDisplayCutoutProto|null);
+                    public cutout?: (android_common.view.IDisplayCutoutProto|null);
 
                     /** WindowStateProto removeOnExit. */
                     public removeOnExit: boolean;
@@ -3755,22 +3779,22 @@ export namespace com {
                     public globalScale: number;
 
                     /** WindowStateProto keepClearAreas. */
-                    public keepClearAreas: android.graphics.IRectProto[];
+                    public keepClearAreas: android_common.graphics.IRectProto[];
 
                     /** WindowStateProto unrestrictedKeepClearAreas. */
-                    public unrestrictedKeepClearAreas: android.graphics.IRectProto[];
+                    public unrestrictedKeepClearAreas: android_common.graphics.IRectProto[];
 
                     /** WindowStateProto mergedLocalInsetsSources. */
-                    public mergedLocalInsetsSources: android.view.IInsetsSourceProto[];
+                    public mergedLocalInsetsSources: android_common.view.IInsetsSourceProto[];
 
                     /** WindowStateProto requestedVisibleTypes. */
                     public requestedVisibleTypes: number;
 
                     /** WindowStateProto dimBounds. */
-                    public dimBounds?: (android.graphics.IRectProto|null);
+                    public dimBounds?: (android_common.graphics.IRectProto|null);
 
-                    /** WindowStateProto prepareSyncSeqId. */
-                    public prepareSyncSeqId: number;
+                    /** WindowStateProto bufferSeqId. */
+                    public bufferSeqId: number;
 
                     /** WindowStateProto syncSeqId. */
                     public syncSeqId: number;
@@ -3847,6 +3871,115 @@ export namespace com {
 
                     /**
                      * Gets the default type url for WindowStateProto
+                     * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+                     * @returns The default type url
+                     */
+                    public static getTypeUrl(typeUrlPrefix?: string): string;
+                }
+
+                /** Properties of a RemoteInsetsControlTargetProto. */
+                interface IRemoteInsetsControlTargetProto {
+
+                    /** RemoteInsetsControlTargetProto identifier */
+                    identifier?: (com.android.server.wm.IIdentifierProto|null);
+
+                    /** RemoteInsetsControlTargetProto requestedVisibleTypes */
+                    requestedVisibleTypes?: (number|null);
+
+                    /** RemoteInsetsControlTargetProto animatingTypes */
+                    animatingTypes?: (number|null);
+                }
+
+                /** Represents a RemoteInsetsControlTargetProto. */
+                class RemoteInsetsControlTargetProto implements IRemoteInsetsControlTargetProto {
+
+                    /**
+                     * Constructs a new RemoteInsetsControlTargetProto.
+                     * @param [properties] Properties to set
+                     */
+                    constructor(properties?: com.android.server.wm.IRemoteInsetsControlTargetProto);
+
+                    /** RemoteInsetsControlTargetProto identifier. */
+                    public identifier?: (com.android.server.wm.IIdentifierProto|null);
+
+                    /** RemoteInsetsControlTargetProto requestedVisibleTypes. */
+                    public requestedVisibleTypes: number;
+
+                    /** RemoteInsetsControlTargetProto animatingTypes. */
+                    public animatingTypes: number;
+
+                    /**
+                     * Creates a new RemoteInsetsControlTargetProto instance using the specified properties.
+                     * @param [properties] Properties to set
+                     * @returns RemoteInsetsControlTargetProto instance
+                     */
+                    public static create(properties?: com.android.server.wm.IRemoteInsetsControlTargetProto): com.android.server.wm.RemoteInsetsControlTargetProto;
+
+                    /**
+                     * Encodes the specified RemoteInsetsControlTargetProto message. Does not implicitly {@link com.android.server.wm.RemoteInsetsControlTargetProto.verify|verify} messages.
+                     * @param message RemoteInsetsControlTargetProto message or plain object to encode
+                     * @param [writer] Writer to encode to
+                     * @returns Writer
+                     */
+                    public static encode(message: com.android.server.wm.IRemoteInsetsControlTargetProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+                    /**
+                     * Encodes the specified RemoteInsetsControlTargetProto message, length delimited. Does not implicitly {@link com.android.server.wm.RemoteInsetsControlTargetProto.verify|verify} messages.
+                     * @param message RemoteInsetsControlTargetProto message or plain object to encode
+                     * @param [writer] Writer to encode to
+                     * @returns Writer
+                     */
+                    public static encodeDelimited(message: com.android.server.wm.IRemoteInsetsControlTargetProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+                    /**
+                     * Decodes a RemoteInsetsControlTargetProto message from the specified reader or buffer.
+                     * @param reader Reader or buffer to decode from
+                     * @param [length] Message length if known beforehand
+                     * @returns RemoteInsetsControlTargetProto
+                     * @throws {Error} If the payload is not a reader or valid buffer
+                     * @throws {$protobuf.util.ProtocolError} If required fields are missing
+                     */
+                    public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): com.android.server.wm.RemoteInsetsControlTargetProto;
+
+                    /**
+                     * Decodes a RemoteInsetsControlTargetProto message from the specified reader or buffer, length delimited.
+                     * @param reader Reader or buffer to decode from
+                     * @returns RemoteInsetsControlTargetProto
+                     * @throws {Error} If the payload is not a reader or valid buffer
+                     * @throws {$protobuf.util.ProtocolError} If required fields are missing
+                     */
+                    public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): com.android.server.wm.RemoteInsetsControlTargetProto;
+
+                    /**
+                     * Verifies a RemoteInsetsControlTargetProto message.
+                     * @param message Plain object to verify
+                     * @returns `null` if valid, otherwise the reason why it is not
+                     */
+                    public static verify(message: { [k: string]: any }): (string|null);
+
+                    /**
+                     * Creates a RemoteInsetsControlTargetProto message from a plain object. Also converts values to their respective internal types.
+                     * @param object Plain object
+                     * @returns RemoteInsetsControlTargetProto
+                     */
+                    public static fromObject(object: { [k: string]: any }): com.android.server.wm.RemoteInsetsControlTargetProto;
+
+                    /**
+                     * Creates a plain object from a RemoteInsetsControlTargetProto message. Also converts values to other types if specified.
+                     * @param message RemoteInsetsControlTargetProto
+                     * @param [options] Conversion options
+                     * @returns Plain object
+                     */
+                    public static toObject(message: com.android.server.wm.RemoteInsetsControlTargetProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+                    /**
+                     * Converts this RemoteInsetsControlTargetProto to JSON.
+                     * @returns JSON object
+                     */
+                    public toJSON(): { [k: string]: any };
+
+                    /**
+                     * Gets the default type url for RemoteInsetsControlTargetProto
                      * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
                      * @returns The default type url
                      */
@@ -3966,7 +4099,7 @@ export namespace com {
                 interface IWindowStateAnimatorProto {
 
                     /** WindowStateAnimatorProto lastClipRect */
-                    lastClipRect?: (android.graphics.IRectProto|null);
+                    lastClipRect?: (android_common.graphics.IRectProto|null);
 
                     /** WindowStateAnimatorProto surface */
                     surface?: (com.android.server.wm.IWindowSurfaceControllerProto|null);
@@ -3975,7 +4108,7 @@ export namespace com {
                     drawState?: (com.android.server.wm.WindowStateAnimatorProto.DrawState|null);
 
                     /** WindowStateAnimatorProto systemDecorRect */
-                    systemDecorRect?: (android.graphics.IRectProto|null);
+                    systemDecorRect?: (android_common.graphics.IRectProto|null);
                 }
 
                 /** Represents a WindowStateAnimatorProto. */
@@ -3988,7 +4121,7 @@ export namespace com {
                     constructor(properties?: com.android.server.wm.IWindowStateAnimatorProto);
 
                     /** WindowStateAnimatorProto lastClipRect. */
-                    public lastClipRect?: (android.graphics.IRectProto|null);
+                    public lastClipRect?: (android_common.graphics.IRectProto|null);
 
                     /** WindowStateAnimatorProto surface. */
                     public surface?: (com.android.server.wm.IWindowSurfaceControllerProto|null);
@@ -3997,7 +4130,7 @@ export namespace com {
                     public drawState: com.android.server.wm.WindowStateAnimatorProto.DrawState;
 
                     /** WindowStateAnimatorProto systemDecorRect. */
-                    public systemDecorRect?: (android.graphics.IRectProto|null);
+                    public systemDecorRect?: (android_common.graphics.IRectProto|null);
 
                     /**
                      * Creates a new WindowStateAnimatorProto instance using the specified properties.
@@ -4317,7 +4450,7 @@ export namespace com {
                     identifier?: (com.android.server.wm.IIdentifierProto|null);
 
                     /** WindowContainerProto surfaceControl */
-                    surfaceControl?: (android.view.ISurfaceControlProto|null);
+                    surfaceControl?: (android_common.view.ISurfaceControlProto|null);
                 }
 
                 /** Represents a WindowContainerProto. */
@@ -4348,7 +4481,7 @@ export namespace com {
                     public identifier?: (com.android.server.wm.IIdentifierProto|null);
 
                     /** WindowContainerProto surfaceControl. */
-                    public surfaceControl?: (android.view.ISurfaceControlProto|null);
+                    public surfaceControl?: (android_common.view.ISurfaceControlProto|null);
 
                     /**
                      * Creates a new WindowContainerProto instance using the specified properties.
@@ -4571,13 +4704,13 @@ export namespace com {
                 interface IConfigurationContainerProto {
 
                     /** ConfigurationContainerProto overrideConfiguration */
-                    overrideConfiguration?: (android.content.IConfigurationProto|null);
+                    overrideConfiguration?: (android_common.content.IConfigurationProto|null);
 
                     /** ConfigurationContainerProto fullConfiguration */
-                    fullConfiguration?: (android.content.IConfigurationProto|null);
+                    fullConfiguration?: (android_common.content.IConfigurationProto|null);
 
                     /** ConfigurationContainerProto mergedOverrideConfiguration */
-                    mergedOverrideConfiguration?: (android.content.IConfigurationProto|null);
+                    mergedOverrideConfiguration?: (android_common.content.IConfigurationProto|null);
                 }
 
                 /** Represents a ConfigurationContainerProto. */
@@ -4590,13 +4723,13 @@ export namespace com {
                     constructor(properties?: com.android.server.wm.IConfigurationContainerProto);
 
                     /** ConfigurationContainerProto overrideConfiguration. */
-                    public overrideConfiguration?: (android.content.IConfigurationProto|null);
+                    public overrideConfiguration?: (android_common.content.IConfigurationProto|null);
 
                     /** ConfigurationContainerProto fullConfiguration. */
-                    public fullConfiguration?: (android.content.IConfigurationProto|null);
+                    public fullConfiguration?: (android_common.content.IConfigurationProto|null);
 
                     /** ConfigurationContainerProto mergedOverrideConfiguration. */
-                    public mergedOverrideConfiguration?: (android.content.IConfigurationProto|null);
+                    public mergedOverrideConfiguration?: (android_common.content.IConfigurationProto|null);
 
                     /**
                      * Creates a new ConfigurationContainerProto instance using the specified properties.
@@ -4680,52 +4813,52 @@ export namespace com {
                 interface IWindowFramesProto {
 
                     /** WindowFramesProto containingFrame */
-                    containingFrame?: (android.graphics.IRectProto|null);
+                    containingFrame?: (android_common.graphics.IRectProto|null);
 
                     /** WindowFramesProto contentFrame */
-                    contentFrame?: (android.graphics.IRectProto|null);
+                    contentFrame?: (android_common.graphics.IRectProto|null);
 
                     /** WindowFramesProto decorFrame */
-                    decorFrame?: (android.graphics.IRectProto|null);
+                    decorFrame?: (android_common.graphics.IRectProto|null);
 
                     /** WindowFramesProto displayFrame */
-                    displayFrame?: (android.graphics.IRectProto|null);
+                    displayFrame?: (android_common.graphics.IRectProto|null);
 
                     /** WindowFramesProto frame */
-                    frame?: (android.graphics.IRectProto|null);
+                    frame?: (android_common.graphics.IRectProto|null);
 
                     /** WindowFramesProto outsetFrame */
-                    outsetFrame?: (android.graphics.IRectProto|null);
+                    outsetFrame?: (android_common.graphics.IRectProto|null);
 
                     /** WindowFramesProto overscanFrame */
-                    overscanFrame?: (android.graphics.IRectProto|null);
+                    overscanFrame?: (android_common.graphics.IRectProto|null);
 
                     /** WindowFramesProto parentFrame */
-                    parentFrame?: (android.graphics.IRectProto|null);
+                    parentFrame?: (android_common.graphics.IRectProto|null);
 
                     /** WindowFramesProto visibleFrame */
-                    visibleFrame?: (android.graphics.IRectProto|null);
+                    visibleFrame?: (android_common.graphics.IRectProto|null);
 
                     /** WindowFramesProto cutout */
-                    cutout?: (android.view.IDisplayCutoutProto|null);
+                    cutout?: (android_common.view.IDisplayCutoutProto|null);
 
                     /** WindowFramesProto contentInsets */
-                    contentInsets?: (android.graphics.IRectProto|null);
+                    contentInsets?: (android_common.graphics.IRectProto|null);
 
                     /** WindowFramesProto overscanInsets */
-                    overscanInsets?: (android.graphics.IRectProto|null);
+                    overscanInsets?: (android_common.graphics.IRectProto|null);
 
                     /** WindowFramesProto visibleInsets */
-                    visibleInsets?: (android.graphics.IRectProto|null);
+                    visibleInsets?: (android_common.graphics.IRectProto|null);
 
                     /** WindowFramesProto stableInsets */
-                    stableInsets?: (android.graphics.IRectProto|null);
+                    stableInsets?: (android_common.graphics.IRectProto|null);
 
                     /** WindowFramesProto outsets */
-                    outsets?: (android.graphics.IRectProto|null);
+                    outsets?: (android_common.graphics.IRectProto|null);
 
                     /** WindowFramesProto compatFrame */
-                    compatFrame?: (android.graphics.IRectProto|null);
+                    compatFrame?: (android_common.graphics.IRectProto|null);
                 }
 
                 /** Represents a WindowFramesProto. */
@@ -4738,52 +4871,52 @@ export namespace com {
                     constructor(properties?: com.android.server.wm.IWindowFramesProto);
 
                     /** WindowFramesProto containingFrame. */
-                    public containingFrame?: (android.graphics.IRectProto|null);
+                    public containingFrame?: (android_common.graphics.IRectProto|null);
 
                     /** WindowFramesProto contentFrame. */
-                    public contentFrame?: (android.graphics.IRectProto|null);
+                    public contentFrame?: (android_common.graphics.IRectProto|null);
 
                     /** WindowFramesProto decorFrame. */
-                    public decorFrame?: (android.graphics.IRectProto|null);
+                    public decorFrame?: (android_common.graphics.IRectProto|null);
 
                     /** WindowFramesProto displayFrame. */
-                    public displayFrame?: (android.graphics.IRectProto|null);
+                    public displayFrame?: (android_common.graphics.IRectProto|null);
 
                     /** WindowFramesProto frame. */
-                    public frame?: (android.graphics.IRectProto|null);
+                    public frame?: (android_common.graphics.IRectProto|null);
 
                     /** WindowFramesProto outsetFrame. */
-                    public outsetFrame?: (android.graphics.IRectProto|null);
+                    public outsetFrame?: (android_common.graphics.IRectProto|null);
 
                     /** WindowFramesProto overscanFrame. */
-                    public overscanFrame?: (android.graphics.IRectProto|null);
+                    public overscanFrame?: (android_common.graphics.IRectProto|null);
 
                     /** WindowFramesProto parentFrame. */
-                    public parentFrame?: (android.graphics.IRectProto|null);
+                    public parentFrame?: (android_common.graphics.IRectProto|null);
 
                     /** WindowFramesProto visibleFrame. */
-                    public visibleFrame?: (android.graphics.IRectProto|null);
+                    public visibleFrame?: (android_common.graphics.IRectProto|null);
 
                     /** WindowFramesProto cutout. */
-                    public cutout?: (android.view.IDisplayCutoutProto|null);
+                    public cutout?: (android_common.view.IDisplayCutoutProto|null);
 
                     /** WindowFramesProto contentInsets. */
-                    public contentInsets?: (android.graphics.IRectProto|null);
+                    public contentInsets?: (android_common.graphics.IRectProto|null);
 
                     /** WindowFramesProto overscanInsets. */
-                    public overscanInsets?: (android.graphics.IRectProto|null);
+                    public overscanInsets?: (android_common.graphics.IRectProto|null);
 
                     /** WindowFramesProto visibleInsets. */
-                    public visibleInsets?: (android.graphics.IRectProto|null);
+                    public visibleInsets?: (android_common.graphics.IRectProto|null);
 
                     /** WindowFramesProto stableInsets. */
-                    public stableInsets?: (android.graphics.IRectProto|null);
+                    public stableInsets?: (android_common.graphics.IRectProto|null);
 
                     /** WindowFramesProto outsets. */
-                    public outsets?: (android.graphics.IRectProto|null);
+                    public outsets?: (android_common.graphics.IRectProto|null);
 
                     /** WindowFramesProto compatFrame. */
-                    public compatFrame?: (android.graphics.IRectProto|null);
+                    public compatFrame?: (android_common.graphics.IRectProto|null);
 
                     /**
                      * Creates a new WindowFramesProto instance using the specified properties.
@@ -4867,16 +5000,16 @@ export namespace com {
                 interface IInsetsSourceProviderProto {
 
                     /** InsetsSourceProviderProto source */
-                    source?: (android.view.IInsetsSourceProto|null);
+                    source?: (android_common.view.IInsetsSourceProto|null);
 
                     /** InsetsSourceProviderProto frame */
-                    frame?: (android.graphics.IRectProto|null);
+                    frame?: (android_common.graphics.IRectProto|null);
 
                     /** InsetsSourceProviderProto fakeControl */
-                    fakeControl?: (android.view.IInsetsSourceControlProto|null);
+                    fakeControl?: (android_common.view.IInsetsSourceControlProto|null);
 
                     /** InsetsSourceProviderProto control */
-                    control?: (android.view.IInsetsSourceControlProto|null);
+                    control?: (android_common.view.IInsetsSourceControlProto|null);
 
                     /** InsetsSourceProviderProto controlTarget */
                     controlTarget?: (com.android.server.wm.IWindowStateProto|null);
@@ -4888,10 +5021,10 @@ export namespace com {
                     fakeControlTarget?: (com.android.server.wm.IWindowStateProto|null);
 
                     /** InsetsSourceProviderProto capturedLeash */
-                    capturedLeash?: (android.view.ISurfaceControlProto|null);
+                    capturedLeash?: (android_common.view.ISurfaceControlProto|null);
 
                     /** InsetsSourceProviderProto imeOverriddenFrame */
-                    imeOverriddenFrame?: (android.graphics.IRectProto|null);
+                    imeOverriddenFrame?: (android_common.graphics.IRectProto|null);
 
                     /** InsetsSourceProviderProto isLeashReadyForDispatching */
                     isLeashReadyForDispatching?: (boolean|null);
@@ -4937,16 +5070,16 @@ export namespace com {
                     constructor(properties?: com.android.server.wm.IInsetsSourceProviderProto);
 
                     /** InsetsSourceProviderProto source. */
-                    public source?: (android.view.IInsetsSourceProto|null);
+                    public source?: (android_common.view.IInsetsSourceProto|null);
 
                     /** InsetsSourceProviderProto frame. */
-                    public frame?: (android.graphics.IRectProto|null);
+                    public frame?: (android_common.graphics.IRectProto|null);
 
                     /** InsetsSourceProviderProto fakeControl. */
-                    public fakeControl?: (android.view.IInsetsSourceControlProto|null);
+                    public fakeControl?: (android_common.view.IInsetsSourceControlProto|null);
 
                     /** InsetsSourceProviderProto control. */
-                    public control?: (android.view.IInsetsSourceControlProto|null);
+                    public control?: (android_common.view.IInsetsSourceControlProto|null);
 
                     /** InsetsSourceProviderProto controlTarget. */
                     public controlTarget?: (com.android.server.wm.IWindowStateProto|null);
@@ -4958,10 +5091,10 @@ export namespace com {
                     public fakeControlTarget?: (com.android.server.wm.IWindowStateProto|null);
 
                     /** InsetsSourceProviderProto capturedLeash. */
-                    public capturedLeash?: (android.view.ISurfaceControlProto|null);
+                    public capturedLeash?: (android_common.view.ISurfaceControlProto|null);
 
                     /** InsetsSourceProviderProto imeOverriddenFrame. */
-                    public imeOverriddenFrame?: (android.graphics.IRectProto|null);
+                    public imeOverriddenFrame?: (android_common.graphics.IRectProto|null);
 
                     /** InsetsSourceProviderProto isLeashReadyForDispatching. */
                     public isLeashReadyForDispatching: boolean;
@@ -5310,120 +5443,11 @@ export namespace com {
                     public static getTypeUrl(typeUrlPrefix?: string): string;
                 }
 
-                /** Properties of a WindowContainerThumbnailProto. */
-                interface IWindowContainerThumbnailProto {
-
-                    /** WindowContainerThumbnailProto width */
-                    width?: (number|null);
-
-                    /** WindowContainerThumbnailProto height */
-                    height?: (number|null);
-
-                    /** WindowContainerThumbnailProto surfaceAnimator */
-                    surfaceAnimator?: (com.android.server.wm.ISurfaceAnimatorProto|null);
-                }
-
-                /** Represents a {@link com.android.server.wm.WindowContainerThumbnailProto} object. */
-                class WindowContainerThumbnailProto implements IWindowContainerThumbnailProto {
-
-                    /**
-                     * Constructs a new WindowContainerThumbnailProto.
-                     * @param [properties] Properties to set
-                     */
-                    constructor(properties?: com.android.server.wm.IWindowContainerThumbnailProto);
-
-                    /** WindowContainerThumbnailProto width. */
-                    public width: number;
-
-                    /** WindowContainerThumbnailProto height. */
-                    public height: number;
-
-                    /** WindowContainerThumbnailProto surfaceAnimator. */
-                    public surfaceAnimator?: (com.android.server.wm.ISurfaceAnimatorProto|null);
-
-                    /**
-                     * Creates a new WindowContainerThumbnailProto instance using the specified properties.
-                     * @param [properties] Properties to set
-                     * @returns WindowContainerThumbnailProto instance
-                     */
-                    public static create(properties?: com.android.server.wm.IWindowContainerThumbnailProto): com.android.server.wm.WindowContainerThumbnailProto;
-
-                    /**
-                     * Encodes the specified WindowContainerThumbnailProto message. Does not implicitly {@link com.android.server.wm.WindowContainerThumbnailProto.verify|verify} messages.
-                     * @param message WindowContainerThumbnailProto message or plain object to encode
-                     * @param [writer] Writer to encode to
-                     * @returns Writer
-                     */
-                    public static encode(message: com.android.server.wm.IWindowContainerThumbnailProto, writer?: $protobuf.Writer): $protobuf.Writer;
-
-                    /**
-                     * Encodes the specified WindowContainerThumbnailProto message, length delimited. Does not implicitly {@link com.android.server.wm.WindowContainerThumbnailProto.verify|verify} messages.
-                     * @param message WindowContainerThumbnailProto message or plain object to encode
-                     * @param [writer] Writer to encode to
-                     * @returns Writer
-                     */
-                    public static encodeDelimited(message: com.android.server.wm.IWindowContainerThumbnailProto, writer?: $protobuf.Writer): $protobuf.Writer;
-
-                    /**
-                     * Decodes a WindowContainerThumbnailProto message from the specified reader or buffer.
-                     * @param reader Reader or buffer to decode from
-                     * @param [length] Message length if known beforehand
-                     * @returns WindowContainerThumbnailProto
-                     * @throws {Error} If the payload is not a reader or valid buffer
-                     * @throws {$protobuf.util.ProtocolError} If required fields are missing
-                     */
-                    public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): com.android.server.wm.WindowContainerThumbnailProto;
-
-                    /**
-                     * Decodes a WindowContainerThumbnailProto message from the specified reader or buffer, length delimited.
-                     * @param reader Reader or buffer to decode from
-                     * @returns WindowContainerThumbnailProto
-                     * @throws {Error} If the payload is not a reader or valid buffer
-                     * @throws {$protobuf.util.ProtocolError} If required fields are missing
-                     */
-                    public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): com.android.server.wm.WindowContainerThumbnailProto;
-
-                    /**
-                     * Verifies a WindowContainerThumbnailProto message.
-                     * @param message Plain object to verify
-                     * @returns `null` if valid, otherwise the reason why it is not
-                     */
-                    public static verify(message: { [k: string]: any }): (string|null);
-
-                    /**
-                     * Creates a WindowContainerThumbnailProto message from a plain object. Also converts values to their respective internal types.
-                     * @param object Plain object
-                     * @returns WindowContainerThumbnailProto
-                     */
-                    public static fromObject(object: { [k: string]: any }): com.android.server.wm.WindowContainerThumbnailProto;
-
-                    /**
-                     * Creates a plain object from a WindowContainerThumbnailProto message. Also converts values to other types if specified.
-                     * @param message WindowContainerThumbnailProto
-                     * @param [options] Conversion options
-                     * @returns Plain object
-                     */
-                    public static toObject(message: com.android.server.wm.WindowContainerThumbnailProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
-
-                    /**
-                     * Converts this WindowContainerThumbnailProto to JSON.
-                     * @returns JSON object
-                     */
-                    public toJSON(): { [k: string]: any };
-
-                    /**
-                     * Gets the default type url for WindowContainerThumbnailProto
-                     * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-                     * @returns The default type url
-                     */
-                    public static getTypeUrl(typeUrlPrefix?: string): string;
-                }
-
                 /** Properties of a SurfaceAnimatorProto. */
                 interface ISurfaceAnimatorProto {
 
                     /** SurfaceAnimatorProto leash */
-                    leash?: (android.view.ISurfaceControlProto|null);
+                    leash?: (android_common.view.ISurfaceControlProto|null);
 
                     /** SurfaceAnimatorProto animationStartDelayed */
                     animationStartDelayed?: (boolean|null);
@@ -5442,7 +5466,7 @@ export namespace com {
                     constructor(properties?: com.android.server.wm.ISurfaceAnimatorProto);
 
                     /** SurfaceAnimatorProto leash. */
-                    public leash?: (android.view.ISurfaceControlProto|null);
+                    public leash?: (android_common.view.ISurfaceControlProto|null);
 
                     /** SurfaceAnimatorProto animationStartDelayed. */
                     public animationStartDelayed: boolean;
@@ -5635,7 +5659,7 @@ export namespace com {
                 interface IRemoteAnimationAdapterWrapperProto {
 
                     /** RemoteAnimationAdapterWrapperProto target */
-                    target?: (android.view.IRemoteAnimationTargetProto|null);
+                    target?: (android_common.view.IRemoteAnimationTargetProto|null);
                 }
 
                 /** Represents a RemoteAnimationAdapterWrapperProto. */
@@ -5648,7 +5672,7 @@ export namespace com {
                     constructor(properties?: com.android.server.wm.IRemoteAnimationAdapterWrapperProto);
 
                     /** RemoteAnimationAdapterWrapperProto target. */
-                    public target?: (android.view.IRemoteAnimationTargetProto|null);
+                    public target?: (android_common.view.IRemoteAnimationTargetProto|null);
 
                     /**
                      * Creates a new RemoteAnimationAdapterWrapperProto instance using the specified properties.
@@ -6041,10 +6065,10 @@ export namespace com {
                 interface IMoveAnimationSpecProto {
 
                     /** MoveAnimationSpecProto from */
-                    from?: (android.graphics.IPointProto|null);
+                    from?: (android_common.graphics.IPointProto|null);
 
                     /** MoveAnimationSpecProto to */
-                    to?: (android.graphics.IPointProto|null);
+                    to?: (android_common.graphics.IPointProto|null);
 
                     /** MoveAnimationSpecProto durationMs */
                     durationMs?: (Long|null);
@@ -6060,10 +6084,10 @@ export namespace com {
                     constructor(properties?: com.android.server.wm.IMoveAnimationSpecProto);
 
                     /** MoveAnimationSpecProto from. */
-                    public from?: (android.graphics.IPointProto|null);
+                    public from?: (android_common.graphics.IPointProto|null);
 
                     /** MoveAnimationSpecProto to. */
-                    public to?: (android.graphics.IPointProto|null);
+                    public to?: (android_common.graphics.IPointProto|null);
 
                     /** MoveAnimationSpecProto durationMs. */
                     public durationMs: Long;
@@ -6363,13 +6387,122 @@ export namespace com {
                      */
                     public static getTypeUrl(typeUrlPrefix?: string): string;
                 }
+
+                /** Properties of a WindowContainerThumbnailProto. */
+                interface IWindowContainerThumbnailProto {
+
+                    /** WindowContainerThumbnailProto width */
+                    width?: (number|null);
+
+                    /** WindowContainerThumbnailProto height */
+                    height?: (number|null);
+
+                    /** WindowContainerThumbnailProto surfaceAnimator */
+                    surfaceAnimator?: (com.android.server.wm.ISurfaceAnimatorProto|null);
+                }
+
+                /** Represents a {@link com.android.server.wm.WindowContainerThumbnailProto} object. */
+                class WindowContainerThumbnailProto implements IWindowContainerThumbnailProto {
+
+                    /**
+                     * Constructs a new WindowContainerThumbnailProto.
+                     * @param [properties] Properties to set
+                     */
+                    constructor(properties?: com.android.server.wm.IWindowContainerThumbnailProto);
+
+                    /** WindowContainerThumbnailProto width. */
+                    public width: number;
+
+                    /** WindowContainerThumbnailProto height. */
+                    public height: number;
+
+                    /** WindowContainerThumbnailProto surfaceAnimator. */
+                    public surfaceAnimator?: (com.android.server.wm.ISurfaceAnimatorProto|null);
+
+                    /**
+                     * Creates a new WindowContainerThumbnailProto instance using the specified properties.
+                     * @param [properties] Properties to set
+                     * @returns WindowContainerThumbnailProto instance
+                     */
+                    public static create(properties?: com.android.server.wm.IWindowContainerThumbnailProto): com.android.server.wm.WindowContainerThumbnailProto;
+
+                    /**
+                     * Encodes the specified WindowContainerThumbnailProto message. Does not implicitly {@link com.android.server.wm.WindowContainerThumbnailProto.verify|verify} messages.
+                     * @param message WindowContainerThumbnailProto message or plain object to encode
+                     * @param [writer] Writer to encode to
+                     * @returns Writer
+                     */
+                    public static encode(message: com.android.server.wm.IWindowContainerThumbnailProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+                    /**
+                     * Encodes the specified WindowContainerThumbnailProto message, length delimited. Does not implicitly {@link com.android.server.wm.WindowContainerThumbnailProto.verify|verify} messages.
+                     * @param message WindowContainerThumbnailProto message or plain object to encode
+                     * @param [writer] Writer to encode to
+                     * @returns Writer
+                     */
+                    public static encodeDelimited(message: com.android.server.wm.IWindowContainerThumbnailProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+                    /**
+                     * Decodes a WindowContainerThumbnailProto message from the specified reader or buffer.
+                     * @param reader Reader or buffer to decode from
+                     * @param [length] Message length if known beforehand
+                     * @returns WindowContainerThumbnailProto
+                     * @throws {Error} If the payload is not a reader or valid buffer
+                     * @throws {$protobuf.util.ProtocolError} If required fields are missing
+                     */
+                    public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): com.android.server.wm.WindowContainerThumbnailProto;
+
+                    /**
+                     * Decodes a WindowContainerThumbnailProto message from the specified reader or buffer, length delimited.
+                     * @param reader Reader or buffer to decode from
+                     * @returns WindowContainerThumbnailProto
+                     * @throws {Error} If the payload is not a reader or valid buffer
+                     * @throws {$protobuf.util.ProtocolError} If required fields are missing
+                     */
+                    public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): com.android.server.wm.WindowContainerThumbnailProto;
+
+                    /**
+                     * Verifies a WindowContainerThumbnailProto message.
+                     * @param message Plain object to verify
+                     * @returns `null` if valid, otherwise the reason why it is not
+                     */
+                    public static verify(message: { [k: string]: any }): (string|null);
+
+                    /**
+                     * Creates a WindowContainerThumbnailProto message from a plain object. Also converts values to their respective internal types.
+                     * @param object Plain object
+                     * @returns WindowContainerThumbnailProto
+                     */
+                    public static fromObject(object: { [k: string]: any }): com.android.server.wm.WindowContainerThumbnailProto;
+
+                    /**
+                     * Creates a plain object from a WindowContainerThumbnailProto message. Also converts values to other types if specified.
+                     * @param message WindowContainerThumbnailProto
+                     * @param [options] Conversion options
+                     * @returns Plain object
+                     */
+                    public static toObject(message: com.android.server.wm.WindowContainerThumbnailProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+                    /**
+                     * Converts this WindowContainerThumbnailProto to JSON.
+                     * @returns JSON object
+                     */
+                    public toJSON(): { [k: string]: any };
+
+                    /**
+                     * Gets the default type url for WindowContainerThumbnailProto
+                     * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+                     * @returns The default type url
+                     */
+                    public static getTypeUrl(typeUrlPrefix?: string): string;
+                }
             }
         }
     }
 }
 
-/** Namespace android. */
-export namespace android {
+/** Namespace android_common. */
+export namespace android_common {
 
     /** Namespace app. */
     namespace app {
@@ -6385,30 +6518,30 @@ export namespace android {
              * Constructs a new StatusBarManagerProto.
              * @param [properties] Properties to set
              */
-            constructor(properties?: android.app.IStatusBarManagerProto);
+            constructor(properties?: android_common.app.IStatusBarManagerProto);
 
             /**
              * Creates a new StatusBarManagerProto instance using the specified properties.
              * @param [properties] Properties to set
              * @returns StatusBarManagerProto instance
              */
-            public static create(properties?: android.app.IStatusBarManagerProto): android.app.StatusBarManagerProto;
+            public static create(properties?: android_common.app.IStatusBarManagerProto): android_common.app.StatusBarManagerProto;
 
             /**
-             * Encodes the specified StatusBarManagerProto message. Does not implicitly {@link android.app.StatusBarManagerProto.verify|verify} messages.
+             * Encodes the specified StatusBarManagerProto message. Does not implicitly {@link android_common.app.StatusBarManagerProto.verify|verify} messages.
              * @param message StatusBarManagerProto message or plain object to encode
              * @param [writer] Writer to encode to
              * @returns Writer
              */
-            public static encode(message: android.app.IStatusBarManagerProto, writer?: $protobuf.Writer): $protobuf.Writer;
+            public static encode(message: android_common.app.IStatusBarManagerProto, writer?: $protobuf.Writer): $protobuf.Writer;
 
             /**
-             * Encodes the specified StatusBarManagerProto message, length delimited. Does not implicitly {@link android.app.StatusBarManagerProto.verify|verify} messages.
+             * Encodes the specified StatusBarManagerProto message, length delimited. Does not implicitly {@link android_common.app.StatusBarManagerProto.verify|verify} messages.
              * @param message StatusBarManagerProto message or plain object to encode
              * @param [writer] Writer to encode to
              * @returns Writer
              */
-            public static encodeDelimited(message: android.app.IStatusBarManagerProto, writer?: $protobuf.Writer): $protobuf.Writer;
+            public static encodeDelimited(message: android_common.app.IStatusBarManagerProto, writer?: $protobuf.Writer): $protobuf.Writer;
 
             /**
              * Decodes a StatusBarManagerProto message from the specified reader or buffer.
@@ -6418,7 +6551,7 @@ export namespace android {
              * @throws {Error} If the payload is not a reader or valid buffer
              * @throws {$protobuf.util.ProtocolError} If required fields are missing
              */
-            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android.app.StatusBarManagerProto;
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android_common.app.StatusBarManagerProto;
 
             /**
              * Decodes a StatusBarManagerProto message from the specified reader or buffer, length delimited.
@@ -6427,7 +6560,7 @@ export namespace android {
              * @throws {Error} If the payload is not a reader or valid buffer
              * @throws {$protobuf.util.ProtocolError} If required fields are missing
              */
-            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android.app.StatusBarManagerProto;
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android_common.app.StatusBarManagerProto;
 
             /**
              * Verifies a StatusBarManagerProto message.
@@ -6441,7 +6574,7 @@ export namespace android {
              * @param object Plain object
              * @returns StatusBarManagerProto
              */
-            public static fromObject(object: { [k: string]: any }): android.app.StatusBarManagerProto;
+            public static fromObject(object: { [k: string]: any }): android_common.app.StatusBarManagerProto;
 
             /**
              * Creates a plain object from a StatusBarManagerProto message. Also converts values to other types if specified.
@@ -6449,7 +6582,7 @@ export namespace android {
              * @param [options] Conversion options
              * @returns Plain object
              */
-            public static toObject(message: android.app.StatusBarManagerProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
+            public static toObject(message: android_common.app.StatusBarManagerProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
 
             /**
              * Converts this StatusBarManagerProto to JSON.
@@ -6487,7 +6620,7 @@ export namespace android {
         interface IWindowConfigurationProto {
 
             /** WindowConfigurationProto appBounds */
-            appBounds?: (android.graphics.IRectProto|null);
+            appBounds?: (android_common.graphics.IRectProto|null);
 
             /** WindowConfigurationProto windowingMode */
             windowingMode?: (number|null);
@@ -6496,10 +6629,10 @@ export namespace android {
             activityType?: (number|null);
 
             /** WindowConfigurationProto bounds */
-            bounds?: (android.graphics.IRectProto|null);
+            bounds?: (android_common.graphics.IRectProto|null);
 
             /** WindowConfigurationProto maxBounds */
-            maxBounds?: (android.graphics.IRectProto|null);
+            maxBounds?: (android_common.graphics.IRectProto|null);
         }
 
         /** Proto representation for WindowConfiguration.java class. */
@@ -6509,10 +6642,10 @@ export namespace android {
              * Constructs a new WindowConfigurationProto.
              * @param [properties] Properties to set
              */
-            constructor(properties?: android.app.IWindowConfigurationProto);
+            constructor(properties?: android_common.app.IWindowConfigurationProto);
 
             /** WindowConfigurationProto appBounds. */
-            public appBounds?: (android.graphics.IRectProto|null);
+            public appBounds?: (android_common.graphics.IRectProto|null);
 
             /** WindowConfigurationProto windowingMode. */
             public windowingMode: number;
@@ -6521,33 +6654,33 @@ export namespace android {
             public activityType: number;
 
             /** WindowConfigurationProto bounds. */
-            public bounds?: (android.graphics.IRectProto|null);
+            public bounds?: (android_common.graphics.IRectProto|null);
 
             /** WindowConfigurationProto maxBounds. */
-            public maxBounds?: (android.graphics.IRectProto|null);
+            public maxBounds?: (android_common.graphics.IRectProto|null);
 
             /**
              * Creates a new WindowConfigurationProto instance using the specified properties.
              * @param [properties] Properties to set
              * @returns WindowConfigurationProto instance
              */
-            public static create(properties?: android.app.IWindowConfigurationProto): android.app.WindowConfigurationProto;
+            public static create(properties?: android_common.app.IWindowConfigurationProto): android_common.app.WindowConfigurationProto;
 
             /**
-             * Encodes the specified WindowConfigurationProto message. Does not implicitly {@link android.app.WindowConfigurationProto.verify|verify} messages.
+             * Encodes the specified WindowConfigurationProto message. Does not implicitly {@link android_common.app.WindowConfigurationProto.verify|verify} messages.
              * @param message WindowConfigurationProto message or plain object to encode
              * @param [writer] Writer to encode to
              * @returns Writer
              */
-            public static encode(message: android.app.IWindowConfigurationProto, writer?: $protobuf.Writer): $protobuf.Writer;
+            public static encode(message: android_common.app.IWindowConfigurationProto, writer?: $protobuf.Writer): $protobuf.Writer;
 
             /**
-             * Encodes the specified WindowConfigurationProto message, length delimited. Does not implicitly {@link android.app.WindowConfigurationProto.verify|verify} messages.
+             * Encodes the specified WindowConfigurationProto message, length delimited. Does not implicitly {@link android_common.app.WindowConfigurationProto.verify|verify} messages.
              * @param message WindowConfigurationProto message or plain object to encode
              * @param [writer] Writer to encode to
              * @returns Writer
              */
-            public static encodeDelimited(message: android.app.IWindowConfigurationProto, writer?: $protobuf.Writer): $protobuf.Writer;
+            public static encodeDelimited(message: android_common.app.IWindowConfigurationProto, writer?: $protobuf.Writer): $protobuf.Writer;
 
             /**
              * Decodes a WindowConfigurationProto message from the specified reader or buffer.
@@ -6557,7 +6690,7 @@ export namespace android {
              * @throws {Error} If the payload is not a reader or valid buffer
              * @throws {$protobuf.util.ProtocolError} If required fields are missing
              */
-            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android.app.WindowConfigurationProto;
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android_common.app.WindowConfigurationProto;
 
             /**
              * Decodes a WindowConfigurationProto message from the specified reader or buffer, length delimited.
@@ -6566,7 +6699,7 @@ export namespace android {
              * @throws {Error} If the payload is not a reader or valid buffer
              * @throws {$protobuf.util.ProtocolError} If required fields are missing
              */
-            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android.app.WindowConfigurationProto;
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android_common.app.WindowConfigurationProto;
 
             /**
              * Verifies a WindowConfigurationProto message.
@@ -6580,7 +6713,7 @@ export namespace android {
              * @param object Plain object
              * @returns WindowConfigurationProto
              */
-            public static fromObject(object: { [k: string]: any }): android.app.WindowConfigurationProto;
+            public static fromObject(object: { [k: string]: any }): android_common.app.WindowConfigurationProto;
 
             /**
              * Creates a plain object from a WindowConfigurationProto message. Also converts values to other types if specified.
@@ -6588,7 +6721,7 @@ export namespace android {
              * @param [options] Conversion options
              * @returns Plain object
              */
-            public static toObject(message: android.app.WindowConfigurationProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
+            public static toObject(message: android_common.app.WindowConfigurationProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
 
             /**
              * Converts this WindowConfigurationProto to JSON.
@@ -6605,6 +6738,580 @@ export namespace android {
         }
     }
 
+    /** Namespace graphics. */
+    namespace graphics {
+
+        /** Properties of a RectProto. */
+        interface IRectProto {
+
+            /** RectProto left */
+            left?: (number|null);
+
+            /** RectProto top */
+            top?: (number|null);
+
+            /** RectProto right */
+            right?: (number|null);
+
+            /** RectProto bottom */
+            bottom?: (number|null);
+        }
+
+        /** Represents a RectProto. */
+        class RectProto implements IRectProto {
+
+            /**
+             * Constructs a new RectProto.
+             * @param [properties] Properties to set
+             */
+            constructor(properties?: android_common.graphics.IRectProto);
+
+            /** RectProto left. */
+            public left: number;
+
+            /** RectProto top. */
+            public top: number;
+
+            /** RectProto right. */
+            public right: number;
+
+            /** RectProto bottom. */
+            public bottom: number;
+
+            /**
+             * Creates a new RectProto instance using the specified properties.
+             * @param [properties] Properties to set
+             * @returns RectProto instance
+             */
+            public static create(properties?: android_common.graphics.IRectProto): android_common.graphics.RectProto;
+
+            /**
+             * Encodes the specified RectProto message. Does not implicitly {@link android_common.graphics.RectProto.verify|verify} messages.
+             * @param message RectProto message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encode(message: android_common.graphics.IRectProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Encodes the specified RectProto message, length delimited. Does not implicitly {@link android_common.graphics.RectProto.verify|verify} messages.
+             * @param message RectProto message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encodeDelimited(message: android_common.graphics.IRectProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Decodes a RectProto message from the specified reader or buffer.
+             * @param reader Reader or buffer to decode from
+             * @param [length] Message length if known beforehand
+             * @returns RectProto
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android_common.graphics.RectProto;
+
+            /**
+             * Decodes a RectProto message from the specified reader or buffer, length delimited.
+             * @param reader Reader or buffer to decode from
+             * @returns RectProto
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android_common.graphics.RectProto;
+
+            /**
+             * Verifies a RectProto message.
+             * @param message Plain object to verify
+             * @returns `null` if valid, otherwise the reason why it is not
+             */
+            public static verify(message: { [k: string]: any }): (string|null);
+
+            /**
+             * Creates a RectProto message from a plain object. Also converts values to their respective internal types.
+             * @param object Plain object
+             * @returns RectProto
+             */
+            public static fromObject(object: { [k: string]: any }): android_common.graphics.RectProto;
+
+            /**
+             * Creates a plain object from a RectProto message. Also converts values to other types if specified.
+             * @param message RectProto
+             * @param [options] Conversion options
+             * @returns Plain object
+             */
+            public static toObject(message: android_common.graphics.RectProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+            /**
+             * Converts this RectProto to JSON.
+             * @returns JSON object
+             */
+            public toJSON(): { [k: string]: any };
+
+            /**
+             * Gets the default type url for RectProto
+             * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+             * @returns The default type url
+             */
+            public static getTypeUrl(typeUrlPrefix?: string): string;
+        }
+
+        /** Properties of a PointProto. */
+        interface IPointProto {
+
+            /** PointProto x */
+            x?: (number|null);
+
+            /** PointProto y */
+            y?: (number|null);
+        }
+
+        /** Represents a PointProto. */
+        class PointProto implements IPointProto {
+
+            /**
+             * Constructs a new PointProto.
+             * @param [properties] Properties to set
+             */
+            constructor(properties?: android_common.graphics.IPointProto);
+
+            /** PointProto x. */
+            public x?: (number|null);
+
+            /** PointProto y. */
+            public y?: (number|null);
+
+            /** PointProto _x. */
+            public _x?: "x";
+
+            /** PointProto _y. */
+            public _y?: "y";
+
+            /**
+             * Creates a new PointProto instance using the specified properties.
+             * @param [properties] Properties to set
+             * @returns PointProto instance
+             */
+            public static create(properties?: android_common.graphics.IPointProto): android_common.graphics.PointProto;
+
+            /**
+             * Encodes the specified PointProto message. Does not implicitly {@link android_common.graphics.PointProto.verify|verify} messages.
+             * @param message PointProto message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encode(message: android_common.graphics.IPointProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Encodes the specified PointProto message, length delimited. Does not implicitly {@link android_common.graphics.PointProto.verify|verify} messages.
+             * @param message PointProto message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encodeDelimited(message: android_common.graphics.IPointProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Decodes a PointProto message from the specified reader or buffer.
+             * @param reader Reader or buffer to decode from
+             * @param [length] Message length if known beforehand
+             * @returns PointProto
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android_common.graphics.PointProto;
+
+            /**
+             * Decodes a PointProto message from the specified reader or buffer, length delimited.
+             * @param reader Reader or buffer to decode from
+             * @returns PointProto
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android_common.graphics.PointProto;
+
+            /**
+             * Verifies a PointProto message.
+             * @param message Plain object to verify
+             * @returns `null` if valid, otherwise the reason why it is not
+             */
+            public static verify(message: { [k: string]: any }): (string|null);
+
+            /**
+             * Creates a PointProto message from a plain object. Also converts values to their respective internal types.
+             * @param object Plain object
+             * @returns PointProto
+             */
+            public static fromObject(object: { [k: string]: any }): android_common.graphics.PointProto;
+
+            /**
+             * Creates a plain object from a PointProto message. Also converts values to other types if specified.
+             * @param message PointProto
+             * @param [options] Conversion options
+             * @returns Plain object
+             */
+            public static toObject(message: android_common.graphics.PointProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+            /**
+             * Converts this PointProto to JSON.
+             * @returns JSON object
+             */
+            public toJSON(): { [k: string]: any };
+
+            /**
+             * Gets the default type url for PointProto
+             * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+             * @returns The default type url
+             */
+            public static getTypeUrl(typeUrlPrefix?: string): string;
+        }
+
+        /** Properties of an InsetsProto. */
+        interface IInsetsProto {
+
+            /** InsetsProto left */
+            left?: (number|null);
+
+            /** InsetsProto top */
+            top?: (number|null);
+
+            /** InsetsProto right */
+            right?: (number|null);
+
+            /** InsetsProto bottom */
+            bottom?: (number|null);
+        }
+
+        /** Represents an InsetsProto. */
+        class InsetsProto implements IInsetsProto {
+
+            /**
+             * Constructs a new InsetsProto.
+             * @param [properties] Properties to set
+             */
+            constructor(properties?: android_common.graphics.IInsetsProto);
+
+            /** InsetsProto left. */
+            public left?: (number|null);
+
+            /** InsetsProto top. */
+            public top?: (number|null);
+
+            /** InsetsProto right. */
+            public right?: (number|null);
+
+            /** InsetsProto bottom. */
+            public bottom?: (number|null);
+
+            /** InsetsProto _left. */
+            public _left?: "left";
+
+            /** InsetsProto _top. */
+            public _top?: "top";
+
+            /** InsetsProto _right. */
+            public _right?: "right";
+
+            /** InsetsProto _bottom. */
+            public _bottom?: "bottom";
+
+            /**
+             * Creates a new InsetsProto instance using the specified properties.
+             * @param [properties] Properties to set
+             * @returns InsetsProto instance
+             */
+            public static create(properties?: android_common.graphics.IInsetsProto): android_common.graphics.InsetsProto;
+
+            /**
+             * Encodes the specified InsetsProto message. Does not implicitly {@link android_common.graphics.InsetsProto.verify|verify} messages.
+             * @param message InsetsProto message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encode(message: android_common.graphics.IInsetsProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Encodes the specified InsetsProto message, length delimited. Does not implicitly {@link android_common.graphics.InsetsProto.verify|verify} messages.
+             * @param message InsetsProto message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encodeDelimited(message: android_common.graphics.IInsetsProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Decodes an InsetsProto message from the specified reader or buffer.
+             * @param reader Reader or buffer to decode from
+             * @param [length] Message length if known beforehand
+             * @returns InsetsProto
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android_common.graphics.InsetsProto;
+
+            /**
+             * Decodes an InsetsProto message from the specified reader or buffer, length delimited.
+             * @param reader Reader or buffer to decode from
+             * @returns InsetsProto
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android_common.graphics.InsetsProto;
+
+            /**
+             * Verifies an InsetsProto message.
+             * @param message Plain object to verify
+             * @returns `null` if valid, otherwise the reason why it is not
+             */
+            public static verify(message: { [k: string]: any }): (string|null);
+
+            /**
+             * Creates an InsetsProto message from a plain object. Also converts values to their respective internal types.
+             * @param object Plain object
+             * @returns InsetsProto
+             */
+            public static fromObject(object: { [k: string]: any }): android_common.graphics.InsetsProto;
+
+            /**
+             * Creates a plain object from an InsetsProto message. Also converts values to other types if specified.
+             * @param message InsetsProto
+             * @param [options] Conversion options
+             * @returns Plain object
+             */
+            public static toObject(message: android_common.graphics.InsetsProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+            /**
+             * Converts this InsetsProto to JSON.
+             * @returns JSON object
+             */
+            public toJSON(): { [k: string]: any };
+
+            /**
+             * Gets the default type url for InsetsProto
+             * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+             * @returns The default type url
+             */
+            public static getTypeUrl(typeUrlPrefix?: string): string;
+        }
+
+        /** Properties of a PixelFormatProto. */
+        interface IPixelFormatProto {
+        }
+
+        /** Represents a PixelFormatProto. */
+        class PixelFormatProto implements IPixelFormatProto {
+
+            /**
+             * Constructs a new PixelFormatProto.
+             * @param [properties] Properties to set
+             */
+            constructor(properties?: android_common.graphics.IPixelFormatProto);
+
+            /**
+             * Creates a new PixelFormatProto instance using the specified properties.
+             * @param [properties] Properties to set
+             * @returns PixelFormatProto instance
+             */
+            public static create(properties?: android_common.graphics.IPixelFormatProto): android_common.graphics.PixelFormatProto;
+
+            /**
+             * Encodes the specified PixelFormatProto message. Does not implicitly {@link android_common.graphics.PixelFormatProto.verify|verify} messages.
+             * @param message PixelFormatProto message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encode(message: android_common.graphics.IPixelFormatProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Encodes the specified PixelFormatProto message, length delimited. Does not implicitly {@link android_common.graphics.PixelFormatProto.verify|verify} messages.
+             * @param message PixelFormatProto message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encodeDelimited(message: android_common.graphics.IPixelFormatProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Decodes a PixelFormatProto message from the specified reader or buffer.
+             * @param reader Reader or buffer to decode from
+             * @param [length] Message length if known beforehand
+             * @returns PixelFormatProto
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android_common.graphics.PixelFormatProto;
+
+            /**
+             * Decodes a PixelFormatProto message from the specified reader or buffer, length delimited.
+             * @param reader Reader or buffer to decode from
+             * @returns PixelFormatProto
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android_common.graphics.PixelFormatProto;
+
+            /**
+             * Verifies a PixelFormatProto message.
+             * @param message Plain object to verify
+             * @returns `null` if valid, otherwise the reason why it is not
+             */
+            public static verify(message: { [k: string]: any }): (string|null);
+
+            /**
+             * Creates a PixelFormatProto message from a plain object. Also converts values to their respective internal types.
+             * @param object Plain object
+             * @returns PixelFormatProto
+             */
+            public static fromObject(object: { [k: string]: any }): android_common.graphics.PixelFormatProto;
+
+            /**
+             * Creates a plain object from a PixelFormatProto message. Also converts values to other types if specified.
+             * @param message PixelFormatProto
+             * @param [options] Conversion options
+             * @returns Plain object
+             */
+            public static toObject(message: android_common.graphics.PixelFormatProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+            /**
+             * Converts this PixelFormatProto to JSON.
+             * @returns JSON object
+             */
+            public toJSON(): { [k: string]: any };
+
+            /**
+             * Gets the default type url for PixelFormatProto
+             * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+             * @returns The default type url
+             */
+            public static getTypeUrl(typeUrlPrefix?: string): string;
+        }
+
+        namespace PixelFormatProto {
+
+            /** Format enum. */
+            enum Format {
+                UNKNOWN = 0,
+                TRANSLUCENT = -3,
+                TRANSPARENT = -2,
+                OPAQUE = -1,
+                RGBA_8888 = 1,
+                RGBX_8888 = 2,
+                RGB_888 = 3,
+                RGB_565 = 4,
+                RGBA_F16 = 22,
+                RGBA_1010102 = 43
+            }
+        }
+    }
+
+    /** Destination enum. */
+    enum Destination {
+        DEST_LOCAL = 0,
+        DEST_EXPLICIT = 100,
+        DEST_AUTOMATIC = 200,
+        DEST_UNSET = 255
+    }
+
+    /** Properties of a PrivacyFlags. */
+    interface IPrivacyFlags {
+
+        /** PrivacyFlags dest */
+        dest?: (android_common.Destination|null);
+
+        /** PrivacyFlags patterns */
+        patterns?: (string[]|null);
+    }
+
+    /** Represents a PrivacyFlags. */
+    class PrivacyFlags implements IPrivacyFlags {
+
+        /**
+         * Constructs a new PrivacyFlags.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: android_common.IPrivacyFlags);
+
+        /** PrivacyFlags dest. */
+        public dest: android_common.Destination;
+
+        /** PrivacyFlags patterns. */
+        public patterns: string[];
+
+        /**
+         * Creates a new PrivacyFlags instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns PrivacyFlags instance
+         */
+        public static create(properties?: android_common.IPrivacyFlags): android_common.PrivacyFlags;
+
+        /**
+         * Encodes the specified PrivacyFlags message. Does not implicitly {@link android_common.PrivacyFlags.verify|verify} messages.
+         * @param message PrivacyFlags message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: android_common.IPrivacyFlags, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified PrivacyFlags message, length delimited. Does not implicitly {@link android_common.PrivacyFlags.verify|verify} messages.
+         * @param message PrivacyFlags message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: android_common.IPrivacyFlags, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a PrivacyFlags message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns PrivacyFlags
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android_common.PrivacyFlags;
+
+        /**
+         * Decodes a PrivacyFlags message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns PrivacyFlags
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android_common.PrivacyFlags;
+
+        /**
+         * Verifies a PrivacyFlags message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a PrivacyFlags message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns PrivacyFlags
+         */
+        public static fromObject(object: { [k: string]: any }): android_common.PrivacyFlags;
+
+        /**
+         * Creates a plain object from a PrivacyFlags message. Also converts values to other types if specified.
+         * @param message PrivacyFlags
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: android_common.PrivacyFlags, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this PrivacyFlags to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for PrivacyFlags
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
     /** Namespace content. */
     namespace content {
 
@@ -6619,30 +7326,30 @@ export namespace android {
              * Constructs a new ActivityInfoProto.
              * @param [properties] Properties to set
              */
-            constructor(properties?: android.content.IActivityInfoProto);
+            constructor(properties?: android_common.content.IActivityInfoProto);
 
             /**
              * Creates a new ActivityInfoProto instance using the specified properties.
              * @param [properties] Properties to set
              * @returns ActivityInfoProto instance
              */
-            public static create(properties?: android.content.IActivityInfoProto): android.content.ActivityInfoProto;
+            public static create(properties?: android_common.content.IActivityInfoProto): android_common.content.ActivityInfoProto;
 
             /**
-             * Encodes the specified ActivityInfoProto message. Does not implicitly {@link android.content.ActivityInfoProto.verify|verify} messages.
+             * Encodes the specified ActivityInfoProto message. Does not implicitly {@link android_common.content.ActivityInfoProto.verify|verify} messages.
              * @param message ActivityInfoProto message or plain object to encode
              * @param [writer] Writer to encode to
              * @returns Writer
              */
-            public static encode(message: android.content.IActivityInfoProto, writer?: $protobuf.Writer): $protobuf.Writer;
+            public static encode(message: android_common.content.IActivityInfoProto, writer?: $protobuf.Writer): $protobuf.Writer;
 
             /**
-             * Encodes the specified ActivityInfoProto message, length delimited. Does not implicitly {@link android.content.ActivityInfoProto.verify|verify} messages.
+             * Encodes the specified ActivityInfoProto message, length delimited. Does not implicitly {@link android_common.content.ActivityInfoProto.verify|verify} messages.
              * @param message ActivityInfoProto message or plain object to encode
              * @param [writer] Writer to encode to
              * @returns Writer
              */
-            public static encodeDelimited(message: android.content.IActivityInfoProto, writer?: $protobuf.Writer): $protobuf.Writer;
+            public static encodeDelimited(message: android_common.content.IActivityInfoProto, writer?: $protobuf.Writer): $protobuf.Writer;
 
             /**
              * Decodes an ActivityInfoProto message from the specified reader or buffer.
@@ -6652,7 +7359,7 @@ export namespace android {
              * @throws {Error} If the payload is not a reader or valid buffer
              * @throws {$protobuf.util.ProtocolError} If required fields are missing
              */
-            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android.content.ActivityInfoProto;
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android_common.content.ActivityInfoProto;
 
             /**
              * Decodes an ActivityInfoProto message from the specified reader or buffer, length delimited.
@@ -6661,7 +7368,7 @@ export namespace android {
              * @throws {Error} If the payload is not a reader or valid buffer
              * @throws {$protobuf.util.ProtocolError} If required fields are missing
              */
-            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android.content.ActivityInfoProto;
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android_common.content.ActivityInfoProto;
 
             /**
              * Verifies an ActivityInfoProto message.
@@ -6675,7 +7382,7 @@ export namespace android {
              * @param object Plain object
              * @returns ActivityInfoProto
              */
-            public static fromObject(object: { [k: string]: any }): android.content.ActivityInfoProto;
+            public static fromObject(object: { [k: string]: any }): android_common.content.ActivityInfoProto;
 
             /**
              * Creates a plain object from an ActivityInfoProto message. Also converts values to other types if specified.
@@ -6683,7 +7390,7 @@ export namespace android {
              * @param [options] Conversion options
              * @returns Plain object
              */
-            public static toObject(message: android.content.ActivityInfoProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
+            public static toObject(message: android_common.content.ActivityInfoProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
 
             /**
              * Converts this ActivityInfoProto to JSON.
@@ -6736,7 +7443,7 @@ export namespace android {
             mnc?: (number|null);
 
             /** ConfigurationProto locales */
-            locales?: (android.content.ILocaleProto[]|null);
+            locales?: (android_common.content.ILocaleProto[]|null);
 
             /** ConfigurationProto screenLayout */
             screenLayout?: (number|null);
@@ -6781,7 +7488,7 @@ export namespace android {
             densityDpi?: (number|null);
 
             /** ConfigurationProto windowConfiguration */
-            windowConfiguration?: (android.app.IWindowConfigurationProto|null);
+            windowConfiguration?: (android_common.app.IWindowConfigurationProto|null);
 
             /** ConfigurationProto localeList */
             localeList?: (string|null);
@@ -6800,7 +7507,7 @@ export namespace android {
              * Constructs a new ConfigurationProto.
              * @param [properties] Properties to set
              */
-            constructor(properties?: android.content.IConfigurationProto);
+            constructor(properties?: android_common.content.IConfigurationProto);
 
             /** ConfigurationProto fontScale. */
             public fontScale: number;
@@ -6812,7 +7519,7 @@ export namespace android {
             public mnc: number;
 
             /** ConfigurationProto locales. */
-            public locales: android.content.ILocaleProto[];
+            public locales: android_common.content.ILocaleProto[];
 
             /** ConfigurationProto screenLayout. */
             public screenLayout: number;
@@ -6857,7 +7564,7 @@ export namespace android {
             public densityDpi: number;
 
             /** ConfigurationProto windowConfiguration. */
-            public windowConfiguration?: (android.app.IWindowConfigurationProto|null);
+            public windowConfiguration?: (android_common.app.IWindowConfigurationProto|null);
 
             /** ConfigurationProto localeList. */
             public localeList: string;
@@ -6873,23 +7580,23 @@ export namespace android {
              * @param [properties] Properties to set
              * @returns ConfigurationProto instance
              */
-            public static create(properties?: android.content.IConfigurationProto): android.content.ConfigurationProto;
+            public static create(properties?: android_common.content.IConfigurationProto): android_common.content.ConfigurationProto;
 
             /**
-             * Encodes the specified ConfigurationProto message. Does not implicitly {@link android.content.ConfigurationProto.verify|verify} messages.
+             * Encodes the specified ConfigurationProto message. Does not implicitly {@link android_common.content.ConfigurationProto.verify|verify} messages.
              * @param message ConfigurationProto message or plain object to encode
              * @param [writer] Writer to encode to
              * @returns Writer
              */
-            public static encode(message: android.content.IConfigurationProto, writer?: $protobuf.Writer): $protobuf.Writer;
+            public static encode(message: android_common.content.IConfigurationProto, writer?: $protobuf.Writer): $protobuf.Writer;
 
             /**
-             * Encodes the specified ConfigurationProto message, length delimited. Does not implicitly {@link android.content.ConfigurationProto.verify|verify} messages.
+             * Encodes the specified ConfigurationProto message, length delimited. Does not implicitly {@link android_common.content.ConfigurationProto.verify|verify} messages.
              * @param message ConfigurationProto message or plain object to encode
              * @param [writer] Writer to encode to
              * @returns Writer
              */
-            public static encodeDelimited(message: android.content.IConfigurationProto, writer?: $protobuf.Writer): $protobuf.Writer;
+            public static encodeDelimited(message: android_common.content.IConfigurationProto, writer?: $protobuf.Writer): $protobuf.Writer;
 
             /**
              * Decodes a ConfigurationProto message from the specified reader or buffer.
@@ -6899,7 +7606,7 @@ export namespace android {
              * @throws {Error} If the payload is not a reader or valid buffer
              * @throws {$protobuf.util.ProtocolError} If required fields are missing
              */
-            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android.content.ConfigurationProto;
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android_common.content.ConfigurationProto;
 
             /**
              * Decodes a ConfigurationProto message from the specified reader or buffer, length delimited.
@@ -6908,7 +7615,7 @@ export namespace android {
              * @throws {Error} If the payload is not a reader or valid buffer
              * @throws {$protobuf.util.ProtocolError} If required fields are missing
              */
-            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android.content.ConfigurationProto;
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android_common.content.ConfigurationProto;
 
             /**
              * Verifies a ConfigurationProto message.
@@ -6922,7 +7629,7 @@ export namespace android {
              * @param object Plain object
              * @returns ConfigurationProto
              */
-            public static fromObject(object: { [k: string]: any }): android.content.ConfigurationProto;
+            public static fromObject(object: { [k: string]: any }): android_common.content.ConfigurationProto;
 
             /**
              * Creates a plain object from a ConfigurationProto message. Also converts values to other types if specified.
@@ -6930,7 +7637,7 @@ export namespace android {
              * @param [options] Conversion options
              * @returns Plain object
              */
-            public static toObject(message: android.content.ConfigurationProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
+            public static toObject(message: android_common.content.ConfigurationProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
 
             /**
              * Converts this ConfigurationProto to JSON.
@@ -6950,7 +7657,7 @@ export namespace android {
         interface IResourcesConfigurationProto {
 
             /** ResourcesConfigurationProto configuration */
-            configuration: android.content.IConfigurationProto;
+            configuration: android_common.content.IConfigurationProto;
 
             /** ResourcesConfigurationProto sdkVersion */
             sdkVersion?: (number|null);
@@ -6969,10 +7676,10 @@ export namespace android {
              * Constructs a new ResourcesConfigurationProto.
              * @param [properties] Properties to set
              */
-            constructor(properties?: android.content.IResourcesConfigurationProto);
+            constructor(properties?: android_common.content.IResourcesConfigurationProto);
 
             /** ResourcesConfigurationProto configuration. */
-            public configuration: android.content.IConfigurationProto;
+            public configuration: android_common.content.IConfigurationProto;
 
             /** ResourcesConfigurationProto sdkVersion. */
             public sdkVersion: number;
@@ -6988,23 +7695,23 @@ export namespace android {
              * @param [properties] Properties to set
              * @returns ResourcesConfigurationProto instance
              */
-            public static create(properties?: android.content.IResourcesConfigurationProto): android.content.ResourcesConfigurationProto;
+            public static create(properties?: android_common.content.IResourcesConfigurationProto): android_common.content.ResourcesConfigurationProto;
 
             /**
-             * Encodes the specified ResourcesConfigurationProto message. Does not implicitly {@link android.content.ResourcesConfigurationProto.verify|verify} messages.
+             * Encodes the specified ResourcesConfigurationProto message. Does not implicitly {@link android_common.content.ResourcesConfigurationProto.verify|verify} messages.
              * @param message ResourcesConfigurationProto message or plain object to encode
              * @param [writer] Writer to encode to
              * @returns Writer
              */
-            public static encode(message: android.content.IResourcesConfigurationProto, writer?: $protobuf.Writer): $protobuf.Writer;
+            public static encode(message: android_common.content.IResourcesConfigurationProto, writer?: $protobuf.Writer): $protobuf.Writer;
 
             /**
-             * Encodes the specified ResourcesConfigurationProto message, length delimited. Does not implicitly {@link android.content.ResourcesConfigurationProto.verify|verify} messages.
+             * Encodes the specified ResourcesConfigurationProto message, length delimited. Does not implicitly {@link android_common.content.ResourcesConfigurationProto.verify|verify} messages.
              * @param message ResourcesConfigurationProto message or plain object to encode
              * @param [writer] Writer to encode to
              * @returns Writer
              */
-            public static encodeDelimited(message: android.content.IResourcesConfigurationProto, writer?: $protobuf.Writer): $protobuf.Writer;
+            public static encodeDelimited(message: android_common.content.IResourcesConfigurationProto, writer?: $protobuf.Writer): $protobuf.Writer;
 
             /**
              * Decodes a ResourcesConfigurationProto message from the specified reader or buffer.
@@ -7014,7 +7721,7 @@ export namespace android {
              * @throws {Error} If the payload is not a reader or valid buffer
              * @throws {$protobuf.util.ProtocolError} If required fields are missing
              */
-            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android.content.ResourcesConfigurationProto;
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android_common.content.ResourcesConfigurationProto;
 
             /**
              * Decodes a ResourcesConfigurationProto message from the specified reader or buffer, length delimited.
@@ -7023,7 +7730,7 @@ export namespace android {
              * @throws {Error} If the payload is not a reader or valid buffer
              * @throws {$protobuf.util.ProtocolError} If required fields are missing
              */
-            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android.content.ResourcesConfigurationProto;
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android_common.content.ResourcesConfigurationProto;
 
             /**
              * Verifies a ResourcesConfigurationProto message.
@@ -7037,7 +7744,7 @@ export namespace android {
              * @param object Plain object
              * @returns ResourcesConfigurationProto
              */
-            public static fromObject(object: { [k: string]: any }): android.content.ResourcesConfigurationProto;
+            public static fromObject(object: { [k: string]: any }): android_common.content.ResourcesConfigurationProto;
 
             /**
              * Creates a plain object from a ResourcesConfigurationProto message. Also converts values to other types if specified.
@@ -7045,7 +7752,7 @@ export namespace android {
              * @param [options] Conversion options
              * @returns Plain object
              */
-            public static toObject(message: android.content.ResourcesConfigurationProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
+            public static toObject(message: android_common.content.ResourcesConfigurationProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
 
             /**
              * Converts this ResourcesConfigurationProto to JSON.
@@ -7108,7 +7815,7 @@ export namespace android {
              * Constructs a new DeviceConfigurationProto.
              * @param [properties] Properties to set
              */
-            constructor(properties?: android.content.IDeviceConfigurationProto);
+            constructor(properties?: android_common.content.IDeviceConfigurationProto);
 
             /** DeviceConfigurationProto stableScreenWidthPx. */
             public stableScreenWidthPx: number;
@@ -7151,23 +7858,23 @@ export namespace android {
              * @param [properties] Properties to set
              * @returns DeviceConfigurationProto instance
              */
-            public static create(properties?: android.content.IDeviceConfigurationProto): android.content.DeviceConfigurationProto;
+            public static create(properties?: android_common.content.IDeviceConfigurationProto): android_common.content.DeviceConfigurationProto;
 
             /**
-             * Encodes the specified DeviceConfigurationProto message. Does not implicitly {@link android.content.DeviceConfigurationProto.verify|verify} messages.
+             * Encodes the specified DeviceConfigurationProto message. Does not implicitly {@link android_common.content.DeviceConfigurationProto.verify|verify} messages.
              * @param message DeviceConfigurationProto message or plain object to encode
              * @param [writer] Writer to encode to
              * @returns Writer
              */
-            public static encode(message: android.content.IDeviceConfigurationProto, writer?: $protobuf.Writer): $protobuf.Writer;
+            public static encode(message: android_common.content.IDeviceConfigurationProto, writer?: $protobuf.Writer): $protobuf.Writer;
 
             /**
-             * Encodes the specified DeviceConfigurationProto message, length delimited. Does not implicitly {@link android.content.DeviceConfigurationProto.verify|verify} messages.
+             * Encodes the specified DeviceConfigurationProto message, length delimited. Does not implicitly {@link android_common.content.DeviceConfigurationProto.verify|verify} messages.
              * @param message DeviceConfigurationProto message or plain object to encode
              * @param [writer] Writer to encode to
              * @returns Writer
              */
-            public static encodeDelimited(message: android.content.IDeviceConfigurationProto, writer?: $protobuf.Writer): $protobuf.Writer;
+            public static encodeDelimited(message: android_common.content.IDeviceConfigurationProto, writer?: $protobuf.Writer): $protobuf.Writer;
 
             /**
              * Decodes a DeviceConfigurationProto message from the specified reader or buffer.
@@ -7177,7 +7884,7 @@ export namespace android {
              * @throws {Error} If the payload is not a reader or valid buffer
              * @throws {$protobuf.util.ProtocolError} If required fields are missing
              */
-            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android.content.DeviceConfigurationProto;
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android_common.content.DeviceConfigurationProto;
 
             /**
              * Decodes a DeviceConfigurationProto message from the specified reader or buffer, length delimited.
@@ -7186,7 +7893,7 @@ export namespace android {
              * @throws {Error} If the payload is not a reader or valid buffer
              * @throws {$protobuf.util.ProtocolError} If required fields are missing
              */
-            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android.content.DeviceConfigurationProto;
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android_common.content.DeviceConfigurationProto;
 
             /**
              * Verifies a DeviceConfigurationProto message.
@@ -7200,7 +7907,7 @@ export namespace android {
              * @param object Plain object
              * @returns DeviceConfigurationProto
              */
-            public static fromObject(object: { [k: string]: any }): android.content.DeviceConfigurationProto;
+            public static fromObject(object: { [k: string]: any }): android_common.content.DeviceConfigurationProto;
 
             /**
              * Creates a plain object from a DeviceConfigurationProto message. Also converts values to other types if specified.
@@ -7208,7 +7915,7 @@ export namespace android {
              * @param [options] Conversion options
              * @returns Plain object
              */
-            public static toObject(message: android.content.DeviceConfigurationProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
+            public static toObject(message: android_common.content.DeviceConfigurationProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
 
             /**
              * Converts this DeviceConfigurationProto to JSON.
@@ -7228,10 +7935,10 @@ export namespace android {
         interface IGlobalConfigurationProto {
 
             /** GlobalConfigurationProto resources */
-            resources?: (android.content.IResourcesConfigurationProto|null);
+            resources?: (android_common.content.IResourcesConfigurationProto|null);
 
             /** GlobalConfigurationProto device */
-            device?: (android.content.IDeviceConfigurationProto|null);
+            device?: (android_common.content.IDeviceConfigurationProto|null);
         }
 
         /**
@@ -7244,36 +7951,36 @@ export namespace android {
              * Constructs a new GlobalConfigurationProto.
              * @param [properties] Properties to set
              */
-            constructor(properties?: android.content.IGlobalConfigurationProto);
+            constructor(properties?: android_common.content.IGlobalConfigurationProto);
 
             /** GlobalConfigurationProto resources. */
-            public resources?: (android.content.IResourcesConfigurationProto|null);
+            public resources?: (android_common.content.IResourcesConfigurationProto|null);
 
             /** GlobalConfigurationProto device. */
-            public device?: (android.content.IDeviceConfigurationProto|null);
+            public device?: (android_common.content.IDeviceConfigurationProto|null);
 
             /**
              * Creates a new GlobalConfigurationProto instance using the specified properties.
              * @param [properties] Properties to set
              * @returns GlobalConfigurationProto instance
              */
-            public static create(properties?: android.content.IGlobalConfigurationProto): android.content.GlobalConfigurationProto;
+            public static create(properties?: android_common.content.IGlobalConfigurationProto): android_common.content.GlobalConfigurationProto;
 
             /**
-             * Encodes the specified GlobalConfigurationProto message. Does not implicitly {@link android.content.GlobalConfigurationProto.verify|verify} messages.
+             * Encodes the specified GlobalConfigurationProto message. Does not implicitly {@link android_common.content.GlobalConfigurationProto.verify|verify} messages.
              * @param message GlobalConfigurationProto message or plain object to encode
              * @param [writer] Writer to encode to
              * @returns Writer
              */
-            public static encode(message: android.content.IGlobalConfigurationProto, writer?: $protobuf.Writer): $protobuf.Writer;
+            public static encode(message: android_common.content.IGlobalConfigurationProto, writer?: $protobuf.Writer): $protobuf.Writer;
 
             /**
-             * Encodes the specified GlobalConfigurationProto message, length delimited. Does not implicitly {@link android.content.GlobalConfigurationProto.verify|verify} messages.
+             * Encodes the specified GlobalConfigurationProto message, length delimited. Does not implicitly {@link android_common.content.GlobalConfigurationProto.verify|verify} messages.
              * @param message GlobalConfigurationProto message or plain object to encode
              * @param [writer] Writer to encode to
              * @returns Writer
              */
-            public static encodeDelimited(message: android.content.IGlobalConfigurationProto, writer?: $protobuf.Writer): $protobuf.Writer;
+            public static encodeDelimited(message: android_common.content.IGlobalConfigurationProto, writer?: $protobuf.Writer): $protobuf.Writer;
 
             /**
              * Decodes a GlobalConfigurationProto message from the specified reader or buffer.
@@ -7283,7 +7990,7 @@ export namespace android {
              * @throws {Error} If the payload is not a reader or valid buffer
              * @throws {$protobuf.util.ProtocolError} If required fields are missing
              */
-            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android.content.GlobalConfigurationProto;
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android_common.content.GlobalConfigurationProto;
 
             /**
              * Decodes a GlobalConfigurationProto message from the specified reader or buffer, length delimited.
@@ -7292,7 +7999,7 @@ export namespace android {
              * @throws {Error} If the payload is not a reader or valid buffer
              * @throws {$protobuf.util.ProtocolError} If required fields are missing
              */
-            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android.content.GlobalConfigurationProto;
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android_common.content.GlobalConfigurationProto;
 
             /**
              * Verifies a GlobalConfigurationProto message.
@@ -7306,7 +8013,7 @@ export namespace android {
              * @param object Plain object
              * @returns GlobalConfigurationProto
              */
-            public static fromObject(object: { [k: string]: any }): android.content.GlobalConfigurationProto;
+            public static fromObject(object: { [k: string]: any }): android_common.content.GlobalConfigurationProto;
 
             /**
              * Creates a plain object from a GlobalConfigurationProto message. Also converts values to other types if specified.
@@ -7314,7 +8021,7 @@ export namespace android {
              * @param [options] Conversion options
              * @returns Plain object
              */
-            public static toObject(message: android.content.GlobalConfigurationProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
+            public static toObject(message: android_common.content.GlobalConfigurationProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
 
             /**
              * Converts this GlobalConfigurationProto to JSON.
@@ -7353,7 +8060,7 @@ export namespace android {
              * Constructs a new LocaleProto.
              * @param [properties] Properties to set
              */
-            constructor(properties?: android.content.ILocaleProto);
+            constructor(properties?: android_common.content.ILocaleProto);
 
             /** LocaleProto language. */
             public language: string;
@@ -7372,23 +8079,23 @@ export namespace android {
              * @param [properties] Properties to set
              * @returns LocaleProto instance
              */
-            public static create(properties?: android.content.ILocaleProto): android.content.LocaleProto;
+            public static create(properties?: android_common.content.ILocaleProto): android_common.content.LocaleProto;
 
             /**
-             * Encodes the specified LocaleProto message. Does not implicitly {@link android.content.LocaleProto.verify|verify} messages.
+             * Encodes the specified LocaleProto message. Does not implicitly {@link android_common.content.LocaleProto.verify|verify} messages.
              * @param message LocaleProto message or plain object to encode
              * @param [writer] Writer to encode to
              * @returns Writer
              */
-            public static encode(message: android.content.ILocaleProto, writer?: $protobuf.Writer): $protobuf.Writer;
+            public static encode(message: android_common.content.ILocaleProto, writer?: $protobuf.Writer): $protobuf.Writer;
 
             /**
-             * Encodes the specified LocaleProto message, length delimited. Does not implicitly {@link android.content.LocaleProto.verify|verify} messages.
+             * Encodes the specified LocaleProto message, length delimited. Does not implicitly {@link android_common.content.LocaleProto.verify|verify} messages.
              * @param message LocaleProto message or plain object to encode
              * @param [writer] Writer to encode to
              * @returns Writer
              */
-            public static encodeDelimited(message: android.content.ILocaleProto, writer?: $protobuf.Writer): $protobuf.Writer;
+            public static encodeDelimited(message: android_common.content.ILocaleProto, writer?: $protobuf.Writer): $protobuf.Writer;
 
             /**
              * Decodes a LocaleProto message from the specified reader or buffer.
@@ -7398,7 +8105,7 @@ export namespace android {
              * @throws {Error} If the payload is not a reader or valid buffer
              * @throws {$protobuf.util.ProtocolError} If required fields are missing
              */
-            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android.content.LocaleProto;
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android_common.content.LocaleProto;
 
             /**
              * Decodes a LocaleProto message from the specified reader or buffer, length delimited.
@@ -7407,7 +8114,7 @@ export namespace android {
              * @throws {Error} If the payload is not a reader or valid buffer
              * @throws {$protobuf.util.ProtocolError} If required fields are missing
              */
-            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android.content.LocaleProto;
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android_common.content.LocaleProto;
 
             /**
              * Verifies a LocaleProto message.
@@ -7421,7 +8128,7 @@ export namespace android {
              * @param object Plain object
              * @returns LocaleProto
              */
-            public static fromObject(object: { [k: string]: any }): android.content.LocaleProto;
+            public static fromObject(object: { [k: string]: any }): android_common.content.LocaleProto;
 
             /**
              * Creates a plain object from a LocaleProto message. Also converts values to other types if specified.
@@ -7429,7 +8136,7 @@ export namespace android {
              * @param [options] Conversion options
              * @returns Plain object
              */
-            public static toObject(message: android.content.LocaleProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
+            public static toObject(message: android_common.content.LocaleProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
 
             /**
              * Converts this LocaleProto to JSON.
@@ -7446,1734 +8153,8 @@ export namespace android {
         }
     }
 
-    /** Namespace graphics. */
-    namespace graphics {
-
-        /** Properties of a RectProto. */
-        interface IRectProto {
-
-            /** RectProto left */
-            left?: (number|null);
-
-            /** RectProto top */
-            top?: (number|null);
-
-            /** RectProto right */
-            right?: (number|null);
-
-            /** RectProto bottom */
-            bottom?: (number|null);
-        }
-
-        /** Represents a RectProto. */
-        class RectProto implements IRectProto {
-
-            /**
-             * Constructs a new RectProto.
-             * @param [properties] Properties to set
-             */
-            constructor(properties?: android.graphics.IRectProto);
-
-            /** RectProto left. */
-            public left: number;
-
-            /** RectProto top. */
-            public top: number;
-
-            /** RectProto right. */
-            public right: number;
-
-            /** RectProto bottom. */
-            public bottom: number;
-
-            /**
-             * Creates a new RectProto instance using the specified properties.
-             * @param [properties] Properties to set
-             * @returns RectProto instance
-             */
-            public static create(properties?: android.graphics.IRectProto): android.graphics.RectProto;
-
-            /**
-             * Encodes the specified RectProto message. Does not implicitly {@link android.graphics.RectProto.verify|verify} messages.
-             * @param message RectProto message or plain object to encode
-             * @param [writer] Writer to encode to
-             * @returns Writer
-             */
-            public static encode(message: android.graphics.IRectProto, writer?: $protobuf.Writer): $protobuf.Writer;
-
-            /**
-             * Encodes the specified RectProto message, length delimited. Does not implicitly {@link android.graphics.RectProto.verify|verify} messages.
-             * @param message RectProto message or plain object to encode
-             * @param [writer] Writer to encode to
-             * @returns Writer
-             */
-            public static encodeDelimited(message: android.graphics.IRectProto, writer?: $protobuf.Writer): $protobuf.Writer;
-
-            /**
-             * Decodes a RectProto message from the specified reader or buffer.
-             * @param reader Reader or buffer to decode from
-             * @param [length] Message length if known beforehand
-             * @returns RectProto
-             * @throws {Error} If the payload is not a reader or valid buffer
-             * @throws {$protobuf.util.ProtocolError} If required fields are missing
-             */
-            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android.graphics.RectProto;
-
-            /**
-             * Decodes a RectProto message from the specified reader or buffer, length delimited.
-             * @param reader Reader or buffer to decode from
-             * @returns RectProto
-             * @throws {Error} If the payload is not a reader or valid buffer
-             * @throws {$protobuf.util.ProtocolError} If required fields are missing
-             */
-            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android.graphics.RectProto;
-
-            /**
-             * Verifies a RectProto message.
-             * @param message Plain object to verify
-             * @returns `null` if valid, otherwise the reason why it is not
-             */
-            public static verify(message: { [k: string]: any }): (string|null);
-
-            /**
-             * Creates a RectProto message from a plain object. Also converts values to their respective internal types.
-             * @param object Plain object
-             * @returns RectProto
-             */
-            public static fromObject(object: { [k: string]: any }): android.graphics.RectProto;
-
-            /**
-             * Creates a plain object from a RectProto message. Also converts values to other types if specified.
-             * @param message RectProto
-             * @param [options] Conversion options
-             * @returns Plain object
-             */
-            public static toObject(message: android.graphics.RectProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
-
-            /**
-             * Converts this RectProto to JSON.
-             * @returns JSON object
-             */
-            public toJSON(): { [k: string]: any };
-
-            /**
-             * Gets the default type url for RectProto
-             * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-             * @returns The default type url
-             */
-            public static getTypeUrl(typeUrlPrefix?: string): string;
-        }
-
-        /** Properties of a PointProto. */
-        interface IPointProto {
-
-            /** PointProto x */
-            x?: (number|null);
-
-            /** PointProto y */
-            y?: (number|null);
-        }
-
-        /** Represents a PointProto. */
-        class PointProto implements IPointProto {
-
-            /**
-             * Constructs a new PointProto.
-             * @param [properties] Properties to set
-             */
-            constructor(properties?: android.graphics.IPointProto);
-
-            /** PointProto x. */
-            public x: number;
-
-            /** PointProto y. */
-            public y: number;
-
-            /**
-             * Creates a new PointProto instance using the specified properties.
-             * @param [properties] Properties to set
-             * @returns PointProto instance
-             */
-            public static create(properties?: android.graphics.IPointProto): android.graphics.PointProto;
-
-            /**
-             * Encodes the specified PointProto message. Does not implicitly {@link android.graphics.PointProto.verify|verify} messages.
-             * @param message PointProto message or plain object to encode
-             * @param [writer] Writer to encode to
-             * @returns Writer
-             */
-            public static encode(message: android.graphics.IPointProto, writer?: $protobuf.Writer): $protobuf.Writer;
-
-            /**
-             * Encodes the specified PointProto message, length delimited. Does not implicitly {@link android.graphics.PointProto.verify|verify} messages.
-             * @param message PointProto message or plain object to encode
-             * @param [writer] Writer to encode to
-             * @returns Writer
-             */
-            public static encodeDelimited(message: android.graphics.IPointProto, writer?: $protobuf.Writer): $protobuf.Writer;
-
-            /**
-             * Decodes a PointProto message from the specified reader or buffer.
-             * @param reader Reader or buffer to decode from
-             * @param [length] Message length if known beforehand
-             * @returns PointProto
-             * @throws {Error} If the payload is not a reader or valid buffer
-             * @throws {$protobuf.util.ProtocolError} If required fields are missing
-             */
-            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android.graphics.PointProto;
-
-            /**
-             * Decodes a PointProto message from the specified reader or buffer, length delimited.
-             * @param reader Reader or buffer to decode from
-             * @returns PointProto
-             * @throws {Error} If the payload is not a reader or valid buffer
-             * @throws {$protobuf.util.ProtocolError} If required fields are missing
-             */
-            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android.graphics.PointProto;
-
-            /**
-             * Verifies a PointProto message.
-             * @param message Plain object to verify
-             * @returns `null` if valid, otherwise the reason why it is not
-             */
-            public static verify(message: { [k: string]: any }): (string|null);
-
-            /**
-             * Creates a PointProto message from a plain object. Also converts values to their respective internal types.
-             * @param object Plain object
-             * @returns PointProto
-             */
-            public static fromObject(object: { [k: string]: any }): android.graphics.PointProto;
-
-            /**
-             * Creates a plain object from a PointProto message. Also converts values to other types if specified.
-             * @param message PointProto
-             * @param [options] Conversion options
-             * @returns Plain object
-             */
-            public static toObject(message: android.graphics.PointProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
-
-            /**
-             * Converts this PointProto to JSON.
-             * @returns JSON object
-             */
-            public toJSON(): { [k: string]: any };
-
-            /**
-             * Gets the default type url for PointProto
-             * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-             * @returns The default type url
-             */
-            public static getTypeUrl(typeUrlPrefix?: string): string;
-        }
-
-        /** Properties of a PixelFormatProto. */
-        interface IPixelFormatProto {
-        }
-
-        /** Represents a PixelFormatProto. */
-        class PixelFormatProto implements IPixelFormatProto {
-
-            /**
-             * Constructs a new PixelFormatProto.
-             * @param [properties] Properties to set
-             */
-            constructor(properties?: android.graphics.IPixelFormatProto);
-
-            /**
-             * Creates a new PixelFormatProto instance using the specified properties.
-             * @param [properties] Properties to set
-             * @returns PixelFormatProto instance
-             */
-            public static create(properties?: android.graphics.IPixelFormatProto): android.graphics.PixelFormatProto;
-
-            /**
-             * Encodes the specified PixelFormatProto message. Does not implicitly {@link android.graphics.PixelFormatProto.verify|verify} messages.
-             * @param message PixelFormatProto message or plain object to encode
-             * @param [writer] Writer to encode to
-             * @returns Writer
-             */
-            public static encode(message: android.graphics.IPixelFormatProto, writer?: $protobuf.Writer): $protobuf.Writer;
-
-            /**
-             * Encodes the specified PixelFormatProto message, length delimited. Does not implicitly {@link android.graphics.PixelFormatProto.verify|verify} messages.
-             * @param message PixelFormatProto message or plain object to encode
-             * @param [writer] Writer to encode to
-             * @returns Writer
-             */
-            public static encodeDelimited(message: android.graphics.IPixelFormatProto, writer?: $protobuf.Writer): $protobuf.Writer;
-
-            /**
-             * Decodes a PixelFormatProto message from the specified reader or buffer.
-             * @param reader Reader or buffer to decode from
-             * @param [length] Message length if known beforehand
-             * @returns PixelFormatProto
-             * @throws {Error} If the payload is not a reader or valid buffer
-             * @throws {$protobuf.util.ProtocolError} If required fields are missing
-             */
-            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android.graphics.PixelFormatProto;
-
-            /**
-             * Decodes a PixelFormatProto message from the specified reader or buffer, length delimited.
-             * @param reader Reader or buffer to decode from
-             * @returns PixelFormatProto
-             * @throws {Error} If the payload is not a reader or valid buffer
-             * @throws {$protobuf.util.ProtocolError} If required fields are missing
-             */
-            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android.graphics.PixelFormatProto;
-
-            /**
-             * Verifies a PixelFormatProto message.
-             * @param message Plain object to verify
-             * @returns `null` if valid, otherwise the reason why it is not
-             */
-            public static verify(message: { [k: string]: any }): (string|null);
-
-            /**
-             * Creates a PixelFormatProto message from a plain object. Also converts values to their respective internal types.
-             * @param object Plain object
-             * @returns PixelFormatProto
-             */
-            public static fromObject(object: { [k: string]: any }): android.graphics.PixelFormatProto;
-
-            /**
-             * Creates a plain object from a PixelFormatProto message. Also converts values to other types if specified.
-             * @param message PixelFormatProto
-             * @param [options] Conversion options
-             * @returns Plain object
-             */
-            public static toObject(message: android.graphics.PixelFormatProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
-
-            /**
-             * Converts this PixelFormatProto to JSON.
-             * @returns JSON object
-             */
-            public toJSON(): { [k: string]: any };
-
-            /**
-             * Gets the default type url for PixelFormatProto
-             * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-             * @returns The default type url
-             */
-            public static getTypeUrl(typeUrlPrefix?: string): string;
-        }
-
-        namespace PixelFormatProto {
-
-            /** Format enum. */
-            enum Format {
-                UNKNOWN = 0,
-                TRANSLUCENT = -3,
-                TRANSPARENT = -2,
-                OPAQUE = -1,
-                RGBA_8888 = 1,
-                RGBX_8888 = 2,
-                RGB_888 = 3,
-                RGB_565 = 4,
-                RGBA_F16 = 22,
-                RGBA_1010102 = 43
-            }
-        }
-    }
-
-    /** Destination enum. */
-    enum Destination {
-        DEST_LOCAL = 0,
-        DEST_EXPLICIT = 100,
-        DEST_AUTOMATIC = 200,
-        DEST_UNSET = 255
-    }
-
-    /** Properties of a PrivacyFlags. */
-    interface IPrivacyFlags {
-
-        /** PrivacyFlags dest */
-        dest?: (android.Destination|null);
-
-        /** PrivacyFlags patterns */
-        patterns?: (string[]|null);
-    }
-
-    /** Represents a PrivacyFlags. */
-    class PrivacyFlags implements IPrivacyFlags {
-
-        /**
-         * Constructs a new PrivacyFlags.
-         * @param [properties] Properties to set
-         */
-        constructor(properties?: android.IPrivacyFlags);
-
-        /** PrivacyFlags dest. */
-        public dest: android.Destination;
-
-        /** PrivacyFlags patterns. */
-        public patterns: string[];
-
-        /**
-         * Creates a new PrivacyFlags instance using the specified properties.
-         * @param [properties] Properties to set
-         * @returns PrivacyFlags instance
-         */
-        public static create(properties?: android.IPrivacyFlags): android.PrivacyFlags;
-
-        /**
-         * Encodes the specified PrivacyFlags message. Does not implicitly {@link android.PrivacyFlags.verify|verify} messages.
-         * @param message PrivacyFlags message or plain object to encode
-         * @param [writer] Writer to encode to
-         * @returns Writer
-         */
-        public static encode(message: android.IPrivacyFlags, writer?: $protobuf.Writer): $protobuf.Writer;
-
-        /**
-         * Encodes the specified PrivacyFlags message, length delimited. Does not implicitly {@link android.PrivacyFlags.verify|verify} messages.
-         * @param message PrivacyFlags message or plain object to encode
-         * @param [writer] Writer to encode to
-         * @returns Writer
-         */
-        public static encodeDelimited(message: android.IPrivacyFlags, writer?: $protobuf.Writer): $protobuf.Writer;
-
-        /**
-         * Decodes a PrivacyFlags message from the specified reader or buffer.
-         * @param reader Reader or buffer to decode from
-         * @param [length] Message length if known beforehand
-         * @returns PrivacyFlags
-         * @throws {Error} If the payload is not a reader or valid buffer
-         * @throws {$protobuf.util.ProtocolError} If required fields are missing
-         */
-        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android.PrivacyFlags;
-
-        /**
-         * Decodes a PrivacyFlags message from the specified reader or buffer, length delimited.
-         * @param reader Reader or buffer to decode from
-         * @returns PrivacyFlags
-         * @throws {Error} If the payload is not a reader or valid buffer
-         * @throws {$protobuf.util.ProtocolError} If required fields are missing
-         */
-        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android.PrivacyFlags;
-
-        /**
-         * Verifies a PrivacyFlags message.
-         * @param message Plain object to verify
-         * @returns `null` if valid, otherwise the reason why it is not
-         */
-        public static verify(message: { [k: string]: any }): (string|null);
-
-        /**
-         * Creates a PrivacyFlags message from a plain object. Also converts values to their respective internal types.
-         * @param object Plain object
-         * @returns PrivacyFlags
-         */
-        public static fromObject(object: { [k: string]: any }): android.PrivacyFlags;
-
-        /**
-         * Creates a plain object from a PrivacyFlags message. Also converts values to other types if specified.
-         * @param message PrivacyFlags
-         * @param [options] Conversion options
-         * @returns Plain object
-         */
-        public static toObject(message: android.PrivacyFlags, options?: $protobuf.IConversionOptions): { [k: string]: any };
-
-        /**
-         * Converts this PrivacyFlags to JSON.
-         * @returns JSON object
-         */
-        public toJSON(): { [k: string]: any };
-
-        /**
-         * Gets the default type url for PrivacyFlags
-         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns The default type url
-         */
-        public static getTypeUrl(typeUrlPrefix?: string): string;
-    }
-
     /** Namespace view. */
     namespace view {
-
-        /** Properties of a RemoteAnimationTargetProto. */
-        interface IRemoteAnimationTargetProto {
-
-            /** RemoteAnimationTargetProto taskId */
-            taskId?: (number|null);
-
-            /** RemoteAnimationTargetProto mode */
-            mode?: (number|null);
-
-            /** RemoteAnimationTargetProto leash */
-            leash?: (android.view.ISurfaceControlProto|null);
-
-            /** RemoteAnimationTargetProto isTranslucent */
-            isTranslucent?: (boolean|null);
-
-            /** RemoteAnimationTargetProto clipRect */
-            clipRect?: (android.graphics.IRectProto|null);
-
-            /** RemoteAnimationTargetProto contentInsets */
-            contentInsets?: (android.graphics.IRectProto|null);
-
-            /** RemoteAnimationTargetProto prefixOrderIndex */
-            prefixOrderIndex?: (number|null);
-
-            /** RemoteAnimationTargetProto position */
-            position?: (android.graphics.IPointProto|null);
-
-            /** RemoteAnimationTargetProto sourceContainerBounds */
-            sourceContainerBounds?: (android.graphics.IRectProto|null);
-
-            /** RemoteAnimationTargetProto windowConfiguration */
-            windowConfiguration?: (android.app.IWindowConfigurationProto|null);
-
-            /** RemoteAnimationTargetProto startLeash */
-            startLeash?: (android.view.ISurfaceControlProto|null);
-
-            /** RemoteAnimationTargetProto startBounds */
-            startBounds?: (android.graphics.IRectProto|null);
-
-            /** RemoteAnimationTargetProto localBounds */
-            localBounds?: (android.graphics.IRectProto|null);
-
-            /** RemoteAnimationTargetProto screenSpaceBounds */
-            screenSpaceBounds?: (android.graphics.IRectProto|null);
-        }
-
-        /** Proto representation for android.view.RemoteAnimationTarget.java class. */
-        class RemoteAnimationTargetProto implements IRemoteAnimationTargetProto {
-
-            /**
-             * Constructs a new RemoteAnimationTargetProto.
-             * @param [properties] Properties to set
-             */
-            constructor(properties?: android.view.IRemoteAnimationTargetProto);
-
-            /** RemoteAnimationTargetProto taskId. */
-            public taskId: number;
-
-            /** RemoteAnimationTargetProto mode. */
-            public mode: number;
-
-            /** RemoteAnimationTargetProto leash. */
-            public leash?: (android.view.ISurfaceControlProto|null);
-
-            /** RemoteAnimationTargetProto isTranslucent. */
-            public isTranslucent: boolean;
-
-            /** RemoteAnimationTargetProto clipRect. */
-            public clipRect?: (android.graphics.IRectProto|null);
-
-            /** RemoteAnimationTargetProto contentInsets. */
-            public contentInsets?: (android.graphics.IRectProto|null);
-
-            /** RemoteAnimationTargetProto prefixOrderIndex. */
-            public prefixOrderIndex: number;
-
-            /** RemoteAnimationTargetProto position. */
-            public position?: (android.graphics.IPointProto|null);
-
-            /** RemoteAnimationTargetProto sourceContainerBounds. */
-            public sourceContainerBounds?: (android.graphics.IRectProto|null);
-
-            /** RemoteAnimationTargetProto windowConfiguration. */
-            public windowConfiguration?: (android.app.IWindowConfigurationProto|null);
-
-            /** RemoteAnimationTargetProto startLeash. */
-            public startLeash?: (android.view.ISurfaceControlProto|null);
-
-            /** RemoteAnimationTargetProto startBounds. */
-            public startBounds?: (android.graphics.IRectProto|null);
-
-            /** RemoteAnimationTargetProto localBounds. */
-            public localBounds?: (android.graphics.IRectProto|null);
-
-            /** RemoteAnimationTargetProto screenSpaceBounds. */
-            public screenSpaceBounds?: (android.graphics.IRectProto|null);
-
-            /**
-             * Creates a new RemoteAnimationTargetProto instance using the specified properties.
-             * @param [properties] Properties to set
-             * @returns RemoteAnimationTargetProto instance
-             */
-            public static create(properties?: android.view.IRemoteAnimationTargetProto): android.view.RemoteAnimationTargetProto;
-
-            /**
-             * Encodes the specified RemoteAnimationTargetProto message. Does not implicitly {@link android.view.RemoteAnimationTargetProto.verify|verify} messages.
-             * @param message RemoteAnimationTargetProto message or plain object to encode
-             * @param [writer] Writer to encode to
-             * @returns Writer
-             */
-            public static encode(message: android.view.IRemoteAnimationTargetProto, writer?: $protobuf.Writer): $protobuf.Writer;
-
-            /**
-             * Encodes the specified RemoteAnimationTargetProto message, length delimited. Does not implicitly {@link android.view.RemoteAnimationTargetProto.verify|verify} messages.
-             * @param message RemoteAnimationTargetProto message or plain object to encode
-             * @param [writer] Writer to encode to
-             * @returns Writer
-             */
-            public static encodeDelimited(message: android.view.IRemoteAnimationTargetProto, writer?: $protobuf.Writer): $protobuf.Writer;
-
-            /**
-             * Decodes a RemoteAnimationTargetProto message from the specified reader or buffer.
-             * @param reader Reader or buffer to decode from
-             * @param [length] Message length if known beforehand
-             * @returns RemoteAnimationTargetProto
-             * @throws {Error} If the payload is not a reader or valid buffer
-             * @throws {$protobuf.util.ProtocolError} If required fields are missing
-             */
-            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android.view.RemoteAnimationTargetProto;
-
-            /**
-             * Decodes a RemoteAnimationTargetProto message from the specified reader or buffer, length delimited.
-             * @param reader Reader or buffer to decode from
-             * @returns RemoteAnimationTargetProto
-             * @throws {Error} If the payload is not a reader or valid buffer
-             * @throws {$protobuf.util.ProtocolError} If required fields are missing
-             */
-            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android.view.RemoteAnimationTargetProto;
-
-            /**
-             * Verifies a RemoteAnimationTargetProto message.
-             * @param message Plain object to verify
-             * @returns `null` if valid, otherwise the reason why it is not
-             */
-            public static verify(message: { [k: string]: any }): (string|null);
-
-            /**
-             * Creates a RemoteAnimationTargetProto message from a plain object. Also converts values to their respective internal types.
-             * @param object Plain object
-             * @returns RemoteAnimationTargetProto
-             */
-            public static fromObject(object: { [k: string]: any }): android.view.RemoteAnimationTargetProto;
-
-            /**
-             * Creates a plain object from a RemoteAnimationTargetProto message. Also converts values to other types if specified.
-             * @param message RemoteAnimationTargetProto
-             * @param [options] Conversion options
-             * @returns Plain object
-             */
-            public static toObject(message: android.view.RemoteAnimationTargetProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
-
-            /**
-             * Converts this RemoteAnimationTargetProto to JSON.
-             * @returns JSON object
-             */
-            public toJSON(): { [k: string]: any };
-
-            /**
-             * Gets the default type url for RemoteAnimationTargetProto
-             * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-             * @returns The default type url
-             */
-            public static getTypeUrl(typeUrlPrefix?: string): string;
-        }
-
-        /** Properties of a SurfaceControlProto. */
-        interface ISurfaceControlProto {
-
-            /** SurfaceControlProto hashCode */
-            hashCode?: (number|null);
-
-            /** SurfaceControlProto name */
-            name?: (string|null);
-
-            /** SurfaceControlProto layerId */
-            layerId?: (number|null);
-        }
-
-        /** Represents a {@link android.view.SurfaceControl} object. */
-        class SurfaceControlProto implements ISurfaceControlProto {
-
-            /**
-             * Constructs a new SurfaceControlProto.
-             * @param [properties] Properties to set
-             */
-            constructor(properties?: android.view.ISurfaceControlProto);
-
-            /** SurfaceControlProto hashCode. */
-            public hashCode: number;
-
-            /** SurfaceControlProto name. */
-            public name: string;
-
-            /** SurfaceControlProto layerId. */
-            public layerId: number;
-
-            /**
-             * Creates a new SurfaceControlProto instance using the specified properties.
-             * @param [properties] Properties to set
-             * @returns SurfaceControlProto instance
-             */
-            public static create(properties?: android.view.ISurfaceControlProto): android.view.SurfaceControlProto;
-
-            /**
-             * Encodes the specified SurfaceControlProto message. Does not implicitly {@link android.view.SurfaceControlProto.verify|verify} messages.
-             * @param message SurfaceControlProto message or plain object to encode
-             * @param [writer] Writer to encode to
-             * @returns Writer
-             */
-            public static encode(message: android.view.ISurfaceControlProto, writer?: $protobuf.Writer): $protobuf.Writer;
-
-            /**
-             * Encodes the specified SurfaceControlProto message, length delimited. Does not implicitly {@link android.view.SurfaceControlProto.verify|verify} messages.
-             * @param message SurfaceControlProto message or plain object to encode
-             * @param [writer] Writer to encode to
-             * @returns Writer
-             */
-            public static encodeDelimited(message: android.view.ISurfaceControlProto, writer?: $protobuf.Writer): $protobuf.Writer;
-
-            /**
-             * Decodes a SurfaceControlProto message from the specified reader or buffer.
-             * @param reader Reader or buffer to decode from
-             * @param [length] Message length if known beforehand
-             * @returns SurfaceControlProto
-             * @throws {Error} If the payload is not a reader or valid buffer
-             * @throws {$protobuf.util.ProtocolError} If required fields are missing
-             */
-            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android.view.SurfaceControlProto;
-
-            /**
-             * Decodes a SurfaceControlProto message from the specified reader or buffer, length delimited.
-             * @param reader Reader or buffer to decode from
-             * @returns SurfaceControlProto
-             * @throws {Error} If the payload is not a reader or valid buffer
-             * @throws {$protobuf.util.ProtocolError} If required fields are missing
-             */
-            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android.view.SurfaceControlProto;
-
-            /**
-             * Verifies a SurfaceControlProto message.
-             * @param message Plain object to verify
-             * @returns `null` if valid, otherwise the reason why it is not
-             */
-            public static verify(message: { [k: string]: any }): (string|null);
-
-            /**
-             * Creates a SurfaceControlProto message from a plain object. Also converts values to their respective internal types.
-             * @param object Plain object
-             * @returns SurfaceControlProto
-             */
-            public static fromObject(object: { [k: string]: any }): android.view.SurfaceControlProto;
-
-            /**
-             * Creates a plain object from a SurfaceControlProto message. Also converts values to other types if specified.
-             * @param message SurfaceControlProto
-             * @param [options] Conversion options
-             * @returns Plain object
-             */
-            public static toObject(message: android.view.SurfaceControlProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
-
-            /**
-             * Converts this SurfaceControlProto to JSON.
-             * @returns JSON object
-             */
-            public toJSON(): { [k: string]: any };
-
-            /**
-             * Gets the default type url for SurfaceControlProto
-             * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-             * @returns The default type url
-             */
-            public static getTypeUrl(typeUrlPrefix?: string): string;
-        }
-
-        /** Properties of a DisplayCutoutProto. */
-        interface IDisplayCutoutProto {
-
-            /** DisplayCutoutProto insets */
-            insets?: (android.graphics.IRectProto|null);
-
-            /** DisplayCutoutProto boundLeft */
-            boundLeft?: (android.graphics.IRectProto|null);
-
-            /** DisplayCutoutProto boundTop */
-            boundTop?: (android.graphics.IRectProto|null);
-
-            /** DisplayCutoutProto boundRight */
-            boundRight?: (android.graphics.IRectProto|null);
-
-            /** DisplayCutoutProto boundBottom */
-            boundBottom?: (android.graphics.IRectProto|null);
-
-            /** DisplayCutoutProto waterfallInsets */
-            waterfallInsets?: (android.graphics.IRectProto|null);
-
-            /** DisplayCutoutProto sideOverrides */
-            sideOverrides?: (number[]|null);
-        }
-
-        /** Represents a DisplayCutoutProto. */
-        class DisplayCutoutProto implements IDisplayCutoutProto {
-
-            /**
-             * Constructs a new DisplayCutoutProto.
-             * @param [properties] Properties to set
-             */
-            constructor(properties?: android.view.IDisplayCutoutProto);
-
-            /** DisplayCutoutProto insets. */
-            public insets?: (android.graphics.IRectProto|null);
-
-            /** DisplayCutoutProto boundLeft. */
-            public boundLeft?: (android.graphics.IRectProto|null);
-
-            /** DisplayCutoutProto boundTop. */
-            public boundTop?: (android.graphics.IRectProto|null);
-
-            /** DisplayCutoutProto boundRight. */
-            public boundRight?: (android.graphics.IRectProto|null);
-
-            /** DisplayCutoutProto boundBottom. */
-            public boundBottom?: (android.graphics.IRectProto|null);
-
-            /** DisplayCutoutProto waterfallInsets. */
-            public waterfallInsets?: (android.graphics.IRectProto|null);
-
-            /** DisplayCutoutProto sideOverrides. */
-            public sideOverrides: number[];
-
-            /**
-             * Creates a new DisplayCutoutProto instance using the specified properties.
-             * @param [properties] Properties to set
-             * @returns DisplayCutoutProto instance
-             */
-            public static create(properties?: android.view.IDisplayCutoutProto): android.view.DisplayCutoutProto;
-
-            /**
-             * Encodes the specified DisplayCutoutProto message. Does not implicitly {@link android.view.DisplayCutoutProto.verify|verify} messages.
-             * @param message DisplayCutoutProto message or plain object to encode
-             * @param [writer] Writer to encode to
-             * @returns Writer
-             */
-            public static encode(message: android.view.IDisplayCutoutProto, writer?: $protobuf.Writer): $protobuf.Writer;
-
-            /**
-             * Encodes the specified DisplayCutoutProto message, length delimited. Does not implicitly {@link android.view.DisplayCutoutProto.verify|verify} messages.
-             * @param message DisplayCutoutProto message or plain object to encode
-             * @param [writer] Writer to encode to
-             * @returns Writer
-             */
-            public static encodeDelimited(message: android.view.IDisplayCutoutProto, writer?: $protobuf.Writer): $protobuf.Writer;
-
-            /**
-             * Decodes a DisplayCutoutProto message from the specified reader or buffer.
-             * @param reader Reader or buffer to decode from
-             * @param [length] Message length if known beforehand
-             * @returns DisplayCutoutProto
-             * @throws {Error} If the payload is not a reader or valid buffer
-             * @throws {$protobuf.util.ProtocolError} If required fields are missing
-             */
-            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android.view.DisplayCutoutProto;
-
-            /**
-             * Decodes a DisplayCutoutProto message from the specified reader or buffer, length delimited.
-             * @param reader Reader or buffer to decode from
-             * @returns DisplayCutoutProto
-             * @throws {Error} If the payload is not a reader or valid buffer
-             * @throws {$protobuf.util.ProtocolError} If required fields are missing
-             */
-            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android.view.DisplayCutoutProto;
-
-            /**
-             * Verifies a DisplayCutoutProto message.
-             * @param message Plain object to verify
-             * @returns `null` if valid, otherwise the reason why it is not
-             */
-            public static verify(message: { [k: string]: any }): (string|null);
-
-            /**
-             * Creates a DisplayCutoutProto message from a plain object. Also converts values to their respective internal types.
-             * @param object Plain object
-             * @returns DisplayCutoutProto
-             */
-            public static fromObject(object: { [k: string]: any }): android.view.DisplayCutoutProto;
-
-            /**
-             * Creates a plain object from a DisplayCutoutProto message. Also converts values to other types if specified.
-             * @param message DisplayCutoutProto
-             * @param [options] Conversion options
-             * @returns Plain object
-             */
-            public static toObject(message: android.view.DisplayCutoutProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
-
-            /**
-             * Converts this DisplayCutoutProto to JSON.
-             * @returns JSON object
-             */
-            public toJSON(): { [k: string]: any };
-
-            /**
-             * Gets the default type url for DisplayCutoutProto
-             * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-             * @returns The default type url
-             */
-            public static getTypeUrl(typeUrlPrefix?: string): string;
-        }
-
-        /** Properties of a DisplayInfoProto. */
-        interface IDisplayInfoProto {
-
-            /** DisplayInfoProto logicalWidth */
-            logicalWidth?: (number|null);
-
-            /** DisplayInfoProto logicalHeight */
-            logicalHeight?: (number|null);
-
-            /** DisplayInfoProto appWidth */
-            appWidth?: (number|null);
-
-            /** DisplayInfoProto appHeight */
-            appHeight?: (number|null);
-
-            /** DisplayInfoProto name */
-            name?: (string|null);
-
-            /** DisplayInfoProto flags */
-            flags?: (number|null);
-
-            /** DisplayInfoProto cutout */
-            cutout?: (android.view.IDisplayCutoutProto|null);
-
-            /** DisplayInfoProto type */
-            type?: (number|null);
-        }
-
-        /** Represents a DisplayInfoProto. */
-        class DisplayInfoProto implements IDisplayInfoProto {
-
-            /**
-             * Constructs a new DisplayInfoProto.
-             * @param [properties] Properties to set
-             */
-            constructor(properties?: android.view.IDisplayInfoProto);
-
-            /** DisplayInfoProto logicalWidth. */
-            public logicalWidth: number;
-
-            /** DisplayInfoProto logicalHeight. */
-            public logicalHeight: number;
-
-            /** DisplayInfoProto appWidth. */
-            public appWidth: number;
-
-            /** DisplayInfoProto appHeight. */
-            public appHeight: number;
-
-            /** DisplayInfoProto name. */
-            public name: string;
-
-            /** DisplayInfoProto flags. */
-            public flags: number;
-
-            /** DisplayInfoProto cutout. */
-            public cutout?: (android.view.IDisplayCutoutProto|null);
-
-            /** DisplayInfoProto type. */
-            public type: number;
-
-            /**
-             * Creates a new DisplayInfoProto instance using the specified properties.
-             * @param [properties] Properties to set
-             * @returns DisplayInfoProto instance
-             */
-            public static create(properties?: android.view.IDisplayInfoProto): android.view.DisplayInfoProto;
-
-            /**
-             * Encodes the specified DisplayInfoProto message. Does not implicitly {@link android.view.DisplayInfoProto.verify|verify} messages.
-             * @param message DisplayInfoProto message or plain object to encode
-             * @param [writer] Writer to encode to
-             * @returns Writer
-             */
-            public static encode(message: android.view.IDisplayInfoProto, writer?: $protobuf.Writer): $protobuf.Writer;
-
-            /**
-             * Encodes the specified DisplayInfoProto message, length delimited. Does not implicitly {@link android.view.DisplayInfoProto.verify|verify} messages.
-             * @param message DisplayInfoProto message or plain object to encode
-             * @param [writer] Writer to encode to
-             * @returns Writer
-             */
-            public static encodeDelimited(message: android.view.IDisplayInfoProto, writer?: $protobuf.Writer): $protobuf.Writer;
-
-            /**
-             * Decodes a DisplayInfoProto message from the specified reader or buffer.
-             * @param reader Reader or buffer to decode from
-             * @param [length] Message length if known beforehand
-             * @returns DisplayInfoProto
-             * @throws {Error} If the payload is not a reader or valid buffer
-             * @throws {$protobuf.util.ProtocolError} If required fields are missing
-             */
-            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android.view.DisplayInfoProto;
-
-            /**
-             * Decodes a DisplayInfoProto message from the specified reader or buffer, length delimited.
-             * @param reader Reader or buffer to decode from
-             * @returns DisplayInfoProto
-             * @throws {Error} If the payload is not a reader or valid buffer
-             * @throws {$protobuf.util.ProtocolError} If required fields are missing
-             */
-            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android.view.DisplayInfoProto;
-
-            /**
-             * Verifies a DisplayInfoProto message.
-             * @param message Plain object to verify
-             * @returns `null` if valid, otherwise the reason why it is not
-             */
-            public static verify(message: { [k: string]: any }): (string|null);
-
-            /**
-             * Creates a DisplayInfoProto message from a plain object. Also converts values to their respective internal types.
-             * @param object Plain object
-             * @returns DisplayInfoProto
-             */
-            public static fromObject(object: { [k: string]: any }): android.view.DisplayInfoProto;
-
-            /**
-             * Creates a plain object from a DisplayInfoProto message. Also converts values to other types if specified.
-             * @param message DisplayInfoProto
-             * @param [options] Conversion options
-             * @returns Plain object
-             */
-            public static toObject(message: android.view.DisplayInfoProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
-
-            /**
-             * Converts this DisplayInfoProto to JSON.
-             * @returns JSON object
-             */
-            public toJSON(): { [k: string]: any };
-
-            /**
-             * Gets the default type url for DisplayInfoProto
-             * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-             * @returns The default type url
-             */
-            public static getTypeUrl(typeUrlPrefix?: string): string;
-        }
-
-        /** Properties of a SurfaceProto. */
-        interface ISurfaceProto {
-        }
-
-        /** Represents a SurfaceProto. */
-        class SurfaceProto implements ISurfaceProto {
-
-            /**
-             * Constructs a new SurfaceProto.
-             * @param [properties] Properties to set
-             */
-            constructor(properties?: android.view.ISurfaceProto);
-
-            /**
-             * Creates a new SurfaceProto instance using the specified properties.
-             * @param [properties] Properties to set
-             * @returns SurfaceProto instance
-             */
-            public static create(properties?: android.view.ISurfaceProto): android.view.SurfaceProto;
-
-            /**
-             * Encodes the specified SurfaceProto message. Does not implicitly {@link android.view.SurfaceProto.verify|verify} messages.
-             * @param message SurfaceProto message or plain object to encode
-             * @param [writer] Writer to encode to
-             * @returns Writer
-             */
-            public static encode(message: android.view.ISurfaceProto, writer?: $protobuf.Writer): $protobuf.Writer;
-
-            /**
-             * Encodes the specified SurfaceProto message, length delimited. Does not implicitly {@link android.view.SurfaceProto.verify|verify} messages.
-             * @param message SurfaceProto message or plain object to encode
-             * @param [writer] Writer to encode to
-             * @returns Writer
-             */
-            public static encodeDelimited(message: android.view.ISurfaceProto, writer?: $protobuf.Writer): $protobuf.Writer;
-
-            /**
-             * Decodes a SurfaceProto message from the specified reader or buffer.
-             * @param reader Reader or buffer to decode from
-             * @param [length] Message length if known beforehand
-             * @returns SurfaceProto
-             * @throws {Error} If the payload is not a reader or valid buffer
-             * @throws {$protobuf.util.ProtocolError} If required fields are missing
-             */
-            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android.view.SurfaceProto;
-
-            /**
-             * Decodes a SurfaceProto message from the specified reader or buffer, length delimited.
-             * @param reader Reader or buffer to decode from
-             * @returns SurfaceProto
-             * @throws {Error} If the payload is not a reader or valid buffer
-             * @throws {$protobuf.util.ProtocolError} If required fields are missing
-             */
-            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android.view.SurfaceProto;
-
-            /**
-             * Verifies a SurfaceProto message.
-             * @param message Plain object to verify
-             * @returns `null` if valid, otherwise the reason why it is not
-             */
-            public static verify(message: { [k: string]: any }): (string|null);
-
-            /**
-             * Creates a SurfaceProto message from a plain object. Also converts values to their respective internal types.
-             * @param object Plain object
-             * @returns SurfaceProto
-             */
-            public static fromObject(object: { [k: string]: any }): android.view.SurfaceProto;
-
-            /**
-             * Creates a plain object from a SurfaceProto message. Also converts values to other types if specified.
-             * @param message SurfaceProto
-             * @param [options] Conversion options
-             * @returns Plain object
-             */
-            public static toObject(message: android.view.SurfaceProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
-
-            /**
-             * Converts this SurfaceProto to JSON.
-             * @returns JSON object
-             */
-            public toJSON(): { [k: string]: any };
-
-            /**
-             * Gets the default type url for SurfaceProto
-             * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-             * @returns The default type url
-             */
-            public static getTypeUrl(typeUrlPrefix?: string): string;
-        }
-
-        namespace SurfaceProto {
-
-            /** Rotation enum. */
-            enum Rotation {
-                ROTATION_0 = 0,
-                ROTATION_90 = 1,
-                ROTATION_180 = 2,
-                ROTATION_270 = 3
-            }
-        }
-
-        /** Properties of a WindowLayoutParamsProto. */
-        interface IWindowLayoutParamsProto {
-
-            /** WindowLayoutParamsProto type */
-            type?: (number|null);
-
-            /** WindowLayoutParamsProto x */
-            x?: (number|null);
-
-            /** WindowLayoutParamsProto y */
-            y?: (number|null);
-
-            /** WindowLayoutParamsProto width */
-            width?: (number|null);
-
-            /** WindowLayoutParamsProto height */
-            height?: (number|null);
-
-            /** WindowLayoutParamsProto horizontalMargin */
-            horizontalMargin?: (number|null);
-
-            /** WindowLayoutParamsProto verticalMargin */
-            verticalMargin?: (number|null);
-
-            /** WindowLayoutParamsProto gravity */
-            gravity?: (number|null);
-
-            /** WindowLayoutParamsProto softInputMode */
-            softInputMode?: (number|null);
-
-            /** WindowLayoutParamsProto format */
-            format?: (android.graphics.PixelFormatProto.Format|null);
-
-            /** WindowLayoutParamsProto windowAnimations */
-            windowAnimations?: (number|null);
-
-            /** WindowLayoutParamsProto alpha */
-            alpha?: (number|null);
-
-            /** WindowLayoutParamsProto screenBrightness */
-            screenBrightness?: (number|null);
-
-            /** WindowLayoutParamsProto buttonBrightness */
-            buttonBrightness?: (number|null);
-
-            /** WindowLayoutParamsProto rotationAnimation */
-            rotationAnimation?: (android.view.WindowLayoutParamsProto.RotationAnimation|null);
-
-            /** WindowLayoutParamsProto preferredRefreshRate */
-            preferredRefreshRate?: (number|null);
-
-            /** WindowLayoutParamsProto preferredDisplayModeId */
-            preferredDisplayModeId?: (number|null);
-
-            /** WindowLayoutParamsProto hasSystemUiListeners */
-            hasSystemUiListeners?: (boolean|null);
-
-            /** WindowLayoutParamsProto inputFeatureFlags */
-            inputFeatureFlags?: (number|null);
-
-            /** WindowLayoutParamsProto userActivityTimeout */
-            userActivityTimeout?: (Long|null);
-
-            /** WindowLayoutParamsProto colorMode */
-            colorMode?: (android.view.DisplayProto.ColorMode|null);
-
-            /** WindowLayoutParamsProto flags */
-            flags?: (number|null);
-
-            /** WindowLayoutParamsProto privateFlags */
-            privateFlags?: (number|null);
-
-            /** WindowLayoutParamsProto systemUiVisibilityFlags */
-            systemUiVisibilityFlags?: (number|null);
-
-            /** WindowLayoutParamsProto subtreeSystemUiVisibilityFlags */
-            subtreeSystemUiVisibilityFlags?: (number|null);
-
-            /** WindowLayoutParamsProto appearance */
-            appearance?: (number|null);
-
-            /** WindowLayoutParamsProto behavior */
-            behavior?: (number|null);
-
-            /** WindowLayoutParamsProto fitInsetsTypes */
-            fitInsetsTypes?: (number|null);
-
-            /** WindowLayoutParamsProto fitInsetsSides */
-            fitInsetsSides?: (number|null);
-
-            /** WindowLayoutParamsProto fitIgnoreVisibility */
-            fitIgnoreVisibility?: (boolean|null);
-        }
-
-        /** Represents a WindowLayoutParamsProto. */
-        class WindowLayoutParamsProto implements IWindowLayoutParamsProto {
-
-            /**
-             * Constructs a new WindowLayoutParamsProto.
-             * @param [properties] Properties to set
-             */
-            constructor(properties?: android.view.IWindowLayoutParamsProto);
-
-            /** WindowLayoutParamsProto type. */
-            public type: number;
-
-            /** WindowLayoutParamsProto x. */
-            public x: number;
-
-            /** WindowLayoutParamsProto y. */
-            public y: number;
-
-            /** WindowLayoutParamsProto width. */
-            public width: number;
-
-            /** WindowLayoutParamsProto height. */
-            public height: number;
-
-            /** WindowLayoutParamsProto horizontalMargin. */
-            public horizontalMargin: number;
-
-            /** WindowLayoutParamsProto verticalMargin. */
-            public verticalMargin: number;
-
-            /** WindowLayoutParamsProto gravity. */
-            public gravity: number;
-
-            /** WindowLayoutParamsProto softInputMode. */
-            public softInputMode: number;
-
-            /** WindowLayoutParamsProto format. */
-            public format: android.graphics.PixelFormatProto.Format;
-
-            /** WindowLayoutParamsProto windowAnimations. */
-            public windowAnimations: number;
-
-            /** WindowLayoutParamsProto alpha. */
-            public alpha: number;
-
-            /** WindowLayoutParamsProto screenBrightness. */
-            public screenBrightness: number;
-
-            /** WindowLayoutParamsProto buttonBrightness. */
-            public buttonBrightness: number;
-
-            /** WindowLayoutParamsProto rotationAnimation. */
-            public rotationAnimation: android.view.WindowLayoutParamsProto.RotationAnimation;
-
-            /** WindowLayoutParamsProto preferredRefreshRate. */
-            public preferredRefreshRate: number;
-
-            /** WindowLayoutParamsProto preferredDisplayModeId. */
-            public preferredDisplayModeId: number;
-
-            /** WindowLayoutParamsProto hasSystemUiListeners. */
-            public hasSystemUiListeners: boolean;
-
-            /** WindowLayoutParamsProto inputFeatureFlags. */
-            public inputFeatureFlags: number;
-
-            /** WindowLayoutParamsProto userActivityTimeout. */
-            public userActivityTimeout: Long;
-
-            /** WindowLayoutParamsProto colorMode. */
-            public colorMode: android.view.DisplayProto.ColorMode;
-
-            /** WindowLayoutParamsProto flags. */
-            public flags: number;
-
-            /** WindowLayoutParamsProto privateFlags. */
-            public privateFlags: number;
-
-            /** WindowLayoutParamsProto systemUiVisibilityFlags. */
-            public systemUiVisibilityFlags: number;
-
-            /** WindowLayoutParamsProto subtreeSystemUiVisibilityFlags. */
-            public subtreeSystemUiVisibilityFlags: number;
-
-            /** WindowLayoutParamsProto appearance. */
-            public appearance: number;
-
-            /** WindowLayoutParamsProto behavior. */
-            public behavior: number;
-
-            /** WindowLayoutParamsProto fitInsetsTypes. */
-            public fitInsetsTypes: number;
-
-            /** WindowLayoutParamsProto fitInsetsSides. */
-            public fitInsetsSides: number;
-
-            /** WindowLayoutParamsProto fitIgnoreVisibility. */
-            public fitIgnoreVisibility: boolean;
-
-            /**
-             * Creates a new WindowLayoutParamsProto instance using the specified properties.
-             * @param [properties] Properties to set
-             * @returns WindowLayoutParamsProto instance
-             */
-            public static create(properties?: android.view.IWindowLayoutParamsProto): android.view.WindowLayoutParamsProto;
-
-            /**
-             * Encodes the specified WindowLayoutParamsProto message. Does not implicitly {@link android.view.WindowLayoutParamsProto.verify|verify} messages.
-             * @param message WindowLayoutParamsProto message or plain object to encode
-             * @param [writer] Writer to encode to
-             * @returns Writer
-             */
-            public static encode(message: android.view.IWindowLayoutParamsProto, writer?: $protobuf.Writer): $protobuf.Writer;
-
-            /**
-             * Encodes the specified WindowLayoutParamsProto message, length delimited. Does not implicitly {@link android.view.WindowLayoutParamsProto.verify|verify} messages.
-             * @param message WindowLayoutParamsProto message or plain object to encode
-             * @param [writer] Writer to encode to
-             * @returns Writer
-             */
-            public static encodeDelimited(message: android.view.IWindowLayoutParamsProto, writer?: $protobuf.Writer): $protobuf.Writer;
-
-            /**
-             * Decodes a WindowLayoutParamsProto message from the specified reader or buffer.
-             * @param reader Reader or buffer to decode from
-             * @param [length] Message length if known beforehand
-             * @returns WindowLayoutParamsProto
-             * @throws {Error} If the payload is not a reader or valid buffer
-             * @throws {$protobuf.util.ProtocolError} If required fields are missing
-             */
-            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android.view.WindowLayoutParamsProto;
-
-            /**
-             * Decodes a WindowLayoutParamsProto message from the specified reader or buffer, length delimited.
-             * @param reader Reader or buffer to decode from
-             * @returns WindowLayoutParamsProto
-             * @throws {Error} If the payload is not a reader or valid buffer
-             * @throws {$protobuf.util.ProtocolError} If required fields are missing
-             */
-            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android.view.WindowLayoutParamsProto;
-
-            /**
-             * Verifies a WindowLayoutParamsProto message.
-             * @param message Plain object to verify
-             * @returns `null` if valid, otherwise the reason why it is not
-             */
-            public static verify(message: { [k: string]: any }): (string|null);
-
-            /**
-             * Creates a WindowLayoutParamsProto message from a plain object. Also converts values to their respective internal types.
-             * @param object Plain object
-             * @returns WindowLayoutParamsProto
-             */
-            public static fromObject(object: { [k: string]: any }): android.view.WindowLayoutParamsProto;
-
-            /**
-             * Creates a plain object from a WindowLayoutParamsProto message. Also converts values to other types if specified.
-             * @param message WindowLayoutParamsProto
-             * @param [options] Conversion options
-             * @returns Plain object
-             */
-            public static toObject(message: android.view.WindowLayoutParamsProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
-
-            /**
-             * Converts this WindowLayoutParamsProto to JSON.
-             * @returns JSON object
-             */
-            public toJSON(): { [k: string]: any };
-
-            /**
-             * Gets the default type url for WindowLayoutParamsProto
-             * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-             * @returns The default type url
-             */
-            public static getTypeUrl(typeUrlPrefix?: string): string;
-        }
-
-        namespace WindowLayoutParamsProto {
-
-            /** RotationAnimation enum. */
-            enum RotationAnimation {
-                ROTATION_ANIMATION_UNSPECIFIED = -1,
-                ROTATION_ANIMATION_CROSSFADE = 1,
-                ROTATION_ANIMATION_JUMPCUT = 2,
-                ROTATION_ANIMATION_SEAMLESS = 3
-            }
-        }
-
-        /** Properties of a DisplayProto. */
-        interface IDisplayProto {
-        }
-
-        /** Represents a DisplayProto. */
-        class DisplayProto implements IDisplayProto {
-
-            /**
-             * Constructs a new DisplayProto.
-             * @param [properties] Properties to set
-             */
-            constructor(properties?: android.view.IDisplayProto);
-
-            /**
-             * Creates a new DisplayProto instance using the specified properties.
-             * @param [properties] Properties to set
-             * @returns DisplayProto instance
-             */
-            public static create(properties?: android.view.IDisplayProto): android.view.DisplayProto;
-
-            /**
-             * Encodes the specified DisplayProto message. Does not implicitly {@link android.view.DisplayProto.verify|verify} messages.
-             * @param message DisplayProto message or plain object to encode
-             * @param [writer] Writer to encode to
-             * @returns Writer
-             */
-            public static encode(message: android.view.IDisplayProto, writer?: $protobuf.Writer): $protobuf.Writer;
-
-            /**
-             * Encodes the specified DisplayProto message, length delimited. Does not implicitly {@link android.view.DisplayProto.verify|verify} messages.
-             * @param message DisplayProto message or plain object to encode
-             * @param [writer] Writer to encode to
-             * @returns Writer
-             */
-            public static encodeDelimited(message: android.view.IDisplayProto, writer?: $protobuf.Writer): $protobuf.Writer;
-
-            /**
-             * Decodes a DisplayProto message from the specified reader or buffer.
-             * @param reader Reader or buffer to decode from
-             * @param [length] Message length if known beforehand
-             * @returns DisplayProto
-             * @throws {Error} If the payload is not a reader or valid buffer
-             * @throws {$protobuf.util.ProtocolError} If required fields are missing
-             */
-            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android.view.DisplayProto;
-
-            /**
-             * Decodes a DisplayProto message from the specified reader or buffer, length delimited.
-             * @param reader Reader or buffer to decode from
-             * @returns DisplayProto
-             * @throws {Error} If the payload is not a reader or valid buffer
-             * @throws {$protobuf.util.ProtocolError} If required fields are missing
-             */
-            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android.view.DisplayProto;
-
-            /**
-             * Verifies a DisplayProto message.
-             * @param message Plain object to verify
-             * @returns `null` if valid, otherwise the reason why it is not
-             */
-            public static verify(message: { [k: string]: any }): (string|null);
-
-            /**
-             * Creates a DisplayProto message from a plain object. Also converts values to their respective internal types.
-             * @param object Plain object
-             * @returns DisplayProto
-             */
-            public static fromObject(object: { [k: string]: any }): android.view.DisplayProto;
-
-            /**
-             * Creates a plain object from a DisplayProto message. Also converts values to other types if specified.
-             * @param message DisplayProto
-             * @param [options] Conversion options
-             * @returns Plain object
-             */
-            public static toObject(message: android.view.DisplayProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
-
-            /**
-             * Converts this DisplayProto to JSON.
-             * @returns JSON object
-             */
-            public toJSON(): { [k: string]: any };
-
-            /**
-             * Gets the default type url for DisplayProto
-             * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-             * @returns The default type url
-             */
-            public static getTypeUrl(typeUrlPrefix?: string): string;
-        }
-
-        namespace DisplayProto {
-
-            /** ColorMode enum. */
-            enum ColorMode {
-                COLOR_MODE_INVALID = -1,
-                COLOR_MODE_DEFAULT = 0,
-                COLOR_MODE_BT601_625 = 1,
-                COLOR_MODE_BT601_625_UNADJUSTED = 2,
-                COLOR_MODE_BT601_525 = 3,
-                COLOR_MODE_BT601_525_UNADJUSTED = 4,
-                COLOR_MODE_BT709 = 5,
-                COLOR_MODE_DCI_P3 = 6,
-                COLOR_MODE_SRGB = 7,
-                COLOR_MODE_ADOBE_RGB = 8,
-                COLOR_MODE_DISPLAY_P3 = 9
-            }
-        }
-
-        /** Properties of an InsetsSourceProto. */
-        interface IInsetsSourceProto {
-
-            /** InsetsSourceProto type */
-            type?: (string|null);
-
-            /** InsetsSourceProto frame */
-            frame?: (android.graphics.IRectProto|null);
-
-            /** InsetsSourceProto visibleFrame */
-            visibleFrame?: (android.graphics.IRectProto|null);
-
-            /** InsetsSourceProto visible */
-            visible?: (boolean|null);
-
-            /** InsetsSourceProto typeNumber */
-            typeNumber?: (number|null);
-        }
-
-        /** Represents a {@link android.view.InsetsSource} object. */
-        class InsetsSourceProto implements IInsetsSourceProto {
-
-            /**
-             * Constructs a new InsetsSourceProto.
-             * @param [properties] Properties to set
-             */
-            constructor(properties?: android.view.IInsetsSourceProto);
-
-            /** InsetsSourceProto type. */
-            public type: string;
-
-            /** InsetsSourceProto frame. */
-            public frame?: (android.graphics.IRectProto|null);
-
-            /** InsetsSourceProto visibleFrame. */
-            public visibleFrame?: (android.graphics.IRectProto|null);
-
-            /** InsetsSourceProto visible. */
-            public visible: boolean;
-
-            /** InsetsSourceProto typeNumber. */
-            public typeNumber: number;
-
-            /**
-             * Creates a new InsetsSourceProto instance using the specified properties.
-             * @param [properties] Properties to set
-             * @returns InsetsSourceProto instance
-             */
-            public static create(properties?: android.view.IInsetsSourceProto): android.view.InsetsSourceProto;
-
-            /**
-             * Encodes the specified InsetsSourceProto message. Does not implicitly {@link android.view.InsetsSourceProto.verify|verify} messages.
-             * @param message InsetsSourceProto message or plain object to encode
-             * @param [writer] Writer to encode to
-             * @returns Writer
-             */
-            public static encode(message: android.view.IInsetsSourceProto, writer?: $protobuf.Writer): $protobuf.Writer;
-
-            /**
-             * Encodes the specified InsetsSourceProto message, length delimited. Does not implicitly {@link android.view.InsetsSourceProto.verify|verify} messages.
-             * @param message InsetsSourceProto message or plain object to encode
-             * @param [writer] Writer to encode to
-             * @returns Writer
-             */
-            public static encodeDelimited(message: android.view.IInsetsSourceProto, writer?: $protobuf.Writer): $protobuf.Writer;
-
-            /**
-             * Decodes an InsetsSourceProto message from the specified reader or buffer.
-             * @param reader Reader or buffer to decode from
-             * @param [length] Message length if known beforehand
-             * @returns InsetsSourceProto
-             * @throws {Error} If the payload is not a reader or valid buffer
-             * @throws {$protobuf.util.ProtocolError} If required fields are missing
-             */
-            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android.view.InsetsSourceProto;
-
-            /**
-             * Decodes an InsetsSourceProto message from the specified reader or buffer, length delimited.
-             * @param reader Reader or buffer to decode from
-             * @returns InsetsSourceProto
-             * @throws {Error} If the payload is not a reader or valid buffer
-             * @throws {$protobuf.util.ProtocolError} If required fields are missing
-             */
-            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android.view.InsetsSourceProto;
-
-            /**
-             * Verifies an InsetsSourceProto message.
-             * @param message Plain object to verify
-             * @returns `null` if valid, otherwise the reason why it is not
-             */
-            public static verify(message: { [k: string]: any }): (string|null);
-
-            /**
-             * Creates an InsetsSourceProto message from a plain object. Also converts values to their respective internal types.
-             * @param object Plain object
-             * @returns InsetsSourceProto
-             */
-            public static fromObject(object: { [k: string]: any }): android.view.InsetsSourceProto;
-
-            /**
-             * Creates a plain object from an InsetsSourceProto message. Also converts values to other types if specified.
-             * @param message InsetsSourceProto
-             * @param [options] Conversion options
-             * @returns Plain object
-             */
-            public static toObject(message: android.view.InsetsSourceProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
-
-            /**
-             * Converts this InsetsSourceProto to JSON.
-             * @returns JSON object
-             */
-            public toJSON(): { [k: string]: any };
-
-            /**
-             * Gets the default type url for InsetsSourceProto
-             * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-             * @returns The default type url
-             */
-            public static getTypeUrl(typeUrlPrefix?: string): string;
-        }
-
-        /** Properties of an InsetsSourceControlProto. */
-        interface IInsetsSourceControlProto {
-
-            /** InsetsSourceControlProto type */
-            type?: (string|null);
-
-            /** InsetsSourceControlProto position */
-            position?: (android.graphics.IPointProto|null);
-
-            /** InsetsSourceControlProto leash */
-            leash?: (android.view.ISurfaceControlProto|null);
-
-            /** InsetsSourceControlProto typeNumber */
-            typeNumber?: (number|null);
-        }
-
-        /** Represents a {@link android.view.InsetsSourceControl} object. */
-        class InsetsSourceControlProto implements IInsetsSourceControlProto {
-
-            /**
-             * Constructs a new InsetsSourceControlProto.
-             * @param [properties] Properties to set
-             */
-            constructor(properties?: android.view.IInsetsSourceControlProto);
-
-            /** InsetsSourceControlProto type. */
-            public type: string;
-
-            /** InsetsSourceControlProto position. */
-            public position?: (android.graphics.IPointProto|null);
-
-            /** InsetsSourceControlProto leash. */
-            public leash?: (android.view.ISurfaceControlProto|null);
-
-            /** InsetsSourceControlProto typeNumber. */
-            public typeNumber: number;
-
-            /**
-             * Creates a new InsetsSourceControlProto instance using the specified properties.
-             * @param [properties] Properties to set
-             * @returns InsetsSourceControlProto instance
-             */
-            public static create(properties?: android.view.IInsetsSourceControlProto): android.view.InsetsSourceControlProto;
-
-            /**
-             * Encodes the specified InsetsSourceControlProto message. Does not implicitly {@link android.view.InsetsSourceControlProto.verify|verify} messages.
-             * @param message InsetsSourceControlProto message or plain object to encode
-             * @param [writer] Writer to encode to
-             * @returns Writer
-             */
-            public static encode(message: android.view.IInsetsSourceControlProto, writer?: $protobuf.Writer): $protobuf.Writer;
-
-            /**
-             * Encodes the specified InsetsSourceControlProto message, length delimited. Does not implicitly {@link android.view.InsetsSourceControlProto.verify|verify} messages.
-             * @param message InsetsSourceControlProto message or plain object to encode
-             * @param [writer] Writer to encode to
-             * @returns Writer
-             */
-            public static encodeDelimited(message: android.view.IInsetsSourceControlProto, writer?: $protobuf.Writer): $protobuf.Writer;
-
-            /**
-             * Decodes an InsetsSourceControlProto message from the specified reader or buffer.
-             * @param reader Reader or buffer to decode from
-             * @param [length] Message length if known beforehand
-             * @returns InsetsSourceControlProto
-             * @throws {Error} If the payload is not a reader or valid buffer
-             * @throws {$protobuf.util.ProtocolError} If required fields are missing
-             */
-            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android.view.InsetsSourceControlProto;
-
-            /**
-             * Decodes an InsetsSourceControlProto message from the specified reader or buffer, length delimited.
-             * @param reader Reader or buffer to decode from
-             * @returns InsetsSourceControlProto
-             * @throws {Error} If the payload is not a reader or valid buffer
-             * @throws {$protobuf.util.ProtocolError} If required fields are missing
-             */
-            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android.view.InsetsSourceControlProto;
-
-            /**
-             * Verifies an InsetsSourceControlProto message.
-             * @param message Plain object to verify
-             * @returns `null` if valid, otherwise the reason why it is not
-             */
-            public static verify(message: { [k: string]: any }): (string|null);
-
-            /**
-             * Creates an InsetsSourceControlProto message from a plain object. Also converts values to their respective internal types.
-             * @param object Plain object
-             * @returns InsetsSourceControlProto
-             */
-            public static fromObject(object: { [k: string]: any }): android.view.InsetsSourceControlProto;
-
-            /**
-             * Creates a plain object from an InsetsSourceControlProto message. Also converts values to other types if specified.
-             * @param message InsetsSourceControlProto
-             * @param [options] Conversion options
-             * @returns Plain object
-             */
-            public static toObject(message: android.view.InsetsSourceControlProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
-
-            /**
-             * Converts this InsetsSourceControlProto to JSON.
-             * @returns JSON object
-             */
-            public toJSON(): { [k: string]: any };
-
-            /**
-             * Gets the default type url for InsetsSourceControlProto
-             * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-             * @returns The default type url
-             */
-            public static getTypeUrl(typeUrlPrefix?: string): string;
-        }
 
         /** DisplayStateEnum enum. */
         enum DisplayStateEnum {
@@ -9223,6 +8204,2210 @@ export namespace android {
             TRANSIT_TRANSLUCENT_ACTIVITY_OPEN = 24,
             TRANSIT_TRANSLUCENT_ACTIVITY_CLOSE = 25,
             TRANSIT_CRASHING_ACTIVITY_CLOSE = 26
+        }
+
+        /** Properties of a DisplayProto. */
+        interface IDisplayProto {
+        }
+
+        /** Represents a DisplayProto. */
+        class DisplayProto implements IDisplayProto {
+
+            /**
+             * Constructs a new DisplayProto.
+             * @param [properties] Properties to set
+             */
+            constructor(properties?: android_common.view.IDisplayProto);
+
+            /**
+             * Creates a new DisplayProto instance using the specified properties.
+             * @param [properties] Properties to set
+             * @returns DisplayProto instance
+             */
+            public static create(properties?: android_common.view.IDisplayProto): android_common.view.DisplayProto;
+
+            /**
+             * Encodes the specified DisplayProto message. Does not implicitly {@link android_common.view.DisplayProto.verify|verify} messages.
+             * @param message DisplayProto message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encode(message: android_common.view.IDisplayProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Encodes the specified DisplayProto message, length delimited. Does not implicitly {@link android_common.view.DisplayProto.verify|verify} messages.
+             * @param message DisplayProto message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encodeDelimited(message: android_common.view.IDisplayProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Decodes a DisplayProto message from the specified reader or buffer.
+             * @param reader Reader or buffer to decode from
+             * @param [length] Message length if known beforehand
+             * @returns DisplayProto
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android_common.view.DisplayProto;
+
+            /**
+             * Decodes a DisplayProto message from the specified reader or buffer, length delimited.
+             * @param reader Reader or buffer to decode from
+             * @returns DisplayProto
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android_common.view.DisplayProto;
+
+            /**
+             * Verifies a DisplayProto message.
+             * @param message Plain object to verify
+             * @returns `null` if valid, otherwise the reason why it is not
+             */
+            public static verify(message: { [k: string]: any }): (string|null);
+
+            /**
+             * Creates a DisplayProto message from a plain object. Also converts values to their respective internal types.
+             * @param object Plain object
+             * @returns DisplayProto
+             */
+            public static fromObject(object: { [k: string]: any }): android_common.view.DisplayProto;
+
+            /**
+             * Creates a plain object from a DisplayProto message. Also converts values to other types if specified.
+             * @param message DisplayProto
+             * @param [options] Conversion options
+             * @returns Plain object
+             */
+            public static toObject(message: android_common.view.DisplayProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+            /**
+             * Converts this DisplayProto to JSON.
+             * @returns JSON object
+             */
+            public toJSON(): { [k: string]: any };
+
+            /**
+             * Gets the default type url for DisplayProto
+             * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+             * @returns The default type url
+             */
+            public static getTypeUrl(typeUrlPrefix?: string): string;
+        }
+
+        namespace DisplayProto {
+
+            /** ColorMode enum. */
+            enum ColorMode {
+                COLOR_MODE_INVALID = -1,
+                COLOR_MODE_DEFAULT = 0,
+                COLOR_MODE_BT601_625 = 1,
+                COLOR_MODE_BT601_625_UNADJUSTED = 2,
+                COLOR_MODE_BT601_525 = 3,
+                COLOR_MODE_BT601_525_UNADJUSTED = 4,
+                COLOR_MODE_BT709 = 5,
+                COLOR_MODE_DCI_P3 = 6,
+                COLOR_MODE_SRGB = 7,
+                COLOR_MODE_ADOBE_RGB = 8,
+                COLOR_MODE_DISPLAY_P3 = 9
+            }
+        }
+
+        /** Properties of a DisplayCutoutProto. */
+        interface IDisplayCutoutProto {
+
+            /** DisplayCutoutProto insets */
+            insets?: (android_common.graphics.IRectProto|null);
+
+            /** DisplayCutoutProto boundLeft */
+            boundLeft?: (android_common.graphics.IRectProto|null);
+
+            /** DisplayCutoutProto boundTop */
+            boundTop?: (android_common.graphics.IRectProto|null);
+
+            /** DisplayCutoutProto boundRight */
+            boundRight?: (android_common.graphics.IRectProto|null);
+
+            /** DisplayCutoutProto boundBottom */
+            boundBottom?: (android_common.graphics.IRectProto|null);
+
+            /** DisplayCutoutProto waterfallInsets */
+            waterfallInsets?: (android_common.graphics.IRectProto|null);
+
+            /** DisplayCutoutProto sideOverrides */
+            sideOverrides?: (number[]|null);
+        }
+
+        /** Represents a DisplayCutoutProto. */
+        class DisplayCutoutProto implements IDisplayCutoutProto {
+
+            /**
+             * Constructs a new DisplayCutoutProto.
+             * @param [properties] Properties to set
+             */
+            constructor(properties?: android_common.view.IDisplayCutoutProto);
+
+            /** DisplayCutoutProto insets. */
+            public insets?: (android_common.graphics.IRectProto|null);
+
+            /** DisplayCutoutProto boundLeft. */
+            public boundLeft?: (android_common.graphics.IRectProto|null);
+
+            /** DisplayCutoutProto boundTop. */
+            public boundTop?: (android_common.graphics.IRectProto|null);
+
+            /** DisplayCutoutProto boundRight. */
+            public boundRight?: (android_common.graphics.IRectProto|null);
+
+            /** DisplayCutoutProto boundBottom. */
+            public boundBottom?: (android_common.graphics.IRectProto|null);
+
+            /** DisplayCutoutProto waterfallInsets. */
+            public waterfallInsets?: (android_common.graphics.IRectProto|null);
+
+            /** DisplayCutoutProto sideOverrides. */
+            public sideOverrides: number[];
+
+            /**
+             * Creates a new DisplayCutoutProto instance using the specified properties.
+             * @param [properties] Properties to set
+             * @returns DisplayCutoutProto instance
+             */
+            public static create(properties?: android_common.view.IDisplayCutoutProto): android_common.view.DisplayCutoutProto;
+
+            /**
+             * Encodes the specified DisplayCutoutProto message. Does not implicitly {@link android_common.view.DisplayCutoutProto.verify|verify} messages.
+             * @param message DisplayCutoutProto message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encode(message: android_common.view.IDisplayCutoutProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Encodes the specified DisplayCutoutProto message, length delimited. Does not implicitly {@link android_common.view.DisplayCutoutProto.verify|verify} messages.
+             * @param message DisplayCutoutProto message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encodeDelimited(message: android_common.view.IDisplayCutoutProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Decodes a DisplayCutoutProto message from the specified reader or buffer.
+             * @param reader Reader or buffer to decode from
+             * @param [length] Message length if known beforehand
+             * @returns DisplayCutoutProto
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android_common.view.DisplayCutoutProto;
+
+            /**
+             * Decodes a DisplayCutoutProto message from the specified reader or buffer, length delimited.
+             * @param reader Reader or buffer to decode from
+             * @returns DisplayCutoutProto
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android_common.view.DisplayCutoutProto;
+
+            /**
+             * Verifies a DisplayCutoutProto message.
+             * @param message Plain object to verify
+             * @returns `null` if valid, otherwise the reason why it is not
+             */
+            public static verify(message: { [k: string]: any }): (string|null);
+
+            /**
+             * Creates a DisplayCutoutProto message from a plain object. Also converts values to their respective internal types.
+             * @param object Plain object
+             * @returns DisplayCutoutProto
+             */
+            public static fromObject(object: { [k: string]: any }): android_common.view.DisplayCutoutProto;
+
+            /**
+             * Creates a plain object from a DisplayCutoutProto message. Also converts values to other types if specified.
+             * @param message DisplayCutoutProto
+             * @param [options] Conversion options
+             * @returns Plain object
+             */
+            public static toObject(message: android_common.view.DisplayCutoutProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+            /**
+             * Converts this DisplayCutoutProto to JSON.
+             * @returns JSON object
+             */
+            public toJSON(): { [k: string]: any };
+
+            /**
+             * Gets the default type url for DisplayCutoutProto
+             * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+             * @returns The default type url
+             */
+            public static getTypeUrl(typeUrlPrefix?: string): string;
+        }
+
+        /** Properties of a DisplayInfoProto. */
+        interface IDisplayInfoProto {
+
+            /** DisplayInfoProto logicalWidth */
+            logicalWidth?: (number|null);
+
+            /** DisplayInfoProto logicalHeight */
+            logicalHeight?: (number|null);
+
+            /** DisplayInfoProto appWidth */
+            appWidth?: (number|null);
+
+            /** DisplayInfoProto appHeight */
+            appHeight?: (number|null);
+
+            /** DisplayInfoProto name */
+            name?: (string|null);
+
+            /** DisplayInfoProto flags */
+            flags?: (number|null);
+
+            /** DisplayInfoProto cutout */
+            cutout?: (android_common.view.IDisplayCutoutProto|null);
+
+            /** DisplayInfoProto type */
+            type?: (number|null);
+        }
+
+        /** Represents a DisplayInfoProto. */
+        class DisplayInfoProto implements IDisplayInfoProto {
+
+            /**
+             * Constructs a new DisplayInfoProto.
+             * @param [properties] Properties to set
+             */
+            constructor(properties?: android_common.view.IDisplayInfoProto);
+
+            /** DisplayInfoProto logicalWidth. */
+            public logicalWidth: number;
+
+            /** DisplayInfoProto logicalHeight. */
+            public logicalHeight: number;
+
+            /** DisplayInfoProto appWidth. */
+            public appWidth: number;
+
+            /** DisplayInfoProto appHeight. */
+            public appHeight: number;
+
+            /** DisplayInfoProto name. */
+            public name: string;
+
+            /** DisplayInfoProto flags. */
+            public flags: number;
+
+            /** DisplayInfoProto cutout. */
+            public cutout?: (android_common.view.IDisplayCutoutProto|null);
+
+            /** DisplayInfoProto type. */
+            public type: number;
+
+            /**
+             * Creates a new DisplayInfoProto instance using the specified properties.
+             * @param [properties] Properties to set
+             * @returns DisplayInfoProto instance
+             */
+            public static create(properties?: android_common.view.IDisplayInfoProto): android_common.view.DisplayInfoProto;
+
+            /**
+             * Encodes the specified DisplayInfoProto message. Does not implicitly {@link android_common.view.DisplayInfoProto.verify|verify} messages.
+             * @param message DisplayInfoProto message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encode(message: android_common.view.IDisplayInfoProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Encodes the specified DisplayInfoProto message, length delimited. Does not implicitly {@link android_common.view.DisplayInfoProto.verify|verify} messages.
+             * @param message DisplayInfoProto message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encodeDelimited(message: android_common.view.IDisplayInfoProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Decodes a DisplayInfoProto message from the specified reader or buffer.
+             * @param reader Reader or buffer to decode from
+             * @param [length] Message length if known beforehand
+             * @returns DisplayInfoProto
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android_common.view.DisplayInfoProto;
+
+            /**
+             * Decodes a DisplayInfoProto message from the specified reader or buffer, length delimited.
+             * @param reader Reader or buffer to decode from
+             * @returns DisplayInfoProto
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android_common.view.DisplayInfoProto;
+
+            /**
+             * Verifies a DisplayInfoProto message.
+             * @param message Plain object to verify
+             * @returns `null` if valid, otherwise the reason why it is not
+             */
+            public static verify(message: { [k: string]: any }): (string|null);
+
+            /**
+             * Creates a DisplayInfoProto message from a plain object. Also converts values to their respective internal types.
+             * @param object Plain object
+             * @returns DisplayInfoProto
+             */
+            public static fromObject(object: { [k: string]: any }): android_common.view.DisplayInfoProto;
+
+            /**
+             * Creates a plain object from a DisplayInfoProto message. Also converts values to other types if specified.
+             * @param message DisplayInfoProto
+             * @param [options] Conversion options
+             * @returns Plain object
+             */
+            public static toObject(message: android_common.view.DisplayInfoProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+            /**
+             * Converts this DisplayInfoProto to JSON.
+             * @returns JSON object
+             */
+            public toJSON(): { [k: string]: any };
+
+            /**
+             * Gets the default type url for DisplayInfoProto
+             * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+             * @returns The default type url
+             */
+            public static getTypeUrl(typeUrlPrefix?: string): string;
+        }
+
+        /** Properties of an ImeFocusControllerProto. */
+        interface IImeFocusControllerProto {
+
+            /** ImeFocusControllerProto hasImeFocus */
+            hasImeFocus?: (boolean|null);
+
+            /** ImeFocusControllerProto servedView */
+            servedView?: (string|null);
+
+            /** ImeFocusControllerProto nextServedView */
+            nextServedView?: (string|null);
+        }
+
+        /** Represents a {@link android.view.ImeFocusController} object. */
+        class ImeFocusControllerProto implements IImeFocusControllerProto {
+
+            /**
+             * Constructs a new ImeFocusControllerProto.
+             * @param [properties] Properties to set
+             */
+            constructor(properties?: android_common.view.IImeFocusControllerProto);
+
+            /** ImeFocusControllerProto hasImeFocus. */
+            public hasImeFocus: boolean;
+
+            /** ImeFocusControllerProto servedView. */
+            public servedView: string;
+
+            /** ImeFocusControllerProto nextServedView. */
+            public nextServedView: string;
+
+            /**
+             * Creates a new ImeFocusControllerProto instance using the specified properties.
+             * @param [properties] Properties to set
+             * @returns ImeFocusControllerProto instance
+             */
+            public static create(properties?: android_common.view.IImeFocusControllerProto): android_common.view.ImeFocusControllerProto;
+
+            /**
+             * Encodes the specified ImeFocusControllerProto message. Does not implicitly {@link android_common.view.ImeFocusControllerProto.verify|verify} messages.
+             * @param message ImeFocusControllerProto message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encode(message: android_common.view.IImeFocusControllerProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Encodes the specified ImeFocusControllerProto message, length delimited. Does not implicitly {@link android_common.view.ImeFocusControllerProto.verify|verify} messages.
+             * @param message ImeFocusControllerProto message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encodeDelimited(message: android_common.view.IImeFocusControllerProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Decodes an ImeFocusControllerProto message from the specified reader or buffer.
+             * @param reader Reader or buffer to decode from
+             * @param [length] Message length if known beforehand
+             * @returns ImeFocusControllerProto
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android_common.view.ImeFocusControllerProto;
+
+            /**
+             * Decodes an ImeFocusControllerProto message from the specified reader or buffer, length delimited.
+             * @param reader Reader or buffer to decode from
+             * @returns ImeFocusControllerProto
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android_common.view.ImeFocusControllerProto;
+
+            /**
+             * Verifies an ImeFocusControllerProto message.
+             * @param message Plain object to verify
+             * @returns `null` if valid, otherwise the reason why it is not
+             */
+            public static verify(message: { [k: string]: any }): (string|null);
+
+            /**
+             * Creates an ImeFocusControllerProto message from a plain object. Also converts values to their respective internal types.
+             * @param object Plain object
+             * @returns ImeFocusControllerProto
+             */
+            public static fromObject(object: { [k: string]: any }): android_common.view.ImeFocusControllerProto;
+
+            /**
+             * Creates a plain object from an ImeFocusControllerProto message. Also converts values to other types if specified.
+             * @param message ImeFocusControllerProto
+             * @param [options] Conversion options
+             * @returns Plain object
+             */
+            public static toObject(message: android_common.view.ImeFocusControllerProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+            /**
+             * Converts this ImeFocusControllerProto to JSON.
+             * @returns JSON object
+             */
+            public toJSON(): { [k: string]: any };
+
+            /**
+             * Gets the default type url for ImeFocusControllerProto
+             * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+             * @returns The default type url
+             */
+            public static getTypeUrl(typeUrlPrefix?: string): string;
+        }
+
+        /** Properties of an ImeInsetsSourceConsumerProto. */
+        interface IImeInsetsSourceConsumerProto {
+
+            /** ImeInsetsSourceConsumerProto insetsSourceConsumer */
+            insetsSourceConsumer?: (android_common.view.IInsetsSourceConsumerProto|null);
+
+            /** ImeInsetsSourceConsumerProto isRequestedVisibleAwaitingControl */
+            isRequestedVisibleAwaitingControl?: (boolean|null);
+
+            /** ImeInsetsSourceConsumerProto isHideAnimationRunning */
+            isHideAnimationRunning?: (boolean|null);
+
+            /** ImeInsetsSourceConsumerProto isShowRequestedDuringHideAnimation */
+            isShowRequestedDuringHideAnimation?: (boolean|null);
+
+            /** ImeInsetsSourceConsumerProto hasPendingRequest */
+            hasPendingRequest?: (boolean|null);
+        }
+
+        /** Represents a {@link android.view.ImeInsetsSourceConsumer} object. */
+        class ImeInsetsSourceConsumerProto implements IImeInsetsSourceConsumerProto {
+
+            /**
+             * Constructs a new ImeInsetsSourceConsumerProto.
+             * @param [properties] Properties to set
+             */
+            constructor(properties?: android_common.view.IImeInsetsSourceConsumerProto);
+
+            /** ImeInsetsSourceConsumerProto insetsSourceConsumer. */
+            public insetsSourceConsumer?: (android_common.view.IInsetsSourceConsumerProto|null);
+
+            /** ImeInsetsSourceConsumerProto isRequestedVisibleAwaitingControl. */
+            public isRequestedVisibleAwaitingControl: boolean;
+
+            /** ImeInsetsSourceConsumerProto isHideAnimationRunning. */
+            public isHideAnimationRunning: boolean;
+
+            /** ImeInsetsSourceConsumerProto isShowRequestedDuringHideAnimation. */
+            public isShowRequestedDuringHideAnimation: boolean;
+
+            /** ImeInsetsSourceConsumerProto hasPendingRequest. */
+            public hasPendingRequest: boolean;
+
+            /**
+             * Creates a new ImeInsetsSourceConsumerProto instance using the specified properties.
+             * @param [properties] Properties to set
+             * @returns ImeInsetsSourceConsumerProto instance
+             */
+            public static create(properties?: android_common.view.IImeInsetsSourceConsumerProto): android_common.view.ImeInsetsSourceConsumerProto;
+
+            /**
+             * Encodes the specified ImeInsetsSourceConsumerProto message. Does not implicitly {@link android_common.view.ImeInsetsSourceConsumerProto.verify|verify} messages.
+             * @param message ImeInsetsSourceConsumerProto message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encode(message: android_common.view.IImeInsetsSourceConsumerProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Encodes the specified ImeInsetsSourceConsumerProto message, length delimited. Does not implicitly {@link android_common.view.ImeInsetsSourceConsumerProto.verify|verify} messages.
+             * @param message ImeInsetsSourceConsumerProto message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encodeDelimited(message: android_common.view.IImeInsetsSourceConsumerProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Decodes an ImeInsetsSourceConsumerProto message from the specified reader or buffer.
+             * @param reader Reader or buffer to decode from
+             * @param [length] Message length if known beforehand
+             * @returns ImeInsetsSourceConsumerProto
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android_common.view.ImeInsetsSourceConsumerProto;
+
+            /**
+             * Decodes an ImeInsetsSourceConsumerProto message from the specified reader or buffer, length delimited.
+             * @param reader Reader or buffer to decode from
+             * @returns ImeInsetsSourceConsumerProto
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android_common.view.ImeInsetsSourceConsumerProto;
+
+            /**
+             * Verifies an ImeInsetsSourceConsumerProto message.
+             * @param message Plain object to verify
+             * @returns `null` if valid, otherwise the reason why it is not
+             */
+            public static verify(message: { [k: string]: any }): (string|null);
+
+            /**
+             * Creates an ImeInsetsSourceConsumerProto message from a plain object. Also converts values to their respective internal types.
+             * @param object Plain object
+             * @returns ImeInsetsSourceConsumerProto
+             */
+            public static fromObject(object: { [k: string]: any }): android_common.view.ImeInsetsSourceConsumerProto;
+
+            /**
+             * Creates a plain object from an ImeInsetsSourceConsumerProto message. Also converts values to other types if specified.
+             * @param message ImeInsetsSourceConsumerProto
+             * @param [options] Conversion options
+             * @returns Plain object
+             */
+            public static toObject(message: android_common.view.ImeInsetsSourceConsumerProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+            /**
+             * Converts this ImeInsetsSourceConsumerProto to JSON.
+             * @returns JSON object
+             */
+            public toJSON(): { [k: string]: any };
+
+            /**
+             * Gets the default type url for ImeInsetsSourceConsumerProto
+             * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+             * @returns The default type url
+             */
+            public static getTypeUrl(typeUrlPrefix?: string): string;
+        }
+
+        /** Properties of an InsetsAnimationControlImplProto. */
+        interface IInsetsAnimationControlImplProto {
+
+            /** InsetsAnimationControlImplProto isCancelled */
+            isCancelled?: (boolean|null);
+
+            /** InsetsAnimationControlImplProto isFinished */
+            isFinished?: (boolean|null);
+
+            /** InsetsAnimationControlImplProto tmpMatrix */
+            tmpMatrix?: (string|null);
+
+            /** InsetsAnimationControlImplProto pendingInsets */
+            pendingInsets?: (string|null);
+
+            /** InsetsAnimationControlImplProto pendingFraction */
+            pendingFraction?: (number|null);
+
+            /** InsetsAnimationControlImplProto shownOnFinish */
+            shownOnFinish?: (boolean|null);
+
+            /** InsetsAnimationControlImplProto currentAlpha */
+            currentAlpha?: (number|null);
+
+            /** InsetsAnimationControlImplProto pendingAlpha */
+            pendingAlpha?: (number|null);
+        }
+
+        /** Represents a {@link android.view.InsetsAnimationControlImpl} object. */
+        class InsetsAnimationControlImplProto implements IInsetsAnimationControlImplProto {
+
+            /**
+             * Constructs a new InsetsAnimationControlImplProto.
+             * @param [properties] Properties to set
+             */
+            constructor(properties?: android_common.view.IInsetsAnimationControlImplProto);
+
+            /** InsetsAnimationControlImplProto isCancelled. */
+            public isCancelled: boolean;
+
+            /** InsetsAnimationControlImplProto isFinished. */
+            public isFinished: boolean;
+
+            /** InsetsAnimationControlImplProto tmpMatrix. */
+            public tmpMatrix: string;
+
+            /** InsetsAnimationControlImplProto pendingInsets. */
+            public pendingInsets: string;
+
+            /** InsetsAnimationControlImplProto pendingFraction. */
+            public pendingFraction: number;
+
+            /** InsetsAnimationControlImplProto shownOnFinish. */
+            public shownOnFinish: boolean;
+
+            /** InsetsAnimationControlImplProto currentAlpha. */
+            public currentAlpha: number;
+
+            /** InsetsAnimationControlImplProto pendingAlpha. */
+            public pendingAlpha: number;
+
+            /**
+             * Creates a new InsetsAnimationControlImplProto instance using the specified properties.
+             * @param [properties] Properties to set
+             * @returns InsetsAnimationControlImplProto instance
+             */
+            public static create(properties?: android_common.view.IInsetsAnimationControlImplProto): android_common.view.InsetsAnimationControlImplProto;
+
+            /**
+             * Encodes the specified InsetsAnimationControlImplProto message. Does not implicitly {@link android_common.view.InsetsAnimationControlImplProto.verify|verify} messages.
+             * @param message InsetsAnimationControlImplProto message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encode(message: android_common.view.IInsetsAnimationControlImplProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Encodes the specified InsetsAnimationControlImplProto message, length delimited. Does not implicitly {@link android_common.view.InsetsAnimationControlImplProto.verify|verify} messages.
+             * @param message InsetsAnimationControlImplProto message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encodeDelimited(message: android_common.view.IInsetsAnimationControlImplProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Decodes an InsetsAnimationControlImplProto message from the specified reader or buffer.
+             * @param reader Reader or buffer to decode from
+             * @param [length] Message length if known beforehand
+             * @returns InsetsAnimationControlImplProto
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android_common.view.InsetsAnimationControlImplProto;
+
+            /**
+             * Decodes an InsetsAnimationControlImplProto message from the specified reader or buffer, length delimited.
+             * @param reader Reader or buffer to decode from
+             * @returns InsetsAnimationControlImplProto
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android_common.view.InsetsAnimationControlImplProto;
+
+            /**
+             * Verifies an InsetsAnimationControlImplProto message.
+             * @param message Plain object to verify
+             * @returns `null` if valid, otherwise the reason why it is not
+             */
+            public static verify(message: { [k: string]: any }): (string|null);
+
+            /**
+             * Creates an InsetsAnimationControlImplProto message from a plain object. Also converts values to their respective internal types.
+             * @param object Plain object
+             * @returns InsetsAnimationControlImplProto
+             */
+            public static fromObject(object: { [k: string]: any }): android_common.view.InsetsAnimationControlImplProto;
+
+            /**
+             * Creates a plain object from an InsetsAnimationControlImplProto message. Also converts values to other types if specified.
+             * @param message InsetsAnimationControlImplProto
+             * @param [options] Conversion options
+             * @returns Plain object
+             */
+            public static toObject(message: android_common.view.InsetsAnimationControlImplProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+            /**
+             * Converts this InsetsAnimationControlImplProto to JSON.
+             * @returns JSON object
+             */
+            public toJSON(): { [k: string]: any };
+
+            /**
+             * Gets the default type url for InsetsAnimationControlImplProto
+             * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+             * @returns The default type url
+             */
+            public static getTypeUrl(typeUrlPrefix?: string): string;
+        }
+
+        /** Properties of an InsetsControllerProto. */
+        interface IInsetsControllerProto {
+
+            /** InsetsControllerProto state */
+            state?: (android_common.view.IInsetsStateProto|null);
+
+            /** InsetsControllerProto control */
+            control?: (android_common.view.IInsetsAnimationControlImplProto[]|null);
+        }
+
+        /** Represents a {@link android.view.InsetsController} object. */
+        class InsetsControllerProto implements IInsetsControllerProto {
+
+            /**
+             * Constructs a new InsetsControllerProto.
+             * @param [properties] Properties to set
+             */
+            constructor(properties?: android_common.view.IInsetsControllerProto);
+
+            /** InsetsControllerProto state. */
+            public state?: (android_common.view.IInsetsStateProto|null);
+
+            /** InsetsControllerProto control. */
+            public control: android_common.view.IInsetsAnimationControlImplProto[];
+
+            /**
+             * Creates a new InsetsControllerProto instance using the specified properties.
+             * @param [properties] Properties to set
+             * @returns InsetsControllerProto instance
+             */
+            public static create(properties?: android_common.view.IInsetsControllerProto): android_common.view.InsetsControllerProto;
+
+            /**
+             * Encodes the specified InsetsControllerProto message. Does not implicitly {@link android_common.view.InsetsControllerProto.verify|verify} messages.
+             * @param message InsetsControllerProto message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encode(message: android_common.view.IInsetsControllerProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Encodes the specified InsetsControllerProto message, length delimited. Does not implicitly {@link android_common.view.InsetsControllerProto.verify|verify} messages.
+             * @param message InsetsControllerProto message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encodeDelimited(message: android_common.view.IInsetsControllerProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Decodes an InsetsControllerProto message from the specified reader or buffer.
+             * @param reader Reader or buffer to decode from
+             * @param [length] Message length if known beforehand
+             * @returns InsetsControllerProto
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android_common.view.InsetsControllerProto;
+
+            /**
+             * Decodes an InsetsControllerProto message from the specified reader or buffer, length delimited.
+             * @param reader Reader or buffer to decode from
+             * @returns InsetsControllerProto
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android_common.view.InsetsControllerProto;
+
+            /**
+             * Verifies an InsetsControllerProto message.
+             * @param message Plain object to verify
+             * @returns `null` if valid, otherwise the reason why it is not
+             */
+            public static verify(message: { [k: string]: any }): (string|null);
+
+            /**
+             * Creates an InsetsControllerProto message from a plain object. Also converts values to their respective internal types.
+             * @param object Plain object
+             * @returns InsetsControllerProto
+             */
+            public static fromObject(object: { [k: string]: any }): android_common.view.InsetsControllerProto;
+
+            /**
+             * Creates a plain object from an InsetsControllerProto message. Also converts values to other types if specified.
+             * @param message InsetsControllerProto
+             * @param [options] Conversion options
+             * @returns Plain object
+             */
+            public static toObject(message: android_common.view.InsetsControllerProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+            /**
+             * Converts this InsetsControllerProto to JSON.
+             * @returns JSON object
+             */
+            public toJSON(): { [k: string]: any };
+
+            /**
+             * Gets the default type url for InsetsControllerProto
+             * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+             * @returns The default type url
+             */
+            public static getTypeUrl(typeUrlPrefix?: string): string;
+        }
+
+        /** Properties of an InsetsSourceProto. */
+        interface IInsetsSourceProto {
+
+            /** InsetsSourceProto type */
+            type?: (string|null);
+
+            /** InsetsSourceProto frame */
+            frame?: (android_common.graphics.IRectProto|null);
+
+            /** InsetsSourceProto visibleFrame */
+            visibleFrame?: (android_common.graphics.IRectProto|null);
+
+            /** InsetsSourceProto visible */
+            visible?: (boolean|null);
+
+            /** InsetsSourceProto typeNumber */
+            typeNumber?: (number|null);
+
+            /** InsetsSourceProto attachedInsets */
+            attachedInsets?: (android_common.graphics.IInsetsProto|null);
+        }
+
+        /** Represents a {@link android.view.InsetsSource} object. */
+        class InsetsSourceProto implements IInsetsSourceProto {
+
+            /**
+             * Constructs a new InsetsSourceProto.
+             * @param [properties] Properties to set
+             */
+            constructor(properties?: android_common.view.IInsetsSourceProto);
+
+            /** InsetsSourceProto type. */
+            public type: string;
+
+            /** InsetsSourceProto frame. */
+            public frame?: (android_common.graphics.IRectProto|null);
+
+            /** InsetsSourceProto visibleFrame. */
+            public visibleFrame?: (android_common.graphics.IRectProto|null);
+
+            /** InsetsSourceProto visible. */
+            public visible: boolean;
+
+            /** InsetsSourceProto typeNumber. */
+            public typeNumber: number;
+
+            /** InsetsSourceProto attachedInsets. */
+            public attachedInsets?: (android_common.graphics.IInsetsProto|null);
+
+            /**
+             * Creates a new InsetsSourceProto instance using the specified properties.
+             * @param [properties] Properties to set
+             * @returns InsetsSourceProto instance
+             */
+            public static create(properties?: android_common.view.IInsetsSourceProto): android_common.view.InsetsSourceProto;
+
+            /**
+             * Encodes the specified InsetsSourceProto message. Does not implicitly {@link android_common.view.InsetsSourceProto.verify|verify} messages.
+             * @param message InsetsSourceProto message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encode(message: android_common.view.IInsetsSourceProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Encodes the specified InsetsSourceProto message, length delimited. Does not implicitly {@link android_common.view.InsetsSourceProto.verify|verify} messages.
+             * @param message InsetsSourceProto message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encodeDelimited(message: android_common.view.IInsetsSourceProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Decodes an InsetsSourceProto message from the specified reader or buffer.
+             * @param reader Reader or buffer to decode from
+             * @param [length] Message length if known beforehand
+             * @returns InsetsSourceProto
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android_common.view.InsetsSourceProto;
+
+            /**
+             * Decodes an InsetsSourceProto message from the specified reader or buffer, length delimited.
+             * @param reader Reader or buffer to decode from
+             * @returns InsetsSourceProto
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android_common.view.InsetsSourceProto;
+
+            /**
+             * Verifies an InsetsSourceProto message.
+             * @param message Plain object to verify
+             * @returns `null` if valid, otherwise the reason why it is not
+             */
+            public static verify(message: { [k: string]: any }): (string|null);
+
+            /**
+             * Creates an InsetsSourceProto message from a plain object. Also converts values to their respective internal types.
+             * @param object Plain object
+             * @returns InsetsSourceProto
+             */
+            public static fromObject(object: { [k: string]: any }): android_common.view.InsetsSourceProto;
+
+            /**
+             * Creates a plain object from an InsetsSourceProto message. Also converts values to other types if specified.
+             * @param message InsetsSourceProto
+             * @param [options] Conversion options
+             * @returns Plain object
+             */
+            public static toObject(message: android_common.view.InsetsSourceProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+            /**
+             * Converts this InsetsSourceProto to JSON.
+             * @returns JSON object
+             */
+            public toJSON(): { [k: string]: any };
+
+            /**
+             * Gets the default type url for InsetsSourceProto
+             * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+             * @returns The default type url
+             */
+            public static getTypeUrl(typeUrlPrefix?: string): string;
+        }
+
+        /** Properties of an InsetsSourceConsumerProto. */
+        interface IInsetsSourceConsumerProto {
+
+            /** InsetsSourceConsumerProto internalInsetsType */
+            internalInsetsType?: (string|null);
+
+            /** InsetsSourceConsumerProto hasWindowFocus */
+            hasWindowFocus?: (boolean|null);
+
+            /** InsetsSourceConsumerProto isRequestedVisible */
+            isRequestedVisible?: (boolean|null);
+
+            /** InsetsSourceConsumerProto sourceControl */
+            sourceControl?: (android_common.view.IInsetsSourceControlProto|null);
+
+            /** InsetsSourceConsumerProto pendingFrame */
+            pendingFrame?: (android_common.graphics.IRectProto|null);
+
+            /** InsetsSourceConsumerProto pendingVisibleFrame */
+            pendingVisibleFrame?: (android_common.graphics.IRectProto|null);
+
+            /** InsetsSourceConsumerProto animationState */
+            animationState?: (number|null);
+
+            /** InsetsSourceConsumerProto typeNumber */
+            typeNumber?: (number|null);
+        }
+
+        /** Represents a {@link android.view.InsetsSourceConsumer} object. */
+        class InsetsSourceConsumerProto implements IInsetsSourceConsumerProto {
+
+            /**
+             * Constructs a new InsetsSourceConsumerProto.
+             * @param [properties] Properties to set
+             */
+            constructor(properties?: android_common.view.IInsetsSourceConsumerProto);
+
+            /** InsetsSourceConsumerProto internalInsetsType. */
+            public internalInsetsType: string;
+
+            /** InsetsSourceConsumerProto hasWindowFocus. */
+            public hasWindowFocus: boolean;
+
+            /** InsetsSourceConsumerProto isRequestedVisible. */
+            public isRequestedVisible: boolean;
+
+            /** InsetsSourceConsumerProto sourceControl. */
+            public sourceControl?: (android_common.view.IInsetsSourceControlProto|null);
+
+            /** InsetsSourceConsumerProto pendingFrame. */
+            public pendingFrame?: (android_common.graphics.IRectProto|null);
+
+            /** InsetsSourceConsumerProto pendingVisibleFrame. */
+            public pendingVisibleFrame?: (android_common.graphics.IRectProto|null);
+
+            /** InsetsSourceConsumerProto animationState. */
+            public animationState: number;
+
+            /** InsetsSourceConsumerProto typeNumber. */
+            public typeNumber: number;
+
+            /**
+             * Creates a new InsetsSourceConsumerProto instance using the specified properties.
+             * @param [properties] Properties to set
+             * @returns InsetsSourceConsumerProto instance
+             */
+            public static create(properties?: android_common.view.IInsetsSourceConsumerProto): android_common.view.InsetsSourceConsumerProto;
+
+            /**
+             * Encodes the specified InsetsSourceConsumerProto message. Does not implicitly {@link android_common.view.InsetsSourceConsumerProto.verify|verify} messages.
+             * @param message InsetsSourceConsumerProto message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encode(message: android_common.view.IInsetsSourceConsumerProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Encodes the specified InsetsSourceConsumerProto message, length delimited. Does not implicitly {@link android_common.view.InsetsSourceConsumerProto.verify|verify} messages.
+             * @param message InsetsSourceConsumerProto message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encodeDelimited(message: android_common.view.IInsetsSourceConsumerProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Decodes an InsetsSourceConsumerProto message from the specified reader or buffer.
+             * @param reader Reader or buffer to decode from
+             * @param [length] Message length if known beforehand
+             * @returns InsetsSourceConsumerProto
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android_common.view.InsetsSourceConsumerProto;
+
+            /**
+             * Decodes an InsetsSourceConsumerProto message from the specified reader or buffer, length delimited.
+             * @param reader Reader or buffer to decode from
+             * @returns InsetsSourceConsumerProto
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android_common.view.InsetsSourceConsumerProto;
+
+            /**
+             * Verifies an InsetsSourceConsumerProto message.
+             * @param message Plain object to verify
+             * @returns `null` if valid, otherwise the reason why it is not
+             */
+            public static verify(message: { [k: string]: any }): (string|null);
+
+            /**
+             * Creates an InsetsSourceConsumerProto message from a plain object. Also converts values to their respective internal types.
+             * @param object Plain object
+             * @returns InsetsSourceConsumerProto
+             */
+            public static fromObject(object: { [k: string]: any }): android_common.view.InsetsSourceConsumerProto;
+
+            /**
+             * Creates a plain object from an InsetsSourceConsumerProto message. Also converts values to other types if specified.
+             * @param message InsetsSourceConsumerProto
+             * @param [options] Conversion options
+             * @returns Plain object
+             */
+            public static toObject(message: android_common.view.InsetsSourceConsumerProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+            /**
+             * Converts this InsetsSourceConsumerProto to JSON.
+             * @returns JSON object
+             */
+            public toJSON(): { [k: string]: any };
+
+            /**
+             * Gets the default type url for InsetsSourceConsumerProto
+             * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+             * @returns The default type url
+             */
+            public static getTypeUrl(typeUrlPrefix?: string): string;
+        }
+
+        /** Properties of an InsetsSourceControlProto. */
+        interface IInsetsSourceControlProto {
+
+            /** InsetsSourceControlProto type */
+            type?: (string|null);
+
+            /** InsetsSourceControlProto position */
+            position?: (android_common.graphics.IPointProto|null);
+
+            /** InsetsSourceControlProto leash */
+            leash?: (android_common.view.ISurfaceControlProto|null);
+
+            /** InsetsSourceControlProto typeNumber */
+            typeNumber?: (number|null);
+        }
+
+        /** Represents a {@link android.view.InsetsSourceControl} object. */
+        class InsetsSourceControlProto implements IInsetsSourceControlProto {
+
+            /**
+             * Constructs a new InsetsSourceControlProto.
+             * @param [properties] Properties to set
+             */
+            constructor(properties?: android_common.view.IInsetsSourceControlProto);
+
+            /** InsetsSourceControlProto type. */
+            public type: string;
+
+            /** InsetsSourceControlProto position. */
+            public position?: (android_common.graphics.IPointProto|null);
+
+            /** InsetsSourceControlProto leash. */
+            public leash?: (android_common.view.ISurfaceControlProto|null);
+
+            /** InsetsSourceControlProto typeNumber. */
+            public typeNumber: number;
+
+            /**
+             * Creates a new InsetsSourceControlProto instance using the specified properties.
+             * @param [properties] Properties to set
+             * @returns InsetsSourceControlProto instance
+             */
+            public static create(properties?: android_common.view.IInsetsSourceControlProto): android_common.view.InsetsSourceControlProto;
+
+            /**
+             * Encodes the specified InsetsSourceControlProto message. Does not implicitly {@link android_common.view.InsetsSourceControlProto.verify|verify} messages.
+             * @param message InsetsSourceControlProto message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encode(message: android_common.view.IInsetsSourceControlProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Encodes the specified InsetsSourceControlProto message, length delimited. Does not implicitly {@link android_common.view.InsetsSourceControlProto.verify|verify} messages.
+             * @param message InsetsSourceControlProto message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encodeDelimited(message: android_common.view.IInsetsSourceControlProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Decodes an InsetsSourceControlProto message from the specified reader or buffer.
+             * @param reader Reader or buffer to decode from
+             * @param [length] Message length if known beforehand
+             * @returns InsetsSourceControlProto
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android_common.view.InsetsSourceControlProto;
+
+            /**
+             * Decodes an InsetsSourceControlProto message from the specified reader or buffer, length delimited.
+             * @param reader Reader or buffer to decode from
+             * @returns InsetsSourceControlProto
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android_common.view.InsetsSourceControlProto;
+
+            /**
+             * Verifies an InsetsSourceControlProto message.
+             * @param message Plain object to verify
+             * @returns `null` if valid, otherwise the reason why it is not
+             */
+            public static verify(message: { [k: string]: any }): (string|null);
+
+            /**
+             * Creates an InsetsSourceControlProto message from a plain object. Also converts values to their respective internal types.
+             * @param object Plain object
+             * @returns InsetsSourceControlProto
+             */
+            public static fromObject(object: { [k: string]: any }): android_common.view.InsetsSourceControlProto;
+
+            /**
+             * Creates a plain object from an InsetsSourceControlProto message. Also converts values to other types if specified.
+             * @param message InsetsSourceControlProto
+             * @param [options] Conversion options
+             * @returns Plain object
+             */
+            public static toObject(message: android_common.view.InsetsSourceControlProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+            /**
+             * Converts this InsetsSourceControlProto to JSON.
+             * @returns JSON object
+             */
+            public toJSON(): { [k: string]: any };
+
+            /**
+             * Gets the default type url for InsetsSourceControlProto
+             * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+             * @returns The default type url
+             */
+            public static getTypeUrl(typeUrlPrefix?: string): string;
+        }
+
+        /** Properties of an InsetsStateProto. */
+        interface IInsetsStateProto {
+
+            /** InsetsStateProto sources */
+            sources?: (android_common.view.IInsetsSourceProto[]|null);
+
+            /** InsetsStateProto displayFrame */
+            displayFrame?: (android_common.graphics.IRectProto|null);
+
+            /** InsetsStateProto displayCutout */
+            displayCutout?: (android_common.view.IDisplayCutoutProto|null);
+        }
+
+        /** Represents a {@link android.view.InsetsState} object. */
+        class InsetsStateProto implements IInsetsStateProto {
+
+            /**
+             * Constructs a new InsetsStateProto.
+             * @param [properties] Properties to set
+             */
+            constructor(properties?: android_common.view.IInsetsStateProto);
+
+            /** InsetsStateProto sources. */
+            public sources: android_common.view.IInsetsSourceProto[];
+
+            /** InsetsStateProto displayFrame. */
+            public displayFrame?: (android_common.graphics.IRectProto|null);
+
+            /** InsetsStateProto displayCutout. */
+            public displayCutout?: (android_common.view.IDisplayCutoutProto|null);
+
+            /**
+             * Creates a new InsetsStateProto instance using the specified properties.
+             * @param [properties] Properties to set
+             * @returns InsetsStateProto instance
+             */
+            public static create(properties?: android_common.view.IInsetsStateProto): android_common.view.InsetsStateProto;
+
+            /**
+             * Encodes the specified InsetsStateProto message. Does not implicitly {@link android_common.view.InsetsStateProto.verify|verify} messages.
+             * @param message InsetsStateProto message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encode(message: android_common.view.IInsetsStateProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Encodes the specified InsetsStateProto message, length delimited. Does not implicitly {@link android_common.view.InsetsStateProto.verify|verify} messages.
+             * @param message InsetsStateProto message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encodeDelimited(message: android_common.view.IInsetsStateProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Decodes an InsetsStateProto message from the specified reader or buffer.
+             * @param reader Reader or buffer to decode from
+             * @param [length] Message length if known beforehand
+             * @returns InsetsStateProto
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android_common.view.InsetsStateProto;
+
+            /**
+             * Decodes an InsetsStateProto message from the specified reader or buffer, length delimited.
+             * @param reader Reader or buffer to decode from
+             * @returns InsetsStateProto
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android_common.view.InsetsStateProto;
+
+            /**
+             * Verifies an InsetsStateProto message.
+             * @param message Plain object to verify
+             * @returns `null` if valid, otherwise the reason why it is not
+             */
+            public static verify(message: { [k: string]: any }): (string|null);
+
+            /**
+             * Creates an InsetsStateProto message from a plain object. Also converts values to their respective internal types.
+             * @param object Plain object
+             * @returns InsetsStateProto
+             */
+            public static fromObject(object: { [k: string]: any }): android_common.view.InsetsStateProto;
+
+            /**
+             * Creates a plain object from an InsetsStateProto message. Also converts values to other types if specified.
+             * @param message InsetsStateProto
+             * @param [options] Conversion options
+             * @returns Plain object
+             */
+            public static toObject(message: android_common.view.InsetsStateProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+            /**
+             * Converts this InsetsStateProto to JSON.
+             * @returns JSON object
+             */
+            public toJSON(): { [k: string]: any };
+
+            /**
+             * Gets the default type url for InsetsStateProto
+             * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+             * @returns The default type url
+             */
+            public static getTypeUrl(typeUrlPrefix?: string): string;
+        }
+
+        /** Properties of a SurfaceProto. */
+        interface ISurfaceProto {
+        }
+
+        /** Represents a SurfaceProto. */
+        class SurfaceProto implements ISurfaceProto {
+
+            /**
+             * Constructs a new SurfaceProto.
+             * @param [properties] Properties to set
+             */
+            constructor(properties?: android_common.view.ISurfaceProto);
+
+            /**
+             * Creates a new SurfaceProto instance using the specified properties.
+             * @param [properties] Properties to set
+             * @returns SurfaceProto instance
+             */
+            public static create(properties?: android_common.view.ISurfaceProto): android_common.view.SurfaceProto;
+
+            /**
+             * Encodes the specified SurfaceProto message. Does not implicitly {@link android_common.view.SurfaceProto.verify|verify} messages.
+             * @param message SurfaceProto message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encode(message: android_common.view.ISurfaceProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Encodes the specified SurfaceProto message, length delimited. Does not implicitly {@link android_common.view.SurfaceProto.verify|verify} messages.
+             * @param message SurfaceProto message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encodeDelimited(message: android_common.view.ISurfaceProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Decodes a SurfaceProto message from the specified reader or buffer.
+             * @param reader Reader or buffer to decode from
+             * @param [length] Message length if known beforehand
+             * @returns SurfaceProto
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android_common.view.SurfaceProto;
+
+            /**
+             * Decodes a SurfaceProto message from the specified reader or buffer, length delimited.
+             * @param reader Reader or buffer to decode from
+             * @returns SurfaceProto
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android_common.view.SurfaceProto;
+
+            /**
+             * Verifies a SurfaceProto message.
+             * @param message Plain object to verify
+             * @returns `null` if valid, otherwise the reason why it is not
+             */
+            public static verify(message: { [k: string]: any }): (string|null);
+
+            /**
+             * Creates a SurfaceProto message from a plain object. Also converts values to their respective internal types.
+             * @param object Plain object
+             * @returns SurfaceProto
+             */
+            public static fromObject(object: { [k: string]: any }): android_common.view.SurfaceProto;
+
+            /**
+             * Creates a plain object from a SurfaceProto message. Also converts values to other types if specified.
+             * @param message SurfaceProto
+             * @param [options] Conversion options
+             * @returns Plain object
+             */
+            public static toObject(message: android_common.view.SurfaceProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+            /**
+             * Converts this SurfaceProto to JSON.
+             * @returns JSON object
+             */
+            public toJSON(): { [k: string]: any };
+
+            /**
+             * Gets the default type url for SurfaceProto
+             * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+             * @returns The default type url
+             */
+            public static getTypeUrl(typeUrlPrefix?: string): string;
+        }
+
+        namespace SurfaceProto {
+
+            /** Rotation enum. */
+            enum Rotation {
+                ROTATION_0 = 0,
+                ROTATION_90 = 1,
+                ROTATION_180 = 2,
+                ROTATION_270 = 3
+            }
+        }
+
+        /** Properties of a SurfaceControlProto. */
+        interface ISurfaceControlProto {
+
+            /** SurfaceControlProto hashCode */
+            hashCode?: (number|null);
+
+            /** SurfaceControlProto name */
+            name?: (string|null);
+
+            /** SurfaceControlProto layerId */
+            layerId?: (number|null);
+        }
+
+        /** Represents a {@link android.view.SurfaceControl} object. */
+        class SurfaceControlProto implements ISurfaceControlProto {
+
+            /**
+             * Constructs a new SurfaceControlProto.
+             * @param [properties] Properties to set
+             */
+            constructor(properties?: android_common.view.ISurfaceControlProto);
+
+            /** SurfaceControlProto hashCode. */
+            public hashCode: number;
+
+            /** SurfaceControlProto name. */
+            public name: string;
+
+            /** SurfaceControlProto layerId. */
+            public layerId: number;
+
+            /**
+             * Creates a new SurfaceControlProto instance using the specified properties.
+             * @param [properties] Properties to set
+             * @returns SurfaceControlProto instance
+             */
+            public static create(properties?: android_common.view.ISurfaceControlProto): android_common.view.SurfaceControlProto;
+
+            /**
+             * Encodes the specified SurfaceControlProto message. Does not implicitly {@link android_common.view.SurfaceControlProto.verify|verify} messages.
+             * @param message SurfaceControlProto message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encode(message: android_common.view.ISurfaceControlProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Encodes the specified SurfaceControlProto message, length delimited. Does not implicitly {@link android_common.view.SurfaceControlProto.verify|verify} messages.
+             * @param message SurfaceControlProto message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encodeDelimited(message: android_common.view.ISurfaceControlProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Decodes a SurfaceControlProto message from the specified reader or buffer.
+             * @param reader Reader or buffer to decode from
+             * @param [length] Message length if known beforehand
+             * @returns SurfaceControlProto
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android_common.view.SurfaceControlProto;
+
+            /**
+             * Decodes a SurfaceControlProto message from the specified reader or buffer, length delimited.
+             * @param reader Reader or buffer to decode from
+             * @returns SurfaceControlProto
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android_common.view.SurfaceControlProto;
+
+            /**
+             * Verifies a SurfaceControlProto message.
+             * @param message Plain object to verify
+             * @returns `null` if valid, otherwise the reason why it is not
+             */
+            public static verify(message: { [k: string]: any }): (string|null);
+
+            /**
+             * Creates a SurfaceControlProto message from a plain object. Also converts values to their respective internal types.
+             * @param object Plain object
+             * @returns SurfaceControlProto
+             */
+            public static fromObject(object: { [k: string]: any }): android_common.view.SurfaceControlProto;
+
+            /**
+             * Creates a plain object from a SurfaceControlProto message. Also converts values to other types if specified.
+             * @param message SurfaceControlProto
+             * @param [options] Conversion options
+             * @returns Plain object
+             */
+            public static toObject(message: android_common.view.SurfaceControlProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+            /**
+             * Converts this SurfaceControlProto to JSON.
+             * @returns JSON object
+             */
+            public toJSON(): { [k: string]: any };
+
+            /**
+             * Gets the default type url for SurfaceControlProto
+             * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+             * @returns The default type url
+             */
+            public static getTypeUrl(typeUrlPrefix?: string): string;
+        }
+
+        /** Properties of a ViewRootImplProto. */
+        interface IViewRootImplProto {
+
+            /** ViewRootImplProto view */
+            view?: (string|null);
+
+            /** ViewRootImplProto displayId */
+            displayId?: (number|null);
+
+            /** ViewRootImplProto appVisible */
+            appVisible?: (boolean|null);
+
+            /** ViewRootImplProto width */
+            width?: (number|null);
+
+            /** ViewRootImplProto height */
+            height?: (number|null);
+
+            /** ViewRootImplProto isAnimating */
+            isAnimating?: (boolean|null);
+
+            /** ViewRootImplProto visibleRect */
+            visibleRect?: (android_common.graphics.IRectProto|null);
+
+            /** ViewRootImplProto isDrawing */
+            isDrawing?: (boolean|null);
+
+            /** ViewRootImplProto added */
+            added?: (boolean|null);
+
+            /** ViewRootImplProto winFrame */
+            winFrame?: (android_common.graphics.IRectProto|null);
+
+            /** ViewRootImplProto pendingDisplayCutout */
+            pendingDisplayCutout?: (android_common.view.IDisplayCutoutProto|null);
+
+            /** ViewRootImplProto lastWindowInsets */
+            lastWindowInsets?: (string|null);
+
+            /** ViewRootImplProto softInputMode */
+            softInputMode?: (string|null);
+
+            /** ViewRootImplProto scrollY */
+            scrollY?: (number|null);
+
+            /** ViewRootImplProto curScrollY */
+            curScrollY?: (number|null);
+
+            /** ViewRootImplProto removed */
+            removed?: (boolean|null);
+
+            /** ViewRootImplProto windowAttributes */
+            windowAttributes?: (android_common.view.IWindowLayoutParamsProto|null);
+        }
+
+        /** Represents a {@link android.view.ViewRootImpl} object. */
+        class ViewRootImplProto implements IViewRootImplProto {
+
+            /**
+             * Constructs a new ViewRootImplProto.
+             * @param [properties] Properties to set
+             */
+            constructor(properties?: android_common.view.IViewRootImplProto);
+
+            /** ViewRootImplProto view. */
+            public view: string;
+
+            /** ViewRootImplProto displayId. */
+            public displayId: number;
+
+            /** ViewRootImplProto appVisible. */
+            public appVisible: boolean;
+
+            /** ViewRootImplProto width. */
+            public width: number;
+
+            /** ViewRootImplProto height. */
+            public height: number;
+
+            /** ViewRootImplProto isAnimating. */
+            public isAnimating: boolean;
+
+            /** ViewRootImplProto visibleRect. */
+            public visibleRect?: (android_common.graphics.IRectProto|null);
+
+            /** ViewRootImplProto isDrawing. */
+            public isDrawing: boolean;
+
+            /** ViewRootImplProto added. */
+            public added: boolean;
+
+            /** ViewRootImplProto winFrame. */
+            public winFrame?: (android_common.graphics.IRectProto|null);
+
+            /** ViewRootImplProto pendingDisplayCutout. */
+            public pendingDisplayCutout?: (android_common.view.IDisplayCutoutProto|null);
+
+            /** ViewRootImplProto lastWindowInsets. */
+            public lastWindowInsets: string;
+
+            /** ViewRootImplProto softInputMode. */
+            public softInputMode: string;
+
+            /** ViewRootImplProto scrollY. */
+            public scrollY: number;
+
+            /** ViewRootImplProto curScrollY. */
+            public curScrollY: number;
+
+            /** ViewRootImplProto removed. */
+            public removed: boolean;
+
+            /** ViewRootImplProto windowAttributes. */
+            public windowAttributes?: (android_common.view.IWindowLayoutParamsProto|null);
+
+            /**
+             * Creates a new ViewRootImplProto instance using the specified properties.
+             * @param [properties] Properties to set
+             * @returns ViewRootImplProto instance
+             */
+            public static create(properties?: android_common.view.IViewRootImplProto): android_common.view.ViewRootImplProto;
+
+            /**
+             * Encodes the specified ViewRootImplProto message. Does not implicitly {@link android_common.view.ViewRootImplProto.verify|verify} messages.
+             * @param message ViewRootImplProto message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encode(message: android_common.view.IViewRootImplProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Encodes the specified ViewRootImplProto message, length delimited. Does not implicitly {@link android_common.view.ViewRootImplProto.verify|verify} messages.
+             * @param message ViewRootImplProto message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encodeDelimited(message: android_common.view.IViewRootImplProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Decodes a ViewRootImplProto message from the specified reader or buffer.
+             * @param reader Reader or buffer to decode from
+             * @param [length] Message length if known beforehand
+             * @returns ViewRootImplProto
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android_common.view.ViewRootImplProto;
+
+            /**
+             * Decodes a ViewRootImplProto message from the specified reader or buffer, length delimited.
+             * @param reader Reader or buffer to decode from
+             * @returns ViewRootImplProto
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android_common.view.ViewRootImplProto;
+
+            /**
+             * Verifies a ViewRootImplProto message.
+             * @param message Plain object to verify
+             * @returns `null` if valid, otherwise the reason why it is not
+             */
+            public static verify(message: { [k: string]: any }): (string|null);
+
+            /**
+             * Creates a ViewRootImplProto message from a plain object. Also converts values to their respective internal types.
+             * @param object Plain object
+             * @returns ViewRootImplProto
+             */
+            public static fromObject(object: { [k: string]: any }): android_common.view.ViewRootImplProto;
+
+            /**
+             * Creates a plain object from a ViewRootImplProto message. Also converts values to other types if specified.
+             * @param message ViewRootImplProto
+             * @param [options] Conversion options
+             * @returns Plain object
+             */
+            public static toObject(message: android_common.view.ViewRootImplProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+            /**
+             * Converts this ViewRootImplProto to JSON.
+             * @returns JSON object
+             */
+            public toJSON(): { [k: string]: any };
+
+            /**
+             * Gets the default type url for ViewRootImplProto
+             * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+             * @returns The default type url
+             */
+            public static getTypeUrl(typeUrlPrefix?: string): string;
+        }
+
+        /** Properties of a WindowLayoutParamsProto. */
+        interface IWindowLayoutParamsProto {
+
+            /** WindowLayoutParamsProto type */
+            type?: (number|null);
+
+            /** WindowLayoutParamsProto x */
+            x?: (number|null);
+
+            /** WindowLayoutParamsProto y */
+            y?: (number|null);
+
+            /** WindowLayoutParamsProto width */
+            width?: (number|null);
+
+            /** WindowLayoutParamsProto height */
+            height?: (number|null);
+
+            /** WindowLayoutParamsProto horizontalMargin */
+            horizontalMargin?: (number|null);
+
+            /** WindowLayoutParamsProto verticalMargin */
+            verticalMargin?: (number|null);
+
+            /** WindowLayoutParamsProto gravity */
+            gravity?: (number|null);
+
+            /** WindowLayoutParamsProto softInputMode */
+            softInputMode?: (number|null);
+
+            /** WindowLayoutParamsProto format */
+            format?: (android_common.graphics.PixelFormatProto.Format|null);
+
+            /** WindowLayoutParamsProto windowAnimations */
+            windowAnimations?: (number|null);
+
+            /** WindowLayoutParamsProto alpha */
+            alpha?: (number|null);
+
+            /** WindowLayoutParamsProto screenBrightness */
+            screenBrightness?: (number|null);
+
+            /** WindowLayoutParamsProto buttonBrightness */
+            buttonBrightness?: (number|null);
+
+            /** WindowLayoutParamsProto rotationAnimation */
+            rotationAnimation?: (android_common.view.WindowLayoutParamsProto.RotationAnimation|null);
+
+            /** WindowLayoutParamsProto preferredRefreshRate */
+            preferredRefreshRate?: (number|null);
+
+            /** WindowLayoutParamsProto preferredDisplayModeId */
+            preferredDisplayModeId?: (number|null);
+
+            /** WindowLayoutParamsProto hasSystemUiListeners */
+            hasSystemUiListeners?: (boolean|null);
+
+            /** WindowLayoutParamsProto inputFeatureFlags */
+            inputFeatureFlags?: (number|null);
+
+            /** WindowLayoutParamsProto userActivityTimeout */
+            userActivityTimeout?: (Long|null);
+
+            /** WindowLayoutParamsProto colorMode */
+            colorMode?: (android_common.view.DisplayProto.ColorMode|null);
+
+            /** WindowLayoutParamsProto flags */
+            flags?: (number|null);
+
+            /** WindowLayoutParamsProto privateFlags */
+            privateFlags?: (number|null);
+
+            /** WindowLayoutParamsProto systemUiVisibilityFlags */
+            systemUiVisibilityFlags?: (number|null);
+
+            /** WindowLayoutParamsProto subtreeSystemUiVisibilityFlags */
+            subtreeSystemUiVisibilityFlags?: (number|null);
+
+            /** WindowLayoutParamsProto appearance */
+            appearance?: (number|null);
+
+            /** WindowLayoutParamsProto behavior */
+            behavior?: (number|null);
+
+            /** WindowLayoutParamsProto fitInsetsTypes */
+            fitInsetsTypes?: (number|null);
+
+            /** WindowLayoutParamsProto fitInsetsSides */
+            fitInsetsSides?: (number|null);
+
+            /** WindowLayoutParamsProto fitIgnoreVisibility */
+            fitIgnoreVisibility?: (boolean|null);
+        }
+
+        /** Represents a WindowLayoutParamsProto. */
+        class WindowLayoutParamsProto implements IWindowLayoutParamsProto {
+
+            /**
+             * Constructs a new WindowLayoutParamsProto.
+             * @param [properties] Properties to set
+             */
+            constructor(properties?: android_common.view.IWindowLayoutParamsProto);
+
+            /** WindowLayoutParamsProto type. */
+            public type: number;
+
+            /** WindowLayoutParamsProto x. */
+            public x: number;
+
+            /** WindowLayoutParamsProto y. */
+            public y: number;
+
+            /** WindowLayoutParamsProto width. */
+            public width: number;
+
+            /** WindowLayoutParamsProto height. */
+            public height: number;
+
+            /** WindowLayoutParamsProto horizontalMargin. */
+            public horizontalMargin: number;
+
+            /** WindowLayoutParamsProto verticalMargin. */
+            public verticalMargin: number;
+
+            /** WindowLayoutParamsProto gravity. */
+            public gravity: number;
+
+            /** WindowLayoutParamsProto softInputMode. */
+            public softInputMode: number;
+
+            /** WindowLayoutParamsProto format. */
+            public format: android_common.graphics.PixelFormatProto.Format;
+
+            /** WindowLayoutParamsProto windowAnimations. */
+            public windowAnimations: number;
+
+            /** WindowLayoutParamsProto alpha. */
+            public alpha: number;
+
+            /** WindowLayoutParamsProto screenBrightness. */
+            public screenBrightness: number;
+
+            /** WindowLayoutParamsProto buttonBrightness. */
+            public buttonBrightness: number;
+
+            /** WindowLayoutParamsProto rotationAnimation. */
+            public rotationAnimation: android_common.view.WindowLayoutParamsProto.RotationAnimation;
+
+            /** WindowLayoutParamsProto preferredRefreshRate. */
+            public preferredRefreshRate: number;
+
+            /** WindowLayoutParamsProto preferredDisplayModeId. */
+            public preferredDisplayModeId: number;
+
+            /** WindowLayoutParamsProto hasSystemUiListeners. */
+            public hasSystemUiListeners: boolean;
+
+            /** WindowLayoutParamsProto inputFeatureFlags. */
+            public inputFeatureFlags: number;
+
+            /** WindowLayoutParamsProto userActivityTimeout. */
+            public userActivityTimeout: Long;
+
+            /** WindowLayoutParamsProto colorMode. */
+            public colorMode: android_common.view.DisplayProto.ColorMode;
+
+            /** WindowLayoutParamsProto flags. */
+            public flags: number;
+
+            /** WindowLayoutParamsProto privateFlags. */
+            public privateFlags: number;
+
+            /** WindowLayoutParamsProto systemUiVisibilityFlags. */
+            public systemUiVisibilityFlags: number;
+
+            /** WindowLayoutParamsProto subtreeSystemUiVisibilityFlags. */
+            public subtreeSystemUiVisibilityFlags: number;
+
+            /** WindowLayoutParamsProto appearance. */
+            public appearance: number;
+
+            /** WindowLayoutParamsProto behavior. */
+            public behavior: number;
+
+            /** WindowLayoutParamsProto fitInsetsTypes. */
+            public fitInsetsTypes: number;
+
+            /** WindowLayoutParamsProto fitInsetsSides. */
+            public fitInsetsSides: number;
+
+            /** WindowLayoutParamsProto fitIgnoreVisibility. */
+            public fitIgnoreVisibility: boolean;
+
+            /**
+             * Creates a new WindowLayoutParamsProto instance using the specified properties.
+             * @param [properties] Properties to set
+             * @returns WindowLayoutParamsProto instance
+             */
+            public static create(properties?: android_common.view.IWindowLayoutParamsProto): android_common.view.WindowLayoutParamsProto;
+
+            /**
+             * Encodes the specified WindowLayoutParamsProto message. Does not implicitly {@link android_common.view.WindowLayoutParamsProto.verify|verify} messages.
+             * @param message WindowLayoutParamsProto message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encode(message: android_common.view.IWindowLayoutParamsProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Encodes the specified WindowLayoutParamsProto message, length delimited. Does not implicitly {@link android_common.view.WindowLayoutParamsProto.verify|verify} messages.
+             * @param message WindowLayoutParamsProto message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encodeDelimited(message: android_common.view.IWindowLayoutParamsProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Decodes a WindowLayoutParamsProto message from the specified reader or buffer.
+             * @param reader Reader or buffer to decode from
+             * @param [length] Message length if known beforehand
+             * @returns WindowLayoutParamsProto
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android_common.view.WindowLayoutParamsProto;
+
+            /**
+             * Decodes a WindowLayoutParamsProto message from the specified reader or buffer, length delimited.
+             * @param reader Reader or buffer to decode from
+             * @returns WindowLayoutParamsProto
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android_common.view.WindowLayoutParamsProto;
+
+            /**
+             * Verifies a WindowLayoutParamsProto message.
+             * @param message Plain object to verify
+             * @returns `null` if valid, otherwise the reason why it is not
+             */
+            public static verify(message: { [k: string]: any }): (string|null);
+
+            /**
+             * Creates a WindowLayoutParamsProto message from a plain object. Also converts values to their respective internal types.
+             * @param object Plain object
+             * @returns WindowLayoutParamsProto
+             */
+            public static fromObject(object: { [k: string]: any }): android_common.view.WindowLayoutParamsProto;
+
+            /**
+             * Creates a plain object from a WindowLayoutParamsProto message. Also converts values to other types if specified.
+             * @param message WindowLayoutParamsProto
+             * @param [options] Conversion options
+             * @returns Plain object
+             */
+            public static toObject(message: android_common.view.WindowLayoutParamsProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+            /**
+             * Converts this WindowLayoutParamsProto to JSON.
+             * @returns JSON object
+             */
+            public toJSON(): { [k: string]: any };
+
+            /**
+             * Gets the default type url for WindowLayoutParamsProto
+             * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+             * @returns The default type url
+             */
+            public static getTypeUrl(typeUrlPrefix?: string): string;
+        }
+
+        namespace WindowLayoutParamsProto {
+
+            /** RotationAnimation enum. */
+            enum RotationAnimation {
+                ROTATION_ANIMATION_UNSPECIFIED = -1,
+                ROTATION_ANIMATION_CROSSFADE = 1,
+                ROTATION_ANIMATION_JUMPCUT = 2,
+                ROTATION_ANIMATION_SEAMLESS = 3
+            }
+        }
+
+        /** Properties of a RemoteAnimationTargetProto. */
+        interface IRemoteAnimationTargetProto {
+
+            /** RemoteAnimationTargetProto taskId */
+            taskId?: (number|null);
+
+            /** RemoteAnimationTargetProto mode */
+            mode?: (number|null);
+
+            /** RemoteAnimationTargetProto leash */
+            leash?: (android_common.view.ISurfaceControlProto|null);
+
+            /** RemoteAnimationTargetProto isTranslucent */
+            isTranslucent?: (boolean|null);
+
+            /** RemoteAnimationTargetProto clipRect */
+            clipRect?: (android_common.graphics.IRectProto|null);
+
+            /** RemoteAnimationTargetProto contentInsets */
+            contentInsets?: (android_common.graphics.IRectProto|null);
+
+            /** RemoteAnimationTargetProto prefixOrderIndex */
+            prefixOrderIndex?: (number|null);
+
+            /** RemoteAnimationTargetProto position */
+            position?: (android_common.graphics.IPointProto|null);
+
+            /** RemoteAnimationTargetProto sourceContainerBounds */
+            sourceContainerBounds?: (android_common.graphics.IRectProto|null);
+
+            /** RemoteAnimationTargetProto windowConfiguration */
+            windowConfiguration?: (android_common.app.IWindowConfigurationProto|null);
+
+            /** RemoteAnimationTargetProto startLeash */
+            startLeash?: (android_common.view.ISurfaceControlProto|null);
+
+            /** RemoteAnimationTargetProto startBounds */
+            startBounds?: (android_common.graphics.IRectProto|null);
+
+            /** RemoteAnimationTargetProto localBounds */
+            localBounds?: (android_common.graphics.IRectProto|null);
+
+            /** RemoteAnimationTargetProto screenSpaceBounds */
+            screenSpaceBounds?: (android_common.graphics.IRectProto|null);
+        }
+
+        /** Proto representation for android.view.RemoteAnimationTarget.java class. */
+        class RemoteAnimationTargetProto implements IRemoteAnimationTargetProto {
+
+            /**
+             * Constructs a new RemoteAnimationTargetProto.
+             * @param [properties] Properties to set
+             */
+            constructor(properties?: android_common.view.IRemoteAnimationTargetProto);
+
+            /** RemoteAnimationTargetProto taskId. */
+            public taskId: number;
+
+            /** RemoteAnimationTargetProto mode. */
+            public mode: number;
+
+            /** RemoteAnimationTargetProto leash. */
+            public leash?: (android_common.view.ISurfaceControlProto|null);
+
+            /** RemoteAnimationTargetProto isTranslucent. */
+            public isTranslucent: boolean;
+
+            /** RemoteAnimationTargetProto clipRect. */
+            public clipRect?: (android_common.graphics.IRectProto|null);
+
+            /** RemoteAnimationTargetProto contentInsets. */
+            public contentInsets?: (android_common.graphics.IRectProto|null);
+
+            /** RemoteAnimationTargetProto prefixOrderIndex. */
+            public prefixOrderIndex: number;
+
+            /** RemoteAnimationTargetProto position. */
+            public position?: (android_common.graphics.IPointProto|null);
+
+            /** RemoteAnimationTargetProto sourceContainerBounds. */
+            public sourceContainerBounds?: (android_common.graphics.IRectProto|null);
+
+            /** RemoteAnimationTargetProto windowConfiguration. */
+            public windowConfiguration?: (android_common.app.IWindowConfigurationProto|null);
+
+            /** RemoteAnimationTargetProto startLeash. */
+            public startLeash?: (android_common.view.ISurfaceControlProto|null);
+
+            /** RemoteAnimationTargetProto startBounds. */
+            public startBounds?: (android_common.graphics.IRectProto|null);
+
+            /** RemoteAnimationTargetProto localBounds. */
+            public localBounds?: (android_common.graphics.IRectProto|null);
+
+            /** RemoteAnimationTargetProto screenSpaceBounds. */
+            public screenSpaceBounds?: (android_common.graphics.IRectProto|null);
+
+            /**
+             * Creates a new RemoteAnimationTargetProto instance using the specified properties.
+             * @param [properties] Properties to set
+             * @returns RemoteAnimationTargetProto instance
+             */
+            public static create(properties?: android_common.view.IRemoteAnimationTargetProto): android_common.view.RemoteAnimationTargetProto;
+
+            /**
+             * Encodes the specified RemoteAnimationTargetProto message. Does not implicitly {@link android_common.view.RemoteAnimationTargetProto.verify|verify} messages.
+             * @param message RemoteAnimationTargetProto message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encode(message: android_common.view.IRemoteAnimationTargetProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Encodes the specified RemoteAnimationTargetProto message, length delimited. Does not implicitly {@link android_common.view.RemoteAnimationTargetProto.verify|verify} messages.
+             * @param message RemoteAnimationTargetProto message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encodeDelimited(message: android_common.view.IRemoteAnimationTargetProto, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Decodes a RemoteAnimationTargetProto message from the specified reader or buffer.
+             * @param reader Reader or buffer to decode from
+             * @param [length] Message length if known beforehand
+             * @returns RemoteAnimationTargetProto
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): android_common.view.RemoteAnimationTargetProto;
+
+            /**
+             * Decodes a RemoteAnimationTargetProto message from the specified reader or buffer, length delimited.
+             * @param reader Reader or buffer to decode from
+             * @returns RemoteAnimationTargetProto
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): android_common.view.RemoteAnimationTargetProto;
+
+            /**
+             * Verifies a RemoteAnimationTargetProto message.
+             * @param message Plain object to verify
+             * @returns `null` if valid, otherwise the reason why it is not
+             */
+            public static verify(message: { [k: string]: any }): (string|null);
+
+            /**
+             * Creates a RemoteAnimationTargetProto message from a plain object. Also converts values to their respective internal types.
+             * @param object Plain object
+             * @returns RemoteAnimationTargetProto
+             */
+            public static fromObject(object: { [k: string]: any }): android_common.view.RemoteAnimationTargetProto;
+
+            /**
+             * Creates a plain object from a RemoteAnimationTargetProto message. Also converts values to other types if specified.
+             * @param message RemoteAnimationTargetProto
+             * @param [options] Conversion options
+             * @returns Plain object
+             */
+            public static toObject(message: android_common.view.RemoteAnimationTargetProto, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+            /**
+             * Converts this RemoteAnimationTargetProto to JSON.
+             * @returns JSON object
+             */
+            public toJSON(): { [k: string]: any };
+
+            /**
+             * Gets the default type url for RemoteAnimationTargetProto
+             * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+             * @returns The default type url
+             */
+            public static getTypeUrl(typeUrlPrefix?: string): string;
         }
     }
 }
@@ -9330,6 +10515,22 @@ export namespace google {
             public static getTypeUrl(typeUrlPrefix?: string): string;
         }
 
+        /** Edition enum. */
+        enum Edition {
+            EDITION_UNKNOWN = 0,
+            EDITION_LEGACY = 900,
+            EDITION_PROTO2 = 998,
+            EDITION_PROTO3 = 999,
+            EDITION_2023 = 1000,
+            EDITION_2024 = 1001,
+            EDITION_1_TEST_ONLY = 1,
+            EDITION_2_TEST_ONLY = 2,
+            EDITION_99997_TEST_ONLY = 99997,
+            EDITION_99998_TEST_ONLY = 99998,
+            EDITION_99999_TEST_ONLY = 99999,
+            EDITION_MAX = 2147483647
+        }
+
         /** Properties of a FileDescriptorProto. */
         interface IFileDescriptorProto {
 
@@ -9347,6 +10548,9 @@ export namespace google {
 
             /** FileDescriptorProto weakDependency */
             weakDependency?: (number[]|null);
+
+            /** FileDescriptorProto optionDependency */
+            optionDependency?: (string[]|null);
 
             /** FileDescriptorProto messageType */
             messageType?: (google.protobuf.IDescriptorProto[]|null);
@@ -9368,6 +10572,9 @@ export namespace google {
 
             /** FileDescriptorProto syntax */
             syntax?: (string|null);
+
+            /** FileDescriptorProto edition */
+            edition?: (google.protobuf.Edition|null);
         }
 
         /** Represents a FileDescriptorProto. */
@@ -9394,6 +10601,9 @@ export namespace google {
             /** FileDescriptorProto weakDependency. */
             public weakDependency: number[];
 
+            /** FileDescriptorProto optionDependency. */
+            public optionDependency: string[];
+
             /** FileDescriptorProto messageType. */
             public messageType: google.protobuf.IDescriptorProto[];
 
@@ -9414,6 +10624,9 @@ export namespace google {
 
             /** FileDescriptorProto syntax. */
             public syntax: string;
+
+            /** FileDescriptorProto edition. */
+            public edition: google.protobuf.Edition;
 
             /**
              * Creates a new FileDescriptorProto instance using the specified properties.
@@ -9525,6 +10738,9 @@ export namespace google {
 
             /** DescriptorProto reservedName */
             reservedName?: (string[]|null);
+
+            /** DescriptorProto visibility */
+            visibility?: (google.protobuf.SymbolVisibility|null);
         }
 
         /** Represents a DescriptorProto. */
@@ -9565,6 +10781,9 @@ export namespace google {
 
             /** DescriptorProto reservedName. */
             public reservedName: string[];
+
+            /** DescriptorProto visibility. */
+            public visibility: google.protobuf.SymbolVisibility;
 
             /**
              * Creates a new DescriptorProto instance using the specified properties.
@@ -9654,6 +10873,9 @@ export namespace google {
 
                 /** ExtensionRange end */
                 end?: (number|null);
+
+                /** ExtensionRange options */
+                options?: (google.protobuf.IExtensionRangeOptions|null);
             }
 
             /** Represents an ExtensionRange. */
@@ -9670,6 +10892,9 @@ export namespace google {
 
                 /** ExtensionRange end. */
                 public end: number;
+
+                /** ExtensionRange options. */
+                public options?: (google.protobuf.IExtensionRangeOptions|null);
 
                 /**
                  * Creates a new ExtensionRange instance using the specified properties.
@@ -9853,6 +11078,251 @@ export namespace google {
             }
         }
 
+        /** Properties of an ExtensionRangeOptions. */
+        interface IExtensionRangeOptions {
+
+            /** ExtensionRangeOptions uninterpretedOption */
+            uninterpretedOption?: (google.protobuf.IUninterpretedOption[]|null);
+
+            /** ExtensionRangeOptions declaration */
+            declaration?: (google.protobuf.ExtensionRangeOptions.IDeclaration[]|null);
+
+            /** ExtensionRangeOptions features */
+            features?: (google.protobuf.IFeatureSet|null);
+
+            /** ExtensionRangeOptions verification */
+            verification?: (google.protobuf.ExtensionRangeOptions.VerificationState|null);
+        }
+
+        /** Represents an ExtensionRangeOptions. */
+        class ExtensionRangeOptions implements IExtensionRangeOptions {
+
+            /**
+             * Constructs a new ExtensionRangeOptions.
+             * @param [properties] Properties to set
+             */
+            constructor(properties?: google.protobuf.IExtensionRangeOptions);
+
+            /** ExtensionRangeOptions uninterpretedOption. */
+            public uninterpretedOption: google.protobuf.IUninterpretedOption[];
+
+            /** ExtensionRangeOptions declaration. */
+            public declaration: google.protobuf.ExtensionRangeOptions.IDeclaration[];
+
+            /** ExtensionRangeOptions features. */
+            public features?: (google.protobuf.IFeatureSet|null);
+
+            /** ExtensionRangeOptions verification. */
+            public verification: google.protobuf.ExtensionRangeOptions.VerificationState;
+
+            /**
+             * Creates a new ExtensionRangeOptions instance using the specified properties.
+             * @param [properties] Properties to set
+             * @returns ExtensionRangeOptions instance
+             */
+            public static create(properties?: google.protobuf.IExtensionRangeOptions): google.protobuf.ExtensionRangeOptions;
+
+            /**
+             * Encodes the specified ExtensionRangeOptions message. Does not implicitly {@link google.protobuf.ExtensionRangeOptions.verify|verify} messages.
+             * @param message ExtensionRangeOptions message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encode(message: google.protobuf.IExtensionRangeOptions, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Encodes the specified ExtensionRangeOptions message, length delimited. Does not implicitly {@link google.protobuf.ExtensionRangeOptions.verify|verify} messages.
+             * @param message ExtensionRangeOptions message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encodeDelimited(message: google.protobuf.IExtensionRangeOptions, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Decodes an ExtensionRangeOptions message from the specified reader or buffer.
+             * @param reader Reader or buffer to decode from
+             * @param [length] Message length if known beforehand
+             * @returns ExtensionRangeOptions
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): google.protobuf.ExtensionRangeOptions;
+
+            /**
+             * Decodes an ExtensionRangeOptions message from the specified reader or buffer, length delimited.
+             * @param reader Reader or buffer to decode from
+             * @returns ExtensionRangeOptions
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): google.protobuf.ExtensionRangeOptions;
+
+            /**
+             * Verifies an ExtensionRangeOptions message.
+             * @param message Plain object to verify
+             * @returns `null` if valid, otherwise the reason why it is not
+             */
+            public static verify(message: { [k: string]: any }): (string|null);
+
+            /**
+             * Creates an ExtensionRangeOptions message from a plain object. Also converts values to their respective internal types.
+             * @param object Plain object
+             * @returns ExtensionRangeOptions
+             */
+            public static fromObject(object: { [k: string]: any }): google.protobuf.ExtensionRangeOptions;
+
+            /**
+             * Creates a plain object from an ExtensionRangeOptions message. Also converts values to other types if specified.
+             * @param message ExtensionRangeOptions
+             * @param [options] Conversion options
+             * @returns Plain object
+             */
+            public static toObject(message: google.protobuf.ExtensionRangeOptions, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+            /**
+             * Converts this ExtensionRangeOptions to JSON.
+             * @returns JSON object
+             */
+            public toJSON(): { [k: string]: any };
+
+            /**
+             * Gets the default type url for ExtensionRangeOptions
+             * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+             * @returns The default type url
+             */
+            public static getTypeUrl(typeUrlPrefix?: string): string;
+        }
+
+        namespace ExtensionRangeOptions {
+
+            /** Properties of a Declaration. */
+            interface IDeclaration {
+
+                /** Declaration number */
+                number?: (number|null);
+
+                /** Declaration fullName */
+                fullName?: (string|null);
+
+                /** Declaration type */
+                type?: (string|null);
+
+                /** Declaration reserved */
+                reserved?: (boolean|null);
+
+                /** Declaration repeated */
+                repeated?: (boolean|null);
+            }
+
+            /** Represents a Declaration. */
+            class Declaration implements IDeclaration {
+
+                /**
+                 * Constructs a new Declaration.
+                 * @param [properties] Properties to set
+                 */
+                constructor(properties?: google.protobuf.ExtensionRangeOptions.IDeclaration);
+
+                /** Declaration number. */
+                public number: number;
+
+                /** Declaration fullName. */
+                public fullName: string;
+
+                /** Declaration type. */
+                public type: string;
+
+                /** Declaration reserved. */
+                public reserved: boolean;
+
+                /** Declaration repeated. */
+                public repeated: boolean;
+
+                /**
+                 * Creates a new Declaration instance using the specified properties.
+                 * @param [properties] Properties to set
+                 * @returns Declaration instance
+                 */
+                public static create(properties?: google.protobuf.ExtensionRangeOptions.IDeclaration): google.protobuf.ExtensionRangeOptions.Declaration;
+
+                /**
+                 * Encodes the specified Declaration message. Does not implicitly {@link google.protobuf.ExtensionRangeOptions.Declaration.verify|verify} messages.
+                 * @param message Declaration message or plain object to encode
+                 * @param [writer] Writer to encode to
+                 * @returns Writer
+                 */
+                public static encode(message: google.protobuf.ExtensionRangeOptions.IDeclaration, writer?: $protobuf.Writer): $protobuf.Writer;
+
+                /**
+                 * Encodes the specified Declaration message, length delimited. Does not implicitly {@link google.protobuf.ExtensionRangeOptions.Declaration.verify|verify} messages.
+                 * @param message Declaration message or plain object to encode
+                 * @param [writer] Writer to encode to
+                 * @returns Writer
+                 */
+                public static encodeDelimited(message: google.protobuf.ExtensionRangeOptions.IDeclaration, writer?: $protobuf.Writer): $protobuf.Writer;
+
+                /**
+                 * Decodes a Declaration message from the specified reader or buffer.
+                 * @param reader Reader or buffer to decode from
+                 * @param [length] Message length if known beforehand
+                 * @returns Declaration
+                 * @throws {Error} If the payload is not a reader or valid buffer
+                 * @throws {$protobuf.util.ProtocolError} If required fields are missing
+                 */
+                public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): google.protobuf.ExtensionRangeOptions.Declaration;
+
+                /**
+                 * Decodes a Declaration message from the specified reader or buffer, length delimited.
+                 * @param reader Reader or buffer to decode from
+                 * @returns Declaration
+                 * @throws {Error} If the payload is not a reader or valid buffer
+                 * @throws {$protobuf.util.ProtocolError} If required fields are missing
+                 */
+                public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): google.protobuf.ExtensionRangeOptions.Declaration;
+
+                /**
+                 * Verifies a Declaration message.
+                 * @param message Plain object to verify
+                 * @returns `null` if valid, otherwise the reason why it is not
+                 */
+                public static verify(message: { [k: string]: any }): (string|null);
+
+                /**
+                 * Creates a Declaration message from a plain object. Also converts values to their respective internal types.
+                 * @param object Plain object
+                 * @returns Declaration
+                 */
+                public static fromObject(object: { [k: string]: any }): google.protobuf.ExtensionRangeOptions.Declaration;
+
+                /**
+                 * Creates a plain object from a Declaration message. Also converts values to other types if specified.
+                 * @param message Declaration
+                 * @param [options] Conversion options
+                 * @returns Plain object
+                 */
+                public static toObject(message: google.protobuf.ExtensionRangeOptions.Declaration, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+                /**
+                 * Converts this Declaration to JSON.
+                 * @returns JSON object
+                 */
+                public toJSON(): { [k: string]: any };
+
+                /**
+                 * Gets the default type url for Declaration
+                 * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+                 * @returns The default type url
+                 */
+                public static getTypeUrl(typeUrlPrefix?: string): string;
+            }
+
+            /** VerificationState enum. */
+            enum VerificationState {
+                DECLARATION = 0,
+                UNVERIFIED = 1
+            }
+        }
+
         /** Properties of a FieldDescriptorProto. */
         interface IFieldDescriptorProto {
 
@@ -9885,6 +11355,9 @@ export namespace google {
 
             /** FieldDescriptorProto options */
             options?: (google.protobuf.IFieldOptions|null);
+
+            /** FieldDescriptorProto proto3Optional */
+            proto3Optional?: (boolean|null);
         }
 
         /** Represents a FieldDescriptorProto. */
@@ -9925,6 +11398,9 @@ export namespace google {
 
             /** FieldDescriptorProto options. */
             public options?: (google.protobuf.IFieldOptions|null);
+
+            /** FieldDescriptorProto proto3Optional. */
+            public proto3Optional: boolean;
 
             /**
              * Creates a new FieldDescriptorProto instance using the specified properties.
@@ -10031,8 +11507,8 @@ export namespace google {
             /** Label enum. */
             enum Label {
                 LABEL_OPTIONAL = 1,
-                LABEL_REQUIRED = 2,
-                LABEL_REPEATED = 3
+                LABEL_REPEATED = 3,
+                LABEL_REQUIRED = 2
             }
         }
 
@@ -10150,6 +11626,15 @@ export namespace google {
 
             /** EnumDescriptorProto options */
             options?: (google.protobuf.IEnumOptions|null);
+
+            /** EnumDescriptorProto reservedRange */
+            reservedRange?: (google.protobuf.EnumDescriptorProto.IEnumReservedRange[]|null);
+
+            /** EnumDescriptorProto reservedName */
+            reservedName?: (string[]|null);
+
+            /** EnumDescriptorProto visibility */
+            visibility?: (google.protobuf.SymbolVisibility|null);
         }
 
         /** Represents an EnumDescriptorProto. */
@@ -10169,6 +11654,15 @@ export namespace google {
 
             /** EnumDescriptorProto options. */
             public options?: (google.protobuf.IEnumOptions|null);
+
+            /** EnumDescriptorProto reservedRange. */
+            public reservedRange: google.protobuf.EnumDescriptorProto.IEnumReservedRange[];
+
+            /** EnumDescriptorProto reservedName. */
+            public reservedName: string[];
+
+            /** EnumDescriptorProto visibility. */
+            public visibility: google.protobuf.SymbolVisibility;
 
             /**
              * Creates a new EnumDescriptorProto instance using the specified properties.
@@ -10246,6 +11740,112 @@ export namespace google {
              * @returns The default type url
              */
             public static getTypeUrl(typeUrlPrefix?: string): string;
+        }
+
+        namespace EnumDescriptorProto {
+
+            /** Properties of an EnumReservedRange. */
+            interface IEnumReservedRange {
+
+                /** EnumReservedRange start */
+                start?: (number|null);
+
+                /** EnumReservedRange end */
+                end?: (number|null);
+            }
+
+            /** Represents an EnumReservedRange. */
+            class EnumReservedRange implements IEnumReservedRange {
+
+                /**
+                 * Constructs a new EnumReservedRange.
+                 * @param [properties] Properties to set
+                 */
+                constructor(properties?: google.protobuf.EnumDescriptorProto.IEnumReservedRange);
+
+                /** EnumReservedRange start. */
+                public start: number;
+
+                /** EnumReservedRange end. */
+                public end: number;
+
+                /**
+                 * Creates a new EnumReservedRange instance using the specified properties.
+                 * @param [properties] Properties to set
+                 * @returns EnumReservedRange instance
+                 */
+                public static create(properties?: google.protobuf.EnumDescriptorProto.IEnumReservedRange): google.protobuf.EnumDescriptorProto.EnumReservedRange;
+
+                /**
+                 * Encodes the specified EnumReservedRange message. Does not implicitly {@link google.protobuf.EnumDescriptorProto.EnumReservedRange.verify|verify} messages.
+                 * @param message EnumReservedRange message or plain object to encode
+                 * @param [writer] Writer to encode to
+                 * @returns Writer
+                 */
+                public static encode(message: google.protobuf.EnumDescriptorProto.IEnumReservedRange, writer?: $protobuf.Writer): $protobuf.Writer;
+
+                /**
+                 * Encodes the specified EnumReservedRange message, length delimited. Does not implicitly {@link google.protobuf.EnumDescriptorProto.EnumReservedRange.verify|verify} messages.
+                 * @param message EnumReservedRange message or plain object to encode
+                 * @param [writer] Writer to encode to
+                 * @returns Writer
+                 */
+                public static encodeDelimited(message: google.protobuf.EnumDescriptorProto.IEnumReservedRange, writer?: $protobuf.Writer): $protobuf.Writer;
+
+                /**
+                 * Decodes an EnumReservedRange message from the specified reader or buffer.
+                 * @param reader Reader or buffer to decode from
+                 * @param [length] Message length if known beforehand
+                 * @returns EnumReservedRange
+                 * @throws {Error} If the payload is not a reader or valid buffer
+                 * @throws {$protobuf.util.ProtocolError} If required fields are missing
+                 */
+                public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): google.protobuf.EnumDescriptorProto.EnumReservedRange;
+
+                /**
+                 * Decodes an EnumReservedRange message from the specified reader or buffer, length delimited.
+                 * @param reader Reader or buffer to decode from
+                 * @returns EnumReservedRange
+                 * @throws {Error} If the payload is not a reader or valid buffer
+                 * @throws {$protobuf.util.ProtocolError} If required fields are missing
+                 */
+                public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): google.protobuf.EnumDescriptorProto.EnumReservedRange;
+
+                /**
+                 * Verifies an EnumReservedRange message.
+                 * @param message Plain object to verify
+                 * @returns `null` if valid, otherwise the reason why it is not
+                 */
+                public static verify(message: { [k: string]: any }): (string|null);
+
+                /**
+                 * Creates an EnumReservedRange message from a plain object. Also converts values to their respective internal types.
+                 * @param object Plain object
+                 * @returns EnumReservedRange
+                 */
+                public static fromObject(object: { [k: string]: any }): google.protobuf.EnumDescriptorProto.EnumReservedRange;
+
+                /**
+                 * Creates a plain object from an EnumReservedRange message. Also converts values to other types if specified.
+                 * @param message EnumReservedRange
+                 * @param [options] Conversion options
+                 * @returns Plain object
+                 */
+                public static toObject(message: google.protobuf.EnumDescriptorProto.EnumReservedRange, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+                /**
+                 * Converts this EnumReservedRange to JSON.
+                 * @returns JSON object
+                 */
+                public toJSON(): { [k: string]: any };
+
+                /**
+                 * Gets the default type url for EnumReservedRange
+                 * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+                 * @returns The default type url
+                 */
+                public static getTypeUrl(typeUrlPrefix?: string): string;
+            }
         }
 
         /** Properties of an EnumValueDescriptorProto. */
@@ -10638,6 +12238,24 @@ export namespace google {
             /** FileOptions csharpNamespace */
             csharpNamespace?: (string|null);
 
+            /** FileOptions swiftPrefix */
+            swiftPrefix?: (string|null);
+
+            /** FileOptions phpClassPrefix */
+            phpClassPrefix?: (string|null);
+
+            /** FileOptions phpNamespace */
+            phpNamespace?: (string|null);
+
+            /** FileOptions phpMetadataNamespace */
+            phpMetadataNamespace?: (string|null);
+
+            /** FileOptions rubyPackage */
+            rubyPackage?: (string|null);
+
+            /** FileOptions features */
+            features?: (google.protobuf.IFeatureSet|null);
+
             /** FileOptions uninterpretedOption */
             uninterpretedOption?: (google.protobuf.IUninterpretedOption[]|null);
         }
@@ -10692,6 +12310,24 @@ export namespace google {
 
             /** FileOptions csharpNamespace. */
             public csharpNamespace: string;
+
+            /** FileOptions swiftPrefix. */
+            public swiftPrefix: string;
+
+            /** FileOptions phpClassPrefix. */
+            public phpClassPrefix: string;
+
+            /** FileOptions phpNamespace. */
+            public phpNamespace: string;
+
+            /** FileOptions phpMetadataNamespace. */
+            public phpMetadataNamespace: string;
+
+            /** FileOptions rubyPackage. */
+            public rubyPackage: string;
+
+            /** FileOptions features. */
+            public features?: (google.protobuf.IFeatureSet|null);
 
             /** FileOptions uninterpretedOption. */
             public uninterpretedOption: google.protobuf.IUninterpretedOption[];
@@ -10799,11 +12435,17 @@ export namespace google {
             /** MessageOptions mapEntry */
             mapEntry?: (boolean|null);
 
+            /** MessageOptions deprecatedLegacyJsonFieldConflicts */
+            deprecatedLegacyJsonFieldConflicts?: (boolean|null);
+
+            /** MessageOptions features */
+            features?: (google.protobuf.IFeatureSet|null);
+
             /** MessageOptions uninterpretedOption */
             uninterpretedOption?: (google.protobuf.IUninterpretedOption[]|null);
 
-            /** MessageOptions .android.msgPrivacy */
-            ".android.msgPrivacy"?: (android.IPrivacyFlags|null);
+            /** MessageOptions .android_common.msgPrivacy */
+            ".android_common.msgPrivacy"?: (android_common.IPrivacyFlags|null);
         }
 
         /** Represents a MessageOptions. */
@@ -10826,6 +12468,12 @@ export namespace google {
 
             /** MessageOptions mapEntry. */
             public mapEntry: boolean;
+
+            /** MessageOptions deprecatedLegacyJsonFieldConflicts. */
+            public deprecatedLegacyJsonFieldConflicts: boolean;
+
+            /** MessageOptions features. */
+            public features?: (google.protobuf.IFeatureSet|null);
 
             /** MessageOptions uninterpretedOption. */
             public uninterpretedOption: google.protobuf.IUninterpretedOption[];
@@ -10923,20 +12571,41 @@ export namespace google {
             /** FieldOptions lazy */
             lazy?: (boolean|null);
 
+            /** FieldOptions unverifiedLazy */
+            unverifiedLazy?: (boolean|null);
+
             /** FieldOptions deprecated */
             deprecated?: (boolean|null);
 
             /** FieldOptions weak */
             weak?: (boolean|null);
 
+            /** FieldOptions debugRedact */
+            debugRedact?: (boolean|null);
+
+            /** FieldOptions retention */
+            retention?: (google.protobuf.FieldOptions.OptionRetention|null);
+
+            /** FieldOptions targets */
+            targets?: (google.protobuf.FieldOptions.OptionTargetType[]|null);
+
+            /** FieldOptions editionDefaults */
+            editionDefaults?: (google.protobuf.FieldOptions.IEditionDefault[]|null);
+
+            /** FieldOptions features */
+            features?: (google.protobuf.IFeatureSet|null);
+
+            /** FieldOptions featureSupport */
+            featureSupport?: (google.protobuf.FieldOptions.IFeatureSupport|null);
+
             /** FieldOptions uninterpretedOption */
             uninterpretedOption?: (google.protobuf.IUninterpretedOption[]|null);
 
-            /** FieldOptions .android.privacy */
-            ".android.privacy"?: (android.IPrivacyFlags|null);
+            /** FieldOptions .android_common.typedef */
+            ".android_common.typedef"?: (string|null);
 
-            /** FieldOptions .android.typedef */
-            ".android.typedef"?: (string|null);
+            /** FieldOptions .android_common.privacy */
+            ".android_common.privacy"?: (android_common.IPrivacyFlags|null);
         }
 
         /** Represents a FieldOptions. */
@@ -10960,11 +12629,32 @@ export namespace google {
             /** FieldOptions lazy. */
             public lazy: boolean;
 
+            /** FieldOptions unverifiedLazy. */
+            public unverifiedLazy: boolean;
+
             /** FieldOptions deprecated. */
             public deprecated: boolean;
 
             /** FieldOptions weak. */
             public weak: boolean;
+
+            /** FieldOptions debugRedact. */
+            public debugRedact: boolean;
+
+            /** FieldOptions retention. */
+            public retention: google.protobuf.FieldOptions.OptionRetention;
+
+            /** FieldOptions targets. */
+            public targets: google.protobuf.FieldOptions.OptionTargetType[];
+
+            /** FieldOptions editionDefaults. */
+            public editionDefaults: google.protobuf.FieldOptions.IEditionDefault[];
+
+            /** FieldOptions features. */
+            public features?: (google.protobuf.IFeatureSet|null);
+
+            /** FieldOptions featureSupport. */
+            public featureSupport?: (google.protobuf.FieldOptions.IFeatureSupport|null);
 
             /** FieldOptions uninterpretedOption. */
             public uninterpretedOption: google.protobuf.IUninterpretedOption[];
@@ -11062,10 +12752,252 @@ export namespace google {
                 JS_STRING = 1,
                 JS_NUMBER = 2
             }
+
+            /** OptionRetention enum. */
+            enum OptionRetention {
+                RETENTION_UNKNOWN = 0,
+                RETENTION_RUNTIME = 1,
+                RETENTION_SOURCE = 2
+            }
+
+            /** OptionTargetType enum. */
+            enum OptionTargetType {
+                TARGET_TYPE_UNKNOWN = 0,
+                TARGET_TYPE_FILE = 1,
+                TARGET_TYPE_EXTENSION_RANGE = 2,
+                TARGET_TYPE_MESSAGE = 3,
+                TARGET_TYPE_FIELD = 4,
+                TARGET_TYPE_ONEOF = 5,
+                TARGET_TYPE_ENUM = 6,
+                TARGET_TYPE_ENUM_ENTRY = 7,
+                TARGET_TYPE_SERVICE = 8,
+                TARGET_TYPE_METHOD = 9
+            }
+
+            /** Properties of an EditionDefault. */
+            interface IEditionDefault {
+
+                /** EditionDefault edition */
+                edition?: (google.protobuf.Edition|null);
+
+                /** EditionDefault value */
+                value?: (string|null);
+            }
+
+            /** Represents an EditionDefault. */
+            class EditionDefault implements IEditionDefault {
+
+                /**
+                 * Constructs a new EditionDefault.
+                 * @param [properties] Properties to set
+                 */
+                constructor(properties?: google.protobuf.FieldOptions.IEditionDefault);
+
+                /** EditionDefault edition. */
+                public edition: google.protobuf.Edition;
+
+                /** EditionDefault value. */
+                public value: string;
+
+                /**
+                 * Creates a new EditionDefault instance using the specified properties.
+                 * @param [properties] Properties to set
+                 * @returns EditionDefault instance
+                 */
+                public static create(properties?: google.protobuf.FieldOptions.IEditionDefault): google.protobuf.FieldOptions.EditionDefault;
+
+                /**
+                 * Encodes the specified EditionDefault message. Does not implicitly {@link google.protobuf.FieldOptions.EditionDefault.verify|verify} messages.
+                 * @param message EditionDefault message or plain object to encode
+                 * @param [writer] Writer to encode to
+                 * @returns Writer
+                 */
+                public static encode(message: google.protobuf.FieldOptions.IEditionDefault, writer?: $protobuf.Writer): $protobuf.Writer;
+
+                /**
+                 * Encodes the specified EditionDefault message, length delimited. Does not implicitly {@link google.protobuf.FieldOptions.EditionDefault.verify|verify} messages.
+                 * @param message EditionDefault message or plain object to encode
+                 * @param [writer] Writer to encode to
+                 * @returns Writer
+                 */
+                public static encodeDelimited(message: google.protobuf.FieldOptions.IEditionDefault, writer?: $protobuf.Writer): $protobuf.Writer;
+
+                /**
+                 * Decodes an EditionDefault message from the specified reader or buffer.
+                 * @param reader Reader or buffer to decode from
+                 * @param [length] Message length if known beforehand
+                 * @returns EditionDefault
+                 * @throws {Error} If the payload is not a reader or valid buffer
+                 * @throws {$protobuf.util.ProtocolError} If required fields are missing
+                 */
+                public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): google.protobuf.FieldOptions.EditionDefault;
+
+                /**
+                 * Decodes an EditionDefault message from the specified reader or buffer, length delimited.
+                 * @param reader Reader or buffer to decode from
+                 * @returns EditionDefault
+                 * @throws {Error} If the payload is not a reader or valid buffer
+                 * @throws {$protobuf.util.ProtocolError} If required fields are missing
+                 */
+                public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): google.protobuf.FieldOptions.EditionDefault;
+
+                /**
+                 * Verifies an EditionDefault message.
+                 * @param message Plain object to verify
+                 * @returns `null` if valid, otherwise the reason why it is not
+                 */
+                public static verify(message: { [k: string]: any }): (string|null);
+
+                /**
+                 * Creates an EditionDefault message from a plain object. Also converts values to their respective internal types.
+                 * @param object Plain object
+                 * @returns EditionDefault
+                 */
+                public static fromObject(object: { [k: string]: any }): google.protobuf.FieldOptions.EditionDefault;
+
+                /**
+                 * Creates a plain object from an EditionDefault message. Also converts values to other types if specified.
+                 * @param message EditionDefault
+                 * @param [options] Conversion options
+                 * @returns Plain object
+                 */
+                public static toObject(message: google.protobuf.FieldOptions.EditionDefault, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+                /**
+                 * Converts this EditionDefault to JSON.
+                 * @returns JSON object
+                 */
+                public toJSON(): { [k: string]: any };
+
+                /**
+                 * Gets the default type url for EditionDefault
+                 * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+                 * @returns The default type url
+                 */
+                public static getTypeUrl(typeUrlPrefix?: string): string;
+            }
+
+            /** Properties of a FeatureSupport. */
+            interface IFeatureSupport {
+
+                /** FeatureSupport editionIntroduced */
+                editionIntroduced?: (google.protobuf.Edition|null);
+
+                /** FeatureSupport editionDeprecated */
+                editionDeprecated?: (google.protobuf.Edition|null);
+
+                /** FeatureSupport deprecationWarning */
+                deprecationWarning?: (string|null);
+
+                /** FeatureSupport editionRemoved */
+                editionRemoved?: (google.protobuf.Edition|null);
+            }
+
+            /** Represents a FeatureSupport. */
+            class FeatureSupport implements IFeatureSupport {
+
+                /**
+                 * Constructs a new FeatureSupport.
+                 * @param [properties] Properties to set
+                 */
+                constructor(properties?: google.protobuf.FieldOptions.IFeatureSupport);
+
+                /** FeatureSupport editionIntroduced. */
+                public editionIntroduced: google.protobuf.Edition;
+
+                /** FeatureSupport editionDeprecated. */
+                public editionDeprecated: google.protobuf.Edition;
+
+                /** FeatureSupport deprecationWarning. */
+                public deprecationWarning: string;
+
+                /** FeatureSupport editionRemoved. */
+                public editionRemoved: google.protobuf.Edition;
+
+                /**
+                 * Creates a new FeatureSupport instance using the specified properties.
+                 * @param [properties] Properties to set
+                 * @returns FeatureSupport instance
+                 */
+                public static create(properties?: google.protobuf.FieldOptions.IFeatureSupport): google.protobuf.FieldOptions.FeatureSupport;
+
+                /**
+                 * Encodes the specified FeatureSupport message. Does not implicitly {@link google.protobuf.FieldOptions.FeatureSupport.verify|verify} messages.
+                 * @param message FeatureSupport message or plain object to encode
+                 * @param [writer] Writer to encode to
+                 * @returns Writer
+                 */
+                public static encode(message: google.protobuf.FieldOptions.IFeatureSupport, writer?: $protobuf.Writer): $protobuf.Writer;
+
+                /**
+                 * Encodes the specified FeatureSupport message, length delimited. Does not implicitly {@link google.protobuf.FieldOptions.FeatureSupport.verify|verify} messages.
+                 * @param message FeatureSupport message or plain object to encode
+                 * @param [writer] Writer to encode to
+                 * @returns Writer
+                 */
+                public static encodeDelimited(message: google.protobuf.FieldOptions.IFeatureSupport, writer?: $protobuf.Writer): $protobuf.Writer;
+
+                /**
+                 * Decodes a FeatureSupport message from the specified reader or buffer.
+                 * @param reader Reader or buffer to decode from
+                 * @param [length] Message length if known beforehand
+                 * @returns FeatureSupport
+                 * @throws {Error} If the payload is not a reader or valid buffer
+                 * @throws {$protobuf.util.ProtocolError} If required fields are missing
+                 */
+                public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): google.protobuf.FieldOptions.FeatureSupport;
+
+                /**
+                 * Decodes a FeatureSupport message from the specified reader or buffer, length delimited.
+                 * @param reader Reader or buffer to decode from
+                 * @returns FeatureSupport
+                 * @throws {Error} If the payload is not a reader or valid buffer
+                 * @throws {$protobuf.util.ProtocolError} If required fields are missing
+                 */
+                public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): google.protobuf.FieldOptions.FeatureSupport;
+
+                /**
+                 * Verifies a FeatureSupport message.
+                 * @param message Plain object to verify
+                 * @returns `null` if valid, otherwise the reason why it is not
+                 */
+                public static verify(message: { [k: string]: any }): (string|null);
+
+                /**
+                 * Creates a FeatureSupport message from a plain object. Also converts values to their respective internal types.
+                 * @param object Plain object
+                 * @returns FeatureSupport
+                 */
+                public static fromObject(object: { [k: string]: any }): google.protobuf.FieldOptions.FeatureSupport;
+
+                /**
+                 * Creates a plain object from a FeatureSupport message. Also converts values to other types if specified.
+                 * @param message FeatureSupport
+                 * @param [options] Conversion options
+                 * @returns Plain object
+                 */
+                public static toObject(message: google.protobuf.FieldOptions.FeatureSupport, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+                /**
+                 * Converts this FeatureSupport to JSON.
+                 * @returns JSON object
+                 */
+                public toJSON(): { [k: string]: any };
+
+                /**
+                 * Gets the default type url for FeatureSupport
+                 * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+                 * @returns The default type url
+                 */
+                public static getTypeUrl(typeUrlPrefix?: string): string;
+            }
         }
 
         /** Properties of an OneofOptions. */
         interface IOneofOptions {
+
+            /** OneofOptions features */
+            features?: (google.protobuf.IFeatureSet|null);
 
             /** OneofOptions uninterpretedOption */
             uninterpretedOption?: (google.protobuf.IUninterpretedOption[]|null);
@@ -11079,6 +13011,9 @@ export namespace google {
              * @param [properties] Properties to set
              */
             constructor(properties?: google.protobuf.IOneofOptions);
+
+            /** OneofOptions features. */
+            public features?: (google.protobuf.IFeatureSet|null);
 
             /** OneofOptions uninterpretedOption. */
             public uninterpretedOption: google.protobuf.IUninterpretedOption[];
@@ -11170,6 +13105,12 @@ export namespace google {
             /** EnumOptions deprecated */
             deprecated?: (boolean|null);
 
+            /** EnumOptions deprecatedLegacyJsonFieldConflicts */
+            deprecatedLegacyJsonFieldConflicts?: (boolean|null);
+
+            /** EnumOptions features */
+            features?: (google.protobuf.IFeatureSet|null);
+
             /** EnumOptions uninterpretedOption */
             uninterpretedOption?: (google.protobuf.IUninterpretedOption[]|null);
         }
@@ -11188,6 +13129,12 @@ export namespace google {
 
             /** EnumOptions deprecated. */
             public deprecated: boolean;
+
+            /** EnumOptions deprecatedLegacyJsonFieldConflicts. */
+            public deprecatedLegacyJsonFieldConflicts: boolean;
+
+            /** EnumOptions features. */
+            public features?: (google.protobuf.IFeatureSet|null);
 
             /** EnumOptions uninterpretedOption. */
             public uninterpretedOption: google.protobuf.IUninterpretedOption[];
@@ -11276,6 +13223,15 @@ export namespace google {
             /** EnumValueOptions deprecated */
             deprecated?: (boolean|null);
 
+            /** EnumValueOptions features */
+            features?: (google.protobuf.IFeatureSet|null);
+
+            /** EnumValueOptions debugRedact */
+            debugRedact?: (boolean|null);
+
+            /** EnumValueOptions featureSupport */
+            featureSupport?: (google.protobuf.FieldOptions.IFeatureSupport|null);
+
             /** EnumValueOptions uninterpretedOption */
             uninterpretedOption?: (google.protobuf.IUninterpretedOption[]|null);
         }
@@ -11291,6 +13247,15 @@ export namespace google {
 
             /** EnumValueOptions deprecated. */
             public deprecated: boolean;
+
+            /** EnumValueOptions features. */
+            public features?: (google.protobuf.IFeatureSet|null);
+
+            /** EnumValueOptions debugRedact. */
+            public debugRedact: boolean;
+
+            /** EnumValueOptions featureSupport. */
+            public featureSupport?: (google.protobuf.FieldOptions.IFeatureSupport|null);
 
             /** EnumValueOptions uninterpretedOption. */
             public uninterpretedOption: google.protobuf.IUninterpretedOption[];
@@ -11376,6 +13341,9 @@ export namespace google {
         /** Properties of a ServiceOptions. */
         interface IServiceOptions {
 
+            /** ServiceOptions features */
+            features?: (google.protobuf.IFeatureSet|null);
+
             /** ServiceOptions deprecated */
             deprecated?: (boolean|null);
 
@@ -11391,6 +13359,9 @@ export namespace google {
              * @param [properties] Properties to set
              */
             constructor(properties?: google.protobuf.IServiceOptions);
+
+            /** ServiceOptions features. */
+            public features?: (google.protobuf.IFeatureSet|null);
 
             /** ServiceOptions deprecated. */
             public deprecated: boolean;
@@ -11482,6 +13453,12 @@ export namespace google {
             /** MethodOptions deprecated */
             deprecated?: (boolean|null);
 
+            /** MethodOptions idempotencyLevel */
+            idempotencyLevel?: (google.protobuf.MethodOptions.IdempotencyLevel|null);
+
+            /** MethodOptions features */
+            features?: (google.protobuf.IFeatureSet|null);
+
             /** MethodOptions uninterpretedOption */
             uninterpretedOption?: (google.protobuf.IUninterpretedOption[]|null);
         }
@@ -11497,6 +13474,12 @@ export namespace google {
 
             /** MethodOptions deprecated. */
             public deprecated: boolean;
+
+            /** MethodOptions idempotencyLevel. */
+            public idempotencyLevel: google.protobuf.MethodOptions.IdempotencyLevel;
+
+            /** MethodOptions features. */
+            public features?: (google.protobuf.IFeatureSet|null);
 
             /** MethodOptions uninterpretedOption. */
             public uninterpretedOption: google.protobuf.IUninterpretedOption[];
@@ -11577,6 +13560,16 @@ export namespace google {
              * @returns The default type url
              */
             public static getTypeUrl(typeUrlPrefix?: string): string;
+        }
+
+        namespace MethodOptions {
+
+            /** IdempotencyLevel enum. */
+            enum IdempotencyLevel {
+                IDEMPOTENCY_UNKNOWN = 0,
+                NO_SIDE_EFFECTS = 1,
+                IDEMPOTENT = 2
+            }
         }
 
         /** Properties of an UninterpretedOption. */
@@ -11811,6 +13804,522 @@ export namespace google {
 
                 /**
                  * Gets the default type url for NamePart
+                 * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+                 * @returns The default type url
+                 */
+                public static getTypeUrl(typeUrlPrefix?: string): string;
+            }
+        }
+
+        /** Properties of a FeatureSet. */
+        interface IFeatureSet {
+
+            /** FeatureSet fieldPresence */
+            fieldPresence?: (google.protobuf.FeatureSet.FieldPresence|null);
+
+            /** FeatureSet enumType */
+            enumType?: (google.protobuf.FeatureSet.EnumType|null);
+
+            /** FeatureSet repeatedFieldEncoding */
+            repeatedFieldEncoding?: (google.protobuf.FeatureSet.RepeatedFieldEncoding|null);
+
+            /** FeatureSet utf8Validation */
+            utf8Validation?: (google.protobuf.FeatureSet.Utf8Validation|null);
+
+            /** FeatureSet messageEncoding */
+            messageEncoding?: (google.protobuf.FeatureSet.MessageEncoding|null);
+
+            /** FeatureSet jsonFormat */
+            jsonFormat?: (google.protobuf.FeatureSet.JsonFormat|null);
+
+            /** FeatureSet enforceNamingStyle */
+            enforceNamingStyle?: (google.protobuf.FeatureSet.EnforceNamingStyle|null);
+
+            /** FeatureSet defaultSymbolVisibility */
+            defaultSymbolVisibility?: (google.protobuf.FeatureSet.VisibilityFeature.DefaultSymbolVisibility|null);
+        }
+
+        /** Represents a FeatureSet. */
+        class FeatureSet implements IFeatureSet {
+
+            /**
+             * Constructs a new FeatureSet.
+             * @param [properties] Properties to set
+             */
+            constructor(properties?: google.protobuf.IFeatureSet);
+
+            /** FeatureSet fieldPresence. */
+            public fieldPresence: google.protobuf.FeatureSet.FieldPresence;
+
+            /** FeatureSet enumType. */
+            public enumType: google.protobuf.FeatureSet.EnumType;
+
+            /** FeatureSet repeatedFieldEncoding. */
+            public repeatedFieldEncoding: google.protobuf.FeatureSet.RepeatedFieldEncoding;
+
+            /** FeatureSet utf8Validation. */
+            public utf8Validation: google.protobuf.FeatureSet.Utf8Validation;
+
+            /** FeatureSet messageEncoding. */
+            public messageEncoding: google.protobuf.FeatureSet.MessageEncoding;
+
+            /** FeatureSet jsonFormat. */
+            public jsonFormat: google.protobuf.FeatureSet.JsonFormat;
+
+            /** FeatureSet enforceNamingStyle. */
+            public enforceNamingStyle: google.protobuf.FeatureSet.EnforceNamingStyle;
+
+            /** FeatureSet defaultSymbolVisibility. */
+            public defaultSymbolVisibility: google.protobuf.FeatureSet.VisibilityFeature.DefaultSymbolVisibility;
+
+            /**
+             * Creates a new FeatureSet instance using the specified properties.
+             * @param [properties] Properties to set
+             * @returns FeatureSet instance
+             */
+            public static create(properties?: google.protobuf.IFeatureSet): google.protobuf.FeatureSet;
+
+            /**
+             * Encodes the specified FeatureSet message. Does not implicitly {@link google.protobuf.FeatureSet.verify|verify} messages.
+             * @param message FeatureSet message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encode(message: google.protobuf.IFeatureSet, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Encodes the specified FeatureSet message, length delimited. Does not implicitly {@link google.protobuf.FeatureSet.verify|verify} messages.
+             * @param message FeatureSet message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encodeDelimited(message: google.protobuf.IFeatureSet, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Decodes a FeatureSet message from the specified reader or buffer.
+             * @param reader Reader or buffer to decode from
+             * @param [length] Message length if known beforehand
+             * @returns FeatureSet
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): google.protobuf.FeatureSet;
+
+            /**
+             * Decodes a FeatureSet message from the specified reader or buffer, length delimited.
+             * @param reader Reader or buffer to decode from
+             * @returns FeatureSet
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): google.protobuf.FeatureSet;
+
+            /**
+             * Verifies a FeatureSet message.
+             * @param message Plain object to verify
+             * @returns `null` if valid, otherwise the reason why it is not
+             */
+            public static verify(message: { [k: string]: any }): (string|null);
+
+            /**
+             * Creates a FeatureSet message from a plain object. Also converts values to their respective internal types.
+             * @param object Plain object
+             * @returns FeatureSet
+             */
+            public static fromObject(object: { [k: string]: any }): google.protobuf.FeatureSet;
+
+            /**
+             * Creates a plain object from a FeatureSet message. Also converts values to other types if specified.
+             * @param message FeatureSet
+             * @param [options] Conversion options
+             * @returns Plain object
+             */
+            public static toObject(message: google.protobuf.FeatureSet, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+            /**
+             * Converts this FeatureSet to JSON.
+             * @returns JSON object
+             */
+            public toJSON(): { [k: string]: any };
+
+            /**
+             * Gets the default type url for FeatureSet
+             * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+             * @returns The default type url
+             */
+            public static getTypeUrl(typeUrlPrefix?: string): string;
+        }
+
+        namespace FeatureSet {
+
+            /** FieldPresence enum. */
+            enum FieldPresence {
+                FIELD_PRESENCE_UNKNOWN = 0,
+                EXPLICIT = 1,
+                IMPLICIT = 2,
+                LEGACY_REQUIRED = 3
+            }
+
+            /** EnumType enum. */
+            enum EnumType {
+                ENUM_TYPE_UNKNOWN = 0,
+                OPEN = 1,
+                CLOSED = 2
+            }
+
+            /** RepeatedFieldEncoding enum. */
+            enum RepeatedFieldEncoding {
+                REPEATED_FIELD_ENCODING_UNKNOWN = 0,
+                PACKED = 1,
+                EXPANDED = 2
+            }
+
+            /** Utf8Validation enum. */
+            enum Utf8Validation {
+                UTF8_VALIDATION_UNKNOWN = 0,
+                VERIFY = 2,
+                NONE = 3
+            }
+
+            /** MessageEncoding enum. */
+            enum MessageEncoding {
+                MESSAGE_ENCODING_UNKNOWN = 0,
+                LENGTH_PREFIXED = 1,
+                DELIMITED = 2
+            }
+
+            /** JsonFormat enum. */
+            enum JsonFormat {
+                JSON_FORMAT_UNKNOWN = 0,
+                ALLOW = 1,
+                LEGACY_BEST_EFFORT = 2
+            }
+
+            /** EnforceNamingStyle enum. */
+            enum EnforceNamingStyle {
+                ENFORCE_NAMING_STYLE_UNKNOWN = 0,
+                STYLE2024 = 1,
+                STYLE_LEGACY = 2
+            }
+
+            /** Properties of a VisibilityFeature. */
+            interface IVisibilityFeature {
+            }
+
+            /** Represents a VisibilityFeature. */
+            class VisibilityFeature implements IVisibilityFeature {
+
+                /**
+                 * Constructs a new VisibilityFeature.
+                 * @param [properties] Properties to set
+                 */
+                constructor(properties?: google.protobuf.FeatureSet.IVisibilityFeature);
+
+                /**
+                 * Creates a new VisibilityFeature instance using the specified properties.
+                 * @param [properties] Properties to set
+                 * @returns VisibilityFeature instance
+                 */
+                public static create(properties?: google.protobuf.FeatureSet.IVisibilityFeature): google.protobuf.FeatureSet.VisibilityFeature;
+
+                /**
+                 * Encodes the specified VisibilityFeature message. Does not implicitly {@link google.protobuf.FeatureSet.VisibilityFeature.verify|verify} messages.
+                 * @param message VisibilityFeature message or plain object to encode
+                 * @param [writer] Writer to encode to
+                 * @returns Writer
+                 */
+                public static encode(message: google.protobuf.FeatureSet.IVisibilityFeature, writer?: $protobuf.Writer): $protobuf.Writer;
+
+                /**
+                 * Encodes the specified VisibilityFeature message, length delimited. Does not implicitly {@link google.protobuf.FeatureSet.VisibilityFeature.verify|verify} messages.
+                 * @param message VisibilityFeature message or plain object to encode
+                 * @param [writer] Writer to encode to
+                 * @returns Writer
+                 */
+                public static encodeDelimited(message: google.protobuf.FeatureSet.IVisibilityFeature, writer?: $protobuf.Writer): $protobuf.Writer;
+
+                /**
+                 * Decodes a VisibilityFeature message from the specified reader or buffer.
+                 * @param reader Reader or buffer to decode from
+                 * @param [length] Message length if known beforehand
+                 * @returns VisibilityFeature
+                 * @throws {Error} If the payload is not a reader or valid buffer
+                 * @throws {$protobuf.util.ProtocolError} If required fields are missing
+                 */
+                public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): google.protobuf.FeatureSet.VisibilityFeature;
+
+                /**
+                 * Decodes a VisibilityFeature message from the specified reader or buffer, length delimited.
+                 * @param reader Reader or buffer to decode from
+                 * @returns VisibilityFeature
+                 * @throws {Error} If the payload is not a reader or valid buffer
+                 * @throws {$protobuf.util.ProtocolError} If required fields are missing
+                 */
+                public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): google.protobuf.FeatureSet.VisibilityFeature;
+
+                /**
+                 * Verifies a VisibilityFeature message.
+                 * @param message Plain object to verify
+                 * @returns `null` if valid, otherwise the reason why it is not
+                 */
+                public static verify(message: { [k: string]: any }): (string|null);
+
+                /**
+                 * Creates a VisibilityFeature message from a plain object. Also converts values to their respective internal types.
+                 * @param object Plain object
+                 * @returns VisibilityFeature
+                 */
+                public static fromObject(object: { [k: string]: any }): google.protobuf.FeatureSet.VisibilityFeature;
+
+                /**
+                 * Creates a plain object from a VisibilityFeature message. Also converts values to other types if specified.
+                 * @param message VisibilityFeature
+                 * @param [options] Conversion options
+                 * @returns Plain object
+                 */
+                public static toObject(message: google.protobuf.FeatureSet.VisibilityFeature, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+                /**
+                 * Converts this VisibilityFeature to JSON.
+                 * @returns JSON object
+                 */
+                public toJSON(): { [k: string]: any };
+
+                /**
+                 * Gets the default type url for VisibilityFeature
+                 * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+                 * @returns The default type url
+                 */
+                public static getTypeUrl(typeUrlPrefix?: string): string;
+            }
+
+            namespace VisibilityFeature {
+
+                /** DefaultSymbolVisibility enum. */
+                enum DefaultSymbolVisibility {
+                    DEFAULT_SYMBOL_VISIBILITY_UNKNOWN = 0,
+                    EXPORT_ALL = 1,
+                    EXPORT_TOP_LEVEL = 2,
+                    LOCAL_ALL = 3,
+                    STRICT = 4
+                }
+            }
+        }
+
+        /** Properties of a FeatureSetDefaults. */
+        interface IFeatureSetDefaults {
+
+            /** FeatureSetDefaults defaults */
+            defaults?: (google.protobuf.FeatureSetDefaults.IFeatureSetEditionDefault[]|null);
+
+            /** FeatureSetDefaults minimumEdition */
+            minimumEdition?: (google.protobuf.Edition|null);
+
+            /** FeatureSetDefaults maximumEdition */
+            maximumEdition?: (google.protobuf.Edition|null);
+        }
+
+        /** Represents a FeatureSetDefaults. */
+        class FeatureSetDefaults implements IFeatureSetDefaults {
+
+            /**
+             * Constructs a new FeatureSetDefaults.
+             * @param [properties] Properties to set
+             */
+            constructor(properties?: google.protobuf.IFeatureSetDefaults);
+
+            /** FeatureSetDefaults defaults. */
+            public defaults: google.protobuf.FeatureSetDefaults.IFeatureSetEditionDefault[];
+
+            /** FeatureSetDefaults minimumEdition. */
+            public minimumEdition: google.protobuf.Edition;
+
+            /** FeatureSetDefaults maximumEdition. */
+            public maximumEdition: google.protobuf.Edition;
+
+            /**
+             * Creates a new FeatureSetDefaults instance using the specified properties.
+             * @param [properties] Properties to set
+             * @returns FeatureSetDefaults instance
+             */
+            public static create(properties?: google.protobuf.IFeatureSetDefaults): google.protobuf.FeatureSetDefaults;
+
+            /**
+             * Encodes the specified FeatureSetDefaults message. Does not implicitly {@link google.protobuf.FeatureSetDefaults.verify|verify} messages.
+             * @param message FeatureSetDefaults message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encode(message: google.protobuf.IFeatureSetDefaults, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Encodes the specified FeatureSetDefaults message, length delimited. Does not implicitly {@link google.protobuf.FeatureSetDefaults.verify|verify} messages.
+             * @param message FeatureSetDefaults message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encodeDelimited(message: google.protobuf.IFeatureSetDefaults, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Decodes a FeatureSetDefaults message from the specified reader or buffer.
+             * @param reader Reader or buffer to decode from
+             * @param [length] Message length if known beforehand
+             * @returns FeatureSetDefaults
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): google.protobuf.FeatureSetDefaults;
+
+            /**
+             * Decodes a FeatureSetDefaults message from the specified reader or buffer, length delimited.
+             * @param reader Reader or buffer to decode from
+             * @returns FeatureSetDefaults
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): google.protobuf.FeatureSetDefaults;
+
+            /**
+             * Verifies a FeatureSetDefaults message.
+             * @param message Plain object to verify
+             * @returns `null` if valid, otherwise the reason why it is not
+             */
+            public static verify(message: { [k: string]: any }): (string|null);
+
+            /**
+             * Creates a FeatureSetDefaults message from a plain object. Also converts values to their respective internal types.
+             * @param object Plain object
+             * @returns FeatureSetDefaults
+             */
+            public static fromObject(object: { [k: string]: any }): google.protobuf.FeatureSetDefaults;
+
+            /**
+             * Creates a plain object from a FeatureSetDefaults message. Also converts values to other types if specified.
+             * @param message FeatureSetDefaults
+             * @param [options] Conversion options
+             * @returns Plain object
+             */
+            public static toObject(message: google.protobuf.FeatureSetDefaults, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+            /**
+             * Converts this FeatureSetDefaults to JSON.
+             * @returns JSON object
+             */
+            public toJSON(): { [k: string]: any };
+
+            /**
+             * Gets the default type url for FeatureSetDefaults
+             * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+             * @returns The default type url
+             */
+            public static getTypeUrl(typeUrlPrefix?: string): string;
+        }
+
+        namespace FeatureSetDefaults {
+
+            /** Properties of a FeatureSetEditionDefault. */
+            interface IFeatureSetEditionDefault {
+
+                /** FeatureSetEditionDefault edition */
+                edition?: (google.protobuf.Edition|null);
+
+                /** FeatureSetEditionDefault overridableFeatures */
+                overridableFeatures?: (google.protobuf.IFeatureSet|null);
+
+                /** FeatureSetEditionDefault fixedFeatures */
+                fixedFeatures?: (google.protobuf.IFeatureSet|null);
+            }
+
+            /** Represents a FeatureSetEditionDefault. */
+            class FeatureSetEditionDefault implements IFeatureSetEditionDefault {
+
+                /**
+                 * Constructs a new FeatureSetEditionDefault.
+                 * @param [properties] Properties to set
+                 */
+                constructor(properties?: google.protobuf.FeatureSetDefaults.IFeatureSetEditionDefault);
+
+                /** FeatureSetEditionDefault edition. */
+                public edition: google.protobuf.Edition;
+
+                /** FeatureSetEditionDefault overridableFeatures. */
+                public overridableFeatures?: (google.protobuf.IFeatureSet|null);
+
+                /** FeatureSetEditionDefault fixedFeatures. */
+                public fixedFeatures?: (google.protobuf.IFeatureSet|null);
+
+                /**
+                 * Creates a new FeatureSetEditionDefault instance using the specified properties.
+                 * @param [properties] Properties to set
+                 * @returns FeatureSetEditionDefault instance
+                 */
+                public static create(properties?: google.protobuf.FeatureSetDefaults.IFeatureSetEditionDefault): google.protobuf.FeatureSetDefaults.FeatureSetEditionDefault;
+
+                /**
+                 * Encodes the specified FeatureSetEditionDefault message. Does not implicitly {@link google.protobuf.FeatureSetDefaults.FeatureSetEditionDefault.verify|verify} messages.
+                 * @param message FeatureSetEditionDefault message or plain object to encode
+                 * @param [writer] Writer to encode to
+                 * @returns Writer
+                 */
+                public static encode(message: google.protobuf.FeatureSetDefaults.IFeatureSetEditionDefault, writer?: $protobuf.Writer): $protobuf.Writer;
+
+                /**
+                 * Encodes the specified FeatureSetEditionDefault message, length delimited. Does not implicitly {@link google.protobuf.FeatureSetDefaults.FeatureSetEditionDefault.verify|verify} messages.
+                 * @param message FeatureSetEditionDefault message or plain object to encode
+                 * @param [writer] Writer to encode to
+                 * @returns Writer
+                 */
+                public static encodeDelimited(message: google.protobuf.FeatureSetDefaults.IFeatureSetEditionDefault, writer?: $protobuf.Writer): $protobuf.Writer;
+
+                /**
+                 * Decodes a FeatureSetEditionDefault message from the specified reader or buffer.
+                 * @param reader Reader or buffer to decode from
+                 * @param [length] Message length if known beforehand
+                 * @returns FeatureSetEditionDefault
+                 * @throws {Error} If the payload is not a reader or valid buffer
+                 * @throws {$protobuf.util.ProtocolError} If required fields are missing
+                 */
+                public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): google.protobuf.FeatureSetDefaults.FeatureSetEditionDefault;
+
+                /**
+                 * Decodes a FeatureSetEditionDefault message from the specified reader or buffer, length delimited.
+                 * @param reader Reader or buffer to decode from
+                 * @returns FeatureSetEditionDefault
+                 * @throws {Error} If the payload is not a reader or valid buffer
+                 * @throws {$protobuf.util.ProtocolError} If required fields are missing
+                 */
+                public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): google.protobuf.FeatureSetDefaults.FeatureSetEditionDefault;
+
+                /**
+                 * Verifies a FeatureSetEditionDefault message.
+                 * @param message Plain object to verify
+                 * @returns `null` if valid, otherwise the reason why it is not
+                 */
+                public static verify(message: { [k: string]: any }): (string|null);
+
+                /**
+                 * Creates a FeatureSetEditionDefault message from a plain object. Also converts values to their respective internal types.
+                 * @param object Plain object
+                 * @returns FeatureSetEditionDefault
+                 */
+                public static fromObject(object: { [k: string]: any }): google.protobuf.FeatureSetDefaults.FeatureSetEditionDefault;
+
+                /**
+                 * Creates a plain object from a FeatureSetEditionDefault message. Also converts values to other types if specified.
+                 * @param message FeatureSetEditionDefault
+                 * @param [options] Conversion options
+                 * @returns Plain object
+                 */
+                public static toObject(message: google.protobuf.FeatureSetDefaults.FeatureSetEditionDefault, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+                /**
+                 * Converts this FeatureSetEditionDefault to JSON.
+                 * @returns JSON object
+                 */
+                public toJSON(): { [k: string]: any };
+
+                /**
+                 * Gets the default type url for FeatureSetEditionDefault
                  * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
                  * @returns The default type url
                  */
@@ -12152,6 +14661,9 @@ export namespace google {
 
                 /** Annotation end */
                 end?: (number|null);
+
+                /** Annotation semantic */
+                semantic?: (google.protobuf.GeneratedCodeInfo.Annotation.Semantic|null);
             }
 
             /** Represents an Annotation. */
@@ -12174,6 +14686,9 @@ export namespace google {
 
                 /** Annotation end. */
                 public end: number;
+
+                /** Annotation semantic. */
+                public semantic: google.protobuf.GeneratedCodeInfo.Annotation.Semantic;
 
                 /**
                  * Creates a new Annotation instance using the specified properties.
@@ -12252,6 +14767,23 @@ export namespace google {
                  */
                 public static getTypeUrl(typeUrlPrefix?: string): string;
             }
+
+            namespace Annotation {
+
+                /** Semantic enum. */
+                enum Semantic {
+                    NONE = 0,
+                    SET = 1,
+                    ALIAS = 2
+                }
+            }
+        }
+
+        /** SymbolVisibility enum. */
+        enum SymbolVisibility {
+            VISIBILITY_UNSET = 0,
+            VISIBILITY_LOCAL = 1,
+            VISIBILITY_EXPORT = 2
         }
     }
 }

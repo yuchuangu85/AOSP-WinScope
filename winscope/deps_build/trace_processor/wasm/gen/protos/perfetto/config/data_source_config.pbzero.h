@@ -26,7 +26,9 @@ class AppWakelocksConfig;
 class ChromeConfig;
 class ChromiumHistogramSamplesConfig;
 class ChromiumSystemMetricsConfig;
+class CpuPerUidConfig;
 class EtwConfig;
+class FrozenFtraceConfig;
 class FtraceConfig;
 class GpuCounterConfig;
 class GpuRenderStagesConfig;
@@ -39,6 +41,7 @@ class NetworkPacketTraceConfig;
 class PackagesListConfig;
 class PerfEventConfig;
 class PixelModemConfig;
+class PriorityBoostConfig;
 class ProcessStatsConfig;
 class ProtoLogConfig;
 class StatsdTracingConfig;
@@ -51,6 +54,10 @@ class TrackEventConfig;
 class V8Config;
 class VulkanMemoryConfig;
 class WindowManagerConfig;
+namespace perfetto_pbzero_enum_DataSourceConfig {
+enum BufferExhaustedPolicy : int32_t;
+}  // namespace perfetto_pbzero_enum_DataSourceConfig
+using DataSourceConfig_BufferExhaustedPolicy = perfetto_pbzero_enum_DataSourceConfig::BufferExhaustedPolicy;
 namespace perfetto_pbzero_enum_DataSourceConfig {
 enum SessionInitiator : int32_t;
 }  // namespace perfetto_pbzero_enum_DataSourceConfig
@@ -88,7 +95,40 @@ const char* DataSourceConfig_SessionInitiator_Name(::perfetto::protos::pbzero::D
   return "PBZERO_UNKNOWN_ENUM_VALUE";
 }
 
-class DataSourceConfig_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/135, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
+namespace perfetto_pbzero_enum_DataSourceConfig {
+enum BufferExhaustedPolicy : int32_t {
+  BUFFER_EXHAUSTED_UNSPECIFIED = 0,
+  BUFFER_EXHAUSTED_DROP = 1,
+  BUFFER_EXHAUSTED_STALL_THEN_ABORT = 2,
+  BUFFER_EXHAUSTED_STALL_THEN_DROP = 3,
+};
+} // namespace perfetto_pbzero_enum_DataSourceConfig
+using DataSourceConfig_BufferExhaustedPolicy = perfetto_pbzero_enum_DataSourceConfig::BufferExhaustedPolicy;
+
+
+constexpr DataSourceConfig_BufferExhaustedPolicy DataSourceConfig_BufferExhaustedPolicy_MIN = DataSourceConfig_BufferExhaustedPolicy::BUFFER_EXHAUSTED_UNSPECIFIED;
+constexpr DataSourceConfig_BufferExhaustedPolicy DataSourceConfig_BufferExhaustedPolicy_MAX = DataSourceConfig_BufferExhaustedPolicy::BUFFER_EXHAUSTED_STALL_THEN_DROP;
+
+
+PERFETTO_PROTOZERO_CONSTEXPR14_OR_INLINE
+const char* DataSourceConfig_BufferExhaustedPolicy_Name(::perfetto::protos::pbzero::DataSourceConfig_BufferExhaustedPolicy value) {
+  switch (value) {
+  case ::perfetto::protos::pbzero::DataSourceConfig_BufferExhaustedPolicy::BUFFER_EXHAUSTED_UNSPECIFIED:
+    return "BUFFER_EXHAUSTED_UNSPECIFIED";
+
+  case ::perfetto::protos::pbzero::DataSourceConfig_BufferExhaustedPolicy::BUFFER_EXHAUSTED_DROP:
+    return "BUFFER_EXHAUSTED_DROP";
+
+  case ::perfetto::protos::pbzero::DataSourceConfig_BufferExhaustedPolicy::BUFFER_EXHAUSTED_STALL_THEN_ABORT:
+    return "BUFFER_EXHAUSTED_STALL_THEN_ABORT";
+
+  case ::perfetto::protos::pbzero::DataSourceConfig_BufferExhaustedPolicy::BUFFER_EXHAUSTED_STALL_THEN_DROP:
+    return "BUFFER_EXHAUSTED_STALL_THEN_DROP";
+  }
+  return "PBZERO_UNKNOWN_ENUM_VALUE";
+}
+
+class DataSourceConfig_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/137, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
  public:
   DataSourceConfig_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
   explicit DataSourceConfig_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
@@ -109,6 +149,10 @@ class DataSourceConfig_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIE
   int32_t session_initiator() const { return at<8>().as_int32(); }
   bool has_tracing_session_id() const { return at<4>().valid(); }
   uint64_t tracing_session_id() const { return at<4>().as_uint64(); }
+  bool has_buffer_exhausted_policy() const { return at<9>().valid(); }
+  int32_t buffer_exhausted_policy() const { return at<9>().as_int32(); }
+  bool has_priority_boost() const { return at<10>().valid(); }
+  ::protozero::ConstBytes priority_boost() const { return at<10>().as_bytes(); }
   bool has_ftrace_config() const { return at<100>().valid(); }
   ::protozero::ConstBytes ftrace_config() const { return at<100>().as_bytes(); }
   bool has_inode_file_config() const { return at<102>().valid(); }
@@ -145,6 +189,8 @@ class DataSourceConfig_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIE
   ::protozero::ConstBytes statsd_tracing_config() const { return at<117>().as_bytes(); }
   bool has_system_info_config() const { return at<119>().valid(); }
   ::protozero::ConstBytes system_info_config() const { return at<119>().as_bytes(); }
+  bool has_frozen_ftrace_config() const { return at<136>().valid(); }
+  ::protozero::ConstBytes frozen_ftrace_config() const { return at<136>().as_bytes(); }
   bool has_chrome_config() const { return at<101>().valid(); }
   ::protozero::ConstBytes chrome_config() const { return at<101>().as_bytes(); }
   bool has_v8_config() const { return at<127>().valid(); }
@@ -179,6 +225,8 @@ class DataSourceConfig_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIE
   ::protozero::ConstBytes chromium_histogram_samples() const { return at<134>().as_bytes(); }
   bool has_app_wakelocks_config() const { return at<135>().valid(); }
   ::protozero::ConstBytes app_wakelocks_config() const { return at<135>().as_bytes(); }
+  bool has_cpu_per_uid_config() const { return at<137>().valid(); }
+  ::protozero::ConstBytes cpu_per_uid_config() const { return at<137>().as_bytes(); }
   // field legacy_config omitted because its id is too high
   // field for_testing omitted because its id is too high
 };
@@ -195,6 +243,8 @@ class DataSourceConfig : public ::protozero::Message {
     kEnableExtraGuardrailsFieldNumber = 6,
     kSessionInitiatorFieldNumber = 8,
     kTracingSessionIdFieldNumber = 4,
+    kBufferExhaustedPolicyFieldNumber = 9,
+    kPriorityBoostFieldNumber = 10,
     kFtraceConfigFieldNumber = 100,
     kInodeFileConfigFieldNumber = 102,
     kProcessStatsConfigFieldNumber = 103,
@@ -213,6 +263,7 @@ class DataSourceConfig : public ::protozero::Message {
     kAndroidSystemPropertyConfigFieldNumber = 118,
     kStatsdTracingConfigFieldNumber = 117,
     kSystemInfoConfigFieldNumber = 119,
+    kFrozenFtraceConfigFieldNumber = 136,
     kChromeConfigFieldNumber = 101,
     kV8ConfigFieldNumber = 127,
     kInterceptorConfigFieldNumber = 115,
@@ -230,6 +281,7 @@ class DataSourceConfig : public ::protozero::Message {
     kGpuRenderstagesConfigFieldNumber = 133,
     kChromiumHistogramSamplesFieldNumber = 134,
     kAppWakelocksConfigFieldNumber = 135,
+    kCpuPerUidConfigFieldNumber = 137,
     kLegacyConfigFieldNumber = 1000,
     kForTestingFieldNumber = 1001,
   };
@@ -240,8 +292,17 @@ class DataSourceConfig : public ::protozero::Message {
   static inline const char* SessionInitiator_Name(SessionInitiator value) {
     return ::perfetto::protos::pbzero::DataSourceConfig_SessionInitiator_Name(value);
   }
+
+  using BufferExhaustedPolicy = ::perfetto::protos::pbzero::DataSourceConfig_BufferExhaustedPolicy;
+  static inline const char* BufferExhaustedPolicy_Name(BufferExhaustedPolicy value) {
+    return ::perfetto::protos::pbzero::DataSourceConfig_BufferExhaustedPolicy_Name(value);
+  }
   static inline const SessionInitiator SESSION_INITIATOR_UNSPECIFIED = SessionInitiator::SESSION_INITIATOR_UNSPECIFIED;
   static inline const SessionInitiator SESSION_INITIATOR_TRUSTED_SYSTEM = SessionInitiator::SESSION_INITIATOR_TRUSTED_SYSTEM;
+  static inline const BufferExhaustedPolicy BUFFER_EXHAUSTED_UNSPECIFIED = BufferExhaustedPolicy::BUFFER_EXHAUSTED_UNSPECIFIED;
+  static inline const BufferExhaustedPolicy BUFFER_EXHAUSTED_DROP = BufferExhaustedPolicy::BUFFER_EXHAUSTED_DROP;
+  static inline const BufferExhaustedPolicy BUFFER_EXHAUSTED_STALL_THEN_ABORT = BufferExhaustedPolicy::BUFFER_EXHAUSTED_STALL_THEN_ABORT;
+  static inline const BufferExhaustedPolicy BUFFER_EXHAUSTED_STALL_THEN_DROP = BufferExhaustedPolicy::BUFFER_EXHAUSTED_STALL_THEN_DROP;
 
   using FieldMetadata_Name =
     ::protozero::proto_utils::FieldMetadata<
@@ -392,6 +453,38 @@ class DataSourceConfig : public ::protozero::Message {
       ::protozero::proto_utils::ProtoSchemaType::kUint64>
         ::Append(*this, field_id, value);
   }
+
+  using FieldMetadata_BufferExhaustedPolicy =
+    ::protozero::proto_utils::FieldMetadata<
+      9,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kEnum,
+      DataSourceConfig_BufferExhaustedPolicy,
+      DataSourceConfig>;
+
+  static constexpr FieldMetadata_BufferExhaustedPolicy kBufferExhaustedPolicy{};
+  void set_buffer_exhausted_policy(DataSourceConfig_BufferExhaustedPolicy value) {
+    static constexpr uint32_t field_id = FieldMetadata_BufferExhaustedPolicy::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kEnum>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_PriorityBoost =
+    ::protozero::proto_utils::FieldMetadata<
+      10,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      PriorityBoostConfig,
+      DataSourceConfig>;
+
+  static constexpr FieldMetadata_PriorityBoost kPriorityBoost{};
+  template <typename T = PriorityBoostConfig> T* set_priority_boost() {
+    return BeginNestedMessage<T>(10);
+  }
+
 
   using FieldMetadata_FtraceConfig =
     ::protozero::proto_utils::FieldMetadata<
@@ -713,6 +806,24 @@ class DataSourceConfig : public ::protozero::Message {
   }
 
 
+  using FieldMetadata_FrozenFtraceConfig =
+    ::protozero::proto_utils::FieldMetadata<
+      136,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      FrozenFtraceConfig,
+      DataSourceConfig>;
+
+  static constexpr FieldMetadata_FrozenFtraceConfig kFrozenFtraceConfig{};
+  template <typename T = FrozenFtraceConfig> T* set_frozen_ftrace_config() {
+    return BeginNestedMessage<T>(136);
+  }
+
+  void set_frozen_ftrace_config_raw(const std::string& raw) {
+    return AppendBytes(136, raw.data(), raw.size());
+  }
+
+
   using FieldMetadata_ChromeConfig =
     ::protozero::proto_utils::FieldMetadata<
       101,
@@ -1008,6 +1119,24 @@ class DataSourceConfig : public ::protozero::Message {
 
   void set_app_wakelocks_config_raw(const std::string& raw) {
     return AppendBytes(135, raw.data(), raw.size());
+  }
+
+
+  using FieldMetadata_CpuPerUidConfig =
+    ::protozero::proto_utils::FieldMetadata<
+      137,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      CpuPerUidConfig,
+      DataSourceConfig>;
+
+  static constexpr FieldMetadata_CpuPerUidConfig kCpuPerUidConfig{};
+  template <typename T = CpuPerUidConfig> T* set_cpu_per_uid_config() {
+    return BeginNestedMessage<T>(137);
+  }
+
+  void set_cpu_per_uid_config_raw(const std::string& raw) {
+    return AppendBytes(137, raw.data(), raw.size());
   }
 
 

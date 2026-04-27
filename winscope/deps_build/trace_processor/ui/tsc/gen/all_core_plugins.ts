@@ -1,15 +1,21 @@
-import commands from '../core_plugins/commands';
-import exampleTraces from '../core_plugins/example_traces';
-import flagsPage from '../core_plugins/flags_page';
-import flowEvents from '../core_plugins/flow_events';
-import globalGroups from '../core_plugins/global_groups';
-import trackUtils from '../core_plugins/track_utils';
+import devPerfettoCorecommands from '../core_plugins/dev.perfetto.CoreCommands';
+import devPerfettoExampletraces from '../core_plugins/dev.perfetto.ExampleTraces';
+import devPerfettoFlagspage from '../core_plugins/dev.perfetto.FlagsPage';
+import devPerfettoFloweventspanel from '../core_plugins/dev.perfetto.FlowEventsPanel';
+import devPerfettoGlobalgroups from '../core_plugins/dev.perfetto.GlobalGroups';
+import devPerfettoMultitraceopen from '../core_plugins/dev.perfetto.MultiTraceOpen';
+import devPerfettoNotes from '../core_plugins/dev.perfetto.Notes';
+import devPerfettoSettingspage from '../core_plugins/dev.perfetto.SettingsPage';
+import devPerfettoTracklutils from '../core_plugins/dev.perfetto.TracklUtils';
 
 export default [
-  commands,
-  exampleTraces,
-  flagsPage,
-  flowEvents,
-  globalGroups,
-  trackUtils,
+  devPerfettoCorecommands,
+  devPerfettoExampletraces,
+  devPerfettoFlagspage,
+  devPerfettoFloweventspanel,
+  devPerfettoGlobalgroups,
+  devPerfettoMultitraceopen,
+  devPerfettoNotes,
+  devPerfettoSettingspage,
+  devPerfettoTracklutils,
 ];

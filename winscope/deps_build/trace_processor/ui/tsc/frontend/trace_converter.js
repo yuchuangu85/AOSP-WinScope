@@ -18,8 +18,8 @@ exports.convertTraceToSystraceAndDownload = convertTraceToSystraceAndDownload;
 exports.convertToJson = convertToJson;
 exports.convertTraceToPprofAndDownload = convertTraceToPprofAndDownload;
 const assets_1 = require("../base/assets");
-const clipboard_1 = require("../base/clipboard");
 const deferred_1 = require("../base/deferred");
+const download_utils_1 = require("../base/download_utils");
 const string_utils_1 = require("../base/string_utils");
 const app_impl_1 = require("../core/app_impl");
 const error_dialog_1 = require("./error_dialog");
@@ -34,7 +34,10 @@ async function makeWorkerAndPost(msg, openTraceInLegacy) {
             promise.resolve();
         }
         else if (args.kind === 'downloadFile') {
-            (0, clipboard_1.download)(new File([new Blob([args.buffer])], args.name));
+            (0, download_utils_1.download)({
+                content: args.buffer,
+                fileName: args.name,
+            });
         }
         else if (args.kind === 'openTraceInLegacy') {
             const str = (0, string_utils_1.utf8Decode)(args.buffer);

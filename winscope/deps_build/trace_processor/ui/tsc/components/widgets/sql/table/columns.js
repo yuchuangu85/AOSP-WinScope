@@ -21,9 +21,7 @@ const string_utils_1 = require("../../../../base/string_utils");
 const time_1 = require("../../../../base/time");
 const query_result_1 = require("../../../../trace_processor/query_result");
 const core_types_1 = require("../../../sql_utils/core_types");
-const anchor_1 = require("../../../../widgets/anchor");
 const error_1 = require("../../../../widgets/error");
-const menu_1 = require("../../../../widgets/menu");
 const duration_1 = require("../../duration");
 const process_1 = require("../../process");
 const sched_1 = require("../../sched");
@@ -52,8 +50,10 @@ class StandardColumn {
 }
 exports.StandardColumn = StandardColumn;
 class TimestampColumn {
+    trace;
     column;
-    constructor(column) {
+    constructor(trace, column) {
+        this.trace = trace;
         this.column = column;
     }
     renderCell(value, tableManager) {
@@ -63,17 +63,25 @@ class TimestampColumn {
         if (typeof value !== 'bigint') {
             return (0, render_cell_utils_1.renderStandardCell)(value, this.column, tableManager);
         }
-        return (0, mithril_1.default)(timestamp_1.Timestamp, {
-            ts: time_1.Time.fromRaw(value),
-            extraMenuItems: tableManager &&
-                (0, render_cell_utils_1.getStandardContextMenuItems)(value, this.column, tableManager),
-        });
+        return {
+            content: (0, mithril_1.default)(timestamp_1.Timestamp, {
+                trace: this.trace,
+                ts: time_1.Time.fromRaw(value),
+            }),
+            menu: [
+                tableManager &&
+                    (0, render_cell_utils_1.getStandardContextMenuItems)(value, this.column, tableManager),
+            ],
+            isNumerical: true,
+        };
     }
 }
 exports.TimestampColumn = TimestampColumn;
 class DurationColumn {
+    trace;
     column;
-    constructor(column) {
+    constructor(trace, column) {
+        this.trace = trace;
         this.column = column;
     }
     renderCell(value, tableManager) {
@@ -83,18 +91,26 @@ class DurationColumn {
         if (typeof value !== 'bigint') {
             return (0, render_cell_utils_1.renderStandardCell)(value, this.column, tableManager);
         }
-        return (0, mithril_1.default)(duration_1.DurationWidget, {
-            dur: time_1.Duration.fromRaw(value),
-            extraMenuItems: tableManager &&
-                (0, render_cell_utils_1.getStandardContextMenuItems)(value, this.column, tableManager),
-        });
+        return {
+            content: (0, mithril_1.default)(duration_1.DurationWidget, {
+                trace: this.trace,
+                dur: time_1.Duration.fromRaw(value),
+            }),
+            menu: [
+                tableManager &&
+                    (0, render_cell_utils_1.getStandardContextMenuItems)(value, this.column, tableManager),
+            ],
+            isNumerical: true,
+        };
     }
 }
 exports.DurationColumn = DurationColumn;
 class SliceIdColumn {
+    trace;
     column;
     params;
-    constructor(column, params) {
+    constructor(trace, column, params) {
+        this.trace = trace;
         this.column = column;
         this.params = params;
     }
@@ -103,20 +119,28 @@ class SliceIdColumn {
         if (!manager || id === null) {
             return (0, render_cell_utils_1.renderStandardCell)(id, this.column, manager);
         }
-        return (0, mithril_1.default)(slice_1.SliceRef, {
-            id: (0, core_types_1.asSliceSqlId)(Number(id)),
-            name: `${id}`,
-            switchToCurrentSelectionTab: false,
-        });
+        return {
+            content: (0, mithril_1.default)(slice_1.SliceRef, {
+                trace: this.trace,
+                id: (0, core_types_1.asSliceSqlId)(Number(id)),
+                name: `${id}`,
+                switchToCurrentSelectionTab: false,
+            }),
+            menu: (0, render_cell_utils_1.getStandardContextMenuItems)(id, this.column, manager),
+            isNumerical: true,
+        };
     }
     listDerivedColumns() {
         if (this.params?.type === 'id')
             return undefined;
         return async () => new Map([
-            ['ts', new TimestampColumn(this.getChildColumn('ts'))],
-            ['dur', new DurationColumn(this.getChildColumn('dur'))],
+            ['ts', new TimestampColumn(this.trace, this.getChildColumn('ts'))],
+            ['dur', new DurationColumn(this.trace, this.getChildColumn('dur'))],
             ['name', new StandardColumn(this.getChildColumn('name'))],
-            ['parent_id', new SliceIdColumn(this.getChildColumn('parent_id'))],
+            [
+                'parent_id',
+                new SliceIdColumn(this.trace, this.getChildColumn('parent_id')),
+            ],
         ]);
     }
     getChildColumn(name) {
@@ -131,8 +155,10 @@ class SliceIdColumn {
 }
 exports.SliceIdColumn = SliceIdColumn;
 class SchedIdColumn {
+    trace;
     column;
-    constructor(column) {
+    constructor(trace, column) {
+        this.trace = trace;
         this.column = column;
     }
     renderCell(value, manager) {
@@ -140,19 +166,27 @@ class SchedIdColumn {
         if (!manager || id === null) {
             return (0, render_cell_utils_1.renderStandardCell)(id, this.column, manager);
         }
-        if (typeof id !== 'bigint')
-            return wrongTypeError('id', this.column, id);
-        return (0, mithril_1.default)(sched_1.SchedRef, {
-            id: (0, core_types_1.asSchedSqlId)(Number(id)),
-            name: `${id}`,
-            switchToCurrentSelectionTab: false,
-        });
+        if (typeof id !== 'bigint') {
+            return { content: wrongTypeError('id', this.column, id) };
+        }
+        return {
+            content: (0, mithril_1.default)(sched_1.SchedRef, {
+                trace: this.trace,
+                id: (0, core_types_1.asSchedSqlId)(Number(id)),
+                name: `${id}`,
+                switchToCurrentSelectionTab: false,
+            }),
+            menu: (0, render_cell_utils_1.getStandardContextMenuItems)(id, this.column, manager),
+            isNumerical: true,
+        };
     }
 }
 exports.SchedIdColumn = SchedIdColumn;
 class ThreadStateIdColumn {
+    trace;
     column;
-    constructor(column) {
+    constructor(trace, column) {
+        this.trace = trace;
         this.column = column;
     }
     renderCell(value, manager) {
@@ -160,20 +194,28 @@ class ThreadStateIdColumn {
         if (!manager || id === null) {
             return (0, render_cell_utils_1.renderStandardCell)(id, this.column, manager);
         }
-        if (typeof id !== 'bigint')
-            return wrongTypeError('id', this.column, id);
-        return (0, mithril_1.default)(thread_state_1.ThreadStateRef, {
-            id: (0, core_types_1.asThreadStateSqlId)(Number(id)),
-            name: `${id}`,
-            switchToCurrentSelectionTab: false,
-        });
+        if (typeof id !== 'bigint') {
+            return { content: wrongTypeError('id', this.column, id) };
+        }
+        return {
+            content: (0, mithril_1.default)(thread_state_1.ThreadStateRef, {
+                trace: this.trace,
+                id: (0, core_types_1.asThreadStateSqlId)(Number(id)),
+                name: `${id}`,
+                switchToCurrentSelectionTab: false,
+            }),
+            menu: (0, render_cell_utils_1.getStandardContextMenuItems)(id, this.column, manager),
+            isNumerical: true,
+        };
     }
 }
 exports.ThreadStateIdColumn = ThreadStateIdColumn;
 class ThreadIdColumn {
+    trace;
     column;
     params;
-    constructor(column, params) {
+    constructor(trace, column, params) {
+        this.trace = trace;
         this.column = column;
         this.params = params;
     }
@@ -185,9 +227,14 @@ class ThreadIdColumn {
         if (typeof utid !== 'bigint') {
             throw new Error(`thread.utid is expected to be bigint, got ${typeof utid}`);
         }
-        return (0, mithril_1.default)(menu_1.PopupMenu, {
-            trigger: (0, mithril_1.default)(anchor_1.Anchor, `${utid}`),
-        }, (0, thread_1.showThreadDetailsMenuItem)((0, core_types_1.asUtid)(Number(utid))), (0, render_cell_utils_1.getStandardContextMenuItems)(utid, this.column, manager));
+        return {
+            content: `${utid}`,
+            menu: [
+                (0, thread_1.showThreadDetailsMenuItem)(this.trace, (0, core_types_1.asUtid)(Number(utid))),
+                (0, render_cell_utils_1.getStandardContextMenuItems)(utid, this.column, manager),
+            ],
+            isNumerical: true,
+        };
     }
     listDerivedColumns() {
         if (this.params?.type === 'id')
@@ -195,9 +242,15 @@ class ThreadIdColumn {
         return async () => new Map([
             ['tid', new StandardColumn(this.getChildColumn('tid'))],
             ['name', new StandardColumn(this.getChildColumn('name'))],
-            ['start_ts', new TimestampColumn(this.getChildColumn('start_ts'))],
-            ['end_ts', new TimestampColumn(this.getChildColumn('end_ts'))],
-            ['upid', new ProcessIdColumn(this.getChildColumn('upid'))],
+            [
+                'start_ts',
+                new TimestampColumn(this.trace, this.getChildColumn('start_ts')),
+            ],
+            [
+                'end_ts',
+                new TimestampColumn(this.trace, this.getChildColumn('end_ts')),
+            ],
+            ['upid', new ProcessIdColumn(this.trace, this.getChildColumn('upid'))],
             [
                 'is_main_thread',
                 new StandardColumn(this.getChildColumn('is_main_thread')),
@@ -225,9 +278,11 @@ class ThreadIdColumn {
 }
 exports.ThreadIdColumn = ThreadIdColumn;
 class ProcessIdColumn {
+    trace;
     column;
     params;
-    constructor(column, params) {
+    constructor(trace, column, params) {
+        this.trace = trace;
         this.column = column;
         this.params = params;
     }
@@ -239,9 +294,14 @@ class ProcessIdColumn {
         if (typeof upid !== 'bigint') {
             throw new Error(`thread.upid is expected to be bigint, got ${typeof upid}`);
         }
-        return (0, mithril_1.default)(menu_1.PopupMenu, {
-            trigger: (0, mithril_1.default)(anchor_1.Anchor, `${upid}`),
-        }, (0, process_1.showProcessDetailsMenuItem)((0, core_types_1.asUpid)(Number(upid))), (0, render_cell_utils_1.getStandardContextMenuItems)(upid, this.column, manager));
+        return {
+            content: `${upid}`,
+            menu: [
+                (0, process_1.showProcessDetailsMenuItem)(this.trace, (0, core_types_1.asUpid)(Number(upid))),
+                (0, render_cell_utils_1.getStandardContextMenuItems)(upid, this.column, manager),
+            ],
+            isNumerical: true,
+        };
     }
     listDerivedColumns() {
         if (this.params?.type === 'id')
@@ -249,11 +309,17 @@ class ProcessIdColumn {
         return async () => new Map([
             ['pid', new StandardColumn(this.getChildColumn('pid'))],
             ['name', new StandardColumn(this.getChildColumn('name'))],
-            ['start_ts', new TimestampColumn(this.getChildColumn('start_ts'))],
-            ['end_ts', new TimestampColumn(this.getChildColumn('end_ts'))],
+            [
+                'start_ts',
+                new TimestampColumn(this.trace, this.getChildColumn('start_ts')),
+            ],
+            [
+                'end_ts',
+                new TimestampColumn(this.trace, this.getChildColumn('end_ts')),
+            ],
             [
                 'parent_upid',
-                new ProcessIdColumn(this.getChildColumn('parent_upid')),
+                new ProcessIdColumn(this.trace, this.getChildColumn('parent_upid')),
             ],
             [
                 'is_main_thread',

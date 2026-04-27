@@ -58,15 +58,15 @@ async function addDebugSliceTrack(args) {
     const titleBase = args.title?.trim() || `Debug Slice Track ${tableId}`;
     const uriBase = `debug.track${tableId}`;
     // Create a table for this query before doing anything
-    await createTableForSliceTrack(args.trace.engine, tableName, args.data, args.columns, args.argColumns, args.pivotOn);
+    await createTableForSliceTrack(args.trace.engine, tableName, args.data, args.columns, args.argColumns, args.pivotOn, args.argSetIdColumn);
     if (args.pivotOn) {
         await addPivotedSliceTracks(args.trace, tableName, titleBase, uriBase, args.pivotOn);
     }
     else {
-        addSingleSliceTrack(args.trace, tableName, titleBase, uriBase);
+        addSingleSliceTrack(args.trace, tableName, titleBase, uriBase, args.argSetIdColumn);
     }
 }
-async function createTableForSliceTrack(engine, tableName, data, columns = {}, argColumns, pivotCol) {
+async function createTableForSliceTrack(engine, tableName, data, columns = {}, argColumns, pivotCol, argSetIdColumn) {
     const { ts = 'ts', dur = 'dur', name = 'name' } = columns;
     // If the view has clashing names (e.g. "name" coming from joining two
     // different tables, we will see names like "name_1", "name_2", but they
@@ -77,8 +77,9 @@ async function createTableForSliceTrack(engine, tableName, data, columns = {}, a
         `${ts} as ts`,
         `ifnull(cast(${dur} as int), -1) as dur`,
         `printf('%s', ${name}) as name`,
-        argColumns && argColumns.map((c) => `${c} as ${debug_slice_track_details_panel_1.ARG_PREFIX}${c}`),
+        argColumns && argColumns.map((c) => `${c} as ${debug_slice_track_details_panel_1.RAW_PREFIX}${c}`),
         pivotCol && `${pivotCol} as pivot`,
+        argSetIdColumn && `${argSetIdColumn} as arg_set_id`,
     ]
         .flat() // Convert to flattened list
         .filter(Boolean) // Remove falsy values
@@ -97,7 +98,7 @@ async function createTableForSliceTrack(engine, tableName, data, columns = {}, a
     from prepared_data
     order by ts
   `;
-    return await (0, sql_utils_1.createPerfettoTable)(engine, tableName, query);
+    return await (0, sql_utils_1.createPerfettoTable)({ engine, name: tableName, as: query });
 }
 async function addPivotedSliceTracks(trace, tableName, titleBase, uriBase, pivotColName) {
     const result = await trace.engine.query(`
@@ -109,11 +110,10 @@ async function addPivotedSliceTracks(trace, tableName, titleBase, uriBase, pivot
     for (const iter = result.iter({}); iter.valid(); iter.next()) {
         const uri = `${uriBase}_${trackCount++}`;
         const pivotValue = iter.get('pivot');
-        const title = `${titleBase}: ${pivotColName} = ${(0, sql_utils_1.sqlValueToReadableString)(pivotValue)}`;
+        const name = `${titleBase}: ${pivotColName} = ${(0, sql_utils_1.sqlValueToReadableString)(pivotValue)}`;
         trace.tracks.registerTrack({
             uri,
-            title,
-            track: new dataset_slice_track_1.DatasetSliceTrack({
+            renderer: new dataset_slice_track_1.DatasetSliceTrack({
                 trace,
                 uri,
                 dataset: new dataset_1.SourceDataset({
@@ -134,15 +134,14 @@ async function addPivotedSliceTracks(trace, tableName, titleBase, uriBase, pivot
                 },
             }),
         });
-        const trackNode = new workspace_1.TrackNode({ uri, title, removable: true });
+        const trackNode = new workspace_1.TrackNode({ uri, name, removable: true });
         trace.workspace.pinnedTracksNode.addChildLast(trackNode);
     }
 }
-function addSingleSliceTrack(trace, tableName, title, uri) {
+function addSingleSliceTrack(trace, tableName, name, uri, argSetIdCol) {
     trace.tracks.registerTrack({
         uri,
-        title,
-        track: new dataset_slice_track_1.DatasetSliceTrack({
+        renderer: new dataset_slice_track_1.DatasetSliceTrack({
             trace,
             uri,
             dataset: new dataset_1.SourceDataset({
@@ -155,11 +154,11 @@ function addSingleSliceTrack(trace, tableName, title, uri) {
                 src: tableName,
             }),
             detailsPanel: (row) => {
-                return new debug_slice_track_details_panel_1.DebugSliceTrackDetailsPanel(trace, tableName, row.id);
+                return new debug_slice_track_details_panel_1.DebugSliceTrackDetailsPanel(trace, tableName, row.id, argSetIdCol);
             },
         }),
     });
-    const trackNode = new workspace_1.TrackNode({ uri, title, removable: true });
+    const trackNode = new workspace_1.TrackNode({ uri, name, removable: true });
     trace.workspace.pinnedTracksNode.addChildLast(trackNode);
 }
 /**
@@ -217,7 +216,7 @@ async function createTableForCounterTrack(engine, tableName, data, columnMapping
     from data
     order by ts
   `;
-    return await (0, sql_utils_1.createPerfettoTable)(engine, tableName, query);
+    return await (0, sql_utils_1.createPerfettoTable)({ engine, name: tableName, as: query });
 }
 async function addPivotedCounterTracks(trace, tableName, titleBase, uriBase, pivotColName) {
     const result = await trace.engine.query(`
@@ -229,27 +228,25 @@ async function addPivotedCounterTracks(trace, tableName, titleBase, uriBase, piv
     for (const iter = result.iter({}); iter.valid(); iter.next()) {
         const uri = `${uriBase}_${trackCount++}`;
         const pivotValue = iter.get('pivot');
-        const title = `${titleBase}: ${pivotColName} = ${(0, sql_utils_1.sqlValueToReadableString)(pivotValue)}`;
+        const name = `${titleBase}: ${pivotColName} = ${(0, sql_utils_1.sqlValueToReadableString)(pivotValue)}`;
         trace.tracks.registerTrack({
             uri,
-            title,
-            track: new query_counter_track_1.SqlTableCounterTrack(trace, uri, `
+            renderer: new query_counter_track_1.SqlTableCounterTrack(trace, uri, `
           SELECT *
           FROM ${tableName}
           WHERE pivot = ${(0, sql_utils_1.sqlValueToSqliteString)(pivotValue)}
         `),
         });
-        const trackNode = new workspace_1.TrackNode({ uri, title, removable: true });
+        const trackNode = new workspace_1.TrackNode({ uri, name, removable: true });
         trace.workspace.pinnedTracksNode.addChildLast(trackNode);
     }
 }
-function addSingleCounterTrack(trace, tableName, title, uri) {
+function addSingleCounterTrack(trace, tableName, name, uri) {
     trace.tracks.registerTrack({
         uri,
-        title,
-        track: new query_counter_track_1.SqlTableCounterTrack(trace, uri, tableName),
+        renderer: new query_counter_track_1.SqlTableCounterTrack(trace, uri, tableName),
     });
-    const trackNode = new workspace_1.TrackNode({ uri, title, removable: true });
+    const trackNode = new workspace_1.TrackNode({ uri, name, removable: true });
     trace.workspace.pinnedTracksNode.addChildLast(trackNode);
 }
 //# sourceMappingURL=debug_tracks.js.map

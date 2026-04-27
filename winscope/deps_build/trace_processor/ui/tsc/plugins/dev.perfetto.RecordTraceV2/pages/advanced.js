@@ -135,7 +135,7 @@ function procThreadAssociation() {
             const minMax = [256, 8 * 1024];
             const bufSizeKb = Math.min(Math.max(tc.defaultBuffer.sizeKb / 16, minMax[0]), minMax[1]);
             tc.addBuffer(bufId, bufSizeKb);
-            const ds = tc.addDataSource(exports.PROC_STATS_DS_NAME);
+            const ds = tc.addDataSource(exports.PROC_STATS_DS_NAME, bufId);
             const cfg = (ds.processStatsConfig ??= {});
             cfg.scanAllProcessesOnStart = settings.initialScan.enabled || undefined;
         },

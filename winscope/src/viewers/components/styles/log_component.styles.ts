@@ -34,10 +34,6 @@ export const logComponentStyles = `
     display: flex;
     flex-direction: row;
     overflow-wrap: anywhere;
-  }
-
-  .headers div,
-  .entries div {
     padding: 4px;
   }
 
@@ -45,14 +41,23 @@ export const logComponentStyles = `
     align-content: center;
   }
 
+  .header, .filter, .cell {
+    padding: 4px;
+  }
+
   .time {
     flex: 1;
     min-width: 135px;
   }
 
-  .go-to-current-time {
-    height: 100%;
+  .time-controls {
+    display: flex;
+    align-items: center;
+  }
+
+  .time-controls .time-button {
     width: fit-content;
+    padding: 0 4px;
   }
 
   .placeholder-text {
@@ -89,6 +94,11 @@ export const logComponentStyles = `
     width: 75px;
   }
 
+  .process {
+    flex: 1;
+    width: 85px;
+  }
+
   .transaction-type {
     flex: 1;
     min-width: 85px;
@@ -116,10 +126,7 @@ export const logComponentStyles = `
 
   .text {
     flex: 10;
-  }
-
-  .title-section .filters {
-    margin-top: 8px;
+    white-space: pre-wrap;
   }
 
   .transition-id {
@@ -136,8 +143,8 @@ export const logComponentStyles = `
   }
 
   .header {
-    display: flex;
     align-items: center;
+    align-self: center;
   }
 
   .transition-type {
@@ -182,10 +189,14 @@ export const logComponentStyles = `
     justify-content: end;
   }
 
-  .status .mat-icon {
-    font-size: 18px;
-    width: 18px;
-    height: 18px;
+  .entry .source-file {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+  }
+
+  .cell:not(:hover) .copy-button {
+    visibility: hidden;
   }
 
   .input-type {
@@ -206,10 +217,12 @@ export const logComponentStyles = `
   }
   .input-display-id {
     flex: 1;
+    padding-right: 12px;
     min-width: 50px;
   }
   .entry .input-details {
     flex: 4;
+    padding-left: 12px;
     min-width: 50px;
   }
   .headers .input-details {

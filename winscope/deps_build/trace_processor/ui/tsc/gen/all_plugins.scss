@@ -1,4 +1,12 @@
+@import '../plugins/com.android.AndroidLog/styles';
+@import '../plugins/com.google.PerfettoMcp/styles';
 @import '../plugins/dev.perfetto.ExplorePage/styles';
+@import '../plugins/dev.perfetto.Ftrace/styles';
+@import '../plugins/dev.perfetto.MetricsPage/styles';
 @import '../plugins/dev.perfetto.QueryLog/styles';
-@import '../plugins/dev.perfetto.VizPage/styles';
+@import '../plugins/dev.perfetto.QueryPage/styles';
+@import '../plugins/dev.perfetto.RecordTraceV2/styles';
+@import '../plugins/dev.perfetto.Sched/styles';
+@import '../plugins/dev.perfetto.Screenshots/styles';
+@import '../plugins/dev.perfetto.TimelineSync/styles';
 @import '../plugins/dev.perfetto.WidgetsPage/styles';

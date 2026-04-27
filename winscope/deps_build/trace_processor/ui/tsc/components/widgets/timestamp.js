@@ -17,46 +17,38 @@ exports.Timestamp = void 0;
 const tslib_1 = require("tslib");
 const mithril_1 = tslib_1.__importDefault(require("mithril"));
 const clipboard_1 = require("../../base/clipboard");
-const logging_1 = require("../../base/logging");
 const semantic_icons_1 = require("../../base/semantic_icons");
 const time_1 = require("../../base/time");
-const app_impl_1 = require("../../core/app_impl");
 const anchor_1 = require("../../widgets/anchor");
 const menu_1 = require("../../widgets/menu");
 const timestamp_format_menu_1 = require("./timestamp_format_menu");
 const time_utils_1 = require("../time_utils");
 const timeline_1 = require("../../public/timeline");
 class Timestamp {
-    trace;
-    constructor() {
-        // TODO(primiano): the Trace object should be injected into the attrs, but
-        // there are too many users of this class and doing so requires a larger
-        // refactoring CL. Either that or we should find a different way to plumb
-        // the hoverCursorTimestamp.
-        this.trace = (0, logging_1.assertExists)(app_impl_1.AppImpl.instance.trace);
-    }
     view({ attrs }) {
-        const { ts } = attrs;
-        const timeline = this.trace.timeline;
+        const { trace, ts } = attrs;
+        const timeline = trace.timeline;
         return (0, mithril_1.default)(menu_1.PopupMenu, {
             trigger: (0, mithril_1.default)(anchor_1.Anchor, {
                 onmouseover: () => (timeline.hoverCursorTimestamp = ts),
                 onmouseout: () => (timeline.hoverCursorTimestamp = undefined),
-            }, attrs.display ?? this.formatTimestamp(timeline.toDomainTime(ts))),
+            }, attrs.display ??
+                this.formatTimestamp(trace, timeline.toDomainTime(ts))),
         }, (0, mithril_1.default)(menu_1.MenuItem, {
             icon: semantic_icons_1.Icons.Copy,
             label: `Copy raw value`,
             onclick: () => {
                 (0, clipboard_1.copyToClipboard)(ts.toString());
             },
-        }), (0, mithril_1.default)(timestamp_format_menu_1.TimestampFormatMenuItem, { trace: this.trace }), attrs.extraMenuItems ? [(0, mithril_1.default)(menu_1.MenuDivider), attrs.extraMenuItems] : null);
+        }), (0, mithril_1.default)(timestamp_format_menu_1.TimestampFormatMenuItem, { trace }), attrs.extraMenuItems ? [(0, mithril_1.default)(menu_1.MenuDivider), attrs.extraMenuItems] : null);
     }
-    formatTimestamp(time) {
-        const fmt = this.trace.timeline.timestampFormat;
+    formatTimestamp(trace, time) {
+        const fmt = trace.timeline.timestampFormat;
         switch (fmt) {
             case timeline_1.TimestampFormat.UTC:
             case timeline_1.TimestampFormat.TraceTz:
             case timeline_1.TimestampFormat.Timecode:
+            case timeline_1.TimestampFormat.CustomTimezone:
                 return (0, time_utils_1.renderTimecode)(time);
             case timeline_1.TimestampFormat.TraceNs:
                 return time.toString();

@@ -109,10 +109,11 @@ function renderValue(name, value) {
             if (!button) {
                 return null;
             }
-            return (0, mithril_1.default)('i.material-icons.grey', {
+            return (0, mithril_1.default)(button_1.Button, {
                 onclick: button.action,
                 title: button.hoverText,
-            }, button.icon ?? 'call_made');
+                icon: button.icon ?? 'call_made',
+            });
         };
         if (value.kind === 'STRING') {
             const right = [

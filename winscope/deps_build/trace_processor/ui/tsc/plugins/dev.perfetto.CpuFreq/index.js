@@ -13,10 +13,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 Object.defineProperty(exports, "__esModule", { value: true });
+const tslib_1 = require("tslib");
+const mithril_1 = tslib_1.__importDefault(require("mithril"));
 const track_kinds_1 = require("../../public/track_kinds");
 const workspace_1 = require("../../public/workspace");
 const query_result_1 = require("../../trace_processor/query_result");
 const cpu_freq_track_1 = require("./cpu_freq_track");
+const anchor_1 = require("../../widgets/anchor");
+const semantic_icons_1 = require("../../base/semantic_icons");
 class default_1 {
     static id = 'dev.perfetto.CpuFreq';
     async onTraceLoad(ctx) {
@@ -38,6 +42,12 @@ class default_1 {
       where t.type = 'cpu_frequency';
     `);
         const maxCpuFreq = maxCpuFreqResult.firstRow({ freq: query_result_1.NUM }).freq;
+        const group = new workspace_1.TrackNode({
+            name: 'CPU Frequency',
+            sortOrder: -40,
+            isSummary: true,
+            collapsed: false,
+        });
         for (const cpu of cpus) {
             // Only add a cpu freq track if we have cpu freq data.
             const cpuFreqIdleResult = await engine.query(`
@@ -71,19 +81,34 @@ class default_1 {
                     idleTrackId,
                 };
                 const uri = `/cpu_freq_cpu${cpu.ucpu}`;
-                const title = `Cpu ${cpu.toString()} Frequency`;
                 ctx.tracks.registerTrack({
                     uri,
-                    title,
                     tags: {
                         kind: track_kinds_1.CPU_FREQ_TRACK_KIND,
                         cpu: cpu.ucpu,
                     },
-                    track: new cpu_freq_track_1.CpuFreqTrack(config, ctx),
+                    renderer: new cpu_freq_track_1.CpuFreqTrack(config, ctx),
+                    description: () => {
+                        return (0, mithril_1.default)('', [
+                            `Shows the CPU frequency ${cpu.toString()} over time.`,
+                            (0, mithril_1.default)('br'),
+                            (0, mithril_1.default)(anchor_1.Anchor, {
+                                href: 'https://perfetto.dev/docs/data-sources/cpu-freq',
+                                target: '_blank',
+                                icon: semantic_icons_1.Icons.ExternalLink,
+                            }, 'Documentation'),
+                        ]);
+                    },
                 });
-                const trackNode = new workspace_1.TrackNode({ uri, title, sortOrder: -40 });
-                ctx.workspace.addChildInOrder(trackNode);
+                const trackNode = new workspace_1.TrackNode({
+                    uri,
+                    name: `CPU ${cpu.toString()} Frequency`,
+                });
+                group.addChildInOrder(trackNode);
             }
+        }
+        if (group.children.length > 0) {
+            ctx.workspace.addChildInOrder(group);
         }
     }
 }

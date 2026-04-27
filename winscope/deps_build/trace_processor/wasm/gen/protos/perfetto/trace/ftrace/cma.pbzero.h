@@ -17,6 +17,154 @@ namespace perfetto {
 namespace protos {
 namespace pbzero {
 
+class CmaAllocFinishFtraceEvent_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/6, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
+ public:
+  CmaAllocFinishFtraceEvent_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
+  explicit CmaAllocFinishFtraceEvent_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
+  explicit CmaAllocFinishFtraceEvent_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
+  bool has_name() const { return at<1>().valid(); }
+  ::protozero::ConstChars name() const { return at<1>().as_string(); }
+  bool has_pfn() const { return at<2>().valid(); }
+  uint64_t pfn() const { return at<2>().as_uint64(); }
+  bool has_page() const { return at<3>().valid(); }
+  uint64_t page() const { return at<3>().as_uint64(); }
+  bool has_count() const { return at<4>().valid(); }
+  uint64_t count() const { return at<4>().as_uint64(); }
+  bool has_align() const { return at<5>().valid(); }
+  uint32_t align() const { return at<5>().as_uint32(); }
+  bool has_errorno() const { return at<6>().valid(); }
+  int32_t errorno() const { return at<6>().as_int32(); }
+};
+
+class CmaAllocFinishFtraceEvent : public ::protozero::Message {
+ public:
+  using Decoder = CmaAllocFinishFtraceEvent_Decoder;
+  enum : int32_t {
+    kNameFieldNumber = 1,
+    kPfnFieldNumber = 2,
+    kPageFieldNumber = 3,
+    kCountFieldNumber = 4,
+    kAlignFieldNumber = 5,
+    kErrornoFieldNumber = 6,
+  };
+  static constexpr const char* GetName() { return ".perfetto.protos.CmaAllocFinishFtraceEvent"; }
+
+
+  using FieldMetadata_Name =
+    ::protozero::proto_utils::FieldMetadata<
+      1,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kString,
+      std::string,
+      CmaAllocFinishFtraceEvent>;
+
+  static constexpr FieldMetadata_Name kName{};
+  void set_name(const char* data, size_t size) {
+    AppendBytes(FieldMetadata_Name::kFieldId, data, size);
+  }
+  void set_name(::protozero::ConstChars chars) {
+    AppendBytes(FieldMetadata_Name::kFieldId, chars.data, chars.size);
+  }
+  void set_name(std::string value) {
+    static constexpr uint32_t field_id = FieldMetadata_Name::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kString>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_Pfn =
+    ::protozero::proto_utils::FieldMetadata<
+      2,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kUint64,
+      uint64_t,
+      CmaAllocFinishFtraceEvent>;
+
+  static constexpr FieldMetadata_Pfn kPfn{};
+  void set_pfn(uint64_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_Pfn::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint64>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_Page =
+    ::protozero::proto_utils::FieldMetadata<
+      3,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kUint64,
+      uint64_t,
+      CmaAllocFinishFtraceEvent>;
+
+  static constexpr FieldMetadata_Page kPage{};
+  void set_page(uint64_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_Page::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint64>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_Count =
+    ::protozero::proto_utils::FieldMetadata<
+      4,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kUint64,
+      uint64_t,
+      CmaAllocFinishFtraceEvent>;
+
+  static constexpr FieldMetadata_Count kCount{};
+  void set_count(uint64_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_Count::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint64>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_Align =
+    ::protozero::proto_utils::FieldMetadata<
+      5,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kUint32,
+      uint32_t,
+      CmaAllocFinishFtraceEvent>;
+
+  static constexpr FieldMetadata_Align kAlign{};
+  void set_align(uint32_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_Align::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint32>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_Errorno =
+    ::protozero::proto_utils::FieldMetadata<
+      6,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kInt32,
+      int32_t,
+      CmaAllocFinishFtraceEvent>;
+
+  static constexpr FieldMetadata_Errorno kErrorno{};
+  void set_errorno(int32_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_Errorno::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kInt32>
+        ::Append(*this, field_id, value);
+  }
+};
+
 class CmaAllocInfoFtraceEvent_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/10, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
  public:
   CmaAllocInfoFtraceEvent_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}

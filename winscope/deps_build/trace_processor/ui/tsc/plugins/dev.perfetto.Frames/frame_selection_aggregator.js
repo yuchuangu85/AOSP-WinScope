@@ -14,38 +14,56 @@
 // limitations under the License.
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.FrameSelectionAggregator = exports.ACTUAL_FRAMES_SLICE_TRACK_KIND = void 0;
+const tslib_1 = require("tslib");
+const aggregation_adapter_1 = require("../../components/aggregation_adapter");
 const query_result_1 = require("../../trace_processor/query_result");
 exports.ACTUAL_FRAMES_SLICE_TRACK_KIND = 'ActualFramesSliceTrack';
 class FrameSelectionAggregator {
     id = 'frame_aggregation';
-    schema = {
-        ts: query_result_1.LONG,
-        dur: query_result_1.LONG,
-        jank_type: query_result_1.STR,
-    };
-    trackKind = exports.ACTUAL_FRAMES_SLICE_TRACK_KIND;
-    async createAggregateView(engine, area, dataset) {
+    probe(area) {
+        const dataset = (0, aggregation_adapter_1.selectTracksAndGetDataset)(area.tracks, {
+            id: query_result_1.NUM,
+            ts: query_result_1.LONG,
+            dur: query_result_1.LONG,
+            jank_type: query_result_1.STR,
+        }, exports.ACTUAL_FRAMES_SLICE_TRACK_KIND);
         if (!dataset)
-            return false;
-        await engine.query(`
-      create or replace perfetto table ${this.id} as
-      select
-        jank_type,
-        count(1) as occurrences,
-        min(dur) as minDur,
-        avg(dur) as meanDur,
-        max(dur) as maxDur
-      from (${dataset.query()})
-      where ts + dur > ${area.start}
-        AND ts < ${area.end}
-      group by jank_type
-    `);
-        return true;
+            return undefined;
+        return {
+            prepareData: async (engine) => {
+                const env_1 = { stack: [], error: void 0, hasError: false };
+                try {
+                    const iiTable = tslib_1.__addDisposableResource(env_1, await (0, aggregation_adapter_1.createIITable)(engine, dataset, area.start, area.end), true);
+                    await engine.query(`
+          create or replace perfetto table ${this.id} as
+          select
+            jank_type,
+            count(1) as occurrences,
+            min(dur) as minDur,
+            avg(dur) as meanDur,
+            max(dur) as maxDur
+          from (${iiTable.name})
+          group by jank_type
+        `);
+                    return {
+                        tableName: this.id,
+                    };
+                }
+                catch (e_1) {
+                    env_1.error = e_1;
+                    env_1.hasError = true;
+                }
+                finally {
+                    const result_1 = tslib_1.__disposeResources(env_1);
+                    if (result_1)
+                        await result_1;
+                }
+            },
+        };
     }
     getTabName() {
         return 'Frames';
     }
-    async getExtra() { }
     getDefaultSorting() {
         return { column: 'occurrences', direction: 'DESC' };
     }
@@ -53,32 +71,25 @@ class FrameSelectionAggregator {
         return [
             {
                 title: 'Jank Type',
-                kind: 'STRING',
-                columnConstructor: Uint16Array,
                 columnId: 'jank_type',
             },
             {
                 title: 'Min duration',
-                kind: 'NUMBER',
-                columnConstructor: Uint16Array,
+                formatHint: 'DURATION_NS',
                 columnId: 'minDur',
             },
             {
                 title: 'Max duration',
-                kind: 'NUMBER',
-                columnConstructor: Uint16Array,
+                formatHint: 'DURATION_NS',
                 columnId: 'maxDur',
             },
             {
                 title: 'Mean duration',
-                kind: 'NUMBER',
-                columnConstructor: Uint16Array,
+                formatHint: 'DURATION_NS',
                 columnId: 'meanDur',
             },
             {
                 title: 'Occurrences',
-                kind: 'NUMBER',
-                columnConstructor: Uint16Array,
                 columnId: 'occurrences',
                 sum: true,
             },

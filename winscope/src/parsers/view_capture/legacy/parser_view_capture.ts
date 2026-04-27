@@ -14,19 +14,25 @@
  * limitations under the License.
  */
 
-import {assertDefined} from 'common/assert_utils';
+import {assertDefined} from 'common/assert';
 import {ParserTimestampConverter} from 'common/time/timestamp_converter';
-import {ParsingUtils} from 'parsers/legacy/parsing_utils';
+import {throwIfMagicNumberDoesNotMatch} from 'parsers/legacy/parsing_utils';
+import root from 'protos/viewcapture/udc/json';
 import {com} from 'protos/viewcapture/udc/static';
-import {Parser} from 'trace/parser';
 import {TraceFile} from 'trace/trace_file';
-import {TraceType} from 'trace/trace_type';
-import {HierarchyTreeNode} from 'trace/tree_node/hierarchy_tree_node';
+import {Parser} from 'trace_api/parser';
+import {TraceType} from 'trace_api/trace_type';
+import {HierarchyTreeNode} from 'tree_node/hierarchy_tree_node';
 import {ParserViewCaptureWindow} from './parser_view_capture_window';
-import {ExportedData} from './tampered_protos';
 
+/**
+ * A parser for legacy ViewCapture traces.
+ */
 export class ParserViewCapture {
-  private readonly windowParsers: Array<Parser<HierarchyTreeNode>> = [];
+  private static readonly ExportedDataProto = root.lookupType(
+    'com.android.app.viewcapture.data.ExportedData',
+  );
+  private readonly windowParsers: ParserViewCaptureWindow[] = [];
 
   constructor(
     private readonly traceFile: TraceFile,
@@ -35,12 +41,9 @@ export class ParserViewCapture {
 
   async parse() {
     const traceBuffer = new Uint8Array(await this.traceFile.file.arrayBuffer());
-    ParsingUtils.throwIfMagicNumberDoesNotMatch(
-      traceBuffer,
-      ParserViewCapture.MAGIC_NUMBER,
-    );
+    throwIfMagicNumberDoesNotMatch(traceBuffer, ParserViewCapture.MAGIC_NUMBER);
 
-    const exportedData = ExportedData.decode(
+    const exportedData = ParserViewCapture.ExportedDataProto.decode(
       traceBuffer,
     ) as com.android.app.viewcapture.data.IExportedData;
 
@@ -49,7 +52,7 @@ export class ParserViewCapture {
     );
 
     exportedData.windowData?.forEach(
-      (windowData: com.android.app.viewcapture.data.IWindowData) =>
+      (windowData: com.android.app.viewcapture.data.IWindowData) => {
         this.windowParsers.push(
           new ParserViewCaptureWindow(
             [this.traceFile.getDescriptor()],
@@ -60,7 +63,8 @@ export class ParserViewCapture {
             assertDefined(exportedData.classname),
             this.timestampConverter,
           ),
-        ),
+        );
+      },
     );
   }
 

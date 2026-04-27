@@ -17,7 +17,16 @@ exports.WasmBridge = void 0;
 const tslib_1 = require("tslib");
 const deferred_1 = require("../base/deferred");
 const logging_1 = require("../base/logging");
-const trace_processor_1 = tslib_1.__importDefault(require("../gen/trace_processor"));
+// The 64-bit variant of TraceProcessor wasm is always built in all build
+// configurations and we can depend on it from typescript.
+const trace_processor_memory64_1 = tslib_1.__importDefault(require("../gen/trace_processor_memory64"));
+// The 32-bit variant may or may not be part of the build, depending on whether
+// the user passes --only-wasm-memory64 to ui/build.js. When we are building
+// also the 32-bit (e.g., in production builds) the import below will be
+// redirected by rollup to '../gen/trace_processor' (The 32-bit module).
+const trace_processor_32_stub_1 = tslib_1.__importDefault(require("./trace_processor_32_stub"));
+// For manual testing of the Memory32 build, we can disable the Memory64 check.
+const DISABLE_MEMORY64_FOR_MANUAL_TEST = false;
 // The Initialize() call will allocate a buffer of REQ_BUF_SIZE bytes which
 // will be used to copy the input request data. This is to avoid passing the
 // input data on the stack, which has a limited (~1MB) size.
@@ -34,28 +43,28 @@ const REQ_BUF_SIZE = 32 * 1024 * 1024;
 //             - [JS] onReply() (this file)
 //               - [JS] postMessage() (this file)
 class WasmBridge {
-    // When this promise has resolved it is safe to call callWasm.
-    whenInitialized;
     aborted;
     connection;
     reqBufferAddr = 0;
     lastStderr = [];
     messagePort;
+    useMemory64;
     constructor() {
         this.aborted = false;
         const deferredRuntimeInitialized = (0, deferred_1.defer)();
-        this.connection = (0, trace_processor_1.default)({
+        this.useMemory64 = hasMemory64Support();
+        const initModule = this.useMemory64 ? trace_processor_memory64_1.default : trace_processor_32_stub_1.default;
+        this.connection = initModule({
             locateFile: (s) => s,
             print: (line) => console.log(line),
             printErr: (line) => this.appendAndLogErr(line),
             onRuntimeInitialized: () => deferredRuntimeInitialized.resolve(),
         });
-        this.whenInitialized = deferredRuntimeInitialized.then(() => {
-            const fn = this.connection.addFunction(this.onReply.bind(this), 'vii');
-            this.reqBufferAddr =
-                this.connection.ccall('trace_processor_rpc_init', 
-                /* return=*/ 'number', 
-                /* args=*/ ['number', 'number'], [fn, REQ_BUF_SIZE]) >>> 0; // >>> 0 = static_cast<uint32_t> (see comment in onReply()).
+        deferredRuntimeInitialized.then(() => {
+            const fn = this.connection.addFunction(this.onReply.bind(this), 'vpi');
+            this.reqBufferAddr = this.wasmPtrCast(this.connection.ccall('trace_processor_rpc_init', 
+            /* return=*/ 'pointer', 
+            /* args=*/ ['pointer', 'number'], [fn, REQ_BUF_SIZE]));
         });
     }
     initialize(port) {
@@ -100,15 +109,8 @@ class WasmBridge {
     }
     // This function is bound and passed to Initialize and is called by the C++
     // code while in the ccall(trace_processor_on_rpc_request).
-    onReply(heapPtr, size) {
-        // Force heapPtr to be a positive using an unsigned right shift.
-        // The issue here is the following: the matching code in wasm_bridge.cc
-        // invokes this function passing  arguments as uint32_t. However, in the
-        // wasm<>JS interop bindings, the uint32 args become Js numbers. If the
-        // pointer is > 2GB, this number will be negative, which causes the wrong
-        // behaviour on slice().
-        heapPtr = heapPtr >>> 0; // This is static_cast<uint32_t>(heapPtr).
-        size = size >>> 0;
+    onReply(heapPtrArg, size) {
+        const heapPtr = this.wasmPtrCast(heapPtrArg);
         const data = this.connection.HEAPU8.slice(heapPtr, heapPtr + size);
         (0, logging_1.assertExists)(this.messagePort).postMessage(data, [data.buffer]);
     }
@@ -120,6 +122,42 @@ class WasmBridge {
             this.lastStderr.shift();
         }
     }
+    // Takes a wasm pointer and converts it into a positive number < 2**53.
+    // When using memory64 pointer args are passed as BigInt, but they are
+    // guaranteed to be < 2**53 anyways.
+    // When using memory32, pointer args are passed as numbers. However, because
+    // they can be between 2GB and 4GB, we need to remove the negative sign.
+    wasmPtrCast(val) {
+        if (this.useMemory64) {
+            return Number(val);
+        }
+        // Force heapPtr to be a positive using an unsigned right shift.
+        // The issue here is the following: the matching code in wasm_bridge.cc
+        // invokes this function passing  arguments as uint32_t. However, in the
+        // wasm<>JS interop bindings, the uint32 args become Js numbers. If the
+        // pointer is > 2GB, this number will be negative, which causes the wrong
+        // behaviour when used as an offset on HEAP8U.
+        (0, logging_1.assertTrue)(typeof val === 'number');
+        return Number(val) >>> 0; // static_cast<uint32_t>
+    }
 }
 exports.WasmBridge = WasmBridge;
+// Checks if the current environment supports Memory64.
+function hasMemory64Support() {
+    if (DISABLE_MEMORY64_FOR_MANUAL_TEST) {
+        return false;
+    }
+    // Compiled version of WAT program `(module (memory i64 0))` to WASM.
+    const memory64DetectProgram = new Uint8Array([
+        0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, 0x05, 0x03, 0x01, 0x04,
+        0x00, 0x00, 0x08, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x02, 0x01, 0x00,
+    ]);
+    try {
+        new WebAssembly.Module(memory64DetectProgram);
+        return true;
+    }
+    catch (e) {
+        return false;
+    }
+}
 //# sourceMappingURL=wasm_bridge.js.map

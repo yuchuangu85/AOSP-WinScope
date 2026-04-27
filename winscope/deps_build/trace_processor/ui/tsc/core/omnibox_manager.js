@@ -30,8 +30,9 @@ class OmniboxManagerImpl {
     _pendingPrompt;
     _omniboxSelectionIndex = 0;
     _forceShortTextSearch = false;
-    _textForMode = new Map();
+    _text = '';
     _statusMessageContainer = {};
+    _promptsDisabled = false;
     get mode() {
         return this._mode;
     }
@@ -39,7 +40,7 @@ class OmniboxManagerImpl {
         return this._pendingPrompt;
     }
     get text() {
-        return this._textForMode.get(this._mode) ?? '';
+        return this._text;
     }
     get selectionIndex() {
         return this._omniboxSelectionIndex;
@@ -54,7 +55,7 @@ class OmniboxManagerImpl {
         return this._forceShortTextSearch;
     }
     setText(value) {
-        this._textForMode.set(this._mode, value);
+        this._text = value;
     }
     setSelectionIndex(index) {
         this._omniboxSelectionIndex = index;
@@ -71,6 +72,7 @@ class OmniboxManagerImpl {
         this._mode = mode;
         this._focusOmniboxNextRender = focus;
         this._omniboxSelectionIndex = 0;
+        this._text = '';
         this.rejectPendingPrompt();
     }
     showStatusMessage(msg, durationMs = 2000) {
@@ -86,12 +88,19 @@ class OmniboxManagerImpl {
     get statusMessage() {
         return this._statusMessageContainer.msg;
     }
-    prompt(text, choices) {
+    prompt(text, choicesOrDefaultValue) {
+        if (this._promptsDisabled) {
+            return Promise.resolve(undefined);
+        }
         this._mode = OmniboxMode.Prompt;
         this._omniboxSelectionIndex = 0;
         this.rejectPendingPrompt();
         this._focusOmniboxNextRender = true;
-        if (choices && 'getName' in choices) {
+        // Handle PromptChoices<T> case
+        if (choicesOrDefaultValue !== undefined &&
+            typeof choicesOrDefaultValue === 'object' &&
+            'getName' in choicesOrDefaultValue) {
+            const choices = choicesOrDefaultValue;
             return new Promise((resolve) => {
                 const choiceMap = new Map(choices.values.map((choice) => [choices.getName(choice), choice]));
                 this._pendingPrompt = {
@@ -104,10 +113,28 @@ class OmniboxManagerImpl {
                 };
             });
         }
+        // Handle ReadonlyArray<string> choices case
+        if (choicesOrDefaultValue !== undefined &&
+            Array.isArray(choicesOrDefaultValue)) {
+            const choices = choicesOrDefaultValue;
+            return new Promise((resolve) => {
+                this._pendingPrompt = {
+                    text,
+                    options: choices.map((value) => ({ key: value, displayName: value })),
+                    resolve,
+                };
+            });
+        }
+        // Handle free-form input (with or without default value)
+        const defaultValue = typeof choicesOrDefaultValue === 'string'
+            ? choicesOrDefaultValue
+            : undefined;
         return new Promise((resolve) => {
+            if (defaultValue !== undefined) {
+                this.setText(defaultValue);
+            }
             this._pendingPrompt = {
                 text,
-                options: choices?.map((value) => ({ key: value, displayName: value })),
                 resolve,
             };
         });
@@ -131,6 +158,13 @@ class OmniboxManagerImpl {
         this.setMode(defaultMode, focus);
         this._omniboxSelectionIndex = 0;
         this._statusMessageContainer = {};
+    }
+    disablePrompts() {
+        this._promptsDisabled = true;
+        this.rejectPendingPrompt();
+    }
+    enablePrompts() {
+        this._promptsDisabled = false;
     }
     rejectPendingPrompt() {
         if (this._pendingPrompt) {

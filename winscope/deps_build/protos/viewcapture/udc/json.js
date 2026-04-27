@@ -17,6 +17,7 @@ const $root = ($protobuf.roots.viewcapture_udc || ($protobuf.roots.viewcapture_u
                     },
                     nested: {
                       ExportedData: {
+                        edition: "proto2",
                         fields: {
                           magicNumber: {
                             type: "fixed64",
@@ -52,6 +53,7 @@ const $root = ($protobuf.roots.viewcapture_udc || ($protobuf.roots.viewcapture_u
                         }
                       },
                       WindowData: {
+                        edition: "proto2",
                         fields: {
                           frameData: {
                             rule: "repeated",
@@ -65,6 +67,7 @@ const $root = ($protobuf.roots.viewcapture_udc || ($protobuf.roots.viewcapture_u
                         }
                       },
                       MotionWindowData: {
+                        edition: "proto2",
                         fields: {
                           frameData: {
                             rule: "repeated",
@@ -79,6 +82,7 @@ const $root = ($protobuf.roots.viewcapture_udc || ($protobuf.roots.viewcapture_u
                         }
                       },
                       FrameData: {
+                        edition: "proto2",
                         fields: {
                           timestamp: {
                             type: "int64",
@@ -91,6 +95,7 @@ const $root = ($protobuf.roots.viewcapture_udc || ($protobuf.roots.viewcapture_u
                         }
                       },
                       ViewNode: {
+                        edition: "proto2",
                         fields: {
                           classnameIndex: {
                             type: "int32",

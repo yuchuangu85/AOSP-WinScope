@@ -13,107 +13,205 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createModal = exports.QueryBuilder = void 0;
+exports.Builder = void 0;
 const tslib_1 = require("tslib");
 const mithril_1 = tslib_1.__importDefault(require("mithril"));
-const button_1 = require("../../../widgets/button");
-const modal_1 = require("../../../widgets/modal");
-const data_source_viewer_1 = require("./data_source_viewer");
-const menu_1 = require("../../../widgets/menu");
-const semantic_icons_1 = require("../../../base/semantic_icons");
-const common_1 = require("../../../widgets/common");
-class NodeBox {
-    view({ attrs }) {
-        const { node, isSelected, onNodeSelected } = attrs;
-        return (0, mithril_1.default)('.node-box', {
-            style: {
-                border: isSelected ? '2px solid yellow' : '2px solid blue',
-                borderRadius: '5px',
-                padding: '10px',
-                cursor: 'pointer',
-                backgroundColor: 'lightblue',
-            },
-            onclick: () => onNodeSelected(node),
-        }, node.getTitle(), (0, mithril_1.default)(menu_1.PopupMenu, {
-            trigger: (0, mithril_1.default)(button_1.Button, {
-                iconFilled: true,
-                icon: semantic_icons_1.Icons.MoreVert,
-            }),
-        }, attrs.renderNodeActionsMenuItems(node)));
+const classnames_1 = require("../../../base/classnames");
+const query_node_1 = require("../query_node");
+const help_1 = require("./help");
+const node_explorer_1 = require("./node_explorer");
+const graph_1 = require("./graph");
+const data_explorer_1 = require("./data_explorer");
+const in_memory_data_source_1 = require("../../../components/widgets/data_grid/in_memory_data_source");
+const table_source_1 = require("./nodes/sources/table_source");
+const sql_source_1 = require("./nodes/sources/sql_source");
+const query_service_1 = require("./query_service");
+const query_builder_utils_1 = require("./query_builder_utils");
+const node_issues_1 = require("./node_issues");
+class Builder {
+    queryService;
+    query;
+    queryExecuted = false;
+    tablePosition = 'bottom';
+    previousSelectedNode;
+    isNodeDataViewerFullScreen = false;
+    response;
+    dataSource;
+    constructor({ attrs }) {
+        this.queryService = new query_service_1.QueryService(attrs.trace.engine);
     }
-}
-class QueryBuilder {
     view({ attrs }) {
-        const { trace, rootNodes, onNodeSelected, selectedNode, renderNodeActionsMenuItems, } = attrs;
-        const renderNodesPanel = () => {
-            const nodes = [];
-            const numRoots = rootNodes.length;
-            if (numRoots === 0) {
-                nodes.push((0, mithril_1.default)('', { style: { gridColumn: 3, gridRow: 2 } }, (0, mithril_1.default)(menu_1.PopupMenu, {
-                    trigger: (0, mithril_1.default)(button_1.Button, {
-                        icon: semantic_icons_1.Icons.Add,
-                        intent: common_1.Intent.Primary,
-                        style: {
-                            height: '100px',
-                            width: '100px',
-                            display: 'flex',
-                            justifyContent: 'center',
-                            alignItems: 'center',
-                            fontSize: '48px',
-                        },
-                    }),
-                }, attrs.addSourcePopupMenu())));
+        const { trace, rootNodes, onNodeSelected, selectedNode, onAddStdlibTableSource, onAddSlicesSource, onAddSqlSource, onClearAllNodes, sqlModules, } = attrs;
+        if (selectedNode && selectedNode !== this.previousSelectedNode) {
+            if (selectedNode instanceof sql_source_1.SqlSourceNode) {
+                this.tablePosition = 'left';
             }
             else {
-                let col = 1;
-                rootNodes.forEach((rootNode) => {
-                    let row = 1;
-                    let curNode = rootNode;
-                    while (curNode) {
-                        const localCurNode = curNode;
-                        nodes.push((0, mithril_1.default)('', { style: { display: 'flex', gridColumn: col, gridRow: row } }, (0, mithril_1.default)(NodeBox, {
-                            node: localCurNode,
-                            isSelected: selectedNode === localCurNode,
-                            onNodeSelected,
-                            renderNodeActionsMenuItems,
-                        })));
-                        row++;
-                        curNode = curNode.nextNode;
-                    }
-                    col += 1;
-                });
+                this.tablePosition = 'bottom';
             }
-            return (0, mithril_1.default)('', {
-                style: {
-                    display: 'grid',
-                    gridTemplateColumns: `repeat(${numRoots} - 1, 1fr)`,
-                    gridTemplateRows: 'repeat(3, 1fr)',
-                    gap: '10px',
+            this.response = undefined;
+            this.dataSource = undefined;
+        }
+        this.previousSelectedNode = selectedNode;
+        const layoutClasses = (0, classnames_1.classNames)('pf-query-builder-layout', selectedNode ? 'selection' : 'no-selection', selectedNode && `selection-${this.tablePosition}`, this.isNodeDataViewerFullScreen && 'full-page') || '';
+        const explorer = selectedNode
+            ? (0, mithril_1.default)(node_explorer_1.NodeExplorer, {
+                // The key to force mithril to re-create the component when the
+                // selected node changes, preventing state from leaking between
+                // different nodes.
+                key: selectedNode.nodeId,
+                trace,
+                node: selectedNode,
+                resolveNode: (nodeId) => this.resolveNode(nodeId, rootNodes),
+                onQueryAnalyzed: (query, reexecute = selectedNode.type !== query_node_1.NodeType.kSqlSource &&
+                    selectedNode.type !== query_node_1.NodeType.kIntervalIntersect) => {
+                    this.query = query;
+                    if ((0, query_node_1.isAQuery)(this.query) && reexecute) {
+                        this.queryExecuted = false;
+                        this.runQuery(selectedNode);
+                    }
                 },
-            }, nodes);
-        };
-        const renderDataSourceViewer = () => {
-            return attrs.selectedNode
-                ? (0, mithril_1.default)(data_source_viewer_1.DataSourceViewer, { trace, queryNode: attrs.selectedNode })
-                : undefined;
-        };
-        return (0, mithril_1.default)('', {
-            style: {
-                display: 'grid',
-                gridTemplateColumns: '50% 50%',
-                gridTemplateRows: '50% 50%',
-                gap: '10px',
+                onExecute: () => {
+                    console.log('Executing');
+                    this.queryExecuted = false;
+                    this.runQuery(selectedNode);
+                    mithril_1.default.redraw();
+                },
+                onchange: () => { },
+            })
+            : (0, mithril_1.default)(help_1.ExplorePageHelp, {
+                sqlModules,
+                onTableClick: (tableName) => {
+                    const { onRootNodeCreated } = attrs;
+                    const sqlTable = sqlModules.getTable(tableName);
+                    if (!sqlTable)
+                        return;
+                    onRootNodeCreated(new table_source_1.TableSourceNode({
+                        trace,
+                        sqlModules,
+                        sqlTable,
+                        filters: [],
+                    }));
+                },
+            });
+        return (0, mithril_1.default)(`.${layoutClasses.split(' ').join('.')}`, (0, mithril_1.default)('.pf-qb-node-graph', (0, mithril_1.default)(graph_1.Graph, {
+            rootNodes,
+            selectedNode,
+            onNodeSelected,
+            nodeLayouts: attrs.nodeLayouts,
+            onNodeLayoutChange: attrs.onNodeLayoutChange,
+            onDeselect: attrs.onDeselect,
+            onAddStdlibTableSource,
+            onAddSlicesSource,
+            onAddSqlSource,
+            onClearAllNodes,
+            onDuplicateNode: attrs.onDuplicateNode,
+            onAddAggregation: attrs.onAddAggregationNode,
+            onAddIntervalIntersect: attrs.onAddIntervalIntersectNode,
+            onDeleteNode: (node) => {
+                if (node.isMaterialised()) {
+                    trace.engine.query(`DROP TABLE IF EXISTS ${node.meterialisedAs}`);
+                }
+                attrs.onDeleteNode(node);
             },
-        }, (0, mithril_1.default)('', { style: { gridColumn: 1 } }, renderNodesPanel()), (0, mithril_1.default)('', { style: { gridColumn: 2 } }, renderDataSourceViewer()));
+        })), (0, mithril_1.default)('.pf-qb-explorer', explorer), selectedNode &&
+            (0, mithril_1.default)('.pf-qb-viewer', (0, mithril_1.default)(data_explorer_1.DataExplorer, {
+                queryService: this.queryService,
+                query: this.query,
+                node: selectedNode,
+                executeQuery: !this.queryExecuted,
+                response: this.response,
+                dataSource: this.dataSource,
+                onchange: () => { },
+                onQueryExecuted: ({ columns, error, warning, noDataWarning, }) => {
+                    this.queryExecuted = true;
+                    if (error || warning || noDataWarning) {
+                        if (!selectedNode.state.issues) {
+                            selectedNode.state.issues = new node_issues_1.NodeIssues();
+                        }
+                        selectedNode.state.issues.queryError = error;
+                        selectedNode.state.issues.responseError = warning;
+                        selectedNode.state.issues.dataError = noDataWarning;
+                    }
+                    else {
+                        selectedNode.state.issues = undefined;
+                    }
+                    if (selectedNode instanceof sql_source_1.SqlSourceNode) {
+                        selectedNode.onQueryExecuted(columns);
+                    }
+                },
+                onPositionChange: (pos) => {
+                    this.tablePosition = pos;
+                },
+                isFullScreen: this.isNodeDataViewerFullScreen,
+                onFullScreenToggle: () => {
+                    this.isNodeDataViewerFullScreen =
+                        !this.isNodeDataViewerFullScreen;
+                },
+            })));
+    }
+    resolveNode(nodeId, rootNodes) {
+        const queue = [...rootNodes];
+        const visited = new Set();
+        while (queue.length > 0) {
+            const current = queue.shift();
+            if (visited.has(current.nodeId)) {
+                continue;
+            }
+            visited.add(current.nodeId);
+            if (current.nodeId === nodeId) {
+                return current;
+            }
+            queue.push(...current.nextNodes);
+        }
+        return undefined;
+    }
+    runQuery(node) {
+        if (this.query === undefined ||
+            this.query instanceof Error ||
+            this.queryExecuted) {
+            return;
+        }
+        this.queryService.runQuery((0, query_node_1.queryToRun)(this.query)).then((response) => {
+            this.response = response;
+            const ds = new in_memory_data_source_1.InMemoryDataSource(this.response.rows);
+            this.dataSource = {
+                get rows() {
+                    return ds.rows;
+                },
+                notifyUpdate(model) {
+                    // We override the notifyUpdate method to ignore filters, as the data is
+                    // assumed to be pre-filtered. We still apply sorting and aggregations.
+                    const newModel = {
+                        ...model,
+                        filters: [], // Always pass an empty array of filters.
+                    };
+                    ds.notifyUpdate(newModel);
+                },
+            };
+            const error = (0, query_builder_utils_1.findErrors)(this.query, this.response);
+            const warning = (0, query_builder_utils_1.findWarnings)(this.response, node);
+            const noDataWarning = this.response?.totalRowCount === 0
+                ? new Error('Query returned no rows')
+                : undefined;
+            this.queryExecuted = true;
+            if (error || warning || noDataWarning) {
+                if (!node.state.issues) {
+                    node.state.issues = new node_issues_1.NodeIssues();
+                }
+                node.state.issues.queryError = error;
+                node.state.issues.responseError = warning;
+                node.state.issues.dataError = noDataWarning;
+            }
+            else {
+                node.state.issues = undefined;
+            }
+            if (node instanceof sql_source_1.SqlSourceNode) {
+                node.onQueryExecuted(this.response.columns);
+            }
+            mithril_1.default.redraw();
+        });
     }
 }
-exports.QueryBuilder = QueryBuilder;
-const createModal = (title, content, onAdd) => {
-    (0, modal_1.showModal)({
-        title,
-        buttons: [{ text: 'Add node', action: onAdd }],
-        content,
-    });
-};
-exports.createModal = createModal;
+exports.Builder = Builder;
 //# sourceMappingURL=builder.js.map

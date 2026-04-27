@@ -39,7 +39,7 @@ const SELECTION_SCHEMA = zod_1.z.discriminatedUnion('kind', [
         kind: zod_1.z.literal('AREA'),
         start: zTime,
         end: zTime,
-        trackUris: zod_1.z.array(zod_1.z.string()),
+        trackUris: zod_1.z.array(zod_1.z.string()).readonly(),
     }),
 ]);
 const NOTE_SCHEMA = zod_1.z

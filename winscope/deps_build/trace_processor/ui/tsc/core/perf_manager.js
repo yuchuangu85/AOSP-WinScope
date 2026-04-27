@@ -18,6 +18,8 @@ const tslib_1 = require("tslib");
 const mithril_1 = tslib_1.__importDefault(require("mithril"));
 const raf_scheduler_1 = require("./raf_scheduler");
 const perf_stats_1 = require("./perf_stats");
+const button_1 = require("../widgets/button");
+const semantic_icons_1 = require("../base/semantic_icons");
 class PerfManager {
     _enabled = false;
     containers = [];
@@ -47,7 +49,7 @@ class PerfManager {
         // return here just a container and handle its rendering ourselves.
         const perfMgr = this;
         let removed = false;
-        return (0, mithril_1.default)('.perf-stats', {
+        return (0, mithril_1.default)('.pf-perf-stats', {
             oncreate(vnode) {
                 const animationFrame = (dom) => {
                     if (removed)
@@ -66,12 +68,14 @@ class PerfManager {
 exports.PerfManager = PerfManager;
 class PerfStatsUi {
     view({ attrs }) {
-        return (0, mithril_1.default)('.perf-stats', {}, (0, mithril_1.default)('section', this.renderRafSchedulerStats()), (0, mithril_1.default)('button.close-button', {
+        return (0, mithril_1.default)('.pf-perf-stats', (0, mithril_1.default)('section', this.renderRafSchedulerStats()), (0, mithril_1.default)(button_1.Button, {
+            className: 'pf-perf-stats__close',
+            icon: semantic_icons_1.Icons.Close,
             onclick: () => {
                 attrs.perfMgr.enabled = false;
                 raf_scheduler_1.raf.scheduleFullRedraw();
             },
-        }, (0, mithril_1.default)('i.material-icons', 'close')), attrs.perfMgr.containers.map((c, i) => (0, mithril_1.default)('section', (0, mithril_1.default)('div', `Container #${i + 1}`), c.renderPerfStats())));
+        }), attrs.perfMgr.containers.map((c, i) => (0, mithril_1.default)('section', (0, mithril_1.default)('div', `Container #${i + 1}`), c.renderPerfStats())));
     }
     renderRafSchedulerStats() {
         return (0, mithril_1.default)('div', (0, mithril_1.default)('div', [

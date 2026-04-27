@@ -56,6 +56,7 @@ exports.TrackFilterState = TrackFilterState;
  */
 class TrackManagerImpl {
     tracks = new registry_1.Registry((x) => x.desc.uri);
+    _overlays = [];
     // This property is written by scroll_helper.ts and read&cleared by the
     // track_panel.ts. This exist for the following use case: the user wants to
     // scroll to track X, but X is not visible because it's in a collapsed group.
@@ -71,6 +72,17 @@ class TrackManagerImpl {
     filters = new TrackFilterState();
     registerTrack(trackDesc) {
         return this.tracks.register(new TrackFSMImpl(trackDesc));
+    }
+    registerOverlay(overlay) {
+        this._overlays.push(overlay);
+        return {
+            [Symbol.dispose]: () => {
+                const index = this._overlays.indexOf(overlay);
+                if (index !== -1) {
+                    this._overlays.splice(index, 1);
+                }
+            },
+        };
     }
     findTrack(predicate) {
         for (const t of this.tracks.values()) {
@@ -105,6 +117,9 @@ class TrackManagerImpl {
     }
     get trackFilterCriteria() {
         return this.filterCriteria;
+    }
+    get overlays() {
+        return this._overlays;
     }
 }
 exports.TrackManagerImpl = TrackManagerImpl;
@@ -182,7 +197,7 @@ class TrackFSMImpl {
         return this.error;
     }
     get track() {
-        return this.desc.track;
+        return this.desc.renderer;
     }
 }
 // Returns true if a track matches the configured track filters.
@@ -196,7 +211,7 @@ function trackMatchesFilter(trace, track) {
             .map((s) => s.trim())
             .filter((s) => s !== '');
         // At least one of the name filter terms must match.
-        const trackTitleLower = track.title.toLowerCase();
+        const trackTitleLower = track.name.toLowerCase();
         if (!nameFilters.some((nameFilter) => trackTitleLower.includes(nameFilter.toLowerCase()))) {
             return false;
         }

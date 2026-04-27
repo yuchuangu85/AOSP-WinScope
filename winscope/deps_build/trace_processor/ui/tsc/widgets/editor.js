@@ -20,18 +20,19 @@ const theme_one_dark_1 = require("@codemirror/theme-one-dark");
 const view_1 = require("@codemirror/view");
 const codemirror_1 = require("codemirror");
 const mithril_1 = tslib_1.__importDefault(require("mithril"));
-const logging_1 = require("../base/logging");
-const drag_gesture_handler_1 = require("../base/drag_gesture_handler");
-const disposable_stack_1 = require("../base/disposable_stack");
-const language_1 = require("../base/perfetto_sql_lang/language");
 const array_utils_1 = require("../base/array_utils");
+const logging_1 = require("../base/logging");
+const language_1 = require("../base/perfetto_sql_lang/language");
 class Editor {
     editorView;
-    generation;
-    trash = new disposable_stack_1.DisposableStack();
+    latestText;
+    focus() {
+        this.editorView?.focus();
+    }
     oncreate({ dom, attrs }) {
         const keymaps = [commands_1.indentWithTab];
         const onExecute = attrs.onExecute;
+        const onSave = attrs.onSave;
         const onUpdate = attrs.onUpdate;
         if (onExecute) {
             keymaps.push({
@@ -53,16 +54,29 @@ class Editor {
                 },
             });
         }
-        let dispatch;
-        if (onUpdate) {
-            dispatch = (tr, view) => {
-                view.update([tr]);
-                const text = view.state.doc.toString();
+        if (onSave) {
+            keymaps.push({
+                key: 'Mod-s',
+                run: (_view) => {
+                    onSave();
+                    mithril_1.default.redraw();
+                    return true;
+                },
+            });
+        }
+        const dispatch = (tr, view) => {
+            // Maybe don't bother doing this if onUpdate is not defined...?
+            view.update([tr]);
+            const text = view.state.doc.toString();
+            // Cache the latest text so that we don't immediately have to overwrite
+            // this every time we make an edit to the doc if the caller just passes in
+            // the exact same string again on the next redraw.
+            this.latestText = text;
+            if (onUpdate) {
                 onUpdate(text);
                 mithril_1.default.redraw();
-            };
-        }
-        this.generation = attrs.generation;
+            }
+        };
         const lang = (() => {
             switch (attrs.language) {
                 case undefined:
@@ -74,7 +88,7 @@ class Editor {
             }
         })();
         this.editorView = new codemirror_1.EditorView({
-            doc: attrs.initialText ?? '',
+            doc: attrs.text,
             extensions: (0, array_utils_1.removeFalsyValues)([
                 view_1.keymap.of(keymaps),
                 theme_one_dark_1.oneDark,
@@ -84,25 +98,22 @@ class Editor {
             parent: dom,
             dispatch,
         });
-        // Install the drag handler for the resize bar.
-        let initialH = 0;
-        this.trash.use(new drag_gesture_handler_1.DragGestureHandler((0, logging_1.assertExists)(dom.querySelector('.resize-handler')), 
-        /* onDrag */
-        (_x, y) => (dom.style.height = `${initialH + y}px`), 
-        /* onDragStarted */
-        () => (initialH = dom.clientHeight), 
-        /* onDragFinished */
-        () => { }));
+        if (attrs.autofocus) {
+            this.focus();
+        }
     }
     onupdate({ attrs }) {
-        const { initialText, generation } = attrs;
+        // Uncontrolled mode: no need to do anything.
+        if (attrs.text === undefined) {
+            return;
+        }
         const editorView = this.editorView;
-        if (editorView && this.generation !== generation) {
+        if (editorView && attrs.text !== this.latestText) {
             const state = editorView.state;
             editorView.dispatch(state.update({
-                changes: { from: 0, to: state.doc.length, insert: initialText },
+                changes: { from: 0, to: state.doc.length, insert: attrs.text },
             }));
-            this.generation = generation;
+            this.latestText = attrs.text;
         }
     }
     onremove() {
@@ -110,10 +121,12 @@ class Editor {
             this.editorView.destroy();
             this.editorView = undefined;
         }
-        this.trash.dispose();
     }
-    view({}) {
-        return (0, mithril_1.default)('.pf-editor', (0, mithril_1.default)('.resize-handler'));
+    view({ attrs }) {
+        return (0, mithril_1.default)('.pf-editor', {
+            className: attrs.className,
+            ref: attrs.ref,
+        });
     }
 }
 exports.Editor = Editor;

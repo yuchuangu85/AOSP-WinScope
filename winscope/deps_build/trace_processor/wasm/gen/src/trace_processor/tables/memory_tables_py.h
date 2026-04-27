@@ -6,695 +6,724 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <tuple>
 #include <type_traits>
 #include <utility>
+#include <variant>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/ref_counted.h"
-#include "src/trace_processor/containers/bit_vector.h"
-#include "src/trace_processor/containers/row_map.h"
-#include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/db/column/arrangement_overlay.h"
-#include "src/trace_processor/db/column/data_layer.h"
-#include "src/trace_processor/db/column/dense_null_overlay.h"
-#include "src/trace_processor/db/column/numeric_storage.h"
-#include "src/trace_processor/db/column/id_storage.h"
-#include "src/trace_processor/db/column/null_overlay.h"
-#include "src/trace_processor/db/column/range_overlay.h"
-#include "src/trace_processor/db/column/selector_overlay.h"
-#include "src/trace_processor/db/column/set_id_storage.h"
-#include "src/trace_processor/db/column/string_storage.h"
-#include "src/trace_processor/db/column/types.h"
-#include "src/trace_processor/db/column_storage.h"
-#include "src/trace_processor/db/column.h"
-#include "src/trace_processor/db/table.h"
-#include "src/trace_processor/db/typed_column.h"
-#include "src/trace_processor/db/typed_column_internal.h"
+#include "src/trace_processor/dataframe/dataframe.h"
+#include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/dataframe/typed_cursor.h"
 #include "src/trace_processor/tables/macros_internal.h"
 
 #include "src/trace_processor/tables/track_tables_py.h"
 
 namespace perfetto::trace_processor::tables {
 
-class MemorySnapshotTable : public macros_internal::MacroTable {
+class MemorySnapshotTable {
  public:
-  static constexpr uint32_t kColumnCount = 4;
+  static constexpr auto kSpec = dataframe::CreateTypedDataframeSpec(
+    {"id","timestamp","track_id","detail_level"},
+    dataframe::CreateTypedColumnSpec(dataframe::Id{}, dataframe::NonNull{}, dataframe::IdSorted{}, dataframe::NoDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Int64{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::String{}, dataframe::SparseNullWithPopcountAlways{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}));
 
-  struct Id : public BaseId {
+  struct Id : BaseId {
     Id() = default;
-    explicit constexpr Id(uint32_t v) : BaseId(v) {}
+    explicit constexpr Id(uint32_t _value) : BaseId(_value) {}
+
+    bool operator==(const Id& other) const {
+      return value == other.value;
+    }
   };
-  static_assert(std::is_trivially_destructible_v<Id>,
-                "Inheritance used without trivial destruction");
-    
+  struct RowReference;
+  struct ConstRowReference;
+  struct RowNumber {
+   public:
+    explicit constexpr RowNumber(uint32_t value) : value_(value) {}
+    uint32_t row_number() const { return value_; }
+
+    RowReference ToRowReference(MemorySnapshotTable* table) const {
+      return RowReference(table, value_);
+    }
+    ConstRowReference ToRowReference(const MemorySnapshotTable& table) const {
+      return ConstRowReference(&table, value_);
+    }
+
+    bool operator==(const RowNumber& other) const {
+      return value_ == other.value_;
+    }
+    bool operator<(const RowNumber& other) const {
+      return value_ < other.value_;
+    }
+   private:
+    uint32_t value_;
+  };
   struct ColumnIndex {
     static constexpr uint32_t id = 0;
     static constexpr uint32_t timestamp = 1;
     static constexpr uint32_t track_id = 2;
     static constexpr uint32_t detail_level = 3;
   };
-  struct ColumnType {
-    using id = IdColumn<MemorySnapshotTable::Id>;
-    using timestamp = TypedColumn<int64_t>;
-    using track_id = TypedColumn<TrackTable::Id>;
-    using detail_level = TypedColumn<StringPool::Id>;
-  };
-  struct Row : public macros_internal::RootParentTable::Row {
-    Row(int64_t in_timestamp = {},
-        TrackTable::Id in_track_id = {},
-        StringPool::Id in_detail_level = {},
-        std::nullptr_t = nullptr)
-        : macros_internal::RootParentTable::Row(),
-          timestamp(in_timestamp),
-          track_id(in_track_id),
-          detail_level(in_detail_level) {}
-    int64_t timestamp;
-    TrackTable::Id track_id;
-    StringPool::Id detail_level;
-
-    bool operator==(const MemorySnapshotTable::Row& other) const {
-      return ColumnType::timestamp::Equals(timestamp, other.timestamp) &&
-       ColumnType::track_id::Equals(track_id, other.track_id) &&
-       ColumnType::detail_level::Equals(detail_level, other.detail_level);
-    }
-  };
-  struct ColumnFlag {
-    static constexpr uint32_t timestamp = ColumnType::timestamp::default_flags();
-    static constexpr uint32_t track_id = ColumnType::track_id::default_flags();
-    static constexpr uint32_t detail_level = ColumnType::detail_level::default_flags();
-  };
-
-  class RowNumber;
-  class ConstRowReference;
-  class RowReference;
-
-  class RowNumber : public macros_internal::AbstractRowNumber<
-      MemorySnapshotTable, ConstRowReference, RowReference> {
+  struct RowReference {
    public:
-    explicit RowNumber(uint32_t row_number)
-        : AbstractRowNumber(row_number) {}
-  };
-  static_assert(std::is_trivially_destructible_v<RowNumber>,
-                "Inheritance used without trivial destruction");
-
-  class ConstRowReference : public macros_internal::AbstractConstRowReference<
-    MemorySnapshotTable, RowNumber> {
-   public:
-    ConstRowReference(const MemorySnapshotTable* table, uint32_t row_number)
-        : AbstractConstRowReference(table, row_number) {}
-
-    ColumnType::id::type id() const {
-      return table()->id()[row_number_];
+    explicit RowReference(MemorySnapshotTable* table, uint32_t row)
+        : table_(table), row_(row) {
+        base::ignore_result(table_);
     }
-    ColumnType::timestamp::type timestamp() const {
-      return table()->timestamp()[row_number_];
+    MemorySnapshotTable::Id id() const {
+        
+        return MemorySnapshotTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+        int64_t timestamp() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::timestamp>(kSpec, row_);
     }
-    ColumnType::track_id::type track_id() const {
-      return table()->track_id()[row_number_];
-    }
-    ColumnType::detail_level::type detail_level() const {
-      return table()->detail_level()[row_number_];
-    }
-  };
-  static_assert(std::is_trivially_destructible_v<ConstRowReference>,
-                "Inheritance used without trivial destruction");
-  class RowReference : public ConstRowReference {
-   public:
-    RowReference(const MemorySnapshotTable* table, uint32_t row_number)
-        : ConstRowReference(table, row_number) {}
-
-    void set_timestamp(
-        ColumnType::timestamp::non_optional_type v) {
-      return mutable_table()->mutable_timestamp()->Set(row_number_, v);
-    }
-    void set_track_id(
-        ColumnType::track_id::non_optional_type v) {
-      return mutable_table()->mutable_track_id()->Set(row_number_, v);
-    }
-    void set_detail_level(
-        ColumnType::detail_level::non_optional_type v) {
-      return mutable_table()->mutable_detail_level()->Set(row_number_, v);
+          StringPool::Id detail_level() const {
+        
+        auto res = table_->dataframe_.template GetCellUnchecked<ColumnIndex::detail_level>(kSpec, row_);
+        return res && res != StringPool::Id::Null() ? StringPool::Id{*res} : StringPool::Id::Null();
+      }
+    
+    RowNumber ToRowNumber() const {
+      return RowNumber{row_};
     }
 
    private:
-    MemorySnapshotTable* mutable_table() const {
-      return const_cast<MemorySnapshotTable*>(table());
-    }
+    friend struct ConstRowReference;
+    MemorySnapshotTable* table_;
+    uint32_t row_;
   };
-  static_assert(std::is_trivially_destructible_v<RowReference>,
-                "Inheritance used without trivial destruction");
-
-  class ConstIterator;
-  class ConstIterator : public macros_internal::AbstractConstIterator<
-    ConstIterator, MemorySnapshotTable, RowNumber, ConstRowReference> {
+  struct ConstRowReference {
    public:
-    ColumnType::id::type id() const {
-      const auto& col = table()->id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
+    explicit ConstRowReference(const MemorySnapshotTable* table, uint32_t row)
+        : table_(table), row_(row) {
+        base::ignore_result(table_);
     }
-    ColumnType::timestamp::type timestamp() const {
-      const auto& col = table()->timestamp();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
+    ConstRowReference(const RowReference& other)
+        : table_(other.table_), row_(other.row_) {}
+    MemorySnapshotTable::Id id() const {
+        
+        return MemorySnapshotTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+        int64_t timestamp() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::timestamp>(kSpec, row_);
     }
-    ColumnType::track_id::type track_id() const {
-      const auto& col = table()->track_id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
+          StringPool::Id detail_level() const {
+        
+        auto res = table_->dataframe_.template GetCellUnchecked<ColumnIndex::detail_level>(kSpec, row_);
+        return res && res != StringPool::Id::Null() ? StringPool::Id{*res} : StringPool::Id::Null();
+      }
+    RowNumber ToRowNumber() const {
+      return RowNumber{row_};
     }
-    ColumnType::detail_level::type detail_level() const {
-      const auto& col = table()->detail_level();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
+   private:
+    const MemorySnapshotTable* table_;
+    uint32_t row_;
+  };
+  class ConstCursor {
+   public:
+    explicit ConstCursor(const dataframe::Dataframe& df,
+                         std::vector<dataframe::FilterSpec> filters,
+                         std::vector<dataframe::SortSpec> sorts)
+      : dataframe_(&df), cursor_(&df, std::move(filters), std::move(sorts)) {
+      base::ignore_result(dataframe_);
     }
 
-   protected:
-    explicit ConstIterator(const MemorySnapshotTable* table,
-                           Table::Iterator iterator)
-        : AbstractConstIterator(table, std::move(iterator)) {}
-
-    uint32_t CurrentRowNumber() const {
-      return iterator_.StorageIndexForLastOverlay();
+    PERFETTO_ALWAYS_INLINE void Execute() { cursor_.ExecuteUnchecked(); }
+    PERFETTO_ALWAYS_INLINE bool Eof() const { return cursor_.Eof(); }
+    PERFETTO_ALWAYS_INLINE void Next() { cursor_.Next(); }
+    template <typename C>
+    PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index, C value) {
+      cursor_.SetFilterValueUnchecked(index, std::move(value));
     }
+    RowNumber ToRowNumber() const {
+      return RowNumber{cursor_.RowIndex()};
+    }
+    void Reset() { cursor_.Reset(); }
+    MemorySnapshotTable::Id id() const {
+        
+        return MemorySnapshotTable::Id{cursor_.GetCellUnchecked<ColumnIndex::id>(kSpec)};
+      }
+    int64_t timestamp() const {
+      
+      return cursor_.GetCellUnchecked<ColumnIndex::timestamp>(kSpec);
+    }
+      StringPool::Id detail_level() const {
+        
+        auto res = cursor_.GetCellUnchecked<ColumnIndex::detail_level>(kSpec);
+        return res && res != StringPool::Id::Null() ? *res : StringPool::Id::Null();
+      }
 
    private:
-    friend class MemorySnapshotTable;
-    friend class macros_internal::AbstractConstIterator<
-      ConstIterator, MemorySnapshotTable, RowNumber, ConstRowReference>;
+    const dataframe::Dataframe* dataframe_;
+    dataframe::TypedCursor cursor_;
   };
-  class Iterator : public ConstIterator {
+  class Cursor {
+   public:
+    explicit Cursor(dataframe::Dataframe& df,
+                    std::vector<dataframe::FilterSpec> filters,
+                    std::vector<dataframe::SortSpec> sorts)
+      : dataframe_(&df), cursor_(&df, std::move(filters), std::move(sorts)) {
+      base::ignore_result(dataframe_);
+    }
+
+    PERFETTO_ALWAYS_INLINE void Execute() { cursor_.ExecuteUnchecked(); }
+    PERFETTO_ALWAYS_INLINE bool Eof() const { return cursor_.Eof(); }
+    PERFETTO_ALWAYS_INLINE void Next() { cursor_.Next(); }
+    template <typename C>
+    PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index, C value) {
+      cursor_.SetFilterValueUnchecked(index, std::move(value));
+    }
+    RowNumber ToRowNumber() const {
+      return RowNumber{cursor_.RowIndex()};
+    }
+    void Reset() { cursor_.Reset(); }
+
+    MemorySnapshotTable::Id id() const {
+        
+        return MemorySnapshotTable::Id{cursor_.GetCellUnchecked<ColumnIndex::id>(kSpec)};
+      }
+    int64_t timestamp() const {
+      
+      return cursor_.GetCellUnchecked<ColumnIndex::timestamp>(kSpec);
+    }
+      StringPool::Id detail_level() const {
+        
+        auto res = cursor_.GetCellUnchecked<ColumnIndex::detail_level>(kSpec);
+        return res && res != StringPool::Id::Null() ? *res : StringPool::Id::Null();
+      }
+    
+
+   private:
+    dataframe::Dataframe* dataframe_;
+    dataframe::TypedCursor cursor_;
+  };
+  class Iterator {
     public:
-     RowReference row_reference() const {
-       return {const_cast<MemorySnapshotTable*>(table()), CurrentRowNumber()};
-     }
+      explicit Iterator(MemorySnapshotTable* table) : table_(table) {
+        base::ignore_result(table_);
+      }
+      explicit operator bool() const { return row_ < table_->row_count(); }
+      Iterator& operator++() {
+        ++row_;
+        return *this;
+      }
+      RowNumber row_number() const {
+        return RowNumber{row_};
+      }
+      RowReference ToRowReference() const {
+        return RowReference(table_, row_);
+      }
+      MemorySnapshotTable::Id id() const {
+        
+        return MemorySnapshotTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+        int64_t timestamp() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::timestamp>(kSpec, row_);
+    }
+          StringPool::Id detail_level() const {
+        
+        auto res = table_->dataframe_.template GetCellUnchecked<ColumnIndex::detail_level>(kSpec, row_);
+        return res && res != StringPool::Id::Null() ? StringPool::Id{*res} : StringPool::Id::Null();
+      }
+      
 
     private:
-     friend class MemorySnapshotTable;
-
-     explicit Iterator(MemorySnapshotTable* table, Table::Iterator iterator)
-        : ConstIterator(table, std::move(iterator)) {}
+      MemorySnapshotTable* table_;
+      uint32_t row_ = 0;
   };
+  class ConstIterator {
+    public:
+      explicit ConstIterator(const MemorySnapshotTable* table) : table_(table) {
+        base::ignore_result(table_);
+      }
+      explicit operator bool() const { return row_ < table_->row_count(); }
+      ConstIterator& operator++() {
+        ++row_;
+        return *this;
+      }
+      RowNumber row_number() const {
+        return RowNumber{row_};
+      }
+      ConstRowReference ToRowReference() const {
+        return ConstRowReference(table_, row_);
+      }
+      MemorySnapshotTable::Id id() const {
+        
+        return MemorySnapshotTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+        int64_t timestamp() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::timestamp>(kSpec, row_);
+    }
+          StringPool::Id detail_level() const {
+        
+        auto res = table_->dataframe_.template GetCellUnchecked<ColumnIndex::detail_level>(kSpec, row_);
+        return res && res != StringPool::Id::Null() ? StringPool::Id{*res} : StringPool::Id::Null();
+      }
 
+    private:
+      const MemorySnapshotTable* table_;
+      uint32_t row_ = 0;
+  };
   struct IdAndRow {
     Id id;
+    RowNumber row_number;
     uint32_t row;
     RowReference row_reference;
-    RowNumber row_number;
+  };
+  
+  struct Row {
+    Row(int64_t _timestamp = {}, TrackTable::Id _track_id = {}, StringPool::Id _detail_level = {}) : timestamp(std::move(_timestamp)), track_id(std::move(_track_id)), detail_level(std::move(_detail_level)) {}
+
+    bool operator==(const Row& other) const {
+      return std::tie(timestamp, track_id, detail_level) ==
+             std::tie(other.timestamp, other.track_id, other.detail_level);
+    }
+
+        int64_t timestamp;
+    TrackTable::Id track_id;
+    StringPool::Id detail_level;
   };
 
-  static std::vector<ColumnLegacy> GetColumns(
-      MemorySnapshotTable* self,
-      const macros_internal::MacroTable* parent) {
-    std::vector<ColumnLegacy> columns =
-        CopyColumnsFromParentOrAddRootColumns(parent);
-    uint32_t olay_idx = OverlayCount(parent);
-    AddColumnToVector(columns, "timestamp", &self->timestamp_, ColumnFlag::timestamp,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "track_id", &self->track_id_, ColumnFlag::track_id,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "detail_level", &self->detail_level_, ColumnFlag::detail_level,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    base::ignore_result(self);
-    return columns;
-  }
-
-  PERFETTO_NO_INLINE explicit MemorySnapshotTable(StringPool* pool)
-      : macros_internal::MacroTable(
-          pool,
-          GetColumns(this, nullptr),
-          nullptr),
-        timestamp_(ColumnStorage<ColumnType::timestamp::stored_type>::Create<false>()),
-        track_id_(ColumnStorage<ColumnType::track_id::stored_type>::Create<false>()),
-        detail_level_(ColumnStorage<ColumnType::detail_level::stored_type>::Create<false>())
-,
-        id_storage_layer_(new column::IdStorage()),
-        timestamp_storage_layer_(
-        new column::NumericStorage<ColumnType::timestamp::non_optional_stored_type>(
-          &timestamp_.vector(),
-          ColumnTypeHelper<ColumnType::timestamp::stored_type>::ToColumnType(),
-          false)),
-        track_id_storage_layer_(
-        new column::NumericStorage<ColumnType::track_id::non_optional_stored_type>(
-          &track_id_.vector(),
-          ColumnTypeHelper<ColumnType::track_id::stored_type>::ToColumnType(),
-          false)),
-        detail_level_storage_layer_(
-          new column::StringStorage(string_pool(), &detail_level_.vector()))
-         {
-    static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::timestamp::stored_type>(
-          ColumnFlag::timestamp),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::track_id::stored_type>(
-          ColumnFlag::track_id),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::detail_level::stored_type>(
-          ColumnFlag::detail_level),
-        "Column type and flag combination is not valid");
-    OnConstructionCompletedRegularConstructor(
-      {id_storage_layer_,timestamp_storage_layer_,track_id_storage_layer_,detail_level_storage_layer_},
-      {{},{},{},{}});
-  }
-  ~MemorySnapshotTable() override;
-
-  static const char* Name() { return "memory_snapshot"; }
-
-  static Table::Schema ComputeStaticSchema() {
-    Table::Schema schema;
-    schema.columns.emplace_back(Table::Schema::Column{
-        "id", SqlValue::Type::kLong, true, true, false, false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "timestamp", ColumnType::timestamp::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "track_id", ColumnType::track_id::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "detail_level", ColumnType::detail_level::SqlValueType(), false,
-        false,
-        false,
-        false});
-    return schema;
-  }
-
-  ConstIterator IterateRows() const {
-    return ConstIterator(this, Table::IterateRows());
-  }
-
-  Iterator IterateRows() { return Iterator(this, Table::IterateRows()); }
-
-  ConstIterator FilterToIterator(const Query& q) const {
-    return ConstIterator(this, QueryToIterator(q));
-  }
-
-  Iterator FilterToIterator(const Query& q) {
-    return Iterator(this, QueryToIterator(q));
-  }
-
-  void ShrinkToFit() {
-    timestamp_.ShrinkToFit();
-    track_id_.ShrinkToFit();
-    detail_level_.ShrinkToFit();
-  }
-
-  ConstRowReference operator[](uint32_t r) const {
-    return ConstRowReference(this, r);
-  }
-  RowReference operator[](uint32_t r) { return RowReference(this, r); }
-  ConstRowReference operator[](RowNumber r) const {
-    return ConstRowReference(this, r.row_number());
-  }
-  RowReference operator[](RowNumber r) {
-    return RowReference(this, r.row_number());
-  }
-
-  std::optional<ConstRowReference> FindById(Id find_id) const {
-    std::optional<uint32_t> row = id().IndexOf(find_id);
-    return row ? std::make_optional(ConstRowReference(this, *row))
-               : std::nullopt;
-  }
-
-  std::optional<RowReference> FindById(Id find_id) {
-    std::optional<uint32_t> row = id().IndexOf(find_id);
-    return row ? std::make_optional(RowReference(this, *row)) : std::nullopt;
-  }
+  explicit MemorySnapshotTable(StringPool* pool)
+      : dataframe_(dataframe::Dataframe::CreateFromTypedSpec(kSpec, pool)) {}
 
   IdAndRow Insert(const Row& row) {
-    uint32_t row_number = row_count();
-    Id id = Id{row_number};
-    mutable_timestamp()->Append(row.timestamp);
-    mutable_track_id()->Append(row.track_id);
-    mutable_detail_level()->Append(row.detail_level);
-    UpdateSelfOverlayAfterInsert();
-    return IdAndRow{id, row_number, RowReference(this, row_number),
-                     RowNumber(row_number)};
+    uint32_t row_count = dataframe_.row_count();
+    dataframe_.InsertUnchecked(kSpec, std::monostate(), row.timestamp, row.track_id.value, row.detail_level != StringPool::Id::Null() ? std::make_optional(row.detail_level) : std::nullopt);
+    return IdAndRow{Id{row_count}, RowNumber{row_count}, row_count, RowReference(this, row_count)};
   }
 
-  
-
-  const IdColumn<MemorySnapshotTable::Id>& id() const {
-    return static_cast<const ColumnType::id&>(columns()[ColumnIndex::id]);
-  }
-  const TypedColumn<int64_t>& timestamp() const {
-    return static_cast<const ColumnType::timestamp&>(columns()[ColumnIndex::timestamp]);
-  }
-  const TypedColumn<TrackTable::Id>& track_id() const {
-    return static_cast<const ColumnType::track_id&>(columns()[ColumnIndex::track_id]);
-  }
-  const TypedColumn<StringPool::Id>& detail_level() const {
-    return static_cast<const ColumnType::detail_level&>(columns()[ColumnIndex::detail_level]);
+  uint32_t row_count() const {
+    return dataframe_.row_count();
   }
 
-  TypedColumn<int64_t>* mutable_timestamp() {
-    return static_cast<ColumnType::timestamp*>(
-        GetColumn(ColumnIndex::timestamp));
+  std::optional<ConstRowReference> FindById(Id id) const {
+    return ConstRowReference(this, id.value);
   }
-  TypedColumn<TrackTable::Id>* mutable_track_id() {
-    return static_cast<ColumnType::track_id*>(
-        GetColumn(ColumnIndex::track_id));
+  ConstRowReference operator[](uint32_t row) const {
+    return ConstRowReference(this, row);
   }
-  TypedColumn<StringPool::Id>* mutable_detail_level() {
-    return static_cast<ColumnType::detail_level*>(
-        GetColumn(ColumnIndex::detail_level));
+
+  std::optional<RowReference> FindById(Id id) {
+    return RowReference(this, id.value);
+  }
+  RowReference operator[](uint32_t row) {
+    return RowReference(this, row);
+  }
+
+  ConstCursor CreateCursor(
+      std::vector<dataframe::FilterSpec> filters = {},
+      std::vector<dataframe::SortSpec> sorts = {}) const {
+    return ConstCursor(dataframe_, std::move(filters), std::move(sorts));
+  }
+  Cursor CreateCursor(
+      std::vector<dataframe::FilterSpec> filters = {},
+      std::vector<dataframe::SortSpec> sorts = {}) {
+    return Cursor(dataframe_, std::move(filters), std::move(sorts));
+  }
+
+  Iterator IterateRows() { return Iterator(this); }
+  ConstIterator IterateRows() const { return ConstIterator(this); }
+
+  void Finalize() { dataframe_.Finalize(); }
+
+  void Clear() { dataframe_.Clear(); }
+
+  static const char* Name() {
+    return "__intrinsic_memory_snapshot";
+  }
+
+  dataframe::Dataframe& dataframe() {
+    return dataframe_;
+  }
+  const dataframe::Dataframe& dataframe() const {
+    return dataframe_;
   }
 
  private:
-  
-  
-  ColumnStorage<ColumnType::timestamp::stored_type> timestamp_;
-  ColumnStorage<ColumnType::track_id::stored_type> track_id_;
-  ColumnStorage<ColumnType::detail_level::stored_type> detail_level_;
-
-  RefPtr<column::StorageLayer> id_storage_layer_;
-  RefPtr<column::StorageLayer> timestamp_storage_layer_;
-  RefPtr<column::StorageLayer> track_id_storage_layer_;
-  RefPtr<column::StorageLayer> detail_level_storage_layer_;
-
-  
+  dataframe::Dataframe dataframe_;
 };
-  
 
-class ProcessMemorySnapshotTable : public macros_internal::MacroTable {
+
+
+class ProcessMemorySnapshotTable {
  public:
-  static constexpr uint32_t kColumnCount = 3;
+  static constexpr auto kSpec = dataframe::CreateTypedDataframeSpec(
+    {"id","snapshot_id","upid"},
+    dataframe::CreateTypedColumnSpec(dataframe::Id{}, dataframe::NonNull{}, dataframe::IdSorted{}, dataframe::NoDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}));
 
-  struct Id : public BaseId {
+  struct Id : BaseId {
     Id() = default;
-    explicit constexpr Id(uint32_t v) : BaseId(v) {}
+    explicit constexpr Id(uint32_t _value) : BaseId(_value) {}
+
+    bool operator==(const Id& other) const {
+      return value == other.value;
+    }
   };
-  static_assert(std::is_trivially_destructible_v<Id>,
-                "Inheritance used without trivial destruction");
-    
+  struct RowReference;
+  struct ConstRowReference;
+  struct RowNumber {
+   public:
+    explicit constexpr RowNumber(uint32_t value) : value_(value) {}
+    uint32_t row_number() const { return value_; }
+
+    RowReference ToRowReference(ProcessMemorySnapshotTable* table) const {
+      return RowReference(table, value_);
+    }
+    ConstRowReference ToRowReference(const ProcessMemorySnapshotTable& table) const {
+      return ConstRowReference(&table, value_);
+    }
+
+    bool operator==(const RowNumber& other) const {
+      return value_ == other.value_;
+    }
+    bool operator<(const RowNumber& other) const {
+      return value_ < other.value_;
+    }
+   private:
+    uint32_t value_;
+  };
   struct ColumnIndex {
     static constexpr uint32_t id = 0;
     static constexpr uint32_t snapshot_id = 1;
     static constexpr uint32_t upid = 2;
   };
-  struct ColumnType {
-    using id = IdColumn<ProcessMemorySnapshotTable::Id>;
-    using snapshot_id = TypedColumn<MemorySnapshotTable::Id>;
-    using upid = TypedColumn<uint32_t>;
-  };
-  struct Row : public macros_internal::RootParentTable::Row {
-    Row(MemorySnapshotTable::Id in_snapshot_id = {},
-        uint32_t in_upid = {},
-        std::nullptr_t = nullptr)
-        : macros_internal::RootParentTable::Row(),
-          snapshot_id(in_snapshot_id),
-          upid(in_upid) {}
-    MemorySnapshotTable::Id snapshot_id;
-    uint32_t upid;
-
-    bool operator==(const ProcessMemorySnapshotTable::Row& other) const {
-      return ColumnType::snapshot_id::Equals(snapshot_id, other.snapshot_id) &&
-       ColumnType::upid::Equals(upid, other.upid);
-    }
-  };
-  struct ColumnFlag {
-    static constexpr uint32_t snapshot_id = ColumnType::snapshot_id::default_flags();
-    static constexpr uint32_t upid = ColumnType::upid::default_flags();
-  };
-
-  class RowNumber;
-  class ConstRowReference;
-  class RowReference;
-
-  class RowNumber : public macros_internal::AbstractRowNumber<
-      ProcessMemorySnapshotTable, ConstRowReference, RowReference> {
+  struct RowReference {
    public:
-    explicit RowNumber(uint32_t row_number)
-        : AbstractRowNumber(row_number) {}
-  };
-  static_assert(std::is_trivially_destructible_v<RowNumber>,
-                "Inheritance used without trivial destruction");
-
-  class ConstRowReference : public macros_internal::AbstractConstRowReference<
-    ProcessMemorySnapshotTable, RowNumber> {
-   public:
-    ConstRowReference(const ProcessMemorySnapshotTable* table, uint32_t row_number)
-        : AbstractConstRowReference(table, row_number) {}
-
-    ColumnType::id::type id() const {
-      return table()->id()[row_number_];
+    explicit RowReference(ProcessMemorySnapshotTable* table, uint32_t row)
+        : table_(table), row_(row) {
+        base::ignore_result(table_);
     }
-    ColumnType::snapshot_id::type snapshot_id() const {
-      return table()->snapshot_id()[row_number_];
+    ProcessMemorySnapshotTable::Id id() const {
+        
+        return ProcessMemorySnapshotTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+          MemorySnapshotTable::Id snapshot_id() const {
+        
+        return MemorySnapshotTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::snapshot_id>(kSpec, row_)};
+      }
+        uint32_t upid() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::upid>(kSpec, row_);
     }
-    ColumnType::upid::type upid() const {
-      return table()->upid()[row_number_];
-    }
-  };
-  static_assert(std::is_trivially_destructible_v<ConstRowReference>,
-                "Inheritance used without trivial destruction");
-  class RowReference : public ConstRowReference {
-   public:
-    RowReference(const ProcessMemorySnapshotTable* table, uint32_t row_number)
-        : ConstRowReference(table, row_number) {}
-
-    void set_snapshot_id(
-        ColumnType::snapshot_id::non_optional_type v) {
-      return mutable_table()->mutable_snapshot_id()->Set(row_number_, v);
-    }
-    void set_upid(
-        ColumnType::upid::non_optional_type v) {
-      return mutable_table()->mutable_upid()->Set(row_number_, v);
+    
+    RowNumber ToRowNumber() const {
+      return RowNumber{row_};
     }
 
    private:
-    ProcessMemorySnapshotTable* mutable_table() const {
-      return const_cast<ProcessMemorySnapshotTable*>(table());
-    }
+    friend struct ConstRowReference;
+    ProcessMemorySnapshotTable* table_;
+    uint32_t row_;
   };
-  static_assert(std::is_trivially_destructible_v<RowReference>,
-                "Inheritance used without trivial destruction");
-
-  class ConstIterator;
-  class ConstIterator : public macros_internal::AbstractConstIterator<
-    ConstIterator, ProcessMemorySnapshotTable, RowNumber, ConstRowReference> {
+  struct ConstRowReference {
    public:
-    ColumnType::id::type id() const {
-      const auto& col = table()->id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
+    explicit ConstRowReference(const ProcessMemorySnapshotTable* table, uint32_t row)
+        : table_(table), row_(row) {
+        base::ignore_result(table_);
     }
-    ColumnType::snapshot_id::type snapshot_id() const {
-      const auto& col = table()->snapshot_id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
+    ConstRowReference(const RowReference& other)
+        : table_(other.table_), row_(other.row_) {}
+    ProcessMemorySnapshotTable::Id id() const {
+        
+        return ProcessMemorySnapshotTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+          MemorySnapshotTable::Id snapshot_id() const {
+        
+        return MemorySnapshotTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::snapshot_id>(kSpec, row_)};
+      }
+        uint32_t upid() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::upid>(kSpec, row_);
     }
-    ColumnType::upid::type upid() const {
-      const auto& col = table()->upid();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
+    RowNumber ToRowNumber() const {
+      return RowNumber{row_};
+    }
+   private:
+    const ProcessMemorySnapshotTable* table_;
+    uint32_t row_;
+  };
+  class ConstCursor {
+   public:
+    explicit ConstCursor(const dataframe::Dataframe& df,
+                         std::vector<dataframe::FilterSpec> filters,
+                         std::vector<dataframe::SortSpec> sorts)
+      : dataframe_(&df), cursor_(&df, std::move(filters), std::move(sorts)) {
+      base::ignore_result(dataframe_);
     }
 
-   protected:
-    explicit ConstIterator(const ProcessMemorySnapshotTable* table,
-                           Table::Iterator iterator)
-        : AbstractConstIterator(table, std::move(iterator)) {}
-
-    uint32_t CurrentRowNumber() const {
-      return iterator_.StorageIndexForLastOverlay();
+    PERFETTO_ALWAYS_INLINE void Execute() { cursor_.ExecuteUnchecked(); }
+    PERFETTO_ALWAYS_INLINE bool Eof() const { return cursor_.Eof(); }
+    PERFETTO_ALWAYS_INLINE void Next() { cursor_.Next(); }
+    template <typename C>
+    PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index, C value) {
+      cursor_.SetFilterValueUnchecked(index, std::move(value));
+    }
+    RowNumber ToRowNumber() const {
+      return RowNumber{cursor_.RowIndex()};
+    }
+    void Reset() { cursor_.Reset(); }
+    ProcessMemorySnapshotTable::Id id() const {
+        
+        return ProcessMemorySnapshotTable::Id{cursor_.GetCellUnchecked<ColumnIndex::id>(kSpec)};
+      }
+      MemorySnapshotTable::Id snapshot_id() const {
+        
+        return MemorySnapshotTable::Id{cursor_.GetCellUnchecked<ColumnIndex::snapshot_id>(kSpec)};
+      }
+    uint32_t upid() const {
+      
+      return cursor_.GetCellUnchecked<ColumnIndex::upid>(kSpec);
     }
 
    private:
-    friend class ProcessMemorySnapshotTable;
-    friend class macros_internal::AbstractConstIterator<
-      ConstIterator, ProcessMemorySnapshotTable, RowNumber, ConstRowReference>;
+    const dataframe::Dataframe* dataframe_;
+    dataframe::TypedCursor cursor_;
   };
-  class Iterator : public ConstIterator {
+  class Cursor {
+   public:
+    explicit Cursor(dataframe::Dataframe& df,
+                    std::vector<dataframe::FilterSpec> filters,
+                    std::vector<dataframe::SortSpec> sorts)
+      : dataframe_(&df), cursor_(&df, std::move(filters), std::move(sorts)) {
+      base::ignore_result(dataframe_);
+    }
+
+    PERFETTO_ALWAYS_INLINE void Execute() { cursor_.ExecuteUnchecked(); }
+    PERFETTO_ALWAYS_INLINE bool Eof() const { return cursor_.Eof(); }
+    PERFETTO_ALWAYS_INLINE void Next() { cursor_.Next(); }
+    template <typename C>
+    PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index, C value) {
+      cursor_.SetFilterValueUnchecked(index, std::move(value));
+    }
+    RowNumber ToRowNumber() const {
+      return RowNumber{cursor_.RowIndex()};
+    }
+    void Reset() { cursor_.Reset(); }
+
+    ProcessMemorySnapshotTable::Id id() const {
+        
+        return ProcessMemorySnapshotTable::Id{cursor_.GetCellUnchecked<ColumnIndex::id>(kSpec)};
+      }
+      MemorySnapshotTable::Id snapshot_id() const {
+        
+        return MemorySnapshotTable::Id{cursor_.GetCellUnchecked<ColumnIndex::snapshot_id>(kSpec)};
+      }
+    uint32_t upid() const {
+      
+      return cursor_.GetCellUnchecked<ColumnIndex::upid>(kSpec);
+    }
+    
+
+   private:
+    dataframe::Dataframe* dataframe_;
+    dataframe::TypedCursor cursor_;
+  };
+  class Iterator {
     public:
-     RowReference row_reference() const {
-       return {const_cast<ProcessMemorySnapshotTable*>(table()), CurrentRowNumber()};
-     }
+      explicit Iterator(ProcessMemorySnapshotTable* table) : table_(table) {
+        base::ignore_result(table_);
+      }
+      explicit operator bool() const { return row_ < table_->row_count(); }
+      Iterator& operator++() {
+        ++row_;
+        return *this;
+      }
+      RowNumber row_number() const {
+        return RowNumber{row_};
+      }
+      RowReference ToRowReference() const {
+        return RowReference(table_, row_);
+      }
+      ProcessMemorySnapshotTable::Id id() const {
+        
+        return ProcessMemorySnapshotTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+          MemorySnapshotTable::Id snapshot_id() const {
+        
+        return MemorySnapshotTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::snapshot_id>(kSpec, row_)};
+      }
+        uint32_t upid() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::upid>(kSpec, row_);
+    }
+      
 
     private:
-     friend class ProcessMemorySnapshotTable;
-
-     explicit Iterator(ProcessMemorySnapshotTable* table, Table::Iterator iterator)
-        : ConstIterator(table, std::move(iterator)) {}
+      ProcessMemorySnapshotTable* table_;
+      uint32_t row_ = 0;
   };
+  class ConstIterator {
+    public:
+      explicit ConstIterator(const ProcessMemorySnapshotTable* table) : table_(table) {
+        base::ignore_result(table_);
+      }
+      explicit operator bool() const { return row_ < table_->row_count(); }
+      ConstIterator& operator++() {
+        ++row_;
+        return *this;
+      }
+      RowNumber row_number() const {
+        return RowNumber{row_};
+      }
+      ConstRowReference ToRowReference() const {
+        return ConstRowReference(table_, row_);
+      }
+      ProcessMemorySnapshotTable::Id id() const {
+        
+        return ProcessMemorySnapshotTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+          MemorySnapshotTable::Id snapshot_id() const {
+        
+        return MemorySnapshotTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::snapshot_id>(kSpec, row_)};
+      }
+        uint32_t upid() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::upid>(kSpec, row_);
+    }
 
+    private:
+      const ProcessMemorySnapshotTable* table_;
+      uint32_t row_ = 0;
+  };
   struct IdAndRow {
     Id id;
+    RowNumber row_number;
     uint32_t row;
     RowReference row_reference;
-    RowNumber row_number;
+  };
+  
+  struct Row {
+    Row(MemorySnapshotTable::Id _snapshot_id = {}, uint32_t _upid = {}) : snapshot_id(std::move(_snapshot_id)), upid(std::move(_upid)) {}
+
+    bool operator==(const Row& other) const {
+      return std::tie(snapshot_id, upid) ==
+             std::tie(other.snapshot_id, other.upid);
+    }
+
+        MemorySnapshotTable::Id snapshot_id;
+    uint32_t upid;
   };
 
-  static std::vector<ColumnLegacy> GetColumns(
-      ProcessMemorySnapshotTable* self,
-      const macros_internal::MacroTable* parent) {
-    std::vector<ColumnLegacy> columns =
-        CopyColumnsFromParentOrAddRootColumns(parent);
-    uint32_t olay_idx = OverlayCount(parent);
-    AddColumnToVector(columns, "snapshot_id", &self->snapshot_id_, ColumnFlag::snapshot_id,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "upid", &self->upid_, ColumnFlag::upid,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    base::ignore_result(self);
-    return columns;
-  }
-
-  PERFETTO_NO_INLINE explicit ProcessMemorySnapshotTable(StringPool* pool)
-      : macros_internal::MacroTable(
-          pool,
-          GetColumns(this, nullptr),
-          nullptr),
-        snapshot_id_(ColumnStorage<ColumnType::snapshot_id::stored_type>::Create<false>()),
-        upid_(ColumnStorage<ColumnType::upid::stored_type>::Create<false>())
-,
-        id_storage_layer_(new column::IdStorage()),
-        snapshot_id_storage_layer_(
-        new column::NumericStorage<ColumnType::snapshot_id::non_optional_stored_type>(
-          &snapshot_id_.vector(),
-          ColumnTypeHelper<ColumnType::snapshot_id::stored_type>::ToColumnType(),
-          false)),
-        upid_storage_layer_(
-        new column::NumericStorage<ColumnType::upid::non_optional_stored_type>(
-          &upid_.vector(),
-          ColumnTypeHelper<ColumnType::upid::stored_type>::ToColumnType(),
-          false))
-         {
-    static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::snapshot_id::stored_type>(
-          ColumnFlag::snapshot_id),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::upid::stored_type>(
-          ColumnFlag::upid),
-        "Column type and flag combination is not valid");
-    OnConstructionCompletedRegularConstructor(
-      {id_storage_layer_,snapshot_id_storage_layer_,upid_storage_layer_},
-      {{},{},{}});
-  }
-  ~ProcessMemorySnapshotTable() override;
-
-  static const char* Name() { return "process_memory_snapshot"; }
-
-  static Table::Schema ComputeStaticSchema() {
-    Table::Schema schema;
-    schema.columns.emplace_back(Table::Schema::Column{
-        "id", SqlValue::Type::kLong, true, true, false, false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "snapshot_id", ColumnType::snapshot_id::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "upid", ColumnType::upid::SqlValueType(), false,
-        false,
-        false,
-        false});
-    return schema;
-  }
-
-  ConstIterator IterateRows() const {
-    return ConstIterator(this, Table::IterateRows());
-  }
-
-  Iterator IterateRows() { return Iterator(this, Table::IterateRows()); }
-
-  ConstIterator FilterToIterator(const Query& q) const {
-    return ConstIterator(this, QueryToIterator(q));
-  }
-
-  Iterator FilterToIterator(const Query& q) {
-    return Iterator(this, QueryToIterator(q));
-  }
-
-  void ShrinkToFit() {
-    snapshot_id_.ShrinkToFit();
-    upid_.ShrinkToFit();
-  }
-
-  ConstRowReference operator[](uint32_t r) const {
-    return ConstRowReference(this, r);
-  }
-  RowReference operator[](uint32_t r) { return RowReference(this, r); }
-  ConstRowReference operator[](RowNumber r) const {
-    return ConstRowReference(this, r.row_number());
-  }
-  RowReference operator[](RowNumber r) {
-    return RowReference(this, r.row_number());
-  }
-
-  std::optional<ConstRowReference> FindById(Id find_id) const {
-    std::optional<uint32_t> row = id().IndexOf(find_id);
-    return row ? std::make_optional(ConstRowReference(this, *row))
-               : std::nullopt;
-  }
-
-  std::optional<RowReference> FindById(Id find_id) {
-    std::optional<uint32_t> row = id().IndexOf(find_id);
-    return row ? std::make_optional(RowReference(this, *row)) : std::nullopt;
-  }
+  explicit ProcessMemorySnapshotTable(StringPool* pool)
+      : dataframe_(dataframe::Dataframe::CreateFromTypedSpec(kSpec, pool)) {}
 
   IdAndRow Insert(const Row& row) {
-    uint32_t row_number = row_count();
-    Id id = Id{row_number};
-    mutable_snapshot_id()->Append(row.snapshot_id);
-    mutable_upid()->Append(row.upid);
-    UpdateSelfOverlayAfterInsert();
-    return IdAndRow{id, row_number, RowReference(this, row_number),
-                     RowNumber(row_number)};
+    uint32_t row_count = dataframe_.row_count();
+    dataframe_.InsertUnchecked(kSpec, std::monostate(), row.snapshot_id.value, row.upid);
+    return IdAndRow{Id{row_count}, RowNumber{row_count}, row_count, RowReference(this, row_count)};
   }
 
-  
-
-  const IdColumn<ProcessMemorySnapshotTable::Id>& id() const {
-    return static_cast<const ColumnType::id&>(columns()[ColumnIndex::id]);
-  }
-  const TypedColumn<MemorySnapshotTable::Id>& snapshot_id() const {
-    return static_cast<const ColumnType::snapshot_id&>(columns()[ColumnIndex::snapshot_id]);
-  }
-  const TypedColumn<uint32_t>& upid() const {
-    return static_cast<const ColumnType::upid&>(columns()[ColumnIndex::upid]);
+  uint32_t row_count() const {
+    return dataframe_.row_count();
   }
 
-  TypedColumn<MemorySnapshotTable::Id>* mutable_snapshot_id() {
-    return static_cast<ColumnType::snapshot_id*>(
-        GetColumn(ColumnIndex::snapshot_id));
+  std::optional<ConstRowReference> FindById(Id id) const {
+    return ConstRowReference(this, id.value);
   }
-  TypedColumn<uint32_t>* mutable_upid() {
-    return static_cast<ColumnType::upid*>(
-        GetColumn(ColumnIndex::upid));
+  ConstRowReference operator[](uint32_t row) const {
+    return ConstRowReference(this, row);
+  }
+
+  std::optional<RowReference> FindById(Id id) {
+    return RowReference(this, id.value);
+  }
+  RowReference operator[](uint32_t row) {
+    return RowReference(this, row);
+  }
+
+  ConstCursor CreateCursor(
+      std::vector<dataframe::FilterSpec> filters = {},
+      std::vector<dataframe::SortSpec> sorts = {}) const {
+    return ConstCursor(dataframe_, std::move(filters), std::move(sorts));
+  }
+  Cursor CreateCursor(
+      std::vector<dataframe::FilterSpec> filters = {},
+      std::vector<dataframe::SortSpec> sorts = {}) {
+    return Cursor(dataframe_, std::move(filters), std::move(sorts));
+  }
+
+  Iterator IterateRows() { return Iterator(this); }
+  ConstIterator IterateRows() const { return ConstIterator(this); }
+
+  void Finalize() { dataframe_.Finalize(); }
+
+  void Clear() { dataframe_.Clear(); }
+
+  static const char* Name() {
+    return "__intrinsic_process_memory_snapshot";
+  }
+
+  dataframe::Dataframe& dataframe() {
+    return dataframe_;
+  }
+  const dataframe::Dataframe& dataframe() const {
+    return dataframe_;
   }
 
  private:
-  
-  
-  ColumnStorage<ColumnType::snapshot_id::stored_type> snapshot_id_;
-  ColumnStorage<ColumnType::upid::stored_type> upid_;
-
-  RefPtr<column::StorageLayer> id_storage_layer_;
-  RefPtr<column::StorageLayer> snapshot_id_storage_layer_;
-  RefPtr<column::StorageLayer> upid_storage_layer_;
-
-  
+  dataframe::Dataframe dataframe_;
 };
-  
 
-class MemorySnapshotNodeTable : public macros_internal::MacroTable {
+
+
+class MemorySnapshotNodeTable {
  public:
-  static constexpr uint32_t kColumnCount = 7;
+  static constexpr auto kSpec = dataframe::CreateTypedDataframeSpec(
+    {"id","process_snapshot_id","parent_node_id","path","size","effective_size","arg_set_id"},
+    dataframe::CreateTypedColumnSpec(dataframe::Id{}, dataframe::NonNull{}, dataframe::IdSorted{}, dataframe::NoDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::SparseNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::String{}, dataframe::SparseNullWithPopcountAlways{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Int64{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Int64{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::SparseNullWithPopcountAlways{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}));
 
-  struct Id : public BaseId {
+  struct Id : BaseId {
     Id() = default;
-    explicit constexpr Id(uint32_t v) : BaseId(v) {}
+    explicit constexpr Id(uint32_t _value) : BaseId(_value) {}
+
+    bool operator==(const Id& other) const {
+      return value == other.value;
+    }
   };
-  static_assert(std::is_trivially_destructible_v<Id>,
-                "Inheritance used without trivial destruction");
-    
+  struct RowReference;
+  struct ConstRowReference;
+  struct RowNumber {
+   public:
+    explicit constexpr RowNumber(uint32_t value) : value_(value) {}
+    uint32_t row_number() const { return value_; }
+
+    RowReference ToRowReference(MemorySnapshotNodeTable* table) const {
+      return RowReference(table, value_);
+    }
+    ConstRowReference ToRowReference(const MemorySnapshotNodeTable& table) const {
+      return ConstRowReference(&table, value_);
+    }
+
+    bool operator==(const RowNumber& other) const {
+      return value_ == other.value_;
+    }
+    bool operator<(const RowNumber& other) const {
+      return value_ < other.value_;
+    }
+   private:
+    uint32_t value_;
+  };
   struct ColumnIndex {
     static constexpr uint32_t id = 0;
     static constexpr uint32_t process_snapshot_id = 1;
@@ -704,820 +733,734 @@ class MemorySnapshotNodeTable : public macros_internal::MacroTable {
     static constexpr uint32_t effective_size = 5;
     static constexpr uint32_t arg_set_id = 6;
   };
-  struct ColumnType {
-    using id = IdColumn<MemorySnapshotNodeTable::Id>;
-    using process_snapshot_id = TypedColumn<ProcessMemorySnapshotTable::Id>;
-    using parent_node_id = TypedColumn<std::optional<MemorySnapshotNodeTable::Id>>;
-    using path = TypedColumn<StringPool::Id>;
-    using size = TypedColumn<int64_t>;
-    using effective_size = TypedColumn<int64_t>;
-    using arg_set_id = TypedColumn<std::optional<uint32_t>>;
+  struct RowReference {
+   public:
+    explicit RowReference(MemorySnapshotNodeTable* table, uint32_t row)
+        : table_(table), row_(row) {
+        base::ignore_result(table_);
+    }
+    MemorySnapshotNodeTable::Id id() const {
+        
+        return MemorySnapshotNodeTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+          ProcessMemorySnapshotTable::Id process_snapshot_id() const {
+        
+        return ProcessMemorySnapshotTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::process_snapshot_id>(kSpec, row_)};
+      }
+          StringPool::Id path() const {
+        
+        auto res = table_->dataframe_.template GetCellUnchecked<ColumnIndex::path>(kSpec, row_);
+        return res && res != StringPool::Id::Null() ? StringPool::Id{*res} : StringPool::Id::Null();
+      }
+        int64_t size() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::size>(kSpec, row_);
+    }
+        int64_t effective_size() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::effective_size>(kSpec, row_);
+    }
+        std::optional<uint32_t> arg_set_id() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::arg_set_id>(kSpec, row_);
+    }
+    void set_size(int64_t res) {
+      
+      table_->dataframe_.SetCellUnchecked<ColumnIndex::size>(kSpec, row_, res);
+    }
+        void set_effective_size(int64_t res) {
+      
+      table_->dataframe_.SetCellUnchecked<ColumnIndex::effective_size>(kSpec, row_, res);
+    }
+    RowNumber ToRowNumber() const {
+      return RowNumber{row_};
+    }
+
+   private:
+    friend struct ConstRowReference;
+    MemorySnapshotNodeTable* table_;
+    uint32_t row_;
   };
-  struct Row : public macros_internal::RootParentTable::Row {
-    Row(ProcessMemorySnapshotTable::Id in_process_snapshot_id = {},
-        std::optional<MemorySnapshotNodeTable::Id> in_parent_node_id = {},
-        StringPool::Id in_path = {},
-        int64_t in_size = {},
-        int64_t in_effective_size = {},
-        std::optional<uint32_t> in_arg_set_id = {},
-        std::nullptr_t = nullptr)
-        : macros_internal::RootParentTable::Row(),
-          process_snapshot_id(in_process_snapshot_id),
-          parent_node_id(in_parent_node_id),
-          path(in_path),
-          size(in_size),
-          effective_size(in_effective_size),
-          arg_set_id(in_arg_set_id) {}
-    ProcessMemorySnapshotTable::Id process_snapshot_id;
+  struct ConstRowReference {
+   public:
+    explicit ConstRowReference(const MemorySnapshotNodeTable* table, uint32_t row)
+        : table_(table), row_(row) {
+        base::ignore_result(table_);
+    }
+    ConstRowReference(const RowReference& other)
+        : table_(other.table_), row_(other.row_) {}
+    MemorySnapshotNodeTable::Id id() const {
+        
+        return MemorySnapshotNodeTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+          ProcessMemorySnapshotTable::Id process_snapshot_id() const {
+        
+        return ProcessMemorySnapshotTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::process_snapshot_id>(kSpec, row_)};
+      }
+          StringPool::Id path() const {
+        
+        auto res = table_->dataframe_.template GetCellUnchecked<ColumnIndex::path>(kSpec, row_);
+        return res && res != StringPool::Id::Null() ? StringPool::Id{*res} : StringPool::Id::Null();
+      }
+        int64_t size() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::size>(kSpec, row_);
+    }
+        int64_t effective_size() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::effective_size>(kSpec, row_);
+    }
+        std::optional<uint32_t> arg_set_id() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::arg_set_id>(kSpec, row_);
+    }
+    RowNumber ToRowNumber() const {
+      return RowNumber{row_};
+    }
+   private:
+    const MemorySnapshotNodeTable* table_;
+    uint32_t row_;
+  };
+  class ConstCursor {
+   public:
+    explicit ConstCursor(const dataframe::Dataframe& df,
+                         std::vector<dataframe::FilterSpec> filters,
+                         std::vector<dataframe::SortSpec> sorts)
+      : dataframe_(&df), cursor_(&df, std::move(filters), std::move(sorts)) {
+      base::ignore_result(dataframe_);
+    }
+
+    PERFETTO_ALWAYS_INLINE void Execute() { cursor_.ExecuteUnchecked(); }
+    PERFETTO_ALWAYS_INLINE bool Eof() const { return cursor_.Eof(); }
+    PERFETTO_ALWAYS_INLINE void Next() { cursor_.Next(); }
+    template <typename C>
+    PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index, C value) {
+      cursor_.SetFilterValueUnchecked(index, std::move(value));
+    }
+    RowNumber ToRowNumber() const {
+      return RowNumber{cursor_.RowIndex()};
+    }
+    void Reset() { cursor_.Reset(); }
+    MemorySnapshotNodeTable::Id id() const {
+        
+        return MemorySnapshotNodeTable::Id{cursor_.GetCellUnchecked<ColumnIndex::id>(kSpec)};
+      }
+      ProcessMemorySnapshotTable::Id process_snapshot_id() const {
+        
+        return ProcessMemorySnapshotTable::Id{cursor_.GetCellUnchecked<ColumnIndex::process_snapshot_id>(kSpec)};
+      }
+      StringPool::Id path() const {
+        
+        auto res = cursor_.GetCellUnchecked<ColumnIndex::path>(kSpec);
+        return res && res != StringPool::Id::Null() ? *res : StringPool::Id::Null();
+      }
+    int64_t size() const {
+      
+      return cursor_.GetCellUnchecked<ColumnIndex::size>(kSpec);
+    }
+    int64_t effective_size() const {
+      
+      return cursor_.GetCellUnchecked<ColumnIndex::effective_size>(kSpec);
+    }
+    std::optional<uint32_t> arg_set_id() const {
+      
+      return cursor_.GetCellUnchecked<ColumnIndex::arg_set_id>(kSpec);
+    }
+
+   private:
+    const dataframe::Dataframe* dataframe_;
+    dataframe::TypedCursor cursor_;
+  };
+  class Cursor {
+   public:
+    explicit Cursor(dataframe::Dataframe& df,
+                    std::vector<dataframe::FilterSpec> filters,
+                    std::vector<dataframe::SortSpec> sorts)
+      : dataframe_(&df), cursor_(&df, std::move(filters), std::move(sorts)) {
+      base::ignore_result(dataframe_);
+    }
+
+    PERFETTO_ALWAYS_INLINE void Execute() { cursor_.ExecuteUnchecked(); }
+    PERFETTO_ALWAYS_INLINE bool Eof() const { return cursor_.Eof(); }
+    PERFETTO_ALWAYS_INLINE void Next() { cursor_.Next(); }
+    template <typename C>
+    PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index, C value) {
+      cursor_.SetFilterValueUnchecked(index, std::move(value));
+    }
+    RowNumber ToRowNumber() const {
+      return RowNumber{cursor_.RowIndex()};
+    }
+    void Reset() { cursor_.Reset(); }
+
+    MemorySnapshotNodeTable::Id id() const {
+        
+        return MemorySnapshotNodeTable::Id{cursor_.GetCellUnchecked<ColumnIndex::id>(kSpec)};
+      }
+      ProcessMemorySnapshotTable::Id process_snapshot_id() const {
+        
+        return ProcessMemorySnapshotTable::Id{cursor_.GetCellUnchecked<ColumnIndex::process_snapshot_id>(kSpec)};
+      }
+      StringPool::Id path() const {
+        
+        auto res = cursor_.GetCellUnchecked<ColumnIndex::path>(kSpec);
+        return res && res != StringPool::Id::Null() ? *res : StringPool::Id::Null();
+      }
+    int64_t size() const {
+      
+      return cursor_.GetCellUnchecked<ColumnIndex::size>(kSpec);
+    }
+    int64_t effective_size() const {
+      
+      return cursor_.GetCellUnchecked<ColumnIndex::effective_size>(kSpec);
+    }
+    std::optional<uint32_t> arg_set_id() const {
+      
+      return cursor_.GetCellUnchecked<ColumnIndex::arg_set_id>(kSpec);
+    }
+    void set_size(int64_t res) {
+        
+      cursor_.SetCellUnchecked<ColumnIndex::size>(kSpec, res);
+    }
+    void set_effective_size(int64_t res) {
+        
+      cursor_.SetCellUnchecked<ColumnIndex::effective_size>(kSpec, res);
+    }
+
+   private:
+    dataframe::Dataframe* dataframe_;
+    dataframe::TypedCursor cursor_;
+  };
+  class Iterator {
+    public:
+      explicit Iterator(MemorySnapshotNodeTable* table) : table_(table) {
+        base::ignore_result(table_);
+      }
+      explicit operator bool() const { return row_ < table_->row_count(); }
+      Iterator& operator++() {
+        ++row_;
+        return *this;
+      }
+      RowNumber row_number() const {
+        return RowNumber{row_};
+      }
+      RowReference ToRowReference() const {
+        return RowReference(table_, row_);
+      }
+      MemorySnapshotNodeTable::Id id() const {
+        
+        return MemorySnapshotNodeTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+          ProcessMemorySnapshotTable::Id process_snapshot_id() const {
+        
+        return ProcessMemorySnapshotTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::process_snapshot_id>(kSpec, row_)};
+      }
+          StringPool::Id path() const {
+        
+        auto res = table_->dataframe_.template GetCellUnchecked<ColumnIndex::path>(kSpec, row_);
+        return res && res != StringPool::Id::Null() ? StringPool::Id{*res} : StringPool::Id::Null();
+      }
+        int64_t size() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::size>(kSpec, row_);
+    }
+        int64_t effective_size() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::effective_size>(kSpec, row_);
+    }
+        std::optional<uint32_t> arg_set_id() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::arg_set_id>(kSpec, row_);
+    }
+      void set_size(int64_t res) {
+      
+      table_->dataframe_.SetCellUnchecked<ColumnIndex::size>(kSpec, row_, res);
+    }
+        void set_effective_size(int64_t res) {
+      
+      table_->dataframe_.SetCellUnchecked<ColumnIndex::effective_size>(kSpec, row_, res);
+    }
+
+    private:
+      MemorySnapshotNodeTable* table_;
+      uint32_t row_ = 0;
+  };
+  class ConstIterator {
+    public:
+      explicit ConstIterator(const MemorySnapshotNodeTable* table) : table_(table) {
+        base::ignore_result(table_);
+      }
+      explicit operator bool() const { return row_ < table_->row_count(); }
+      ConstIterator& operator++() {
+        ++row_;
+        return *this;
+      }
+      RowNumber row_number() const {
+        return RowNumber{row_};
+      }
+      ConstRowReference ToRowReference() const {
+        return ConstRowReference(table_, row_);
+      }
+      MemorySnapshotNodeTable::Id id() const {
+        
+        return MemorySnapshotNodeTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+          ProcessMemorySnapshotTable::Id process_snapshot_id() const {
+        
+        return ProcessMemorySnapshotTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::process_snapshot_id>(kSpec, row_)};
+      }
+          StringPool::Id path() const {
+        
+        auto res = table_->dataframe_.template GetCellUnchecked<ColumnIndex::path>(kSpec, row_);
+        return res && res != StringPool::Id::Null() ? StringPool::Id{*res} : StringPool::Id::Null();
+      }
+        int64_t size() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::size>(kSpec, row_);
+    }
+        int64_t effective_size() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::effective_size>(kSpec, row_);
+    }
+        std::optional<uint32_t> arg_set_id() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::arg_set_id>(kSpec, row_);
+    }
+
+    private:
+      const MemorySnapshotNodeTable* table_;
+      uint32_t row_ = 0;
+  };
+  struct IdAndRow {
+    Id id;
+    RowNumber row_number;
+    uint32_t row;
+    RowReference row_reference;
+  };
+  
+  struct Row {
+    Row(ProcessMemorySnapshotTable::Id _process_snapshot_id = {}, std::optional<MemorySnapshotNodeTable::Id> _parent_node_id = {}, StringPool::Id _path = {}, int64_t _size = {}, int64_t _effective_size = {}, std::optional<uint32_t> _arg_set_id = {}) : process_snapshot_id(std::move(_process_snapshot_id)), parent_node_id(std::move(_parent_node_id)), path(std::move(_path)), size(std::move(_size)), effective_size(std::move(_effective_size)), arg_set_id(std::move(_arg_set_id)) {}
+
+    bool operator==(const Row& other) const {
+      return std::tie(process_snapshot_id, parent_node_id, path, size, effective_size, arg_set_id) ==
+             std::tie(other.process_snapshot_id, other.parent_node_id, other.path, other.size, other.effective_size, other.arg_set_id);
+    }
+
+        ProcessMemorySnapshotTable::Id process_snapshot_id;
     std::optional<MemorySnapshotNodeTable::Id> parent_node_id;
     StringPool::Id path;
     int64_t size;
     int64_t effective_size;
     std::optional<uint32_t> arg_set_id;
-
-    bool operator==(const MemorySnapshotNodeTable::Row& other) const {
-      return ColumnType::process_snapshot_id::Equals(process_snapshot_id, other.process_snapshot_id) &&
-       ColumnType::parent_node_id::Equals(parent_node_id, other.parent_node_id) &&
-       ColumnType::path::Equals(path, other.path) &&
-       ColumnType::size::Equals(size, other.size) &&
-       ColumnType::effective_size::Equals(effective_size, other.effective_size) &&
-       ColumnType::arg_set_id::Equals(arg_set_id, other.arg_set_id);
-    }
-  };
-  struct ColumnFlag {
-    static constexpr uint32_t process_snapshot_id = ColumnType::process_snapshot_id::default_flags();
-    static constexpr uint32_t parent_node_id = ColumnType::parent_node_id::default_flags();
-    static constexpr uint32_t path = ColumnType::path::default_flags();
-    static constexpr uint32_t size = ColumnType::size::default_flags();
-    static constexpr uint32_t effective_size = ColumnType::effective_size::default_flags();
-    static constexpr uint32_t arg_set_id = ColumnType::arg_set_id::default_flags();
   };
 
-  class RowNumber;
-  class ConstRowReference;
-  class RowReference;
-
-  class RowNumber : public macros_internal::AbstractRowNumber<
-      MemorySnapshotNodeTable, ConstRowReference, RowReference> {
-   public:
-    explicit RowNumber(uint32_t row_number)
-        : AbstractRowNumber(row_number) {}
-  };
-  static_assert(std::is_trivially_destructible_v<RowNumber>,
-                "Inheritance used without trivial destruction");
-
-  class ConstRowReference : public macros_internal::AbstractConstRowReference<
-    MemorySnapshotNodeTable, RowNumber> {
-   public:
-    ConstRowReference(const MemorySnapshotNodeTable* table, uint32_t row_number)
-        : AbstractConstRowReference(table, row_number) {}
-
-    ColumnType::id::type id() const {
-      return table()->id()[row_number_];
-    }
-    ColumnType::process_snapshot_id::type process_snapshot_id() const {
-      return table()->process_snapshot_id()[row_number_];
-    }
-    ColumnType::parent_node_id::type parent_node_id() const {
-      return table()->parent_node_id()[row_number_];
-    }
-    ColumnType::path::type path() const {
-      return table()->path()[row_number_];
-    }
-    ColumnType::size::type size() const {
-      return table()->size()[row_number_];
-    }
-    ColumnType::effective_size::type effective_size() const {
-      return table()->effective_size()[row_number_];
-    }
-    ColumnType::arg_set_id::type arg_set_id() const {
-      return table()->arg_set_id()[row_number_];
-    }
-  };
-  static_assert(std::is_trivially_destructible_v<ConstRowReference>,
-                "Inheritance used without trivial destruction");
-  class RowReference : public ConstRowReference {
-   public:
-    RowReference(const MemorySnapshotNodeTable* table, uint32_t row_number)
-        : ConstRowReference(table, row_number) {}
-
-    void set_process_snapshot_id(
-        ColumnType::process_snapshot_id::non_optional_type v) {
-      return mutable_table()->mutable_process_snapshot_id()->Set(row_number_, v);
-    }
-    void set_parent_node_id(
-        ColumnType::parent_node_id::non_optional_type v) {
-      return mutable_table()->mutable_parent_node_id()->Set(row_number_, v);
-    }
-    void set_path(
-        ColumnType::path::non_optional_type v) {
-      return mutable_table()->mutable_path()->Set(row_number_, v);
-    }
-    void set_size(
-        ColumnType::size::non_optional_type v) {
-      return mutable_table()->mutable_size()->Set(row_number_, v);
-    }
-    void set_effective_size(
-        ColumnType::effective_size::non_optional_type v) {
-      return mutable_table()->mutable_effective_size()->Set(row_number_, v);
-    }
-    void set_arg_set_id(
-        ColumnType::arg_set_id::non_optional_type v) {
-      return mutable_table()->mutable_arg_set_id()->Set(row_number_, v);
-    }
-
-   private:
-    MemorySnapshotNodeTable* mutable_table() const {
-      return const_cast<MemorySnapshotNodeTable*>(table());
-    }
-  };
-  static_assert(std::is_trivially_destructible_v<RowReference>,
-                "Inheritance used without trivial destruction");
-
-  class ConstIterator;
-  class ConstIterator : public macros_internal::AbstractConstIterator<
-    ConstIterator, MemorySnapshotNodeTable, RowNumber, ConstRowReference> {
-   public:
-    ColumnType::id::type id() const {
-      const auto& col = table()->id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::process_snapshot_id::type process_snapshot_id() const {
-      const auto& col = table()->process_snapshot_id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::parent_node_id::type parent_node_id() const {
-      const auto& col = table()->parent_node_id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::path::type path() const {
-      const auto& col = table()->path();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::size::type size() const {
-      const auto& col = table()->size();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::effective_size::type effective_size() const {
-      const auto& col = table()->effective_size();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::arg_set_id::type arg_set_id() const {
-      const auto& col = table()->arg_set_id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-
-   protected:
-    explicit ConstIterator(const MemorySnapshotNodeTable* table,
-                           Table::Iterator iterator)
-        : AbstractConstIterator(table, std::move(iterator)) {}
-
-    uint32_t CurrentRowNumber() const {
-      return iterator_.StorageIndexForLastOverlay();
-    }
-
-   private:
-    friend class MemorySnapshotNodeTable;
-    friend class macros_internal::AbstractConstIterator<
-      ConstIterator, MemorySnapshotNodeTable, RowNumber, ConstRowReference>;
-  };
-  class Iterator : public ConstIterator {
-    public:
-     RowReference row_reference() const {
-       return {const_cast<MemorySnapshotNodeTable*>(table()), CurrentRowNumber()};
-     }
-
-    private:
-     friend class MemorySnapshotNodeTable;
-
-     explicit Iterator(MemorySnapshotNodeTable* table, Table::Iterator iterator)
-        : ConstIterator(table, std::move(iterator)) {}
-  };
-
-  struct IdAndRow {
-    Id id;
-    uint32_t row;
-    RowReference row_reference;
-    RowNumber row_number;
-  };
-
-  static std::vector<ColumnLegacy> GetColumns(
-      MemorySnapshotNodeTable* self,
-      const macros_internal::MacroTable* parent) {
-    std::vector<ColumnLegacy> columns =
-        CopyColumnsFromParentOrAddRootColumns(parent);
-    uint32_t olay_idx = OverlayCount(parent);
-    AddColumnToVector(columns, "process_snapshot_id", &self->process_snapshot_id_, ColumnFlag::process_snapshot_id,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "parent_node_id", &self->parent_node_id_, ColumnFlag::parent_node_id,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "path", &self->path_, ColumnFlag::path,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "size", &self->size_, ColumnFlag::size,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "effective_size", &self->effective_size_, ColumnFlag::effective_size,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "arg_set_id", &self->arg_set_id_, ColumnFlag::arg_set_id,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    base::ignore_result(self);
-    return columns;
-  }
-
-  PERFETTO_NO_INLINE explicit MemorySnapshotNodeTable(StringPool* pool)
-      : macros_internal::MacroTable(
-          pool,
-          GetColumns(this, nullptr),
-          nullptr),
-        process_snapshot_id_(ColumnStorage<ColumnType::process_snapshot_id::stored_type>::Create<false>()),
-        parent_node_id_(ColumnStorage<ColumnType::parent_node_id::stored_type>::Create<false>()),
-        path_(ColumnStorage<ColumnType::path::stored_type>::Create<false>()),
-        size_(ColumnStorage<ColumnType::size::stored_type>::Create<false>()),
-        effective_size_(ColumnStorage<ColumnType::effective_size::stored_type>::Create<false>()),
-        arg_set_id_(ColumnStorage<ColumnType::arg_set_id::stored_type>::Create<false>())
-,
-        id_storage_layer_(new column::IdStorage()),
-        process_snapshot_id_storage_layer_(
-        new column::NumericStorage<ColumnType::process_snapshot_id::non_optional_stored_type>(
-          &process_snapshot_id_.vector(),
-          ColumnTypeHelper<ColumnType::process_snapshot_id::stored_type>::ToColumnType(),
-          false)),
-        parent_node_id_storage_layer_(
-          new column::NumericStorage<ColumnType::parent_node_id::non_optional_stored_type>(
-            &parent_node_id_.non_null_vector(),
-            ColumnTypeHelper<ColumnType::parent_node_id::stored_type>::ToColumnType(),
-            false)),
-        path_storage_layer_(
-          new column::StringStorage(string_pool(), &path_.vector())),
-        size_storage_layer_(
-        new column::NumericStorage<ColumnType::size::non_optional_stored_type>(
-          &size_.vector(),
-          ColumnTypeHelper<ColumnType::size::stored_type>::ToColumnType(),
-          false)),
-        effective_size_storage_layer_(
-        new column::NumericStorage<ColumnType::effective_size::non_optional_stored_type>(
-          &effective_size_.vector(),
-          ColumnTypeHelper<ColumnType::effective_size::stored_type>::ToColumnType(),
-          false)),
-        arg_set_id_storage_layer_(
-          new column::NumericStorage<ColumnType::arg_set_id::non_optional_stored_type>(
-            &arg_set_id_.non_null_vector(),
-            ColumnTypeHelper<ColumnType::arg_set_id::stored_type>::ToColumnType(),
-            false))
-,
-        parent_node_id_null_layer_(new column::NullOverlay(parent_node_id_.bv())),
-        arg_set_id_null_layer_(new column::NullOverlay(arg_set_id_.bv())) {
-    static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::process_snapshot_id::stored_type>(
-          ColumnFlag::process_snapshot_id),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::parent_node_id::stored_type>(
-          ColumnFlag::parent_node_id),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::path::stored_type>(
-          ColumnFlag::path),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::size::stored_type>(
-          ColumnFlag::size),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::effective_size::stored_type>(
-          ColumnFlag::effective_size),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::arg_set_id::stored_type>(
-          ColumnFlag::arg_set_id),
-        "Column type and flag combination is not valid");
-    OnConstructionCompletedRegularConstructor(
-      {id_storage_layer_,process_snapshot_id_storage_layer_,parent_node_id_storage_layer_,path_storage_layer_,size_storage_layer_,effective_size_storage_layer_,arg_set_id_storage_layer_},
-      {{},{},parent_node_id_null_layer_,{},{},{},arg_set_id_null_layer_});
-  }
-  ~MemorySnapshotNodeTable() override;
-
-  static const char* Name() { return "memory_snapshot_node"; }
-
-  static Table::Schema ComputeStaticSchema() {
-    Table::Schema schema;
-    schema.columns.emplace_back(Table::Schema::Column{
-        "id", SqlValue::Type::kLong, true, true, false, false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "process_snapshot_id", ColumnType::process_snapshot_id::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "parent_node_id", ColumnType::parent_node_id::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "path", ColumnType::path::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "size", ColumnType::size::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "effective_size", ColumnType::effective_size::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "arg_set_id", ColumnType::arg_set_id::SqlValueType(), false,
-        false,
-        false,
-        false});
-    return schema;
-  }
-
-  ConstIterator IterateRows() const {
-    return ConstIterator(this, Table::IterateRows());
-  }
-
-  Iterator IterateRows() { return Iterator(this, Table::IterateRows()); }
-
-  ConstIterator FilterToIterator(const Query& q) const {
-    return ConstIterator(this, QueryToIterator(q));
-  }
-
-  Iterator FilterToIterator(const Query& q) {
-    return Iterator(this, QueryToIterator(q));
-  }
-
-  void ShrinkToFit() {
-    process_snapshot_id_.ShrinkToFit();
-    parent_node_id_.ShrinkToFit();
-    path_.ShrinkToFit();
-    size_.ShrinkToFit();
-    effective_size_.ShrinkToFit();
-    arg_set_id_.ShrinkToFit();
-  }
-
-  ConstRowReference operator[](uint32_t r) const {
-    return ConstRowReference(this, r);
-  }
-  RowReference operator[](uint32_t r) { return RowReference(this, r); }
-  ConstRowReference operator[](RowNumber r) const {
-    return ConstRowReference(this, r.row_number());
-  }
-  RowReference operator[](RowNumber r) {
-    return RowReference(this, r.row_number());
-  }
-
-  std::optional<ConstRowReference> FindById(Id find_id) const {
-    std::optional<uint32_t> row = id().IndexOf(find_id);
-    return row ? std::make_optional(ConstRowReference(this, *row))
-               : std::nullopt;
-  }
-
-  std::optional<RowReference> FindById(Id find_id) {
-    std::optional<uint32_t> row = id().IndexOf(find_id);
-    return row ? std::make_optional(RowReference(this, *row)) : std::nullopt;
-  }
+  explicit MemorySnapshotNodeTable(StringPool* pool)
+      : dataframe_(dataframe::Dataframe::CreateFromTypedSpec(kSpec, pool)) {}
 
   IdAndRow Insert(const Row& row) {
-    uint32_t row_number = row_count();
-    Id id = Id{row_number};
-    mutable_process_snapshot_id()->Append(row.process_snapshot_id);
-    mutable_parent_node_id()->Append(row.parent_node_id);
-    mutable_path()->Append(row.path);
-    mutable_size()->Append(row.size);
-    mutable_effective_size()->Append(row.effective_size);
-    mutable_arg_set_id()->Append(row.arg_set_id);
-    UpdateSelfOverlayAfterInsert();
-    return IdAndRow{id, row_number, RowReference(this, row_number),
-                     RowNumber(row_number)};
+    uint32_t row_count = dataframe_.row_count();
+    dataframe_.InsertUnchecked(kSpec, std::monostate(), row.process_snapshot_id.value, row.parent_node_id ? std::make_optional(row.parent_node_id->value) : std::nullopt, row.path != StringPool::Id::Null() ? std::make_optional(row.path) : std::nullopt, row.size, row.effective_size, row.arg_set_id);
+    return IdAndRow{Id{row_count}, RowNumber{row_count}, row_count, RowReference(this, row_count)};
   }
 
-  
-
-  const IdColumn<MemorySnapshotNodeTable::Id>& id() const {
-    return static_cast<const ColumnType::id&>(columns()[ColumnIndex::id]);
-  }
-  const TypedColumn<ProcessMemorySnapshotTable::Id>& process_snapshot_id() const {
-    return static_cast<const ColumnType::process_snapshot_id&>(columns()[ColumnIndex::process_snapshot_id]);
-  }
-  const TypedColumn<std::optional<MemorySnapshotNodeTable::Id>>& parent_node_id() const {
-    return static_cast<const ColumnType::parent_node_id&>(columns()[ColumnIndex::parent_node_id]);
-  }
-  const TypedColumn<StringPool::Id>& path() const {
-    return static_cast<const ColumnType::path&>(columns()[ColumnIndex::path]);
-  }
-  const TypedColumn<int64_t>& size() const {
-    return static_cast<const ColumnType::size&>(columns()[ColumnIndex::size]);
-  }
-  const TypedColumn<int64_t>& effective_size() const {
-    return static_cast<const ColumnType::effective_size&>(columns()[ColumnIndex::effective_size]);
-  }
-  const TypedColumn<std::optional<uint32_t>>& arg_set_id() const {
-    return static_cast<const ColumnType::arg_set_id&>(columns()[ColumnIndex::arg_set_id]);
+  uint32_t row_count() const {
+    return dataframe_.row_count();
   }
 
-  TypedColumn<ProcessMemorySnapshotTable::Id>* mutable_process_snapshot_id() {
-    return static_cast<ColumnType::process_snapshot_id*>(
-        GetColumn(ColumnIndex::process_snapshot_id));
+  std::optional<ConstRowReference> FindById(Id id) const {
+    return ConstRowReference(this, id.value);
   }
-  TypedColumn<std::optional<MemorySnapshotNodeTable::Id>>* mutable_parent_node_id() {
-    return static_cast<ColumnType::parent_node_id*>(
-        GetColumn(ColumnIndex::parent_node_id));
+  ConstRowReference operator[](uint32_t row) const {
+    return ConstRowReference(this, row);
   }
-  TypedColumn<StringPool::Id>* mutable_path() {
-    return static_cast<ColumnType::path*>(
-        GetColumn(ColumnIndex::path));
+
+  std::optional<RowReference> FindById(Id id) {
+    return RowReference(this, id.value);
   }
-  TypedColumn<int64_t>* mutable_size() {
-    return static_cast<ColumnType::size*>(
-        GetColumn(ColumnIndex::size));
+  RowReference operator[](uint32_t row) {
+    return RowReference(this, row);
   }
-  TypedColumn<int64_t>* mutable_effective_size() {
-    return static_cast<ColumnType::effective_size*>(
-        GetColumn(ColumnIndex::effective_size));
+
+  ConstCursor CreateCursor(
+      std::vector<dataframe::FilterSpec> filters = {},
+      std::vector<dataframe::SortSpec> sorts = {}) const {
+    return ConstCursor(dataframe_, std::move(filters), std::move(sorts));
   }
-  TypedColumn<std::optional<uint32_t>>* mutable_arg_set_id() {
-    return static_cast<ColumnType::arg_set_id*>(
-        GetColumn(ColumnIndex::arg_set_id));
+  Cursor CreateCursor(
+      std::vector<dataframe::FilterSpec> filters = {},
+      std::vector<dataframe::SortSpec> sorts = {}) {
+    return Cursor(dataframe_, std::move(filters), std::move(sorts));
+  }
+
+  Iterator IterateRows() { return Iterator(this); }
+  ConstIterator IterateRows() const { return ConstIterator(this); }
+
+  void Finalize() { dataframe_.Finalize(); }
+
+  void Clear() { dataframe_.Clear(); }
+
+  static const char* Name() {
+    return "__intrinsic_memory_snapshot_node";
+  }
+
+  dataframe::Dataframe& dataframe() {
+    return dataframe_;
+  }
+  const dataframe::Dataframe& dataframe() const {
+    return dataframe_;
   }
 
  private:
-  
-  
-  ColumnStorage<ColumnType::process_snapshot_id::stored_type> process_snapshot_id_;
-  ColumnStorage<ColumnType::parent_node_id::stored_type> parent_node_id_;
-  ColumnStorage<ColumnType::path::stored_type> path_;
-  ColumnStorage<ColumnType::size::stored_type> size_;
-  ColumnStorage<ColumnType::effective_size::stored_type> effective_size_;
-  ColumnStorage<ColumnType::arg_set_id::stored_type> arg_set_id_;
-
-  RefPtr<column::StorageLayer> id_storage_layer_;
-  RefPtr<column::StorageLayer> process_snapshot_id_storage_layer_;
-  RefPtr<column::StorageLayer> parent_node_id_storage_layer_;
-  RefPtr<column::StorageLayer> path_storage_layer_;
-  RefPtr<column::StorageLayer> size_storage_layer_;
-  RefPtr<column::StorageLayer> effective_size_storage_layer_;
-  RefPtr<column::StorageLayer> arg_set_id_storage_layer_;
-
-  RefPtr<column::OverlayLayer> parent_node_id_null_layer_;
-  RefPtr<column::OverlayLayer> arg_set_id_null_layer_;
+  dataframe::Dataframe dataframe_;
 };
-  
 
-class MemorySnapshotEdgeTable : public macros_internal::MacroTable {
+
+
+class MemorySnapshotEdgeTable {
  public:
-  static constexpr uint32_t kColumnCount = 4;
+  static constexpr auto kSpec = dataframe::CreateTypedDataframeSpec(
+    {"id","source_node_id","target_node_id","importance"},
+    dataframe::CreateTypedColumnSpec(dataframe::Id{}, dataframe::NonNull{}, dataframe::IdSorted{}, dataframe::NoDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}));
 
-  struct Id : public BaseId {
+  struct Id : BaseId {
     Id() = default;
-    explicit constexpr Id(uint32_t v) : BaseId(v) {}
+    explicit constexpr Id(uint32_t _value) : BaseId(_value) {}
+
+    bool operator==(const Id& other) const {
+      return value == other.value;
+    }
   };
-  static_assert(std::is_trivially_destructible_v<Id>,
-                "Inheritance used without trivial destruction");
-    
+  struct RowReference;
+  struct ConstRowReference;
+  struct RowNumber {
+   public:
+    explicit constexpr RowNumber(uint32_t value) : value_(value) {}
+    uint32_t row_number() const { return value_; }
+
+    RowReference ToRowReference(MemorySnapshotEdgeTable* table) const {
+      return RowReference(table, value_);
+    }
+    ConstRowReference ToRowReference(const MemorySnapshotEdgeTable& table) const {
+      return ConstRowReference(&table, value_);
+    }
+
+    bool operator==(const RowNumber& other) const {
+      return value_ == other.value_;
+    }
+    bool operator<(const RowNumber& other) const {
+      return value_ < other.value_;
+    }
+   private:
+    uint32_t value_;
+  };
   struct ColumnIndex {
     static constexpr uint32_t id = 0;
     static constexpr uint32_t source_node_id = 1;
     static constexpr uint32_t target_node_id = 2;
     static constexpr uint32_t importance = 3;
   };
-  struct ColumnType {
-    using id = IdColumn<MemorySnapshotEdgeTable::Id>;
-    using source_node_id = TypedColumn<MemorySnapshotNodeTable::Id>;
-    using target_node_id = TypedColumn<MemorySnapshotNodeTable::Id>;
-    using importance = TypedColumn<uint32_t>;
-  };
-  struct Row : public macros_internal::RootParentTable::Row {
-    Row(MemorySnapshotNodeTable::Id in_source_node_id = {},
-        MemorySnapshotNodeTable::Id in_target_node_id = {},
-        uint32_t in_importance = {},
-        std::nullptr_t = nullptr)
-        : macros_internal::RootParentTable::Row(),
-          source_node_id(in_source_node_id),
-          target_node_id(in_target_node_id),
-          importance(in_importance) {}
-    MemorySnapshotNodeTable::Id source_node_id;
-    MemorySnapshotNodeTable::Id target_node_id;
-    uint32_t importance;
-
-    bool operator==(const MemorySnapshotEdgeTable::Row& other) const {
-      return ColumnType::source_node_id::Equals(source_node_id, other.source_node_id) &&
-       ColumnType::target_node_id::Equals(target_node_id, other.target_node_id) &&
-       ColumnType::importance::Equals(importance, other.importance);
-    }
-  };
-  struct ColumnFlag {
-    static constexpr uint32_t source_node_id = ColumnType::source_node_id::default_flags();
-    static constexpr uint32_t target_node_id = ColumnType::target_node_id::default_flags();
-    static constexpr uint32_t importance = ColumnType::importance::default_flags();
-  };
-
-  class RowNumber;
-  class ConstRowReference;
-  class RowReference;
-
-  class RowNumber : public macros_internal::AbstractRowNumber<
-      MemorySnapshotEdgeTable, ConstRowReference, RowReference> {
+  struct RowReference {
    public:
-    explicit RowNumber(uint32_t row_number)
-        : AbstractRowNumber(row_number) {}
-  };
-  static_assert(std::is_trivially_destructible_v<RowNumber>,
-                "Inheritance used without trivial destruction");
-
-  class ConstRowReference : public macros_internal::AbstractConstRowReference<
-    MemorySnapshotEdgeTable, RowNumber> {
-   public:
-    ConstRowReference(const MemorySnapshotEdgeTable* table, uint32_t row_number)
-        : AbstractConstRowReference(table, row_number) {}
-
-    ColumnType::id::type id() const {
-      return table()->id()[row_number_];
+    explicit RowReference(MemorySnapshotEdgeTable* table, uint32_t row)
+        : table_(table), row_(row) {
+        base::ignore_result(table_);
     }
-    ColumnType::source_node_id::type source_node_id() const {
-      return table()->source_node_id()[row_number_];
+    MemorySnapshotEdgeTable::Id id() const {
+        
+        return MemorySnapshotEdgeTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+          MemorySnapshotNodeTable::Id source_node_id() const {
+        
+        return MemorySnapshotNodeTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::source_node_id>(kSpec, row_)};
+      }
+          MemorySnapshotNodeTable::Id target_node_id() const {
+        
+        return MemorySnapshotNodeTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::target_node_id>(kSpec, row_)};
+      }
+        uint32_t importance() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::importance>(kSpec, row_);
     }
-    ColumnType::target_node_id::type target_node_id() const {
-      return table()->target_node_id()[row_number_];
-    }
-    ColumnType::importance::type importance() const {
-      return table()->importance()[row_number_];
-    }
-  };
-  static_assert(std::is_trivially_destructible_v<ConstRowReference>,
-                "Inheritance used without trivial destruction");
-  class RowReference : public ConstRowReference {
-   public:
-    RowReference(const MemorySnapshotEdgeTable* table, uint32_t row_number)
-        : ConstRowReference(table, row_number) {}
-
-    void set_source_node_id(
-        ColumnType::source_node_id::non_optional_type v) {
-      return mutable_table()->mutable_source_node_id()->Set(row_number_, v);
-    }
-    void set_target_node_id(
-        ColumnType::target_node_id::non_optional_type v) {
-      return mutable_table()->mutable_target_node_id()->Set(row_number_, v);
-    }
-    void set_importance(
-        ColumnType::importance::non_optional_type v) {
-      return mutable_table()->mutable_importance()->Set(row_number_, v);
+    
+    RowNumber ToRowNumber() const {
+      return RowNumber{row_};
     }
 
    private:
-    MemorySnapshotEdgeTable* mutable_table() const {
-      return const_cast<MemorySnapshotEdgeTable*>(table());
-    }
+    friend struct ConstRowReference;
+    MemorySnapshotEdgeTable* table_;
+    uint32_t row_;
   };
-  static_assert(std::is_trivially_destructible_v<RowReference>,
-                "Inheritance used without trivial destruction");
-
-  class ConstIterator;
-  class ConstIterator : public macros_internal::AbstractConstIterator<
-    ConstIterator, MemorySnapshotEdgeTable, RowNumber, ConstRowReference> {
+  struct ConstRowReference {
    public:
-    ColumnType::id::type id() const {
-      const auto& col = table()->id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
+    explicit ConstRowReference(const MemorySnapshotEdgeTable* table, uint32_t row)
+        : table_(table), row_(row) {
+        base::ignore_result(table_);
     }
-    ColumnType::source_node_id::type source_node_id() const {
-      const auto& col = table()->source_node_id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
+    ConstRowReference(const RowReference& other)
+        : table_(other.table_), row_(other.row_) {}
+    MemorySnapshotEdgeTable::Id id() const {
+        
+        return MemorySnapshotEdgeTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+          MemorySnapshotNodeTable::Id source_node_id() const {
+        
+        return MemorySnapshotNodeTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::source_node_id>(kSpec, row_)};
+      }
+          MemorySnapshotNodeTable::Id target_node_id() const {
+        
+        return MemorySnapshotNodeTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::target_node_id>(kSpec, row_)};
+      }
+        uint32_t importance() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::importance>(kSpec, row_);
     }
-    ColumnType::target_node_id::type target_node_id() const {
-      const auto& col = table()->target_node_id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
+    RowNumber ToRowNumber() const {
+      return RowNumber{row_};
     }
-    ColumnType::importance::type importance() const {
-      const auto& col = table()->importance();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
+   private:
+    const MemorySnapshotEdgeTable* table_;
+    uint32_t row_;
+  };
+  class ConstCursor {
+   public:
+    explicit ConstCursor(const dataframe::Dataframe& df,
+                         std::vector<dataframe::FilterSpec> filters,
+                         std::vector<dataframe::SortSpec> sorts)
+      : dataframe_(&df), cursor_(&df, std::move(filters), std::move(sorts)) {
+      base::ignore_result(dataframe_);
     }
 
-   protected:
-    explicit ConstIterator(const MemorySnapshotEdgeTable* table,
-                           Table::Iterator iterator)
-        : AbstractConstIterator(table, std::move(iterator)) {}
-
-    uint32_t CurrentRowNumber() const {
-      return iterator_.StorageIndexForLastOverlay();
+    PERFETTO_ALWAYS_INLINE void Execute() { cursor_.ExecuteUnchecked(); }
+    PERFETTO_ALWAYS_INLINE bool Eof() const { return cursor_.Eof(); }
+    PERFETTO_ALWAYS_INLINE void Next() { cursor_.Next(); }
+    template <typename C>
+    PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index, C value) {
+      cursor_.SetFilterValueUnchecked(index, std::move(value));
+    }
+    RowNumber ToRowNumber() const {
+      return RowNumber{cursor_.RowIndex()};
+    }
+    void Reset() { cursor_.Reset(); }
+    MemorySnapshotEdgeTable::Id id() const {
+        
+        return MemorySnapshotEdgeTable::Id{cursor_.GetCellUnchecked<ColumnIndex::id>(kSpec)};
+      }
+      MemorySnapshotNodeTable::Id source_node_id() const {
+        
+        return MemorySnapshotNodeTable::Id{cursor_.GetCellUnchecked<ColumnIndex::source_node_id>(kSpec)};
+      }
+      MemorySnapshotNodeTable::Id target_node_id() const {
+        
+        return MemorySnapshotNodeTable::Id{cursor_.GetCellUnchecked<ColumnIndex::target_node_id>(kSpec)};
+      }
+    uint32_t importance() const {
+      
+      return cursor_.GetCellUnchecked<ColumnIndex::importance>(kSpec);
     }
 
    private:
-    friend class MemorySnapshotEdgeTable;
-    friend class macros_internal::AbstractConstIterator<
-      ConstIterator, MemorySnapshotEdgeTable, RowNumber, ConstRowReference>;
+    const dataframe::Dataframe* dataframe_;
+    dataframe::TypedCursor cursor_;
   };
-  class Iterator : public ConstIterator {
+  class Cursor {
+   public:
+    explicit Cursor(dataframe::Dataframe& df,
+                    std::vector<dataframe::FilterSpec> filters,
+                    std::vector<dataframe::SortSpec> sorts)
+      : dataframe_(&df), cursor_(&df, std::move(filters), std::move(sorts)) {
+      base::ignore_result(dataframe_);
+    }
+
+    PERFETTO_ALWAYS_INLINE void Execute() { cursor_.ExecuteUnchecked(); }
+    PERFETTO_ALWAYS_INLINE bool Eof() const { return cursor_.Eof(); }
+    PERFETTO_ALWAYS_INLINE void Next() { cursor_.Next(); }
+    template <typename C>
+    PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index, C value) {
+      cursor_.SetFilterValueUnchecked(index, std::move(value));
+    }
+    RowNumber ToRowNumber() const {
+      return RowNumber{cursor_.RowIndex()};
+    }
+    void Reset() { cursor_.Reset(); }
+
+    MemorySnapshotEdgeTable::Id id() const {
+        
+        return MemorySnapshotEdgeTable::Id{cursor_.GetCellUnchecked<ColumnIndex::id>(kSpec)};
+      }
+      MemorySnapshotNodeTable::Id source_node_id() const {
+        
+        return MemorySnapshotNodeTable::Id{cursor_.GetCellUnchecked<ColumnIndex::source_node_id>(kSpec)};
+      }
+      MemorySnapshotNodeTable::Id target_node_id() const {
+        
+        return MemorySnapshotNodeTable::Id{cursor_.GetCellUnchecked<ColumnIndex::target_node_id>(kSpec)};
+      }
+    uint32_t importance() const {
+      
+      return cursor_.GetCellUnchecked<ColumnIndex::importance>(kSpec);
+    }
+    
+
+   private:
+    dataframe::Dataframe* dataframe_;
+    dataframe::TypedCursor cursor_;
+  };
+  class Iterator {
     public:
-     RowReference row_reference() const {
-       return {const_cast<MemorySnapshotEdgeTable*>(table()), CurrentRowNumber()};
-     }
+      explicit Iterator(MemorySnapshotEdgeTable* table) : table_(table) {
+        base::ignore_result(table_);
+      }
+      explicit operator bool() const { return row_ < table_->row_count(); }
+      Iterator& operator++() {
+        ++row_;
+        return *this;
+      }
+      RowNumber row_number() const {
+        return RowNumber{row_};
+      }
+      RowReference ToRowReference() const {
+        return RowReference(table_, row_);
+      }
+      MemorySnapshotEdgeTable::Id id() const {
+        
+        return MemorySnapshotEdgeTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+          MemorySnapshotNodeTable::Id source_node_id() const {
+        
+        return MemorySnapshotNodeTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::source_node_id>(kSpec, row_)};
+      }
+          MemorySnapshotNodeTable::Id target_node_id() const {
+        
+        return MemorySnapshotNodeTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::target_node_id>(kSpec, row_)};
+      }
+        uint32_t importance() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::importance>(kSpec, row_);
+    }
+      
 
     private:
-     friend class MemorySnapshotEdgeTable;
-
-     explicit Iterator(MemorySnapshotEdgeTable* table, Table::Iterator iterator)
-        : ConstIterator(table, std::move(iterator)) {}
+      MemorySnapshotEdgeTable* table_;
+      uint32_t row_ = 0;
   };
+  class ConstIterator {
+    public:
+      explicit ConstIterator(const MemorySnapshotEdgeTable* table) : table_(table) {
+        base::ignore_result(table_);
+      }
+      explicit operator bool() const { return row_ < table_->row_count(); }
+      ConstIterator& operator++() {
+        ++row_;
+        return *this;
+      }
+      RowNumber row_number() const {
+        return RowNumber{row_};
+      }
+      ConstRowReference ToRowReference() const {
+        return ConstRowReference(table_, row_);
+      }
+      MemorySnapshotEdgeTable::Id id() const {
+        
+        return MemorySnapshotEdgeTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+          MemorySnapshotNodeTable::Id source_node_id() const {
+        
+        return MemorySnapshotNodeTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::source_node_id>(kSpec, row_)};
+      }
+          MemorySnapshotNodeTable::Id target_node_id() const {
+        
+        return MemorySnapshotNodeTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::target_node_id>(kSpec, row_)};
+      }
+        uint32_t importance() const {
+      
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::importance>(kSpec, row_);
+    }
 
+    private:
+      const MemorySnapshotEdgeTable* table_;
+      uint32_t row_ = 0;
+  };
   struct IdAndRow {
     Id id;
+    RowNumber row_number;
     uint32_t row;
     RowReference row_reference;
-    RowNumber row_number;
+  };
+  
+  struct Row {
+    Row(MemorySnapshotNodeTable::Id _source_node_id = {}, MemorySnapshotNodeTable::Id _target_node_id = {}, uint32_t _importance = {}) : source_node_id(std::move(_source_node_id)), target_node_id(std::move(_target_node_id)), importance(std::move(_importance)) {}
+
+    bool operator==(const Row& other) const {
+      return std::tie(source_node_id, target_node_id, importance) ==
+             std::tie(other.source_node_id, other.target_node_id, other.importance);
+    }
+
+        MemorySnapshotNodeTable::Id source_node_id;
+    MemorySnapshotNodeTable::Id target_node_id;
+    uint32_t importance;
   };
 
-  static std::vector<ColumnLegacy> GetColumns(
-      MemorySnapshotEdgeTable* self,
-      const macros_internal::MacroTable* parent) {
-    std::vector<ColumnLegacy> columns =
-        CopyColumnsFromParentOrAddRootColumns(parent);
-    uint32_t olay_idx = OverlayCount(parent);
-    AddColumnToVector(columns, "source_node_id", &self->source_node_id_, ColumnFlag::source_node_id,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "target_node_id", &self->target_node_id_, ColumnFlag::target_node_id,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "importance", &self->importance_, ColumnFlag::importance,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    base::ignore_result(self);
-    return columns;
-  }
-
-  PERFETTO_NO_INLINE explicit MemorySnapshotEdgeTable(StringPool* pool)
-      : macros_internal::MacroTable(
-          pool,
-          GetColumns(this, nullptr),
-          nullptr),
-        source_node_id_(ColumnStorage<ColumnType::source_node_id::stored_type>::Create<false>()),
-        target_node_id_(ColumnStorage<ColumnType::target_node_id::stored_type>::Create<false>()),
-        importance_(ColumnStorage<ColumnType::importance::stored_type>::Create<false>())
-,
-        id_storage_layer_(new column::IdStorage()),
-        source_node_id_storage_layer_(
-        new column::NumericStorage<ColumnType::source_node_id::non_optional_stored_type>(
-          &source_node_id_.vector(),
-          ColumnTypeHelper<ColumnType::source_node_id::stored_type>::ToColumnType(),
-          false)),
-        target_node_id_storage_layer_(
-        new column::NumericStorage<ColumnType::target_node_id::non_optional_stored_type>(
-          &target_node_id_.vector(),
-          ColumnTypeHelper<ColumnType::target_node_id::stored_type>::ToColumnType(),
-          false)),
-        importance_storage_layer_(
-        new column::NumericStorage<ColumnType::importance::non_optional_stored_type>(
-          &importance_.vector(),
-          ColumnTypeHelper<ColumnType::importance::stored_type>::ToColumnType(),
-          false))
-         {
-    static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::source_node_id::stored_type>(
-          ColumnFlag::source_node_id),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::target_node_id::stored_type>(
-          ColumnFlag::target_node_id),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::importance::stored_type>(
-          ColumnFlag::importance),
-        "Column type and flag combination is not valid");
-    OnConstructionCompletedRegularConstructor(
-      {id_storage_layer_,source_node_id_storage_layer_,target_node_id_storage_layer_,importance_storage_layer_},
-      {{},{},{},{}});
-  }
-  ~MemorySnapshotEdgeTable() override;
-
-  static const char* Name() { return "memory_snapshot_edge"; }
-
-  static Table::Schema ComputeStaticSchema() {
-    Table::Schema schema;
-    schema.columns.emplace_back(Table::Schema::Column{
-        "id", SqlValue::Type::kLong, true, true, false, false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "source_node_id", ColumnType::source_node_id::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "target_node_id", ColumnType::target_node_id::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "importance", ColumnType::importance::SqlValueType(), false,
-        false,
-        false,
-        false});
-    return schema;
-  }
-
-  ConstIterator IterateRows() const {
-    return ConstIterator(this, Table::IterateRows());
-  }
-
-  Iterator IterateRows() { return Iterator(this, Table::IterateRows()); }
-
-  ConstIterator FilterToIterator(const Query& q) const {
-    return ConstIterator(this, QueryToIterator(q));
-  }
-
-  Iterator FilterToIterator(const Query& q) {
-    return Iterator(this, QueryToIterator(q));
-  }
-
-  void ShrinkToFit() {
-    source_node_id_.ShrinkToFit();
-    target_node_id_.ShrinkToFit();
-    importance_.ShrinkToFit();
-  }
-
-  ConstRowReference operator[](uint32_t r) const {
-    return ConstRowReference(this, r);
-  }
-  RowReference operator[](uint32_t r) { return RowReference(this, r); }
-  ConstRowReference operator[](RowNumber r) const {
-    return ConstRowReference(this, r.row_number());
-  }
-  RowReference operator[](RowNumber r) {
-    return RowReference(this, r.row_number());
-  }
-
-  std::optional<ConstRowReference> FindById(Id find_id) const {
-    std::optional<uint32_t> row = id().IndexOf(find_id);
-    return row ? std::make_optional(ConstRowReference(this, *row))
-               : std::nullopt;
-  }
-
-  std::optional<RowReference> FindById(Id find_id) {
-    std::optional<uint32_t> row = id().IndexOf(find_id);
-    return row ? std::make_optional(RowReference(this, *row)) : std::nullopt;
-  }
+  explicit MemorySnapshotEdgeTable(StringPool* pool)
+      : dataframe_(dataframe::Dataframe::CreateFromTypedSpec(kSpec, pool)) {}
 
   IdAndRow Insert(const Row& row) {
-    uint32_t row_number = row_count();
-    Id id = Id{row_number};
-    mutable_source_node_id()->Append(row.source_node_id);
-    mutable_target_node_id()->Append(row.target_node_id);
-    mutable_importance()->Append(row.importance);
-    UpdateSelfOverlayAfterInsert();
-    return IdAndRow{id, row_number, RowReference(this, row_number),
-                     RowNumber(row_number)};
+    uint32_t row_count = dataframe_.row_count();
+    dataframe_.InsertUnchecked(kSpec, std::monostate(), row.source_node_id.value, row.target_node_id.value, row.importance);
+    return IdAndRow{Id{row_count}, RowNumber{row_count}, row_count, RowReference(this, row_count)};
   }
 
-  
-
-  const IdColumn<MemorySnapshotEdgeTable::Id>& id() const {
-    return static_cast<const ColumnType::id&>(columns()[ColumnIndex::id]);
-  }
-  const TypedColumn<MemorySnapshotNodeTable::Id>& source_node_id() const {
-    return static_cast<const ColumnType::source_node_id&>(columns()[ColumnIndex::source_node_id]);
-  }
-  const TypedColumn<MemorySnapshotNodeTable::Id>& target_node_id() const {
-    return static_cast<const ColumnType::target_node_id&>(columns()[ColumnIndex::target_node_id]);
-  }
-  const TypedColumn<uint32_t>& importance() const {
-    return static_cast<const ColumnType::importance&>(columns()[ColumnIndex::importance]);
+  uint32_t row_count() const {
+    return dataframe_.row_count();
   }
 
-  TypedColumn<MemorySnapshotNodeTable::Id>* mutable_source_node_id() {
-    return static_cast<ColumnType::source_node_id*>(
-        GetColumn(ColumnIndex::source_node_id));
+  std::optional<ConstRowReference> FindById(Id id) const {
+    return ConstRowReference(this, id.value);
   }
-  TypedColumn<MemorySnapshotNodeTable::Id>* mutable_target_node_id() {
-    return static_cast<ColumnType::target_node_id*>(
-        GetColumn(ColumnIndex::target_node_id));
+  ConstRowReference operator[](uint32_t row) const {
+    return ConstRowReference(this, row);
   }
-  TypedColumn<uint32_t>* mutable_importance() {
-    return static_cast<ColumnType::importance*>(
-        GetColumn(ColumnIndex::importance));
+
+  std::optional<RowReference> FindById(Id id) {
+    return RowReference(this, id.value);
+  }
+  RowReference operator[](uint32_t row) {
+    return RowReference(this, row);
+  }
+
+  ConstCursor CreateCursor(
+      std::vector<dataframe::FilterSpec> filters = {},
+      std::vector<dataframe::SortSpec> sorts = {}) const {
+    return ConstCursor(dataframe_, std::move(filters), std::move(sorts));
+  }
+  Cursor CreateCursor(
+      std::vector<dataframe::FilterSpec> filters = {},
+      std::vector<dataframe::SortSpec> sorts = {}) {
+    return Cursor(dataframe_, std::move(filters), std::move(sorts));
+  }
+
+  Iterator IterateRows() { return Iterator(this); }
+  ConstIterator IterateRows() const { return ConstIterator(this); }
+
+  void Finalize() { dataframe_.Finalize(); }
+
+  void Clear() { dataframe_.Clear(); }
+
+  static const char* Name() {
+    return "__intrinsic_memory_snapshot_edge";
+  }
+
+  dataframe::Dataframe& dataframe() {
+    return dataframe_;
+  }
+  const dataframe::Dataframe& dataframe() const {
+    return dataframe_;
   }
 
  private:
-  
-  
-  ColumnStorage<ColumnType::source_node_id::stored_type> source_node_id_;
-  ColumnStorage<ColumnType::target_node_id::stored_type> target_node_id_;
-  ColumnStorage<ColumnType::importance::stored_type> importance_;
-
-  RefPtr<column::StorageLayer> id_storage_layer_;
-  RefPtr<column::StorageLayer> source_node_id_storage_layer_;
-  RefPtr<column::StorageLayer> target_node_id_storage_layer_;
-  RefPtr<column::StorageLayer> importance_storage_layer_;
-
-  
+  dataframe::Dataframe dataframe_;
 };
 
 }  // namespace perfetto

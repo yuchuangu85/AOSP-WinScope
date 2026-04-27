@@ -14,12 +14,8 @@
  * limitations under the License.
  */
 
-import {
-  ArrayBufferBuilder,
-  BufferToken,
-  byteArrayToString,
-  ResizableBuffer,
-} from 'common/buffer_utils';
+import {ArrayBufferBuilder, BufferToken, ResizableBuffer} from 'common/buffer';
+import {utf8Decode} from 'common/string_helpers';
 import {AdbWebSocketStream} from './adb_websocket_stream';
 import {ErrorListener} from './websocket_stream';
 
@@ -68,7 +64,7 @@ export class SyncStream extends AdbWebSocketStream {
     }
 
     // check start id of next chunk
-    const startId = byteArrayToString(data.slice(0, 4));
+    const startId = utf8Decode(data.slice(0, 4));
     const chunkLength = this.getChunkLength(data.slice(4, 8));
     if (data.length === 8 && startId === SyncStream.DONE_ID) {
       this.close();
@@ -86,9 +82,7 @@ export class SyncStream extends AdbWebSocketStream {
     data = data.slice(8);
 
     // check end id of remaining data
-    const endId = byteArrayToString(
-      data.slice(data.length - 8, data.length - 4),
-    );
+    const endId = utf8Decode(data.slice(data.length - 8, data.length - 4));
     if (this.containsMultipleChunks(endId, chunkLength, data.length)) {
       this.lastChunkOffset = 0;
       this.cmdOut.append(data.slice(0, chunkLength));

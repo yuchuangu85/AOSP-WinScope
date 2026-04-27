@@ -20,105 +20,104 @@ const heap_profile_track_1 = require("./heap_profile_track");
 const workspace_1 = require("../../public/workspace");
 const sql_utils_1 = require("../../trace_processor/sql_utils");
 const dev_perfetto_ProcessThreadGroups_1 = tslib_1.__importDefault(require("../dev.perfetto.ProcessThreadGroups"));
-function getUriForTrack(upid) {
-    return `/process_${upid}/heap_profile`;
-}
+const EVENT_TABLE_NAME = 'heap_profile_events';
 class default_1 {
     static id = 'dev.perfetto.HeapProfile';
     static dependencies = [dev_perfetto_ProcessThreadGroups_1.default];
-    async onTraceLoad(ctx) {
-        const it = await ctx.engine.query(`
-      select value from stats
-      where name = 'heap_graph_non_finalized_graph'
-    `);
-        const incomplete = it.firstRow({ value: query_result_1.NUM }).value > 0;
-        const result = await ctx.engine.query(`
-      select distinct upid from heap_profile_allocation
-      union
-      select distinct upid from heap_graph_object
+    trackMap = new Map();
+    async onTraceLoad(trace) {
+        await this.createHeapProfileTable(trace);
+        await this.addProcessTracks(trace);
+        trace.onTraceReady.addListener(async () => {
+            await this.selectFirstHeapProfile(trace);
+        });
+    }
+    async createHeapProfileTable(trace) {
+        await (0, sql_utils_1.createPerfettoTable)({
+            engine: trace.engine,
+            name: EVENT_TABLE_NAME,
+            as: `
+        SELECT
+          MIN(id) as id,
+          graph_sample_ts AS ts,
+          upid,
+          0 AS dur,
+          0 AS depth,
+          'graph' AS type
+        FROM heap_graph_object
+        GROUP BY graph_sample_ts, upid
+
+        UNION ALL
+
+        SELECT
+          MIN(id) as id,
+          ts,
+          upid,
+          0 AS dur,
+          0 AS depth,
+          'heap_profile:' || GROUP_CONCAT(DISTINCT heap_name) AS type
+        FROM heap_profile_allocation
+        GROUP BY ts, upid
+      `,
+        });
+    }
+    async addProcessTracks(trace) {
+        const trackGroupsPlugin = trace.plugins.getPlugin(dev_perfetto_ProcessThreadGroups_1.default);
+        const incomplete = await this.getIncomplete(trace);
+        const result = await trace.engine.query(`
+      SELECT DISTINCT 
+        upid
+      FROM ${EVENT_TABLE_NAME}
     `);
         for (const it = result.iter({ upid: query_result_1.NUM }); it.valid(); it.next()) {
             const upid = it.upid;
-            const uri = getUriForTrack(upid);
-            const title = 'Heap Profile';
-            const tableName = `_heap_profile_${upid}`;
-            (0, sql_utils_1.createPerfettoTable)(ctx.engine, tableName, `
-          with
-            heaps as (select group_concat(distinct heap_name) h from heap_profile_allocation where upid = ${upid}),
-            allocation_tses as (select distinct ts from heap_profile_allocation where upid = ${upid}),
-            graph_tses as (select distinct graph_sample_ts from heap_graph_object where upid = ${upid})
-          select
-            *,
-            0 AS dur,
-            0 AS depth
-          from (
-            select
-              (
-                select a.id
-                from heap_profile_allocation a
-                where a.ts = t.ts
-                order by a.id
-                limit 1
-              ) as id,
-              ts,
-              'heap_profile:' || (select h from heaps) AS type
-            from allocation_tses t
-            union all
-            select
-              (
-                select o.id
-                from heap_graph_object o
-                where o.graph_sample_ts = g.graph_sample_ts
-                order by o.id
-                limit 1
-              ) as id,
-              graph_sample_ts AS ts,
-              'graph' AS type
-            from graph_tses g
-          )
-        `);
-            ctx.tracks.registerTrack({
+            const uri = `/process_${upid}/heap_profile`;
+            const track = {
                 uri,
-                title,
                 tags: {
                     kind: track_kinds_1.HEAP_PROFILE_TRACK_KIND,
                     upid,
                 },
-                track: (0, heap_profile_track_1.createHeapProfileTrack)(ctx, uri, tableName, upid, incomplete),
+                renderer: (0, heap_profile_track_1.createHeapProfileTrack)(trace, uri, EVENT_TABLE_NAME, upid, incomplete),
+            };
+            trace.tracks.registerTrack(track);
+            this.trackMap.set(upid, track);
+            const group = trackGroupsPlugin.getGroupForProcess(upid);
+            const trackNode = new workspace_1.TrackNode({
+                uri,
+                name: 'Heap Profile',
+                sortOrder: -30,
             });
-            const group = ctx.plugins
-                .getPlugin(dev_perfetto_ProcessThreadGroups_1.default)
-                .getGroupForProcess(upid);
-            const track = new workspace_1.TrackNode({ uri, title, sortOrder: -30 });
-            group?.addChildInOrder(track);
+            group?.addChildInOrder(trackNode);
         }
-        ctx.onTraceReady.addListener(async () => {
-            await selectFirstHeapProfile(ctx);
-        });
+    }
+    async getIncomplete(trace) {
+        const it = await trace.engine.query(`
+      SELECT value
+      FROM stats
+      WHERE name = 'heap_graph_non_finalized_graph'
+    `);
+        const incomplete = it.firstRow({ value: query_result_1.NUM }).value > 0;
+        return incomplete;
+    }
+    async selectFirstHeapProfile(ctx) {
+        // Select the first sample from each track
+        const result = await ctx.engine.query(`
+        SELECT
+          id,
+          upid
+        FROM ${EVENT_TABLE_NAME}
+        ORDER BY ts
+        LIMIT 1
+      `);
+        const iter = result.maybeFirstRow({ id: query_result_1.NUM, upid: query_result_1.NUM });
+        if (!iter)
+            return;
+        const track = this.trackMap.get(iter.upid);
+        if (!track)
+            return;
+        ctx.selection.selectTrackEvent(track.uri, iter.id);
     }
 }
 exports.default = default_1;
-async function selectFirstHeapProfile(ctx) {
-    const query = `
-    select * from (
-      select
-        min(ts) AS ts,
-        'heap_profile:' || group_concat(distinct heap_name) AS type,
-        upid
-      from heap_profile_allocation
-      group by upid
-      union
-      select distinct graph_sample_ts as ts, 'graph' as type, upid
-      from heap_graph_object
-    )
-    order by ts
-    limit 1
-  `;
-    const profile = await ctx.engine.query(query);
-    if (profile.numRows() !== 1)
-        return;
-    const row = profile.firstRow({ ts: query_result_1.LONG, type: query_result_1.STR, upid: query_result_1.NUM });
-    const upid = row.upid;
-    ctx.selection.selectTrackEvent(getUriForTrack(upid), 0);
-}
 //# sourceMappingURL=index.js.map

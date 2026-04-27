@@ -365,7 +365,7 @@ class TrackEventDefaults : public ::protozero::Message {
   }
 };
 
-class TrackEvent_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/50, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
+class TrackEvent_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/54, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
  public:
   TrackEvent_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
   explicit TrackEvent_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
@@ -402,6 +402,12 @@ class TrackEvent_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=
   ::protozero::RepeatedFieldIterator<uint64_t> terminating_flow_ids_old() const { return GetRepeated<uint64_t>(42); }
   bool has_terminating_flow_ids() const { return at<48>().valid(); }
   ::protozero::RepeatedFieldIterator<uint64_t> terminating_flow_ids() const { return GetRepeated<uint64_t>(48); }
+  bool has_correlation_id() const { return at<52>().valid(); }
+  uint64_t correlation_id() const { return at<52>().as_uint64(); }
+  bool has_correlation_id_str() const { return at<53>().valid(); }
+  ::protozero::ConstChars correlation_id_str() const { return at<53>().as_string(); }
+  bool has_correlation_id_str_iid() const { return at<54>().valid(); }
+  uint64_t correlation_id_str_iid() const { return at<54>().as_uint64(); }
   bool has_debug_annotations() const { return at<4>().valid(); }
   ::protozero::RepeatedFieldIterator<::protozero::ConstBytes> debug_annotations() const { return GetRepeated<::protozero::ConstBytes>(4); }
   bool has_task_execution() const { return at<5>().valid(); }
@@ -478,6 +484,9 @@ class TrackEvent : public ::protozero::Message {
     kFlowIdsFieldNumber = 47,
     kTerminatingFlowIdsOldFieldNumber = 42,
     kTerminatingFlowIdsFieldNumber = 48,
+    kCorrelationIdFieldNumber = 52,
+    kCorrelationIdStrFieldNumber = 53,
+    kCorrelationIdStrIidFieldNumber = 54,
     kDebugAnnotationsFieldNumber = 4,
     kTaskExecutionFieldNumber = 5,
     kLogMessageFieldNumber = 21,
@@ -817,6 +826,66 @@ class TrackEvent : public ::protozero::Message {
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
       ::protozero::proto_utils::ProtoSchemaType::kFixed64>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_CorrelationId =
+    ::protozero::proto_utils::FieldMetadata<
+      52,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kUint64,
+      uint64_t,
+      TrackEvent>;
+
+  static constexpr FieldMetadata_CorrelationId kCorrelationId{};
+  void set_correlation_id(uint64_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_CorrelationId::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint64>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_CorrelationIdStr =
+    ::protozero::proto_utils::FieldMetadata<
+      53,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kString,
+      std::string,
+      TrackEvent>;
+
+  static constexpr FieldMetadata_CorrelationIdStr kCorrelationIdStr{};
+  void set_correlation_id_str(const char* data, size_t size) {
+    AppendBytes(FieldMetadata_CorrelationIdStr::kFieldId, data, size);
+  }
+  void set_correlation_id_str(::protozero::ConstChars chars) {
+    AppendBytes(FieldMetadata_CorrelationIdStr::kFieldId, chars.data, chars.size);
+  }
+  void set_correlation_id_str(std::string value) {
+    static constexpr uint32_t field_id = FieldMetadata_CorrelationIdStr::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kString>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_CorrelationIdStrIid =
+    ::protozero::proto_utils::FieldMetadata<
+      54,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kUint64,
+      uint64_t,
+      TrackEvent>;
+
+  static constexpr FieldMetadata_CorrelationIdStrIid kCorrelationIdStrIid{};
+  void set_correlation_id_str_iid(uint64_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_CorrelationIdStrIid::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint64>
         ::Append(*this, field_id, value);
   }
 

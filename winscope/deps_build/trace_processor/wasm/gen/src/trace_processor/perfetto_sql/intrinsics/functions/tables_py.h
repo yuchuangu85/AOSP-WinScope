@@ -6,988 +6,850 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <tuple>
 #include <type_traits>
 #include <utility>
+#include <variant>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/ref_counted.h"
-#include "src/trace_processor/containers/bit_vector.h"
-#include "src/trace_processor/containers/row_map.h"
-#include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/db/column/arrangement_overlay.h"
-#include "src/trace_processor/db/column/data_layer.h"
-#include "src/trace_processor/db/column/dense_null_overlay.h"
-#include "src/trace_processor/db/column/numeric_storage.h"
-#include "src/trace_processor/db/column/id_storage.h"
-#include "src/trace_processor/db/column/null_overlay.h"
-#include "src/trace_processor/db/column/range_overlay.h"
-#include "src/trace_processor/db/column/selector_overlay.h"
-#include "src/trace_processor/db/column/set_id_storage.h"
-#include "src/trace_processor/db/column/string_storage.h"
-#include "src/trace_processor/db/column/types.h"
-#include "src/trace_processor/db/column_storage.h"
-#include "src/trace_processor/db/column.h"
-#include "src/trace_processor/db/table.h"
-#include "src/trace_processor/db/typed_column.h"
-#include "src/trace_processor/db/typed_column_internal.h"
+#include "src/trace_processor/dataframe/dataframe.h"
+#include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/dataframe/typed_cursor.h"
 #include "src/trace_processor/tables/macros_internal.h"
 
 
 
 namespace perfetto::trace_processor::tables {
 
-class DominatorTreeTable : public macros_internal::MacroTable {
+class DominatorTreeTable {
  public:
-  static constexpr uint32_t kColumnCount = 3;
+  static constexpr auto kSpec = dataframe::CreateTypedDataframeSpec(
+    {"id","node_id","dominator_node_id"},
+    dataframe::CreateTypedColumnSpec(dataframe::Id{}, dataframe::NonNull{}, dataframe::IdSorted{}, dataframe::NoDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::SparseNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}));
 
-  struct Id : public BaseId {
+  struct Id : BaseId {
     Id() = default;
-    explicit constexpr Id(uint32_t v) : BaseId(v) {}
+    explicit constexpr Id(uint32_t _value) : BaseId(_value) {}
+
+    bool operator==(const Id& other) const {
+      return value == other.value;
+    }
   };
-  static_assert(std::is_trivially_destructible_v<Id>,
-                "Inheritance used without trivial destruction");
-    
+  struct RowReference;
+  struct ConstRowReference;
+  struct RowNumber {
+   public:
+    explicit constexpr RowNumber(uint32_t value) : value_(value) {}
+    uint32_t row_number() const { return value_; }
+
+    RowReference ToRowReference(DominatorTreeTable* table) const {
+      return RowReference(table, value_);
+    }
+    ConstRowReference ToRowReference(const DominatorTreeTable& table) const {
+      return ConstRowReference(&table, value_);
+    }
+
+    bool operator==(const RowNumber& other) const {
+      return value_ == other.value_;
+    }
+    bool operator<(const RowNumber& other) const {
+      return value_ < other.value_;
+    }
+   private:
+    uint32_t value_;
+  };
   struct ColumnIndex {
     static constexpr uint32_t id = 0;
     static constexpr uint32_t node_id = 1;
     static constexpr uint32_t dominator_node_id = 2;
   };
-  struct ColumnType {
-    using id = IdColumn<DominatorTreeTable::Id>;
-    using node_id = TypedColumn<uint32_t>;
-    using dominator_node_id = TypedColumn<std::optional<uint32_t>>;
-  };
-  struct Row : public macros_internal::RootParentTable::Row {
-    Row(uint32_t in_node_id = {},
-        std::optional<uint32_t> in_dominator_node_id = {},
-        std::nullptr_t = nullptr)
-        : macros_internal::RootParentTable::Row(),
-          node_id(in_node_id),
-          dominator_node_id(in_dominator_node_id) {}
-    uint32_t node_id;
-    std::optional<uint32_t> dominator_node_id;
-
-    bool operator==(const DominatorTreeTable::Row& other) const {
-      return ColumnType::node_id::Equals(node_id, other.node_id) &&
-       ColumnType::dominator_node_id::Equals(dominator_node_id, other.dominator_node_id);
-    }
-  };
-  struct ColumnFlag {
-    static constexpr uint32_t node_id = ColumnType::node_id::default_flags();
-    static constexpr uint32_t dominator_node_id = ColumnType::dominator_node_id::default_flags();
-  };
-
-  class RowNumber;
-  class ConstRowReference;
-  class RowReference;
-
-  class RowNumber : public macros_internal::AbstractRowNumber<
-      DominatorTreeTable, ConstRowReference, RowReference> {
+  struct RowReference {
    public:
-    explicit RowNumber(uint32_t row_number)
-        : AbstractRowNumber(row_number) {}
-  };
-  static_assert(std::is_trivially_destructible_v<RowNumber>,
-                "Inheritance used without trivial destruction");
-
-  class ConstRowReference : public macros_internal::AbstractConstRowReference<
-    DominatorTreeTable, RowNumber> {
-   public:
-    ConstRowReference(const DominatorTreeTable* table, uint32_t row_number)
-        : AbstractConstRowReference(table, row_number) {}
-
-    ColumnType::id::type id() const {
-      return table()->id()[row_number_];
+    explicit RowReference(DominatorTreeTable* table, uint32_t row)
+        : table_(table), row_(row) {
+        base::ignore_result(table_);
     }
-    ColumnType::node_id::type node_id() const {
-      return table()->node_id()[row_number_];
-    }
-    ColumnType::dominator_node_id::type dominator_node_id() const {
-      return table()->dominator_node_id()[row_number_];
-    }
-  };
-  static_assert(std::is_trivially_destructible_v<ConstRowReference>,
-                "Inheritance used without trivial destruction");
-  class RowReference : public ConstRowReference {
-   public:
-    RowReference(const DominatorTreeTable* table, uint32_t row_number)
-        : ConstRowReference(table, row_number) {}
-
-    void set_node_id(
-        ColumnType::node_id::non_optional_type v) {
-      return mutable_table()->mutable_node_id()->Set(row_number_, v);
-    }
-    void set_dominator_node_id(
-        ColumnType::dominator_node_id::non_optional_type v) {
-      return mutable_table()->mutable_dominator_node_id()->Set(row_number_, v);
+    DominatorTreeTable::Id id() const {
+        
+        return DominatorTreeTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+    
+    RowNumber ToRowNumber() const {
+      return RowNumber{row_};
     }
 
    private:
-    DominatorTreeTable* mutable_table() const {
-      return const_cast<DominatorTreeTable*>(table());
-    }
+    friend struct ConstRowReference;
+    DominatorTreeTable* table_;
+    uint32_t row_;
   };
-  static_assert(std::is_trivially_destructible_v<RowReference>,
-                "Inheritance used without trivial destruction");
-
-  class ConstIterator;
-  class ConstIterator : public macros_internal::AbstractConstIterator<
-    ConstIterator, DominatorTreeTable, RowNumber, ConstRowReference> {
+  struct ConstRowReference {
    public:
-    ColumnType::id::type id() const {
-      const auto& col = table()->id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
+    explicit ConstRowReference(const DominatorTreeTable* table, uint32_t row)
+        : table_(table), row_(row) {
+        base::ignore_result(table_);
     }
-    ColumnType::node_id::type node_id() const {
-      const auto& col = table()->node_id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
+    ConstRowReference(const RowReference& other)
+        : table_(other.table_), row_(other.row_) {}
+    DominatorTreeTable::Id id() const {
+        
+        return DominatorTreeTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+    RowNumber ToRowNumber() const {
+      return RowNumber{row_};
     }
-    ColumnType::dominator_node_id::type dominator_node_id() const {
-      const auto& col = table()->dominator_node_id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
+   private:
+    const DominatorTreeTable* table_;
+    uint32_t row_;
+  };
+  class ConstCursor {
+   public:
+    explicit ConstCursor(const dataframe::Dataframe& df,
+                         std::vector<dataframe::FilterSpec> filters,
+                         std::vector<dataframe::SortSpec> sorts)
+      : dataframe_(&df), cursor_(&df, std::move(filters), std::move(sorts)) {
+      base::ignore_result(dataframe_);
     }
 
-   protected:
-    explicit ConstIterator(const DominatorTreeTable* table,
-                           Table::Iterator iterator)
-        : AbstractConstIterator(table, std::move(iterator)) {}
-
-    uint32_t CurrentRowNumber() const {
-      return iterator_.StorageIndexForLastOverlay();
+    PERFETTO_ALWAYS_INLINE void Execute() { cursor_.ExecuteUnchecked(); }
+    PERFETTO_ALWAYS_INLINE bool Eof() const { return cursor_.Eof(); }
+    PERFETTO_ALWAYS_INLINE void Next() { cursor_.Next(); }
+    template <typename C>
+    PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index, C value) {
+      cursor_.SetFilterValueUnchecked(index, std::move(value));
     }
+    RowNumber ToRowNumber() const {
+      return RowNumber{cursor_.RowIndex()};
+    }
+    void Reset() { cursor_.Reset(); }
+    DominatorTreeTable::Id id() const {
+        
+        return DominatorTreeTable::Id{cursor_.GetCellUnchecked<ColumnIndex::id>(kSpec)};
+      }
 
    private:
-    friend class DominatorTreeTable;
-    friend class macros_internal::AbstractConstIterator<
-      ConstIterator, DominatorTreeTable, RowNumber, ConstRowReference>;
+    const dataframe::Dataframe* dataframe_;
+    dataframe::TypedCursor cursor_;
   };
-  class Iterator : public ConstIterator {
+  class Cursor {
+   public:
+    explicit Cursor(dataframe::Dataframe& df,
+                    std::vector<dataframe::FilterSpec> filters,
+                    std::vector<dataframe::SortSpec> sorts)
+      : dataframe_(&df), cursor_(&df, std::move(filters), std::move(sorts)) {
+      base::ignore_result(dataframe_);
+    }
+
+    PERFETTO_ALWAYS_INLINE void Execute() { cursor_.ExecuteUnchecked(); }
+    PERFETTO_ALWAYS_INLINE bool Eof() const { return cursor_.Eof(); }
+    PERFETTO_ALWAYS_INLINE void Next() { cursor_.Next(); }
+    template <typename C>
+    PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index, C value) {
+      cursor_.SetFilterValueUnchecked(index, std::move(value));
+    }
+    RowNumber ToRowNumber() const {
+      return RowNumber{cursor_.RowIndex()};
+    }
+    void Reset() { cursor_.Reset(); }
+
+    DominatorTreeTable::Id id() const {
+        
+        return DominatorTreeTable::Id{cursor_.GetCellUnchecked<ColumnIndex::id>(kSpec)};
+      }
+    
+
+   private:
+    dataframe::Dataframe* dataframe_;
+    dataframe::TypedCursor cursor_;
+  };
+  class Iterator {
     public:
-     RowReference row_reference() const {
-       return {const_cast<DominatorTreeTable*>(table()), CurrentRowNumber()};
-     }
+      explicit Iterator(DominatorTreeTable* table) : table_(table) {
+        base::ignore_result(table_);
+      }
+      explicit operator bool() const { return row_ < table_->row_count(); }
+      Iterator& operator++() {
+        ++row_;
+        return *this;
+      }
+      RowNumber row_number() const {
+        return RowNumber{row_};
+      }
+      RowReference ToRowReference() const {
+        return RowReference(table_, row_);
+      }
+      DominatorTreeTable::Id id() const {
+        
+        return DominatorTreeTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+      
 
     private:
-     friend class DominatorTreeTable;
-
-     explicit Iterator(DominatorTreeTable* table, Table::Iterator iterator)
-        : ConstIterator(table, std::move(iterator)) {}
+      DominatorTreeTable* table_;
+      uint32_t row_ = 0;
   };
+  class ConstIterator {
+    public:
+      explicit ConstIterator(const DominatorTreeTable* table) : table_(table) {
+        base::ignore_result(table_);
+      }
+      explicit operator bool() const { return row_ < table_->row_count(); }
+      ConstIterator& operator++() {
+        ++row_;
+        return *this;
+      }
+      RowNumber row_number() const {
+        return RowNumber{row_};
+      }
+      ConstRowReference ToRowReference() const {
+        return ConstRowReference(table_, row_);
+      }
+      DominatorTreeTable::Id id() const {
+        
+        return DominatorTreeTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
 
+    private:
+      const DominatorTreeTable* table_;
+      uint32_t row_ = 0;
+  };
   struct IdAndRow {
     Id id;
+    RowNumber row_number;
     uint32_t row;
     RowReference row_reference;
-    RowNumber row_number;
+  };
+  
+  struct Row {
+    Row(uint32_t _node_id = {}, std::optional<uint32_t> _dominator_node_id = {}) : node_id(std::move(_node_id)), dominator_node_id(std::move(_dominator_node_id)) {}
+
+    bool operator==(const Row& other) const {
+      return std::tie(node_id, dominator_node_id) ==
+             std::tie(other.node_id, other.dominator_node_id);
+    }
+
+        uint32_t node_id;
+    std::optional<uint32_t> dominator_node_id;
   };
 
-  static std::vector<ColumnLegacy> GetColumns(
-      DominatorTreeTable* self,
-      const macros_internal::MacroTable* parent) {
-    std::vector<ColumnLegacy> columns =
-        CopyColumnsFromParentOrAddRootColumns(parent);
-    uint32_t olay_idx = OverlayCount(parent);
-    AddColumnToVector(columns, "node_id", &self->node_id_, ColumnFlag::node_id,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "dominator_node_id", &self->dominator_node_id_, ColumnFlag::dominator_node_id,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    base::ignore_result(self);
-    return columns;
-  }
-
-  PERFETTO_NO_INLINE explicit DominatorTreeTable(StringPool* pool)
-      : macros_internal::MacroTable(
-          pool,
-          GetColumns(this, nullptr),
-          nullptr),
-        node_id_(ColumnStorage<ColumnType::node_id::stored_type>::Create<false>()),
-        dominator_node_id_(ColumnStorage<ColumnType::dominator_node_id::stored_type>::Create<false>())
-,
-        id_storage_layer_(new column::IdStorage()),
-        node_id_storage_layer_(
-        new column::NumericStorage<ColumnType::node_id::non_optional_stored_type>(
-          &node_id_.vector(),
-          ColumnTypeHelper<ColumnType::node_id::stored_type>::ToColumnType(),
-          false)),
-        dominator_node_id_storage_layer_(
-          new column::NumericStorage<ColumnType::dominator_node_id::non_optional_stored_type>(
-            &dominator_node_id_.non_null_vector(),
-            ColumnTypeHelper<ColumnType::dominator_node_id::stored_type>::ToColumnType(),
-            false))
-,
-        dominator_node_id_null_layer_(new column::NullOverlay(dominator_node_id_.bv())) {
-    static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::node_id::stored_type>(
-          ColumnFlag::node_id),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::dominator_node_id::stored_type>(
-          ColumnFlag::dominator_node_id),
-        "Column type and flag combination is not valid");
-    OnConstructionCompletedRegularConstructor(
-      {id_storage_layer_,node_id_storage_layer_,dominator_node_id_storage_layer_},
-      {{},{},dominator_node_id_null_layer_});
-  }
-  ~DominatorTreeTable() override;
-
-  static const char* Name() { return "__intrinsic_dominator_tree"; }
-
-  static Table::Schema ComputeStaticSchema() {
-    Table::Schema schema;
-    schema.columns.emplace_back(Table::Schema::Column{
-        "id", SqlValue::Type::kLong, true, true, false, false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "node_id", ColumnType::node_id::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "dominator_node_id", ColumnType::dominator_node_id::SqlValueType(), false,
-        false,
-        false,
-        false});
-    return schema;
-  }
-
-  ConstIterator IterateRows() const {
-    return ConstIterator(this, Table::IterateRows());
-  }
-
-  Iterator IterateRows() { return Iterator(this, Table::IterateRows()); }
-
-  ConstIterator FilterToIterator(const Query& q) const {
-    return ConstIterator(this, QueryToIterator(q));
-  }
-
-  Iterator FilterToIterator(const Query& q) {
-    return Iterator(this, QueryToIterator(q));
-  }
-
-  void ShrinkToFit() {
-    node_id_.ShrinkToFit();
-    dominator_node_id_.ShrinkToFit();
-  }
-
-  ConstRowReference operator[](uint32_t r) const {
-    return ConstRowReference(this, r);
-  }
-  RowReference operator[](uint32_t r) { return RowReference(this, r); }
-  ConstRowReference operator[](RowNumber r) const {
-    return ConstRowReference(this, r.row_number());
-  }
-  RowReference operator[](RowNumber r) {
-    return RowReference(this, r.row_number());
-  }
-
-  std::optional<ConstRowReference> FindById(Id find_id) const {
-    std::optional<uint32_t> row = id().IndexOf(find_id);
-    return row ? std::make_optional(ConstRowReference(this, *row))
-               : std::nullopt;
-  }
-
-  std::optional<RowReference> FindById(Id find_id) {
-    std::optional<uint32_t> row = id().IndexOf(find_id);
-    return row ? std::make_optional(RowReference(this, *row)) : std::nullopt;
-  }
+  explicit DominatorTreeTable(StringPool* pool)
+      : dataframe_(dataframe::Dataframe::CreateFromTypedSpec(kSpec, pool)) {}
 
   IdAndRow Insert(const Row& row) {
-    uint32_t row_number = row_count();
-    Id id = Id{row_number};
-    mutable_node_id()->Append(row.node_id);
-    mutable_dominator_node_id()->Append(row.dominator_node_id);
-    UpdateSelfOverlayAfterInsert();
-    return IdAndRow{id, row_number, RowReference(this, row_number),
-                     RowNumber(row_number)};
+    uint32_t row_count = dataframe_.row_count();
+    dataframe_.InsertUnchecked(kSpec, std::monostate(), row.node_id, row.dominator_node_id);
+    return IdAndRow{Id{row_count}, RowNumber{row_count}, row_count, RowReference(this, row_count)};
   }
 
-  
-
-  const IdColumn<DominatorTreeTable::Id>& id() const {
-    return static_cast<const ColumnType::id&>(columns()[ColumnIndex::id]);
-  }
-  const TypedColumn<uint32_t>& node_id() const {
-    return static_cast<const ColumnType::node_id&>(columns()[ColumnIndex::node_id]);
-  }
-  const TypedColumn<std::optional<uint32_t>>& dominator_node_id() const {
-    return static_cast<const ColumnType::dominator_node_id&>(columns()[ColumnIndex::dominator_node_id]);
+  uint32_t row_count() const {
+    return dataframe_.row_count();
   }
 
-  TypedColumn<uint32_t>* mutable_node_id() {
-    return static_cast<ColumnType::node_id*>(
-        GetColumn(ColumnIndex::node_id));
+  std::optional<ConstRowReference> FindById(Id id) const {
+    return ConstRowReference(this, id.value);
   }
-  TypedColumn<std::optional<uint32_t>>* mutable_dominator_node_id() {
-    return static_cast<ColumnType::dominator_node_id*>(
-        GetColumn(ColumnIndex::dominator_node_id));
+  ConstRowReference operator[](uint32_t row) const {
+    return ConstRowReference(this, row);
+  }
+
+  std::optional<RowReference> FindById(Id id) {
+    return RowReference(this, id.value);
+  }
+  RowReference operator[](uint32_t row) {
+    return RowReference(this, row);
+  }
+
+  ConstCursor CreateCursor(
+      std::vector<dataframe::FilterSpec> filters = {},
+      std::vector<dataframe::SortSpec> sorts = {}) const {
+    return ConstCursor(dataframe_, std::move(filters), std::move(sorts));
+  }
+  Cursor CreateCursor(
+      std::vector<dataframe::FilterSpec> filters = {},
+      std::vector<dataframe::SortSpec> sorts = {}) {
+    return Cursor(dataframe_, std::move(filters), std::move(sorts));
+  }
+
+  Iterator IterateRows() { return Iterator(this); }
+  ConstIterator IterateRows() const { return ConstIterator(this); }
+
+  void Finalize() { dataframe_.Finalize(); }
+
+  void Clear() { dataframe_.Clear(); }
+
+  static const char* Name() {
+    return "__intrinsic_dominator_tree";
+  }
+
+  dataframe::Dataframe& dataframe() {
+    return dataframe_;
+  }
+  const dataframe::Dataframe& dataframe() const {
+    return dataframe_;
   }
 
  private:
-  
-  
-  ColumnStorage<ColumnType::node_id::stored_type> node_id_;
-  ColumnStorage<ColumnType::dominator_node_id::stored_type> dominator_node_id_;
-
-  RefPtr<column::StorageLayer> id_storage_layer_;
-  RefPtr<column::StorageLayer> node_id_storage_layer_;
-  RefPtr<column::StorageLayer> dominator_node_id_storage_layer_;
-
-  RefPtr<column::OverlayLayer> dominator_node_id_null_layer_;
+  dataframe::Dataframe dataframe_;
 };
-  
 
-class StructuralTreePartitionTable : public macros_internal::MacroTable {
+
+
+class StructuralTreePartitionTable {
  public:
-  static constexpr uint32_t kColumnCount = 4;
+  static constexpr auto kSpec = dataframe::CreateTypedDataframeSpec(
+    {"id","node_id","parent_node_id","group_key"},
+    dataframe::CreateTypedColumnSpec(dataframe::Id{}, dataframe::NonNull{}, dataframe::IdSorted{}, dataframe::NoDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::SparseNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}));
 
-  struct Id : public BaseId {
+  struct Id : BaseId {
     Id() = default;
-    explicit constexpr Id(uint32_t v) : BaseId(v) {}
+    explicit constexpr Id(uint32_t _value) : BaseId(_value) {}
+
+    bool operator==(const Id& other) const {
+      return value == other.value;
+    }
   };
-  static_assert(std::is_trivially_destructible_v<Id>,
-                "Inheritance used without trivial destruction");
-    
+  struct RowReference;
+  struct ConstRowReference;
+  struct RowNumber {
+   public:
+    explicit constexpr RowNumber(uint32_t value) : value_(value) {}
+    uint32_t row_number() const { return value_; }
+
+    RowReference ToRowReference(StructuralTreePartitionTable* table) const {
+      return RowReference(table, value_);
+    }
+    ConstRowReference ToRowReference(const StructuralTreePartitionTable& table) const {
+      return ConstRowReference(&table, value_);
+    }
+
+    bool operator==(const RowNumber& other) const {
+      return value_ == other.value_;
+    }
+    bool operator<(const RowNumber& other) const {
+      return value_ < other.value_;
+    }
+   private:
+    uint32_t value_;
+  };
   struct ColumnIndex {
     static constexpr uint32_t id = 0;
     static constexpr uint32_t node_id = 1;
     static constexpr uint32_t parent_node_id = 2;
     static constexpr uint32_t group_key = 3;
   };
-  struct ColumnType {
-    using id = IdColumn<StructuralTreePartitionTable::Id>;
-    using node_id = TypedColumn<uint32_t>;
-    using parent_node_id = TypedColumn<std::optional<uint32_t>>;
-    using group_key = TypedColumn<uint32_t>;
-  };
-  struct Row : public macros_internal::RootParentTable::Row {
-    Row(uint32_t in_node_id = {},
-        std::optional<uint32_t> in_parent_node_id = {},
-        uint32_t in_group_key = {},
-        std::nullptr_t = nullptr)
-        : macros_internal::RootParentTable::Row(),
-          node_id(in_node_id),
-          parent_node_id(in_parent_node_id),
-          group_key(in_group_key) {}
-    uint32_t node_id;
-    std::optional<uint32_t> parent_node_id;
-    uint32_t group_key;
-
-    bool operator==(const StructuralTreePartitionTable::Row& other) const {
-      return ColumnType::node_id::Equals(node_id, other.node_id) &&
-       ColumnType::parent_node_id::Equals(parent_node_id, other.parent_node_id) &&
-       ColumnType::group_key::Equals(group_key, other.group_key);
-    }
-  };
-  struct ColumnFlag {
-    static constexpr uint32_t node_id = ColumnType::node_id::default_flags();
-    static constexpr uint32_t parent_node_id = ColumnType::parent_node_id::default_flags();
-    static constexpr uint32_t group_key = ColumnType::group_key::default_flags();
-  };
-
-  class RowNumber;
-  class ConstRowReference;
-  class RowReference;
-
-  class RowNumber : public macros_internal::AbstractRowNumber<
-      StructuralTreePartitionTable, ConstRowReference, RowReference> {
+  struct RowReference {
    public:
-    explicit RowNumber(uint32_t row_number)
-        : AbstractRowNumber(row_number) {}
-  };
-  static_assert(std::is_trivially_destructible_v<RowNumber>,
-                "Inheritance used without trivial destruction");
-
-  class ConstRowReference : public macros_internal::AbstractConstRowReference<
-    StructuralTreePartitionTable, RowNumber> {
-   public:
-    ConstRowReference(const StructuralTreePartitionTable* table, uint32_t row_number)
-        : AbstractConstRowReference(table, row_number) {}
-
-    ColumnType::id::type id() const {
-      return table()->id()[row_number_];
+    explicit RowReference(StructuralTreePartitionTable* table, uint32_t row)
+        : table_(table), row_(row) {
+        base::ignore_result(table_);
     }
-    ColumnType::node_id::type node_id() const {
-      return table()->node_id()[row_number_];
-    }
-    ColumnType::parent_node_id::type parent_node_id() const {
-      return table()->parent_node_id()[row_number_];
-    }
-    ColumnType::group_key::type group_key() const {
-      return table()->group_key()[row_number_];
-    }
-  };
-  static_assert(std::is_trivially_destructible_v<ConstRowReference>,
-                "Inheritance used without trivial destruction");
-  class RowReference : public ConstRowReference {
-   public:
-    RowReference(const StructuralTreePartitionTable* table, uint32_t row_number)
-        : ConstRowReference(table, row_number) {}
-
-    void set_node_id(
-        ColumnType::node_id::non_optional_type v) {
-      return mutable_table()->mutable_node_id()->Set(row_number_, v);
-    }
-    void set_parent_node_id(
-        ColumnType::parent_node_id::non_optional_type v) {
-      return mutable_table()->mutable_parent_node_id()->Set(row_number_, v);
-    }
-    void set_group_key(
-        ColumnType::group_key::non_optional_type v) {
-      return mutable_table()->mutable_group_key()->Set(row_number_, v);
+    StructuralTreePartitionTable::Id id() const {
+        
+        return StructuralTreePartitionTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+    
+    RowNumber ToRowNumber() const {
+      return RowNumber{row_};
     }
 
    private:
-    StructuralTreePartitionTable* mutable_table() const {
-      return const_cast<StructuralTreePartitionTable*>(table());
-    }
+    friend struct ConstRowReference;
+    StructuralTreePartitionTable* table_;
+    uint32_t row_;
   };
-  static_assert(std::is_trivially_destructible_v<RowReference>,
-                "Inheritance used without trivial destruction");
-
-  class ConstIterator;
-  class ConstIterator : public macros_internal::AbstractConstIterator<
-    ConstIterator, StructuralTreePartitionTable, RowNumber, ConstRowReference> {
+  struct ConstRowReference {
    public:
-    ColumnType::id::type id() const {
-      const auto& col = table()->id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
+    explicit ConstRowReference(const StructuralTreePartitionTable* table, uint32_t row)
+        : table_(table), row_(row) {
+        base::ignore_result(table_);
     }
-    ColumnType::node_id::type node_id() const {
-      const auto& col = table()->node_id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
+    ConstRowReference(const RowReference& other)
+        : table_(other.table_), row_(other.row_) {}
+    StructuralTreePartitionTable::Id id() const {
+        
+        return StructuralTreePartitionTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+    RowNumber ToRowNumber() const {
+      return RowNumber{row_};
     }
-    ColumnType::parent_node_id::type parent_node_id() const {
-      const auto& col = table()->parent_node_id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::group_key::type group_key() const {
-      const auto& col = table()->group_key();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
+   private:
+    const StructuralTreePartitionTable* table_;
+    uint32_t row_;
+  };
+  class ConstCursor {
+   public:
+    explicit ConstCursor(const dataframe::Dataframe& df,
+                         std::vector<dataframe::FilterSpec> filters,
+                         std::vector<dataframe::SortSpec> sorts)
+      : dataframe_(&df), cursor_(&df, std::move(filters), std::move(sorts)) {
+      base::ignore_result(dataframe_);
     }
 
-   protected:
-    explicit ConstIterator(const StructuralTreePartitionTable* table,
-                           Table::Iterator iterator)
-        : AbstractConstIterator(table, std::move(iterator)) {}
-
-    uint32_t CurrentRowNumber() const {
-      return iterator_.StorageIndexForLastOverlay();
+    PERFETTO_ALWAYS_INLINE void Execute() { cursor_.ExecuteUnchecked(); }
+    PERFETTO_ALWAYS_INLINE bool Eof() const { return cursor_.Eof(); }
+    PERFETTO_ALWAYS_INLINE void Next() { cursor_.Next(); }
+    template <typename C>
+    PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index, C value) {
+      cursor_.SetFilterValueUnchecked(index, std::move(value));
     }
+    RowNumber ToRowNumber() const {
+      return RowNumber{cursor_.RowIndex()};
+    }
+    void Reset() { cursor_.Reset(); }
+    StructuralTreePartitionTable::Id id() const {
+        
+        return StructuralTreePartitionTable::Id{cursor_.GetCellUnchecked<ColumnIndex::id>(kSpec)};
+      }
 
    private:
-    friend class StructuralTreePartitionTable;
-    friend class macros_internal::AbstractConstIterator<
-      ConstIterator, StructuralTreePartitionTable, RowNumber, ConstRowReference>;
+    const dataframe::Dataframe* dataframe_;
+    dataframe::TypedCursor cursor_;
   };
-  class Iterator : public ConstIterator {
+  class Cursor {
+   public:
+    explicit Cursor(dataframe::Dataframe& df,
+                    std::vector<dataframe::FilterSpec> filters,
+                    std::vector<dataframe::SortSpec> sorts)
+      : dataframe_(&df), cursor_(&df, std::move(filters), std::move(sorts)) {
+      base::ignore_result(dataframe_);
+    }
+
+    PERFETTO_ALWAYS_INLINE void Execute() { cursor_.ExecuteUnchecked(); }
+    PERFETTO_ALWAYS_INLINE bool Eof() const { return cursor_.Eof(); }
+    PERFETTO_ALWAYS_INLINE void Next() { cursor_.Next(); }
+    template <typename C>
+    PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index, C value) {
+      cursor_.SetFilterValueUnchecked(index, std::move(value));
+    }
+    RowNumber ToRowNumber() const {
+      return RowNumber{cursor_.RowIndex()};
+    }
+    void Reset() { cursor_.Reset(); }
+
+    StructuralTreePartitionTable::Id id() const {
+        
+        return StructuralTreePartitionTable::Id{cursor_.GetCellUnchecked<ColumnIndex::id>(kSpec)};
+      }
+    
+
+   private:
+    dataframe::Dataframe* dataframe_;
+    dataframe::TypedCursor cursor_;
+  };
+  class Iterator {
     public:
-     RowReference row_reference() const {
-       return {const_cast<StructuralTreePartitionTable*>(table()), CurrentRowNumber()};
-     }
+      explicit Iterator(StructuralTreePartitionTable* table) : table_(table) {
+        base::ignore_result(table_);
+      }
+      explicit operator bool() const { return row_ < table_->row_count(); }
+      Iterator& operator++() {
+        ++row_;
+        return *this;
+      }
+      RowNumber row_number() const {
+        return RowNumber{row_};
+      }
+      RowReference ToRowReference() const {
+        return RowReference(table_, row_);
+      }
+      StructuralTreePartitionTable::Id id() const {
+        
+        return StructuralTreePartitionTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+      
 
     private:
-     friend class StructuralTreePartitionTable;
-
-     explicit Iterator(StructuralTreePartitionTable* table, Table::Iterator iterator)
-        : ConstIterator(table, std::move(iterator)) {}
+      StructuralTreePartitionTable* table_;
+      uint32_t row_ = 0;
   };
+  class ConstIterator {
+    public:
+      explicit ConstIterator(const StructuralTreePartitionTable* table) : table_(table) {
+        base::ignore_result(table_);
+      }
+      explicit operator bool() const { return row_ < table_->row_count(); }
+      ConstIterator& operator++() {
+        ++row_;
+        return *this;
+      }
+      RowNumber row_number() const {
+        return RowNumber{row_};
+      }
+      ConstRowReference ToRowReference() const {
+        return ConstRowReference(table_, row_);
+      }
+      StructuralTreePartitionTable::Id id() const {
+        
+        return StructuralTreePartitionTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
 
+    private:
+      const StructuralTreePartitionTable* table_;
+      uint32_t row_ = 0;
+  };
   struct IdAndRow {
     Id id;
+    RowNumber row_number;
     uint32_t row;
     RowReference row_reference;
-    RowNumber row_number;
+  };
+  
+  struct Row {
+    Row(uint32_t _node_id = {}, std::optional<uint32_t> _parent_node_id = {}, uint32_t _group_key = {}) : node_id(std::move(_node_id)), parent_node_id(std::move(_parent_node_id)), group_key(std::move(_group_key)) {}
+
+    bool operator==(const Row& other) const {
+      return std::tie(node_id, parent_node_id, group_key) ==
+             std::tie(other.node_id, other.parent_node_id, other.group_key);
+    }
+
+        uint32_t node_id;
+    std::optional<uint32_t> parent_node_id;
+    uint32_t group_key;
   };
 
-  static std::vector<ColumnLegacy> GetColumns(
-      StructuralTreePartitionTable* self,
-      const macros_internal::MacroTable* parent) {
-    std::vector<ColumnLegacy> columns =
-        CopyColumnsFromParentOrAddRootColumns(parent);
-    uint32_t olay_idx = OverlayCount(parent);
-    AddColumnToVector(columns, "node_id", &self->node_id_, ColumnFlag::node_id,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "parent_node_id", &self->parent_node_id_, ColumnFlag::parent_node_id,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "group_key", &self->group_key_, ColumnFlag::group_key,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    base::ignore_result(self);
-    return columns;
-  }
-
-  PERFETTO_NO_INLINE explicit StructuralTreePartitionTable(StringPool* pool)
-      : macros_internal::MacroTable(
-          pool,
-          GetColumns(this, nullptr),
-          nullptr),
-        node_id_(ColumnStorage<ColumnType::node_id::stored_type>::Create<false>()),
-        parent_node_id_(ColumnStorage<ColumnType::parent_node_id::stored_type>::Create<false>()),
-        group_key_(ColumnStorage<ColumnType::group_key::stored_type>::Create<false>())
-,
-        id_storage_layer_(new column::IdStorage()),
-        node_id_storage_layer_(
-        new column::NumericStorage<ColumnType::node_id::non_optional_stored_type>(
-          &node_id_.vector(),
-          ColumnTypeHelper<ColumnType::node_id::stored_type>::ToColumnType(),
-          false)),
-        parent_node_id_storage_layer_(
-          new column::NumericStorage<ColumnType::parent_node_id::non_optional_stored_type>(
-            &parent_node_id_.non_null_vector(),
-            ColumnTypeHelper<ColumnType::parent_node_id::stored_type>::ToColumnType(),
-            false)),
-        group_key_storage_layer_(
-        new column::NumericStorage<ColumnType::group_key::non_optional_stored_type>(
-          &group_key_.vector(),
-          ColumnTypeHelper<ColumnType::group_key::stored_type>::ToColumnType(),
-          false))
-,
-        parent_node_id_null_layer_(new column::NullOverlay(parent_node_id_.bv())) {
-    static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::node_id::stored_type>(
-          ColumnFlag::node_id),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::parent_node_id::stored_type>(
-          ColumnFlag::parent_node_id),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::group_key::stored_type>(
-          ColumnFlag::group_key),
-        "Column type and flag combination is not valid");
-    OnConstructionCompletedRegularConstructor(
-      {id_storage_layer_,node_id_storage_layer_,parent_node_id_storage_layer_,group_key_storage_layer_},
-      {{},{},parent_node_id_null_layer_,{}});
-  }
-  ~StructuralTreePartitionTable() override;
-
-  static const char* Name() { return "__intrinsic_structural_tree_partition"; }
-
-  static Table::Schema ComputeStaticSchema() {
-    Table::Schema schema;
-    schema.columns.emplace_back(Table::Schema::Column{
-        "id", SqlValue::Type::kLong, true, true, false, false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "node_id", ColumnType::node_id::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "parent_node_id", ColumnType::parent_node_id::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "group_key", ColumnType::group_key::SqlValueType(), false,
-        false,
-        false,
-        false});
-    return schema;
-  }
-
-  ConstIterator IterateRows() const {
-    return ConstIterator(this, Table::IterateRows());
-  }
-
-  Iterator IterateRows() { return Iterator(this, Table::IterateRows()); }
-
-  ConstIterator FilterToIterator(const Query& q) const {
-    return ConstIterator(this, QueryToIterator(q));
-  }
-
-  Iterator FilterToIterator(const Query& q) {
-    return Iterator(this, QueryToIterator(q));
-  }
-
-  void ShrinkToFit() {
-    node_id_.ShrinkToFit();
-    parent_node_id_.ShrinkToFit();
-    group_key_.ShrinkToFit();
-  }
-
-  ConstRowReference operator[](uint32_t r) const {
-    return ConstRowReference(this, r);
-  }
-  RowReference operator[](uint32_t r) { return RowReference(this, r); }
-  ConstRowReference operator[](RowNumber r) const {
-    return ConstRowReference(this, r.row_number());
-  }
-  RowReference operator[](RowNumber r) {
-    return RowReference(this, r.row_number());
-  }
-
-  std::optional<ConstRowReference> FindById(Id find_id) const {
-    std::optional<uint32_t> row = id().IndexOf(find_id);
-    return row ? std::make_optional(ConstRowReference(this, *row))
-               : std::nullopt;
-  }
-
-  std::optional<RowReference> FindById(Id find_id) {
-    std::optional<uint32_t> row = id().IndexOf(find_id);
-    return row ? std::make_optional(RowReference(this, *row)) : std::nullopt;
-  }
+  explicit StructuralTreePartitionTable(StringPool* pool)
+      : dataframe_(dataframe::Dataframe::CreateFromTypedSpec(kSpec, pool)) {}
 
   IdAndRow Insert(const Row& row) {
-    uint32_t row_number = row_count();
-    Id id = Id{row_number};
-    mutable_node_id()->Append(row.node_id);
-    mutable_parent_node_id()->Append(row.parent_node_id);
-    mutable_group_key()->Append(row.group_key);
-    UpdateSelfOverlayAfterInsert();
-    return IdAndRow{id, row_number, RowReference(this, row_number),
-                     RowNumber(row_number)};
+    uint32_t row_count = dataframe_.row_count();
+    dataframe_.InsertUnchecked(kSpec, std::monostate(), row.node_id, row.parent_node_id, row.group_key);
+    return IdAndRow{Id{row_count}, RowNumber{row_count}, row_count, RowReference(this, row_count)};
   }
 
-  
-
-  const IdColumn<StructuralTreePartitionTable::Id>& id() const {
-    return static_cast<const ColumnType::id&>(columns()[ColumnIndex::id]);
-  }
-  const TypedColumn<uint32_t>& node_id() const {
-    return static_cast<const ColumnType::node_id&>(columns()[ColumnIndex::node_id]);
-  }
-  const TypedColumn<std::optional<uint32_t>>& parent_node_id() const {
-    return static_cast<const ColumnType::parent_node_id&>(columns()[ColumnIndex::parent_node_id]);
-  }
-  const TypedColumn<uint32_t>& group_key() const {
-    return static_cast<const ColumnType::group_key&>(columns()[ColumnIndex::group_key]);
+  uint32_t row_count() const {
+    return dataframe_.row_count();
   }
 
-  TypedColumn<uint32_t>* mutable_node_id() {
-    return static_cast<ColumnType::node_id*>(
-        GetColumn(ColumnIndex::node_id));
+  std::optional<ConstRowReference> FindById(Id id) const {
+    return ConstRowReference(this, id.value);
   }
-  TypedColumn<std::optional<uint32_t>>* mutable_parent_node_id() {
-    return static_cast<ColumnType::parent_node_id*>(
-        GetColumn(ColumnIndex::parent_node_id));
+  ConstRowReference operator[](uint32_t row) const {
+    return ConstRowReference(this, row);
   }
-  TypedColumn<uint32_t>* mutable_group_key() {
-    return static_cast<ColumnType::group_key*>(
-        GetColumn(ColumnIndex::group_key));
+
+  std::optional<RowReference> FindById(Id id) {
+    return RowReference(this, id.value);
+  }
+  RowReference operator[](uint32_t row) {
+    return RowReference(this, row);
+  }
+
+  ConstCursor CreateCursor(
+      std::vector<dataframe::FilterSpec> filters = {},
+      std::vector<dataframe::SortSpec> sorts = {}) const {
+    return ConstCursor(dataframe_, std::move(filters), std::move(sorts));
+  }
+  Cursor CreateCursor(
+      std::vector<dataframe::FilterSpec> filters = {},
+      std::vector<dataframe::SortSpec> sorts = {}) {
+    return Cursor(dataframe_, std::move(filters), std::move(sorts));
+  }
+
+  Iterator IterateRows() { return Iterator(this); }
+  ConstIterator IterateRows() const { return ConstIterator(this); }
+
+  void Finalize() { dataframe_.Finalize(); }
+
+  void Clear() { dataframe_.Clear(); }
+
+  static const char* Name() {
+    return "__intrinsic_structural_tree_partition";
+  }
+
+  dataframe::Dataframe& dataframe() {
+    return dataframe_;
+  }
+  const dataframe::Dataframe& dataframe() const {
+    return dataframe_;
   }
 
  private:
-  
-  
-  ColumnStorage<ColumnType::node_id::stored_type> node_id_;
-  ColumnStorage<ColumnType::parent_node_id::stored_type> parent_node_id_;
-  ColumnStorage<ColumnType::group_key::stored_type> group_key_;
-
-  RefPtr<column::StorageLayer> id_storage_layer_;
-  RefPtr<column::StorageLayer> node_id_storage_layer_;
-  RefPtr<column::StorageLayer> parent_node_id_storage_layer_;
-  RefPtr<column::StorageLayer> group_key_storage_layer_;
-
-  RefPtr<column::OverlayLayer> parent_node_id_null_layer_;
+  dataframe::Dataframe dataframe_;
 };
-  
 
-class TreeTable : public macros_internal::MacroTable {
+
+
+class TreeTable {
  public:
-  static constexpr uint32_t kColumnCount = 3;
+  static constexpr auto kSpec = dataframe::CreateTypedDataframeSpec(
+    {"id","node_id","parent_node_id"},
+    dataframe::CreateTypedColumnSpec(dataframe::Id{}, dataframe::NonNull{}, dataframe::IdSorted{}, dataframe::NoDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::SparseNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}));
 
-  struct Id : public BaseId {
+  struct Id : BaseId {
     Id() = default;
-    explicit constexpr Id(uint32_t v) : BaseId(v) {}
+    explicit constexpr Id(uint32_t _value) : BaseId(_value) {}
+
+    bool operator==(const Id& other) const {
+      return value == other.value;
+    }
   };
-  static_assert(std::is_trivially_destructible_v<Id>,
-                "Inheritance used without trivial destruction");
-    
+  struct RowReference;
+  struct ConstRowReference;
+  struct RowNumber {
+   public:
+    explicit constexpr RowNumber(uint32_t value) : value_(value) {}
+    uint32_t row_number() const { return value_; }
+
+    RowReference ToRowReference(TreeTable* table) const {
+      return RowReference(table, value_);
+    }
+    ConstRowReference ToRowReference(const TreeTable& table) const {
+      return ConstRowReference(&table, value_);
+    }
+
+    bool operator==(const RowNumber& other) const {
+      return value_ == other.value_;
+    }
+    bool operator<(const RowNumber& other) const {
+      return value_ < other.value_;
+    }
+   private:
+    uint32_t value_;
+  };
   struct ColumnIndex {
     static constexpr uint32_t id = 0;
     static constexpr uint32_t node_id = 1;
     static constexpr uint32_t parent_node_id = 2;
   };
-  struct ColumnType {
-    using id = IdColumn<TreeTable::Id>;
-    using node_id = TypedColumn<uint32_t>;
-    using parent_node_id = TypedColumn<std::optional<uint32_t>>;
-  };
-  struct Row : public macros_internal::RootParentTable::Row {
-    Row(uint32_t in_node_id = {},
-        std::optional<uint32_t> in_parent_node_id = {},
-        std::nullptr_t = nullptr)
-        : macros_internal::RootParentTable::Row(),
-          node_id(in_node_id),
-          parent_node_id(in_parent_node_id) {}
-    uint32_t node_id;
-    std::optional<uint32_t> parent_node_id;
-
-    bool operator==(const TreeTable::Row& other) const {
-      return ColumnType::node_id::Equals(node_id, other.node_id) &&
-       ColumnType::parent_node_id::Equals(parent_node_id, other.parent_node_id);
-    }
-  };
-  struct ColumnFlag {
-    static constexpr uint32_t node_id = ColumnType::node_id::default_flags();
-    static constexpr uint32_t parent_node_id = ColumnType::parent_node_id::default_flags();
-  };
-
-  class RowNumber;
-  class ConstRowReference;
-  class RowReference;
-
-  class RowNumber : public macros_internal::AbstractRowNumber<
-      TreeTable, ConstRowReference, RowReference> {
+  struct RowReference {
    public:
-    explicit RowNumber(uint32_t row_number)
-        : AbstractRowNumber(row_number) {}
-  };
-  static_assert(std::is_trivially_destructible_v<RowNumber>,
-                "Inheritance used without trivial destruction");
-
-  class ConstRowReference : public macros_internal::AbstractConstRowReference<
-    TreeTable, RowNumber> {
-   public:
-    ConstRowReference(const TreeTable* table, uint32_t row_number)
-        : AbstractConstRowReference(table, row_number) {}
-
-    ColumnType::id::type id() const {
-      return table()->id()[row_number_];
+    explicit RowReference(TreeTable* table, uint32_t row)
+        : table_(table), row_(row) {
+        base::ignore_result(table_);
     }
-    ColumnType::node_id::type node_id() const {
-      return table()->node_id()[row_number_];
-    }
-    ColumnType::parent_node_id::type parent_node_id() const {
-      return table()->parent_node_id()[row_number_];
-    }
-  };
-  static_assert(std::is_trivially_destructible_v<ConstRowReference>,
-                "Inheritance used without trivial destruction");
-  class RowReference : public ConstRowReference {
-   public:
-    RowReference(const TreeTable* table, uint32_t row_number)
-        : ConstRowReference(table, row_number) {}
-
-    void set_node_id(
-        ColumnType::node_id::non_optional_type v) {
-      return mutable_table()->mutable_node_id()->Set(row_number_, v);
-    }
-    void set_parent_node_id(
-        ColumnType::parent_node_id::non_optional_type v) {
-      return mutable_table()->mutable_parent_node_id()->Set(row_number_, v);
+    TreeTable::Id id() const {
+        
+        return TreeTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+    
+    RowNumber ToRowNumber() const {
+      return RowNumber{row_};
     }
 
    private:
-    TreeTable* mutable_table() const {
-      return const_cast<TreeTable*>(table());
-    }
+    friend struct ConstRowReference;
+    TreeTable* table_;
+    uint32_t row_;
   };
-  static_assert(std::is_trivially_destructible_v<RowReference>,
-                "Inheritance used without trivial destruction");
-
-  class ConstIterator;
-  class ConstIterator : public macros_internal::AbstractConstIterator<
-    ConstIterator, TreeTable, RowNumber, ConstRowReference> {
+  struct ConstRowReference {
    public:
-    ColumnType::id::type id() const {
-      const auto& col = table()->id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
+    explicit ConstRowReference(const TreeTable* table, uint32_t row)
+        : table_(table), row_(row) {
+        base::ignore_result(table_);
     }
-    ColumnType::node_id::type node_id() const {
-      const auto& col = table()->node_id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
+    ConstRowReference(const RowReference& other)
+        : table_(other.table_), row_(other.row_) {}
+    TreeTable::Id id() const {
+        
+        return TreeTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+    RowNumber ToRowNumber() const {
+      return RowNumber{row_};
     }
-    ColumnType::parent_node_id::type parent_node_id() const {
-      const auto& col = table()->parent_node_id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
+   private:
+    const TreeTable* table_;
+    uint32_t row_;
+  };
+  class ConstCursor {
+   public:
+    explicit ConstCursor(const dataframe::Dataframe& df,
+                         std::vector<dataframe::FilterSpec> filters,
+                         std::vector<dataframe::SortSpec> sorts)
+      : dataframe_(&df), cursor_(&df, std::move(filters), std::move(sorts)) {
+      base::ignore_result(dataframe_);
     }
 
-   protected:
-    explicit ConstIterator(const TreeTable* table,
-                           Table::Iterator iterator)
-        : AbstractConstIterator(table, std::move(iterator)) {}
-
-    uint32_t CurrentRowNumber() const {
-      return iterator_.StorageIndexForLastOverlay();
+    PERFETTO_ALWAYS_INLINE void Execute() { cursor_.ExecuteUnchecked(); }
+    PERFETTO_ALWAYS_INLINE bool Eof() const { return cursor_.Eof(); }
+    PERFETTO_ALWAYS_INLINE void Next() { cursor_.Next(); }
+    template <typename C>
+    PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index, C value) {
+      cursor_.SetFilterValueUnchecked(index, std::move(value));
     }
+    RowNumber ToRowNumber() const {
+      return RowNumber{cursor_.RowIndex()};
+    }
+    void Reset() { cursor_.Reset(); }
+    TreeTable::Id id() const {
+        
+        return TreeTable::Id{cursor_.GetCellUnchecked<ColumnIndex::id>(kSpec)};
+      }
 
    private:
-    friend class TreeTable;
-    friend class macros_internal::AbstractConstIterator<
-      ConstIterator, TreeTable, RowNumber, ConstRowReference>;
+    const dataframe::Dataframe* dataframe_;
+    dataframe::TypedCursor cursor_;
   };
-  class Iterator : public ConstIterator {
+  class Cursor {
+   public:
+    explicit Cursor(dataframe::Dataframe& df,
+                    std::vector<dataframe::FilterSpec> filters,
+                    std::vector<dataframe::SortSpec> sorts)
+      : dataframe_(&df), cursor_(&df, std::move(filters), std::move(sorts)) {
+      base::ignore_result(dataframe_);
+    }
+
+    PERFETTO_ALWAYS_INLINE void Execute() { cursor_.ExecuteUnchecked(); }
+    PERFETTO_ALWAYS_INLINE bool Eof() const { return cursor_.Eof(); }
+    PERFETTO_ALWAYS_INLINE void Next() { cursor_.Next(); }
+    template <typename C>
+    PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index, C value) {
+      cursor_.SetFilterValueUnchecked(index, std::move(value));
+    }
+    RowNumber ToRowNumber() const {
+      return RowNumber{cursor_.RowIndex()};
+    }
+    void Reset() { cursor_.Reset(); }
+
+    TreeTable::Id id() const {
+        
+        return TreeTable::Id{cursor_.GetCellUnchecked<ColumnIndex::id>(kSpec)};
+      }
+    
+
+   private:
+    dataframe::Dataframe* dataframe_;
+    dataframe::TypedCursor cursor_;
+  };
+  class Iterator {
     public:
-     RowReference row_reference() const {
-       return {const_cast<TreeTable*>(table()), CurrentRowNumber()};
-     }
+      explicit Iterator(TreeTable* table) : table_(table) {
+        base::ignore_result(table_);
+      }
+      explicit operator bool() const { return row_ < table_->row_count(); }
+      Iterator& operator++() {
+        ++row_;
+        return *this;
+      }
+      RowNumber row_number() const {
+        return RowNumber{row_};
+      }
+      RowReference ToRowReference() const {
+        return RowReference(table_, row_);
+      }
+      TreeTable::Id id() const {
+        
+        return TreeTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+      
 
     private:
-     friend class TreeTable;
-
-     explicit Iterator(TreeTable* table, Table::Iterator iterator)
-        : ConstIterator(table, std::move(iterator)) {}
+      TreeTable* table_;
+      uint32_t row_ = 0;
   };
+  class ConstIterator {
+    public:
+      explicit ConstIterator(const TreeTable* table) : table_(table) {
+        base::ignore_result(table_);
+      }
+      explicit operator bool() const { return row_ < table_->row_count(); }
+      ConstIterator& operator++() {
+        ++row_;
+        return *this;
+      }
+      RowNumber row_number() const {
+        return RowNumber{row_};
+      }
+      ConstRowReference ToRowReference() const {
+        return ConstRowReference(table_, row_);
+      }
+      TreeTable::Id id() const {
+        
+        return TreeTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
 
+    private:
+      const TreeTable* table_;
+      uint32_t row_ = 0;
+  };
   struct IdAndRow {
     Id id;
+    RowNumber row_number;
     uint32_t row;
     RowReference row_reference;
-    RowNumber row_number;
+  };
+  
+  struct Row {
+    Row(uint32_t _node_id = {}, std::optional<uint32_t> _parent_node_id = {}) : node_id(std::move(_node_id)), parent_node_id(std::move(_parent_node_id)) {}
+
+    bool operator==(const Row& other) const {
+      return std::tie(node_id, parent_node_id) ==
+             std::tie(other.node_id, other.parent_node_id);
+    }
+
+        uint32_t node_id;
+    std::optional<uint32_t> parent_node_id;
   };
 
-  static std::vector<ColumnLegacy> GetColumns(
-      TreeTable* self,
-      const macros_internal::MacroTable* parent) {
-    std::vector<ColumnLegacy> columns =
-        CopyColumnsFromParentOrAddRootColumns(parent);
-    uint32_t olay_idx = OverlayCount(parent);
-    AddColumnToVector(columns, "node_id", &self->node_id_, ColumnFlag::node_id,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "parent_node_id", &self->parent_node_id_, ColumnFlag::parent_node_id,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    base::ignore_result(self);
-    return columns;
-  }
-
-  PERFETTO_NO_INLINE explicit TreeTable(StringPool* pool)
-      : macros_internal::MacroTable(
-          pool,
-          GetColumns(this, nullptr),
-          nullptr),
-        node_id_(ColumnStorage<ColumnType::node_id::stored_type>::Create<false>()),
-        parent_node_id_(ColumnStorage<ColumnType::parent_node_id::stored_type>::Create<false>())
-,
-        id_storage_layer_(new column::IdStorage()),
-        node_id_storage_layer_(
-        new column::NumericStorage<ColumnType::node_id::non_optional_stored_type>(
-          &node_id_.vector(),
-          ColumnTypeHelper<ColumnType::node_id::stored_type>::ToColumnType(),
-          false)),
-        parent_node_id_storage_layer_(
-          new column::NumericStorage<ColumnType::parent_node_id::non_optional_stored_type>(
-            &parent_node_id_.non_null_vector(),
-            ColumnTypeHelper<ColumnType::parent_node_id::stored_type>::ToColumnType(),
-            false))
-,
-        parent_node_id_null_layer_(new column::NullOverlay(parent_node_id_.bv())) {
-    static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::node_id::stored_type>(
-          ColumnFlag::node_id),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::parent_node_id::stored_type>(
-          ColumnFlag::parent_node_id),
-        "Column type and flag combination is not valid");
-    OnConstructionCompletedRegularConstructor(
-      {id_storage_layer_,node_id_storage_layer_,parent_node_id_storage_layer_},
-      {{},{},parent_node_id_null_layer_});
-  }
-  ~TreeTable() override;
-
-  static const char* Name() { return "__unused"; }
-
-  static Table::Schema ComputeStaticSchema() {
-    Table::Schema schema;
-    schema.columns.emplace_back(Table::Schema::Column{
-        "id", SqlValue::Type::kLong, true, true, false, false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "node_id", ColumnType::node_id::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "parent_node_id", ColumnType::parent_node_id::SqlValueType(), false,
-        false,
-        false,
-        false});
-    return schema;
-  }
-
-  ConstIterator IterateRows() const {
-    return ConstIterator(this, Table::IterateRows());
-  }
-
-  Iterator IterateRows() { return Iterator(this, Table::IterateRows()); }
-
-  ConstIterator FilterToIterator(const Query& q) const {
-    return ConstIterator(this, QueryToIterator(q));
-  }
-
-  Iterator FilterToIterator(const Query& q) {
-    return Iterator(this, QueryToIterator(q));
-  }
-
-  void ShrinkToFit() {
-    node_id_.ShrinkToFit();
-    parent_node_id_.ShrinkToFit();
-  }
-
-  ConstRowReference operator[](uint32_t r) const {
-    return ConstRowReference(this, r);
-  }
-  RowReference operator[](uint32_t r) { return RowReference(this, r); }
-  ConstRowReference operator[](RowNumber r) const {
-    return ConstRowReference(this, r.row_number());
-  }
-  RowReference operator[](RowNumber r) {
-    return RowReference(this, r.row_number());
-  }
-
-  std::optional<ConstRowReference> FindById(Id find_id) const {
-    std::optional<uint32_t> row = id().IndexOf(find_id);
-    return row ? std::make_optional(ConstRowReference(this, *row))
-               : std::nullopt;
-  }
-
-  std::optional<RowReference> FindById(Id find_id) {
-    std::optional<uint32_t> row = id().IndexOf(find_id);
-    return row ? std::make_optional(RowReference(this, *row)) : std::nullopt;
-  }
+  explicit TreeTable(StringPool* pool)
+      : dataframe_(dataframe::Dataframe::CreateFromTypedSpec(kSpec, pool)) {}
 
   IdAndRow Insert(const Row& row) {
-    uint32_t row_number = row_count();
-    Id id = Id{row_number};
-    mutable_node_id()->Append(row.node_id);
-    mutable_parent_node_id()->Append(row.parent_node_id);
-    UpdateSelfOverlayAfterInsert();
-    return IdAndRow{id, row_number, RowReference(this, row_number),
-                     RowNumber(row_number)};
+    uint32_t row_count = dataframe_.row_count();
+    dataframe_.InsertUnchecked(kSpec, std::monostate(), row.node_id, row.parent_node_id);
+    return IdAndRow{Id{row_count}, RowNumber{row_count}, row_count, RowReference(this, row_count)};
   }
 
-  
-
-  const IdColumn<TreeTable::Id>& id() const {
-    return static_cast<const ColumnType::id&>(columns()[ColumnIndex::id]);
-  }
-  const TypedColumn<uint32_t>& node_id() const {
-    return static_cast<const ColumnType::node_id&>(columns()[ColumnIndex::node_id]);
-  }
-  const TypedColumn<std::optional<uint32_t>>& parent_node_id() const {
-    return static_cast<const ColumnType::parent_node_id&>(columns()[ColumnIndex::parent_node_id]);
+  uint32_t row_count() const {
+    return dataframe_.row_count();
   }
 
-  TypedColumn<uint32_t>* mutable_node_id() {
-    return static_cast<ColumnType::node_id*>(
-        GetColumn(ColumnIndex::node_id));
+  std::optional<ConstRowReference> FindById(Id id) const {
+    return ConstRowReference(this, id.value);
   }
-  TypedColumn<std::optional<uint32_t>>* mutable_parent_node_id() {
-    return static_cast<ColumnType::parent_node_id*>(
-        GetColumn(ColumnIndex::parent_node_id));
+  ConstRowReference operator[](uint32_t row) const {
+    return ConstRowReference(this, row);
+  }
+
+  std::optional<RowReference> FindById(Id id) {
+    return RowReference(this, id.value);
+  }
+  RowReference operator[](uint32_t row) {
+    return RowReference(this, row);
+  }
+
+  ConstCursor CreateCursor(
+      std::vector<dataframe::FilterSpec> filters = {},
+      std::vector<dataframe::SortSpec> sorts = {}) const {
+    return ConstCursor(dataframe_, std::move(filters), std::move(sorts));
+  }
+  Cursor CreateCursor(
+      std::vector<dataframe::FilterSpec> filters = {},
+      std::vector<dataframe::SortSpec> sorts = {}) {
+    return Cursor(dataframe_, std::move(filters), std::move(sorts));
+  }
+
+  Iterator IterateRows() { return Iterator(this); }
+  ConstIterator IterateRows() const { return ConstIterator(this); }
+
+  void Finalize() { dataframe_.Finalize(); }
+
+  void Clear() { dataframe_.Clear(); }
+
+  static const char* Name() {
+    return "__unused";
+  }
+
+  dataframe::Dataframe& dataframe() {
+    return dataframe_;
+  }
+  const dataframe::Dataframe& dataframe() const {
+    return dataframe_;
   }
 
  private:
-  
-  
-  ColumnStorage<ColumnType::node_id::stored_type> node_id_;
-  ColumnStorage<ColumnType::parent_node_id::stored_type> parent_node_id_;
-
-  RefPtr<column::StorageLayer> id_storage_layer_;
-  RefPtr<column::StorageLayer> node_id_storage_layer_;
-  RefPtr<column::StorageLayer> parent_node_id_storage_layer_;
-
-  RefPtr<column::OverlayLayer> parent_node_id_null_layer_;
+  dataframe::Dataframe dataframe_;
 };
 
 }  // namespace perfetto

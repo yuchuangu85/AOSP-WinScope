@@ -6,32 +6,20 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <tuple>
 #include <type_traits>
 #include <utility>
+#include <variant>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/ref_counted.h"
-#include "src/trace_processor/containers/bit_vector.h"
-#include "src/trace_processor/containers/row_map.h"
-#include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/db/column/arrangement_overlay.h"
-#include "src/trace_processor/db/column/data_layer.h"
-#include "src/trace_processor/db/column/dense_null_overlay.h"
-#include "src/trace_processor/db/column/numeric_storage.h"
-#include "src/trace_processor/db/column/id_storage.h"
-#include "src/trace_processor/db/column/null_overlay.h"
-#include "src/trace_processor/db/column/range_overlay.h"
-#include "src/trace_processor/db/column/selector_overlay.h"
-#include "src/trace_processor/db/column/set_id_storage.h"
-#include "src/trace_processor/db/column/string_storage.h"
-#include "src/trace_processor/db/column/types.h"
-#include "src/trace_processor/db/column_storage.h"
-#include "src/trace_processor/db/column.h"
-#include "src/trace_processor/db/table.h"
-#include "src/trace_processor/db/typed_column.h"
-#include "src/trace_processor/db/typed_column_internal.h"
+#include "src/trace_processor/dataframe/dataframe.h"
+#include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/dataframe/typed_cursor.h"
 #include "src/trace_processor/tables/macros_internal.h"
 
 #include "src/trace_processor/tables/etm_tables_py.h"
@@ -40,17 +28,55 @@
 
 namespace perfetto::trace_processor::tables {
 
-class SpeRecordTable : public macros_internal::MacroTable {
+class SpeRecordTable {
  public:
-  static constexpr uint32_t kColumnCount = 13;
+  static constexpr auto kSpec = dataframe::CreateTypedDataframeSpec(
+    {"id","ts","utid","exception_level","instruction_frame_id","operation","data_virtual_address","data_physical_address","total_latency","issue_latency","translation_latency","events_bitmask","data_source"},
+    dataframe::CreateTypedColumnSpec(dataframe::Id{}, dataframe::NonNull{}, dataframe::IdSorted{}, dataframe::NoDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Int64{}, dataframe::NonNull{}, dataframe::Sorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::SparseNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::String{}, dataframe::SparseNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::SparseNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::String{}, dataframe::SparseNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Int64{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Int64{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Int64{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::String{}, dataframe::SparseNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}));
 
-  struct Id : public BaseId {
+  struct Id : BaseId {
     Id() = default;
-    explicit constexpr Id(uint32_t v) : BaseId(v) {}
+    explicit constexpr Id(uint32_t _value) : BaseId(_value) {}
+
+    bool operator==(const Id& other) const {
+      return value == other.value;
+    }
   };
-  static_assert(std::is_trivially_destructible_v<Id>,
-                "Inheritance used without trivial destruction");
-    
+  struct RowReference;
+  struct ConstRowReference;
+  struct RowNumber {
+   public:
+    explicit constexpr RowNumber(uint32_t value) : value_(value) {}
+    uint32_t row_number() const { return value_; }
+
+    RowReference ToRowReference(SpeRecordTable* table) const {
+      return RowReference(table, value_);
+    }
+    ConstRowReference ToRowReference(const SpeRecordTable& table) const {
+      return ConstRowReference(&table, value_);
+    }
+
+    bool operator==(const RowNumber& other) const {
+      return value_ == other.value_;
+    }
+    bool operator<(const RowNumber& other) const {
+      return value_ < other.value_;
+    }
+   private:
+    uint32_t value_;
+  };
   struct ColumnIndex {
     static constexpr uint32_t id = 0;
     static constexpr uint32_t ts = 1;
@@ -66,49 +92,172 @@ class SpeRecordTable : public macros_internal::MacroTable {
     static constexpr uint32_t events_bitmask = 11;
     static constexpr uint32_t data_source = 12;
   };
-  struct ColumnType {
-    using id = IdColumn<SpeRecordTable::Id>;
-    using ts = TypedColumn<int64_t>;
-    using utid = TypedColumn<std::optional<uint32_t>>;
-    using exception_level = TypedColumn<StringPool::Id>;
-    using instruction_frame_id = TypedColumn<std::optional<StackProfileFrameTable::Id>>;
-    using operation = TypedColumn<StringPool::Id>;
-    using data_virtual_address = TypedColumn<int64_t>;
-    using data_physical_address = TypedColumn<int64_t>;
-    using total_latency = TypedColumn<uint32_t>;
-    using issue_latency = TypedColumn<uint32_t>;
-    using translation_latency = TypedColumn<uint32_t>;
-    using events_bitmask = TypedColumn<int64_t>;
-    using data_source = TypedColumn<StringPool::Id>;
+  struct RowReference {
+   public:
+    explicit RowReference(SpeRecordTable* table, uint32_t row)
+        : table_(table), row_(row) {
+        base::ignore_result(table_);
+    }
+    SpeRecordTable::Id id() const {
+        
+        return SpeRecordTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+    
+    RowNumber ToRowNumber() const {
+      return RowNumber{row_};
+    }
+
+   private:
+    friend struct ConstRowReference;
+    SpeRecordTable* table_;
+    uint32_t row_;
   };
-  struct Row : public macros_internal::RootParentTable::Row {
-    Row(int64_t in_ts = {},
-        std::optional<uint32_t> in_utid = {},
-        StringPool::Id in_exception_level = {},
-        std::optional<StackProfileFrameTable::Id> in_instruction_frame_id = {},
-        StringPool::Id in_operation = {},
-        int64_t in_data_virtual_address = {},
-        int64_t in_data_physical_address = {},
-        uint32_t in_total_latency = {},
-        uint32_t in_issue_latency = {},
-        uint32_t in_translation_latency = {},
-        int64_t in_events_bitmask = {},
-        StringPool::Id in_data_source = {},
-        std::nullptr_t = nullptr)
-        : macros_internal::RootParentTable::Row(),
-          ts(in_ts),
-          utid(in_utid),
-          exception_level(in_exception_level),
-          instruction_frame_id(in_instruction_frame_id),
-          operation(in_operation),
-          data_virtual_address(in_data_virtual_address),
-          data_physical_address(in_data_physical_address),
-          total_latency(in_total_latency),
-          issue_latency(in_issue_latency),
-          translation_latency(in_translation_latency),
-          events_bitmask(in_events_bitmask),
-          data_source(in_data_source) {}
-    int64_t ts;
+  struct ConstRowReference {
+   public:
+    explicit ConstRowReference(const SpeRecordTable* table, uint32_t row)
+        : table_(table), row_(row) {
+        base::ignore_result(table_);
+    }
+    ConstRowReference(const RowReference& other)
+        : table_(other.table_), row_(other.row_) {}
+    SpeRecordTable::Id id() const {
+        
+        return SpeRecordTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+    RowNumber ToRowNumber() const {
+      return RowNumber{row_};
+    }
+   private:
+    const SpeRecordTable* table_;
+    uint32_t row_;
+  };
+  class ConstCursor {
+   public:
+    explicit ConstCursor(const dataframe::Dataframe& df,
+                         std::vector<dataframe::FilterSpec> filters,
+                         std::vector<dataframe::SortSpec> sorts)
+      : dataframe_(&df), cursor_(&df, std::move(filters), std::move(sorts)) {
+      base::ignore_result(dataframe_);
+    }
+
+    PERFETTO_ALWAYS_INLINE void Execute() { cursor_.ExecuteUnchecked(); }
+    PERFETTO_ALWAYS_INLINE bool Eof() const { return cursor_.Eof(); }
+    PERFETTO_ALWAYS_INLINE void Next() { cursor_.Next(); }
+    template <typename C>
+    PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index, C value) {
+      cursor_.SetFilterValueUnchecked(index, std::move(value));
+    }
+    RowNumber ToRowNumber() const {
+      return RowNumber{cursor_.RowIndex()};
+    }
+    void Reset() { cursor_.Reset(); }
+    SpeRecordTable::Id id() const {
+        
+        return SpeRecordTable::Id{cursor_.GetCellUnchecked<ColumnIndex::id>(kSpec)};
+      }
+
+   private:
+    const dataframe::Dataframe* dataframe_;
+    dataframe::TypedCursor cursor_;
+  };
+  class Cursor {
+   public:
+    explicit Cursor(dataframe::Dataframe& df,
+                    std::vector<dataframe::FilterSpec> filters,
+                    std::vector<dataframe::SortSpec> sorts)
+      : dataframe_(&df), cursor_(&df, std::move(filters), std::move(sorts)) {
+      base::ignore_result(dataframe_);
+    }
+
+    PERFETTO_ALWAYS_INLINE void Execute() { cursor_.ExecuteUnchecked(); }
+    PERFETTO_ALWAYS_INLINE bool Eof() const { return cursor_.Eof(); }
+    PERFETTO_ALWAYS_INLINE void Next() { cursor_.Next(); }
+    template <typename C>
+    PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index, C value) {
+      cursor_.SetFilterValueUnchecked(index, std::move(value));
+    }
+    RowNumber ToRowNumber() const {
+      return RowNumber{cursor_.RowIndex()};
+    }
+    void Reset() { cursor_.Reset(); }
+
+    SpeRecordTable::Id id() const {
+        
+        return SpeRecordTable::Id{cursor_.GetCellUnchecked<ColumnIndex::id>(kSpec)};
+      }
+    
+
+   private:
+    dataframe::Dataframe* dataframe_;
+    dataframe::TypedCursor cursor_;
+  };
+  class Iterator {
+    public:
+      explicit Iterator(SpeRecordTable* table) : table_(table) {
+        base::ignore_result(table_);
+      }
+      explicit operator bool() const { return row_ < table_->row_count(); }
+      Iterator& operator++() {
+        ++row_;
+        return *this;
+      }
+      RowNumber row_number() const {
+        return RowNumber{row_};
+      }
+      RowReference ToRowReference() const {
+        return RowReference(table_, row_);
+      }
+      SpeRecordTable::Id id() const {
+        
+        return SpeRecordTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+      
+
+    private:
+      SpeRecordTable* table_;
+      uint32_t row_ = 0;
+  };
+  class ConstIterator {
+    public:
+      explicit ConstIterator(const SpeRecordTable* table) : table_(table) {
+        base::ignore_result(table_);
+      }
+      explicit operator bool() const { return row_ < table_->row_count(); }
+      ConstIterator& operator++() {
+        ++row_;
+        return *this;
+      }
+      RowNumber row_number() const {
+        return RowNumber{row_};
+      }
+      ConstRowReference ToRowReference() const {
+        return ConstRowReference(table_, row_);
+      }
+      SpeRecordTable::Id id() const {
+        
+        return SpeRecordTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+
+    private:
+      const SpeRecordTable* table_;
+      uint32_t row_ = 0;
+  };
+  struct IdAndRow {
+    Id id;
+    RowNumber row_number;
+    uint32_t row;
+    RowReference row_reference;
+  };
+  
+  struct Row {
+    Row(int64_t _ts = {}, std::optional<uint32_t> _utid = {}, StringPool::Id _exception_level = {}, std::optional<StackProfileFrameTable::Id> _instruction_frame_id = {}, StringPool::Id _operation = {}, int64_t _data_virtual_address = {}, int64_t _data_physical_address = {}, uint32_t _total_latency = {}, uint32_t _issue_latency = {}, uint32_t _translation_latency = {}, int64_t _events_bitmask = {}, StringPool::Id _data_source = {}) : ts(std::move(_ts)), utid(std::move(_utid)), exception_level(std::move(_exception_level)), instruction_frame_id(std::move(_instruction_frame_id)), operation(std::move(_operation)), data_virtual_address(std::move(_data_virtual_address)), data_physical_address(std::move(_data_physical_address)), total_latency(std::move(_total_latency)), issue_latency(std::move(_issue_latency)), translation_latency(std::move(_translation_latency)), events_bitmask(std::move(_events_bitmask)), data_source(std::move(_data_source)) {}
+
+    bool operator==(const Row& other) const {
+      return std::tie(ts, utid, exception_level, instruction_frame_id, operation, data_virtual_address, data_physical_address, total_latency, issue_latency, translation_latency, events_bitmask, data_source) ==
+             std::tie(other.ts, other.utid, other.exception_level, other.instruction_frame_id, other.operation, other.data_virtual_address, other.data_physical_address, other.total_latency, other.issue_latency, other.translation_latency, other.events_bitmask, other.data_source);
+    }
+
+        int64_t ts;
     std::optional<uint32_t> utid;
     StringPool::Id exception_level;
     std::optional<StackProfileFrameTable::Id> instruction_frame_id;
@@ -120,702 +269,111 @@ class SpeRecordTable : public macros_internal::MacroTable {
     uint32_t translation_latency;
     int64_t events_bitmask;
     StringPool::Id data_source;
-
-    bool operator==(const SpeRecordTable::Row& other) const {
-      return ColumnType::ts::Equals(ts, other.ts) &&
-       ColumnType::utid::Equals(utid, other.utid) &&
-       ColumnType::exception_level::Equals(exception_level, other.exception_level) &&
-       ColumnType::instruction_frame_id::Equals(instruction_frame_id, other.instruction_frame_id) &&
-       ColumnType::operation::Equals(operation, other.operation) &&
-       ColumnType::data_virtual_address::Equals(data_virtual_address, other.data_virtual_address) &&
-       ColumnType::data_physical_address::Equals(data_physical_address, other.data_physical_address) &&
-       ColumnType::total_latency::Equals(total_latency, other.total_latency) &&
-       ColumnType::issue_latency::Equals(issue_latency, other.issue_latency) &&
-       ColumnType::translation_latency::Equals(translation_latency, other.translation_latency) &&
-       ColumnType::events_bitmask::Equals(events_bitmask, other.events_bitmask) &&
-       ColumnType::data_source::Equals(data_source, other.data_source);
-    }
-  };
-  struct ColumnFlag {
-    static constexpr uint32_t ts = static_cast<uint32_t>(ColumnLegacy::Flag::kSorted) | ColumnType::ts::default_flags();
-    static constexpr uint32_t utid = ColumnType::utid::default_flags();
-    static constexpr uint32_t exception_level = ColumnType::exception_level::default_flags();
-    static constexpr uint32_t instruction_frame_id = ColumnType::instruction_frame_id::default_flags();
-    static constexpr uint32_t operation = ColumnType::operation::default_flags();
-    static constexpr uint32_t data_virtual_address = ColumnType::data_virtual_address::default_flags();
-    static constexpr uint32_t data_physical_address = ColumnType::data_physical_address::default_flags();
-    static constexpr uint32_t total_latency = ColumnType::total_latency::default_flags();
-    static constexpr uint32_t issue_latency = ColumnType::issue_latency::default_flags();
-    static constexpr uint32_t translation_latency = ColumnType::translation_latency::default_flags();
-    static constexpr uint32_t events_bitmask = ColumnType::events_bitmask::default_flags();
-    static constexpr uint32_t data_source = ColumnType::data_source::default_flags();
   };
 
-  class RowNumber;
-  class ConstRowReference;
-  class RowReference;
-
-  class RowNumber : public macros_internal::AbstractRowNumber<
-      SpeRecordTable, ConstRowReference, RowReference> {
-   public:
-    explicit RowNumber(uint32_t row_number)
-        : AbstractRowNumber(row_number) {}
-  };
-  static_assert(std::is_trivially_destructible_v<RowNumber>,
-                "Inheritance used without trivial destruction");
-
-  class ConstRowReference : public macros_internal::AbstractConstRowReference<
-    SpeRecordTable, RowNumber> {
-   public:
-    ConstRowReference(const SpeRecordTable* table, uint32_t row_number)
-        : AbstractConstRowReference(table, row_number) {}
-
-    ColumnType::id::type id() const {
-      return table()->id()[row_number_];
-    }
-    ColumnType::ts::type ts() const {
-      return table()->ts()[row_number_];
-    }
-    ColumnType::utid::type utid() const {
-      return table()->utid()[row_number_];
-    }
-    ColumnType::exception_level::type exception_level() const {
-      return table()->exception_level()[row_number_];
-    }
-    ColumnType::instruction_frame_id::type instruction_frame_id() const {
-      return table()->instruction_frame_id()[row_number_];
-    }
-    ColumnType::operation::type operation() const {
-      return table()->operation()[row_number_];
-    }
-    ColumnType::data_virtual_address::type data_virtual_address() const {
-      return table()->data_virtual_address()[row_number_];
-    }
-    ColumnType::data_physical_address::type data_physical_address() const {
-      return table()->data_physical_address()[row_number_];
-    }
-    ColumnType::total_latency::type total_latency() const {
-      return table()->total_latency()[row_number_];
-    }
-    ColumnType::issue_latency::type issue_latency() const {
-      return table()->issue_latency()[row_number_];
-    }
-    ColumnType::translation_latency::type translation_latency() const {
-      return table()->translation_latency()[row_number_];
-    }
-    ColumnType::events_bitmask::type events_bitmask() const {
-      return table()->events_bitmask()[row_number_];
-    }
-    ColumnType::data_source::type data_source() const {
-      return table()->data_source()[row_number_];
-    }
-  };
-  static_assert(std::is_trivially_destructible_v<ConstRowReference>,
-                "Inheritance used without trivial destruction");
-  class RowReference : public ConstRowReference {
-   public:
-    RowReference(const SpeRecordTable* table, uint32_t row_number)
-        : ConstRowReference(table, row_number) {}
-
-    void set_ts(
-        ColumnType::ts::non_optional_type v) {
-      return mutable_table()->mutable_ts()->Set(row_number_, v);
-    }
-    void set_utid(
-        ColumnType::utid::non_optional_type v) {
-      return mutable_table()->mutable_utid()->Set(row_number_, v);
-    }
-    void set_exception_level(
-        ColumnType::exception_level::non_optional_type v) {
-      return mutable_table()->mutable_exception_level()->Set(row_number_, v);
-    }
-    void set_instruction_frame_id(
-        ColumnType::instruction_frame_id::non_optional_type v) {
-      return mutable_table()->mutable_instruction_frame_id()->Set(row_number_, v);
-    }
-    void set_operation(
-        ColumnType::operation::non_optional_type v) {
-      return mutable_table()->mutable_operation()->Set(row_number_, v);
-    }
-    void set_data_virtual_address(
-        ColumnType::data_virtual_address::non_optional_type v) {
-      return mutable_table()->mutable_data_virtual_address()->Set(row_number_, v);
-    }
-    void set_data_physical_address(
-        ColumnType::data_physical_address::non_optional_type v) {
-      return mutable_table()->mutable_data_physical_address()->Set(row_number_, v);
-    }
-    void set_total_latency(
-        ColumnType::total_latency::non_optional_type v) {
-      return mutable_table()->mutable_total_latency()->Set(row_number_, v);
-    }
-    void set_issue_latency(
-        ColumnType::issue_latency::non_optional_type v) {
-      return mutable_table()->mutable_issue_latency()->Set(row_number_, v);
-    }
-    void set_translation_latency(
-        ColumnType::translation_latency::non_optional_type v) {
-      return mutable_table()->mutable_translation_latency()->Set(row_number_, v);
-    }
-    void set_events_bitmask(
-        ColumnType::events_bitmask::non_optional_type v) {
-      return mutable_table()->mutable_events_bitmask()->Set(row_number_, v);
-    }
-    void set_data_source(
-        ColumnType::data_source::non_optional_type v) {
-      return mutable_table()->mutable_data_source()->Set(row_number_, v);
-    }
-
-   private:
-    SpeRecordTable* mutable_table() const {
-      return const_cast<SpeRecordTable*>(table());
-    }
-  };
-  static_assert(std::is_trivially_destructible_v<RowReference>,
-                "Inheritance used without trivial destruction");
-
-  class ConstIterator;
-  class ConstIterator : public macros_internal::AbstractConstIterator<
-    ConstIterator, SpeRecordTable, RowNumber, ConstRowReference> {
-   public:
-    ColumnType::id::type id() const {
-      const auto& col = table()->id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::ts::type ts() const {
-      const auto& col = table()->ts();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::utid::type utid() const {
-      const auto& col = table()->utid();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::exception_level::type exception_level() const {
-      const auto& col = table()->exception_level();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::instruction_frame_id::type instruction_frame_id() const {
-      const auto& col = table()->instruction_frame_id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::operation::type operation() const {
-      const auto& col = table()->operation();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::data_virtual_address::type data_virtual_address() const {
-      const auto& col = table()->data_virtual_address();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::data_physical_address::type data_physical_address() const {
-      const auto& col = table()->data_physical_address();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::total_latency::type total_latency() const {
-      const auto& col = table()->total_latency();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::issue_latency::type issue_latency() const {
-      const auto& col = table()->issue_latency();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::translation_latency::type translation_latency() const {
-      const auto& col = table()->translation_latency();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::events_bitmask::type events_bitmask() const {
-      const auto& col = table()->events_bitmask();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::data_source::type data_source() const {
-      const auto& col = table()->data_source();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-
-   protected:
-    explicit ConstIterator(const SpeRecordTable* table,
-                           Table::Iterator iterator)
-        : AbstractConstIterator(table, std::move(iterator)) {}
-
-    uint32_t CurrentRowNumber() const {
-      return iterator_.StorageIndexForLastOverlay();
-    }
-
-   private:
-    friend class SpeRecordTable;
-    friend class macros_internal::AbstractConstIterator<
-      ConstIterator, SpeRecordTable, RowNumber, ConstRowReference>;
-  };
-  class Iterator : public ConstIterator {
-    public:
-     RowReference row_reference() const {
-       return {const_cast<SpeRecordTable*>(table()), CurrentRowNumber()};
-     }
-
-    private:
-     friend class SpeRecordTable;
-
-     explicit Iterator(SpeRecordTable* table, Table::Iterator iterator)
-        : ConstIterator(table, std::move(iterator)) {}
-  };
-
-  struct IdAndRow {
-    Id id;
-    uint32_t row;
-    RowReference row_reference;
-    RowNumber row_number;
-  };
-
-  static std::vector<ColumnLegacy> GetColumns(
-      SpeRecordTable* self,
-      const macros_internal::MacroTable* parent) {
-    std::vector<ColumnLegacy> columns =
-        CopyColumnsFromParentOrAddRootColumns(parent);
-    uint32_t olay_idx = OverlayCount(parent);
-    AddColumnToVector(columns, "ts", &self->ts_, ColumnFlag::ts,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "utid", &self->utid_, ColumnFlag::utid,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "exception_level", &self->exception_level_, ColumnFlag::exception_level,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "instruction_frame_id", &self->instruction_frame_id_, ColumnFlag::instruction_frame_id,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "operation", &self->operation_, ColumnFlag::operation,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "data_virtual_address", &self->data_virtual_address_, ColumnFlag::data_virtual_address,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "data_physical_address", &self->data_physical_address_, ColumnFlag::data_physical_address,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "total_latency", &self->total_latency_, ColumnFlag::total_latency,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "issue_latency", &self->issue_latency_, ColumnFlag::issue_latency,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "translation_latency", &self->translation_latency_, ColumnFlag::translation_latency,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "events_bitmask", &self->events_bitmask_, ColumnFlag::events_bitmask,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "data_source", &self->data_source_, ColumnFlag::data_source,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    base::ignore_result(self);
-    return columns;
-  }
-
-  PERFETTO_NO_INLINE explicit SpeRecordTable(StringPool* pool)
-      : macros_internal::MacroTable(
-          pool,
-          GetColumns(this, nullptr),
-          nullptr),
-        ts_(ColumnStorage<ColumnType::ts::stored_type>::Create<false>()),
-        utid_(ColumnStorage<ColumnType::utid::stored_type>::Create<false>()),
-        exception_level_(ColumnStorage<ColumnType::exception_level::stored_type>::Create<false>()),
-        instruction_frame_id_(ColumnStorage<ColumnType::instruction_frame_id::stored_type>::Create<false>()),
-        operation_(ColumnStorage<ColumnType::operation::stored_type>::Create<false>()),
-        data_virtual_address_(ColumnStorage<ColumnType::data_virtual_address::stored_type>::Create<false>()),
-        data_physical_address_(ColumnStorage<ColumnType::data_physical_address::stored_type>::Create<false>()),
-        total_latency_(ColumnStorage<ColumnType::total_latency::stored_type>::Create<false>()),
-        issue_latency_(ColumnStorage<ColumnType::issue_latency::stored_type>::Create<false>()),
-        translation_latency_(ColumnStorage<ColumnType::translation_latency::stored_type>::Create<false>()),
-        events_bitmask_(ColumnStorage<ColumnType::events_bitmask::stored_type>::Create<false>()),
-        data_source_(ColumnStorage<ColumnType::data_source::stored_type>::Create<false>())
-,
-        id_storage_layer_(new column::IdStorage()),
-        ts_storage_layer_(
-        new column::NumericStorage<ColumnType::ts::non_optional_stored_type>(
-          &ts_.vector(),
-          ColumnTypeHelper<ColumnType::ts::stored_type>::ToColumnType(),
-          true)),
-        utid_storage_layer_(
-          new column::NumericStorage<ColumnType::utid::non_optional_stored_type>(
-            &utid_.non_null_vector(),
-            ColumnTypeHelper<ColumnType::utid::stored_type>::ToColumnType(),
-            false)),
-        exception_level_storage_layer_(
-          new column::StringStorage(string_pool(), &exception_level_.vector())),
-        instruction_frame_id_storage_layer_(
-          new column::NumericStorage<ColumnType::instruction_frame_id::non_optional_stored_type>(
-            &instruction_frame_id_.non_null_vector(),
-            ColumnTypeHelper<ColumnType::instruction_frame_id::stored_type>::ToColumnType(),
-            false)),
-        operation_storage_layer_(
-          new column::StringStorage(string_pool(), &operation_.vector())),
-        data_virtual_address_storage_layer_(
-        new column::NumericStorage<ColumnType::data_virtual_address::non_optional_stored_type>(
-          &data_virtual_address_.vector(),
-          ColumnTypeHelper<ColumnType::data_virtual_address::stored_type>::ToColumnType(),
-          false)),
-        data_physical_address_storage_layer_(
-        new column::NumericStorage<ColumnType::data_physical_address::non_optional_stored_type>(
-          &data_physical_address_.vector(),
-          ColumnTypeHelper<ColumnType::data_physical_address::stored_type>::ToColumnType(),
-          false)),
-        total_latency_storage_layer_(
-        new column::NumericStorage<ColumnType::total_latency::non_optional_stored_type>(
-          &total_latency_.vector(),
-          ColumnTypeHelper<ColumnType::total_latency::stored_type>::ToColumnType(),
-          false)),
-        issue_latency_storage_layer_(
-        new column::NumericStorage<ColumnType::issue_latency::non_optional_stored_type>(
-          &issue_latency_.vector(),
-          ColumnTypeHelper<ColumnType::issue_latency::stored_type>::ToColumnType(),
-          false)),
-        translation_latency_storage_layer_(
-        new column::NumericStorage<ColumnType::translation_latency::non_optional_stored_type>(
-          &translation_latency_.vector(),
-          ColumnTypeHelper<ColumnType::translation_latency::stored_type>::ToColumnType(),
-          false)),
-        events_bitmask_storage_layer_(
-        new column::NumericStorage<ColumnType::events_bitmask::non_optional_stored_type>(
-          &events_bitmask_.vector(),
-          ColumnTypeHelper<ColumnType::events_bitmask::stored_type>::ToColumnType(),
-          false)),
-        data_source_storage_layer_(
-          new column::StringStorage(string_pool(), &data_source_.vector()))
-,
-        utid_null_layer_(new column::NullOverlay(utid_.bv())),
-        instruction_frame_id_null_layer_(new column::NullOverlay(instruction_frame_id_.bv())) {
-    static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::ts::stored_type>(
-          ColumnFlag::ts),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::utid::stored_type>(
-          ColumnFlag::utid),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::exception_level::stored_type>(
-          ColumnFlag::exception_level),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::instruction_frame_id::stored_type>(
-          ColumnFlag::instruction_frame_id),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::operation::stored_type>(
-          ColumnFlag::operation),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::data_virtual_address::stored_type>(
-          ColumnFlag::data_virtual_address),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::data_physical_address::stored_type>(
-          ColumnFlag::data_physical_address),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::total_latency::stored_type>(
-          ColumnFlag::total_latency),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::issue_latency::stored_type>(
-          ColumnFlag::issue_latency),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::translation_latency::stored_type>(
-          ColumnFlag::translation_latency),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::events_bitmask::stored_type>(
-          ColumnFlag::events_bitmask),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::data_source::stored_type>(
-          ColumnFlag::data_source),
-        "Column type and flag combination is not valid");
-    OnConstructionCompletedRegularConstructor(
-      {id_storage_layer_,ts_storage_layer_,utid_storage_layer_,exception_level_storage_layer_,instruction_frame_id_storage_layer_,operation_storage_layer_,data_virtual_address_storage_layer_,data_physical_address_storage_layer_,total_latency_storage_layer_,issue_latency_storage_layer_,translation_latency_storage_layer_,events_bitmask_storage_layer_,data_source_storage_layer_},
-      {{},{},utid_null_layer_,{},instruction_frame_id_null_layer_,{},{},{},{},{},{},{},{}});
-  }
-  ~SpeRecordTable() override;
-
-  static const char* Name() { return "__intrinsic_spe_record"; }
-
-  static Table::Schema ComputeStaticSchema() {
-    Table::Schema schema;
-    schema.columns.emplace_back(Table::Schema::Column{
-        "id", SqlValue::Type::kLong, true, true, false, false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "ts", ColumnType::ts::SqlValueType(), false,
-        true,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "utid", ColumnType::utid::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "exception_level", ColumnType::exception_level::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "instruction_frame_id", ColumnType::instruction_frame_id::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "operation", ColumnType::operation::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "data_virtual_address", ColumnType::data_virtual_address::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "data_physical_address", ColumnType::data_physical_address::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "total_latency", ColumnType::total_latency::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "issue_latency", ColumnType::issue_latency::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "translation_latency", ColumnType::translation_latency::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "events_bitmask", ColumnType::events_bitmask::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "data_source", ColumnType::data_source::SqlValueType(), false,
-        false,
-        false,
-        false});
-    return schema;
-  }
-
-  ConstIterator IterateRows() const {
-    return ConstIterator(this, Table::IterateRows());
-  }
-
-  Iterator IterateRows() { return Iterator(this, Table::IterateRows()); }
-
-  ConstIterator FilterToIterator(const Query& q) const {
-    return ConstIterator(this, QueryToIterator(q));
-  }
-
-  Iterator FilterToIterator(const Query& q) {
-    return Iterator(this, QueryToIterator(q));
-  }
-
-  void ShrinkToFit() {
-    ts_.ShrinkToFit();
-    utid_.ShrinkToFit();
-    exception_level_.ShrinkToFit();
-    instruction_frame_id_.ShrinkToFit();
-    operation_.ShrinkToFit();
-    data_virtual_address_.ShrinkToFit();
-    data_physical_address_.ShrinkToFit();
-    total_latency_.ShrinkToFit();
-    issue_latency_.ShrinkToFit();
-    translation_latency_.ShrinkToFit();
-    events_bitmask_.ShrinkToFit();
-    data_source_.ShrinkToFit();
-  }
-
-  ConstRowReference operator[](uint32_t r) const {
-    return ConstRowReference(this, r);
-  }
-  RowReference operator[](uint32_t r) { return RowReference(this, r); }
-  ConstRowReference operator[](RowNumber r) const {
-    return ConstRowReference(this, r.row_number());
-  }
-  RowReference operator[](RowNumber r) {
-    return RowReference(this, r.row_number());
-  }
-
-  std::optional<ConstRowReference> FindById(Id find_id) const {
-    std::optional<uint32_t> row = id().IndexOf(find_id);
-    return row ? std::make_optional(ConstRowReference(this, *row))
-               : std::nullopt;
-  }
-
-  std::optional<RowReference> FindById(Id find_id) {
-    std::optional<uint32_t> row = id().IndexOf(find_id);
-    return row ? std::make_optional(RowReference(this, *row)) : std::nullopt;
-  }
+  explicit SpeRecordTable(StringPool* pool)
+      : dataframe_(dataframe::Dataframe::CreateFromTypedSpec(kSpec, pool)) {}
 
   IdAndRow Insert(const Row& row) {
-    uint32_t row_number = row_count();
-    Id id = Id{row_number};
-    mutable_ts()->Append(row.ts);
-    mutable_utid()->Append(row.utid);
-    mutable_exception_level()->Append(row.exception_level);
-    mutable_instruction_frame_id()->Append(row.instruction_frame_id);
-    mutable_operation()->Append(row.operation);
-    mutable_data_virtual_address()->Append(row.data_virtual_address);
-    mutable_data_physical_address()->Append(row.data_physical_address);
-    mutable_total_latency()->Append(row.total_latency);
-    mutable_issue_latency()->Append(row.issue_latency);
-    mutable_translation_latency()->Append(row.translation_latency);
-    mutable_events_bitmask()->Append(row.events_bitmask);
-    mutable_data_source()->Append(row.data_source);
-    UpdateSelfOverlayAfterInsert();
-    return IdAndRow{id, row_number, RowReference(this, row_number),
-                     RowNumber(row_number)};
+    uint32_t row_count = dataframe_.row_count();
+    dataframe_.InsertUnchecked(kSpec, std::monostate(), row.ts, row.utid, row.exception_level != StringPool::Id::Null() ? std::make_optional(row.exception_level) : std::nullopt, row.instruction_frame_id ? std::make_optional(row.instruction_frame_id->value) : std::nullopt, row.operation != StringPool::Id::Null() ? std::make_optional(row.operation) : std::nullopt, row.data_virtual_address, row.data_physical_address, row.total_latency, row.issue_latency, row.translation_latency, row.events_bitmask, row.data_source != StringPool::Id::Null() ? std::make_optional(row.data_source) : std::nullopt);
+    return IdAndRow{Id{row_count}, RowNumber{row_count}, row_count, RowReference(this, row_count)};
   }
 
-  
-
-  const IdColumn<SpeRecordTable::Id>& id() const {
-    return static_cast<const ColumnType::id&>(columns()[ColumnIndex::id]);
-  }
-  const TypedColumn<int64_t>& ts() const {
-    return static_cast<const ColumnType::ts&>(columns()[ColumnIndex::ts]);
-  }
-  const TypedColumn<std::optional<uint32_t>>& utid() const {
-    return static_cast<const ColumnType::utid&>(columns()[ColumnIndex::utid]);
-  }
-  const TypedColumn<StringPool::Id>& exception_level() const {
-    return static_cast<const ColumnType::exception_level&>(columns()[ColumnIndex::exception_level]);
-  }
-  const TypedColumn<std::optional<StackProfileFrameTable::Id>>& instruction_frame_id() const {
-    return static_cast<const ColumnType::instruction_frame_id&>(columns()[ColumnIndex::instruction_frame_id]);
-  }
-  const TypedColumn<StringPool::Id>& operation() const {
-    return static_cast<const ColumnType::operation&>(columns()[ColumnIndex::operation]);
-  }
-  const TypedColumn<int64_t>& data_virtual_address() const {
-    return static_cast<const ColumnType::data_virtual_address&>(columns()[ColumnIndex::data_virtual_address]);
-  }
-  const TypedColumn<int64_t>& data_physical_address() const {
-    return static_cast<const ColumnType::data_physical_address&>(columns()[ColumnIndex::data_physical_address]);
-  }
-  const TypedColumn<uint32_t>& total_latency() const {
-    return static_cast<const ColumnType::total_latency&>(columns()[ColumnIndex::total_latency]);
-  }
-  const TypedColumn<uint32_t>& issue_latency() const {
-    return static_cast<const ColumnType::issue_latency&>(columns()[ColumnIndex::issue_latency]);
-  }
-  const TypedColumn<uint32_t>& translation_latency() const {
-    return static_cast<const ColumnType::translation_latency&>(columns()[ColumnIndex::translation_latency]);
-  }
-  const TypedColumn<int64_t>& events_bitmask() const {
-    return static_cast<const ColumnType::events_bitmask&>(columns()[ColumnIndex::events_bitmask]);
-  }
-  const TypedColumn<StringPool::Id>& data_source() const {
-    return static_cast<const ColumnType::data_source&>(columns()[ColumnIndex::data_source]);
+  uint32_t row_count() const {
+    return dataframe_.row_count();
   }
 
-  TypedColumn<int64_t>* mutable_ts() {
-    return static_cast<ColumnType::ts*>(
-        GetColumn(ColumnIndex::ts));
+  std::optional<ConstRowReference> FindById(Id id) const {
+    return ConstRowReference(this, id.value);
   }
-  TypedColumn<std::optional<uint32_t>>* mutable_utid() {
-    return static_cast<ColumnType::utid*>(
-        GetColumn(ColumnIndex::utid));
+  ConstRowReference operator[](uint32_t row) const {
+    return ConstRowReference(this, row);
   }
-  TypedColumn<StringPool::Id>* mutable_exception_level() {
-    return static_cast<ColumnType::exception_level*>(
-        GetColumn(ColumnIndex::exception_level));
+
+  std::optional<RowReference> FindById(Id id) {
+    return RowReference(this, id.value);
   }
-  TypedColumn<std::optional<StackProfileFrameTable::Id>>* mutable_instruction_frame_id() {
-    return static_cast<ColumnType::instruction_frame_id*>(
-        GetColumn(ColumnIndex::instruction_frame_id));
+  RowReference operator[](uint32_t row) {
+    return RowReference(this, row);
   }
-  TypedColumn<StringPool::Id>* mutable_operation() {
-    return static_cast<ColumnType::operation*>(
-        GetColumn(ColumnIndex::operation));
+
+  ConstCursor CreateCursor(
+      std::vector<dataframe::FilterSpec> filters = {},
+      std::vector<dataframe::SortSpec> sorts = {}) const {
+    return ConstCursor(dataframe_, std::move(filters), std::move(sorts));
   }
-  TypedColumn<int64_t>* mutable_data_virtual_address() {
-    return static_cast<ColumnType::data_virtual_address*>(
-        GetColumn(ColumnIndex::data_virtual_address));
+  Cursor CreateCursor(
+      std::vector<dataframe::FilterSpec> filters = {},
+      std::vector<dataframe::SortSpec> sorts = {}) {
+    return Cursor(dataframe_, std::move(filters), std::move(sorts));
   }
-  TypedColumn<int64_t>* mutable_data_physical_address() {
-    return static_cast<ColumnType::data_physical_address*>(
-        GetColumn(ColumnIndex::data_physical_address));
+
+  Iterator IterateRows() { return Iterator(this); }
+  ConstIterator IterateRows() const { return ConstIterator(this); }
+
+  void Finalize() { dataframe_.Finalize(); }
+
+  void Clear() { dataframe_.Clear(); }
+
+  static const char* Name() {
+    return "__intrinsic_spe_record";
   }
-  TypedColumn<uint32_t>* mutable_total_latency() {
-    return static_cast<ColumnType::total_latency*>(
-        GetColumn(ColumnIndex::total_latency));
+
+  dataframe::Dataframe& dataframe() {
+    return dataframe_;
   }
-  TypedColumn<uint32_t>* mutable_issue_latency() {
-    return static_cast<ColumnType::issue_latency*>(
-        GetColumn(ColumnIndex::issue_latency));
-  }
-  TypedColumn<uint32_t>* mutable_translation_latency() {
-    return static_cast<ColumnType::translation_latency*>(
-        GetColumn(ColumnIndex::translation_latency));
-  }
-  TypedColumn<int64_t>* mutable_events_bitmask() {
-    return static_cast<ColumnType::events_bitmask*>(
-        GetColumn(ColumnIndex::events_bitmask));
-  }
-  TypedColumn<StringPool::Id>* mutable_data_source() {
-    return static_cast<ColumnType::data_source*>(
-        GetColumn(ColumnIndex::data_source));
+  const dataframe::Dataframe& dataframe() const {
+    return dataframe_;
   }
 
  private:
-  
-  
-  ColumnStorage<ColumnType::ts::stored_type> ts_;
-  ColumnStorage<ColumnType::utid::stored_type> utid_;
-  ColumnStorage<ColumnType::exception_level::stored_type> exception_level_;
-  ColumnStorage<ColumnType::instruction_frame_id::stored_type> instruction_frame_id_;
-  ColumnStorage<ColumnType::operation::stored_type> operation_;
-  ColumnStorage<ColumnType::data_virtual_address::stored_type> data_virtual_address_;
-  ColumnStorage<ColumnType::data_physical_address::stored_type> data_physical_address_;
-  ColumnStorage<ColumnType::total_latency::stored_type> total_latency_;
-  ColumnStorage<ColumnType::issue_latency::stored_type> issue_latency_;
-  ColumnStorage<ColumnType::translation_latency::stored_type> translation_latency_;
-  ColumnStorage<ColumnType::events_bitmask::stored_type> events_bitmask_;
-  ColumnStorage<ColumnType::data_source::stored_type> data_source_;
-
-  RefPtr<column::StorageLayer> id_storage_layer_;
-  RefPtr<column::StorageLayer> ts_storage_layer_;
-  RefPtr<column::StorageLayer> utid_storage_layer_;
-  RefPtr<column::StorageLayer> exception_level_storage_layer_;
-  RefPtr<column::StorageLayer> instruction_frame_id_storage_layer_;
-  RefPtr<column::StorageLayer> operation_storage_layer_;
-  RefPtr<column::StorageLayer> data_virtual_address_storage_layer_;
-  RefPtr<column::StorageLayer> data_physical_address_storage_layer_;
-  RefPtr<column::StorageLayer> total_latency_storage_layer_;
-  RefPtr<column::StorageLayer> issue_latency_storage_layer_;
-  RefPtr<column::StorageLayer> translation_latency_storage_layer_;
-  RefPtr<column::StorageLayer> events_bitmask_storage_layer_;
-  RefPtr<column::StorageLayer> data_source_storage_layer_;
-
-  RefPtr<column::OverlayLayer> utid_null_layer_;
-  RefPtr<column::OverlayLayer> instruction_frame_id_null_layer_;
+  dataframe::Dataframe dataframe_;
 };
-  
 
-class MmapRecordTable : public macros_internal::MacroTable {
+
+
+class MmapRecordTable {
  public:
-  static constexpr uint32_t kColumnCount = 5;
+  static constexpr auto kSpec = dataframe::CreateTypedDataframeSpec(
+    {"id","ts","upid","mapping_id","file_id"},
+    dataframe::CreateTypedColumnSpec(dataframe::Id{}, dataframe::NonNull{}, dataframe::IdSorted{}, dataframe::NoDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Int64{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::SparseNullWithPopcountUntilFinalization{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::NonNull{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}),
+    dataframe::CreateTypedColumnSpec(dataframe::Uint32{}, dataframe::SparseNullWithPopcountUntilFinalization{}, dataframe::Unsorted{}, dataframe::HasDuplicates{}));
 
-  struct Id : public BaseId {
+  struct Id : BaseId {
     Id() = default;
-    explicit constexpr Id(uint32_t v) : BaseId(v) {}
+    explicit constexpr Id(uint32_t _value) : BaseId(_value) {}
+
+    bool operator==(const Id& other) const {
+      return value == other.value;
+    }
   };
-  static_assert(std::is_trivially_destructible_v<Id>,
-                "Inheritance used without trivial destruction");
-    
+  struct RowReference;
+  struct ConstRowReference;
+  struct RowNumber {
+   public:
+    explicit constexpr RowNumber(uint32_t value) : value_(value) {}
+    uint32_t row_number() const { return value_; }
+
+    RowReference ToRowReference(MmapRecordTable* table) const {
+      return RowReference(table, value_);
+    }
+    ConstRowReference ToRowReference(const MmapRecordTable& table) const {
+      return ConstRowReference(&table, value_);
+    }
+
+    bool operator==(const RowNumber& other) const {
+      return value_ == other.value_;
+    }
+    bool operator<(const RowNumber& other) const {
+      return value_ < other.value_;
+    }
+   private:
+    uint32_t value_;
+  };
   struct ColumnIndex {
     static constexpr uint32_t id = 0;
     static constexpr uint32_t ts = 1;
@@ -823,383 +381,337 @@ class MmapRecordTable : public macros_internal::MacroTable {
     static constexpr uint32_t mapping_id = 3;
     static constexpr uint32_t file_id = 4;
   };
-  struct ColumnType {
-    using id = IdColumn<MmapRecordTable::Id>;
-    using ts = TypedColumn<int64_t>;
-    using upid = TypedColumn<std::optional<uint32_t>>;
-    using mapping_id = TypedColumn<StackProfileMappingTable::Id>;
-    using file_id = TypedColumn<std::optional<FileTable::Id>>;
+  struct RowReference {
+   public:
+    explicit RowReference(MmapRecordTable* table, uint32_t row)
+        : table_(table), row_(row) {
+        base::ignore_result(table_);
+    }
+    MmapRecordTable::Id id() const {
+        
+        return MmapRecordTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+        int64_t ts() const {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::ts>(kSpec, row_);
+    }
+        std::optional<uint32_t> upid() const {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::upid>(kSpec, row_);
+    }
+          StackProfileMappingTable::Id mapping_id() const {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        return StackProfileMappingTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::mapping_id>(kSpec, row_)};
+      }
+          std::optional<FileTable::Id> file_id() const {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        auto res = table_->dataframe_.template GetCellUnchecked<ColumnIndex::file_id>(kSpec, row_);
+        return res ? std::make_optional(FileTable::Id{*res}) : std::nullopt;
+      }
+    
+    RowNumber ToRowNumber() const {
+      return RowNumber{row_};
+    }
+
+   private:
+    friend struct ConstRowReference;
+    MmapRecordTable* table_;
+    uint32_t row_;
   };
-  struct Row : public macros_internal::RootParentTable::Row {
-    Row(int64_t in_ts = {},
-        std::optional<uint32_t> in_upid = {},
-        StackProfileMappingTable::Id in_mapping_id = {},
-        std::optional<FileTable::Id> in_file_id = {},
-        std::nullptr_t = nullptr)
-        : macros_internal::RootParentTable::Row(),
-          ts(in_ts),
-          upid(in_upid),
-          mapping_id(in_mapping_id),
-          file_id(in_file_id) {}
-    int64_t ts;
+  struct ConstRowReference {
+   public:
+    explicit ConstRowReference(const MmapRecordTable* table, uint32_t row)
+        : table_(table), row_(row) {
+        base::ignore_result(table_);
+    }
+    ConstRowReference(const RowReference& other)
+        : table_(other.table_), row_(other.row_) {}
+    MmapRecordTable::Id id() const {
+        
+        return MmapRecordTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+        int64_t ts() const {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::ts>(kSpec, row_);
+    }
+        std::optional<uint32_t> upid() const {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::upid>(kSpec, row_);
+    }
+          StackProfileMappingTable::Id mapping_id() const {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        return StackProfileMappingTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::mapping_id>(kSpec, row_)};
+      }
+          std::optional<FileTable::Id> file_id() const {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        auto res = table_->dataframe_.template GetCellUnchecked<ColumnIndex::file_id>(kSpec, row_);
+        return res ? std::make_optional(FileTable::Id{*res}) : std::nullopt;
+      }
+    RowNumber ToRowNumber() const {
+      return RowNumber{row_};
+    }
+   private:
+    const MmapRecordTable* table_;
+    uint32_t row_;
+  };
+  class ConstCursor {
+   public:
+    explicit ConstCursor(const dataframe::Dataframe& df,
+                         std::vector<dataframe::FilterSpec> filters,
+                         std::vector<dataframe::SortSpec> sorts)
+      : dataframe_(&df), cursor_(&df, std::move(filters), std::move(sorts)) {
+      base::ignore_result(dataframe_);
+    }
+
+    PERFETTO_ALWAYS_INLINE void Execute() { cursor_.ExecuteUnchecked(); }
+    PERFETTO_ALWAYS_INLINE bool Eof() const { return cursor_.Eof(); }
+    PERFETTO_ALWAYS_INLINE void Next() { cursor_.Next(); }
+    template <typename C>
+    PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index, C value) {
+      cursor_.SetFilterValueUnchecked(index, std::move(value));
+    }
+    RowNumber ToRowNumber() const {
+      return RowNumber{cursor_.RowIndex()};
+    }
+    void Reset() { cursor_.Reset(); }
+    MmapRecordTable::Id id() const {
+        
+        return MmapRecordTable::Id{cursor_.GetCellUnchecked<ColumnIndex::id>(kSpec)};
+      }
+    int64_t ts() const {
+      PERFETTO_DCHECK(!dataframe_->finalized());
+      return cursor_.GetCellUnchecked<ColumnIndex::ts>(kSpec);
+    }
+    std::optional<uint32_t> upid() const {
+      PERFETTO_DCHECK(!dataframe_->finalized());
+      return cursor_.GetCellUnchecked<ColumnIndex::upid>(kSpec);
+    }
+      StackProfileMappingTable::Id mapping_id() const {
+        PERFETTO_DCHECK(!dataframe_->finalized());
+        return StackProfileMappingTable::Id{cursor_.GetCellUnchecked<ColumnIndex::mapping_id>(kSpec)};
+      }
+      std::optional<FileTable::Id> file_id() const {
+        PERFETTO_DCHECK(!dataframe_->finalized());
+        auto res = cursor_.GetCellUnchecked<ColumnIndex::file_id>(kSpec);
+        return res ? std::make_optional(FileTable::Id{*res}) : std::nullopt;
+      }
+
+   private:
+    const dataframe::Dataframe* dataframe_;
+    dataframe::TypedCursor cursor_;
+  };
+  class Cursor {
+   public:
+    explicit Cursor(dataframe::Dataframe& df,
+                    std::vector<dataframe::FilterSpec> filters,
+                    std::vector<dataframe::SortSpec> sorts)
+      : dataframe_(&df), cursor_(&df, std::move(filters), std::move(sorts)) {
+      base::ignore_result(dataframe_);
+    }
+
+    PERFETTO_ALWAYS_INLINE void Execute() { cursor_.ExecuteUnchecked(); }
+    PERFETTO_ALWAYS_INLINE bool Eof() const { return cursor_.Eof(); }
+    PERFETTO_ALWAYS_INLINE void Next() { cursor_.Next(); }
+    template <typename C>
+    PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index, C value) {
+      cursor_.SetFilterValueUnchecked(index, std::move(value));
+    }
+    RowNumber ToRowNumber() const {
+      return RowNumber{cursor_.RowIndex()};
+    }
+    void Reset() { cursor_.Reset(); }
+
+    MmapRecordTable::Id id() const {
+        
+        return MmapRecordTable::Id{cursor_.GetCellUnchecked<ColumnIndex::id>(kSpec)};
+      }
+    int64_t ts() const {
+      PERFETTO_DCHECK(!dataframe_->finalized());
+      return cursor_.GetCellUnchecked<ColumnIndex::ts>(kSpec);
+    }
+    std::optional<uint32_t> upid() const {
+      PERFETTO_DCHECK(!dataframe_->finalized());
+      return cursor_.GetCellUnchecked<ColumnIndex::upid>(kSpec);
+    }
+      StackProfileMappingTable::Id mapping_id() const {
+        PERFETTO_DCHECK(!dataframe_->finalized());
+        return StackProfileMappingTable::Id{cursor_.GetCellUnchecked<ColumnIndex::mapping_id>(kSpec)};
+      }
+      std::optional<FileTable::Id> file_id() const {
+        PERFETTO_DCHECK(!dataframe_->finalized());
+        auto res = cursor_.GetCellUnchecked<ColumnIndex::file_id>(kSpec);
+        return res ? std::make_optional(FileTable::Id{*res}) : std::nullopt;
+      }
+    
+
+   private:
+    dataframe::Dataframe* dataframe_;
+    dataframe::TypedCursor cursor_;
+  };
+  class Iterator {
+    public:
+      explicit Iterator(MmapRecordTable* table) : table_(table) {
+        base::ignore_result(table_);
+      }
+      explicit operator bool() const { return row_ < table_->row_count(); }
+      Iterator& operator++() {
+        ++row_;
+        return *this;
+      }
+      RowNumber row_number() const {
+        return RowNumber{row_};
+      }
+      RowReference ToRowReference() const {
+        return RowReference(table_, row_);
+      }
+      MmapRecordTable::Id id() const {
+        
+        return MmapRecordTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+        int64_t ts() const {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::ts>(kSpec, row_);
+    }
+        std::optional<uint32_t> upid() const {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::upid>(kSpec, row_);
+    }
+          StackProfileMappingTable::Id mapping_id() const {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        return StackProfileMappingTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::mapping_id>(kSpec, row_)};
+      }
+          std::optional<FileTable::Id> file_id() const {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        auto res = table_->dataframe_.template GetCellUnchecked<ColumnIndex::file_id>(kSpec, row_);
+        return res ? std::make_optional(FileTable::Id{*res}) : std::nullopt;
+      }
+      
+
+    private:
+      MmapRecordTable* table_;
+      uint32_t row_ = 0;
+  };
+  class ConstIterator {
+    public:
+      explicit ConstIterator(const MmapRecordTable* table) : table_(table) {
+        base::ignore_result(table_);
+      }
+      explicit operator bool() const { return row_ < table_->row_count(); }
+      ConstIterator& operator++() {
+        ++row_;
+        return *this;
+      }
+      RowNumber row_number() const {
+        return RowNumber{row_};
+      }
+      ConstRowReference ToRowReference() const {
+        return ConstRowReference(table_, row_);
+      }
+      MmapRecordTable::Id id() const {
+        
+        return MmapRecordTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::id>(kSpec, row_)};
+      }
+        int64_t ts() const {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::ts>(kSpec, row_);
+    }
+        std::optional<uint32_t> upid() const {
+      PERFETTO_DCHECK(!table_->dataframe_.finalized());
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::upid>(kSpec, row_);
+    }
+          StackProfileMappingTable::Id mapping_id() const {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        return StackProfileMappingTable::Id{table_->dataframe_.template GetCellUnchecked<ColumnIndex::mapping_id>(kSpec, row_)};
+      }
+          std::optional<FileTable::Id> file_id() const {
+        PERFETTO_DCHECK(!table_->dataframe_.finalized());
+        auto res = table_->dataframe_.template GetCellUnchecked<ColumnIndex::file_id>(kSpec, row_);
+        return res ? std::make_optional(FileTable::Id{*res}) : std::nullopt;
+      }
+
+    private:
+      const MmapRecordTable* table_;
+      uint32_t row_ = 0;
+  };
+  struct IdAndRow {
+    Id id;
+    RowNumber row_number;
+    uint32_t row;
+    RowReference row_reference;
+  };
+  
+  struct Row {
+    Row(int64_t _ts = {}, std::optional<uint32_t> _upid = {}, StackProfileMappingTable::Id _mapping_id = {}, std::optional<FileTable::Id> _file_id = {}) : ts(std::move(_ts)), upid(std::move(_upid)), mapping_id(std::move(_mapping_id)), file_id(std::move(_file_id)) {}
+
+    bool operator==(const Row& other) const {
+      return std::tie(ts, upid, mapping_id, file_id) ==
+             std::tie(other.ts, other.upid, other.mapping_id, other.file_id);
+    }
+
+        int64_t ts;
     std::optional<uint32_t> upid;
     StackProfileMappingTable::Id mapping_id;
     std::optional<FileTable::Id> file_id;
-
-    bool operator==(const MmapRecordTable::Row& other) const {
-      return ColumnType::ts::Equals(ts, other.ts) &&
-       ColumnType::upid::Equals(upid, other.upid) &&
-       ColumnType::mapping_id::Equals(mapping_id, other.mapping_id) &&
-       ColumnType::file_id::Equals(file_id, other.file_id);
-    }
-  };
-  struct ColumnFlag {
-    static constexpr uint32_t ts = ColumnType::ts::default_flags();
-    static constexpr uint32_t upid = ColumnType::upid::default_flags();
-    static constexpr uint32_t mapping_id = ColumnType::mapping_id::default_flags();
-    static constexpr uint32_t file_id = ColumnType::file_id::default_flags();
   };
 
-  class RowNumber;
-  class ConstRowReference;
-  class RowReference;
-
-  class RowNumber : public macros_internal::AbstractRowNumber<
-      MmapRecordTable, ConstRowReference, RowReference> {
-   public:
-    explicit RowNumber(uint32_t row_number)
-        : AbstractRowNumber(row_number) {}
-  };
-  static_assert(std::is_trivially_destructible_v<RowNumber>,
-                "Inheritance used without trivial destruction");
-
-  class ConstRowReference : public macros_internal::AbstractConstRowReference<
-    MmapRecordTable, RowNumber> {
-   public:
-    ConstRowReference(const MmapRecordTable* table, uint32_t row_number)
-        : AbstractConstRowReference(table, row_number) {}
-
-    ColumnType::id::type id() const {
-      return table()->id()[row_number_];
-    }
-    ColumnType::ts::type ts() const {
-      return table()->ts()[row_number_];
-    }
-    ColumnType::upid::type upid() const {
-      return table()->upid()[row_number_];
-    }
-    ColumnType::mapping_id::type mapping_id() const {
-      return table()->mapping_id()[row_number_];
-    }
-    ColumnType::file_id::type file_id() const {
-      return table()->file_id()[row_number_];
-    }
-  };
-  static_assert(std::is_trivially_destructible_v<ConstRowReference>,
-                "Inheritance used without trivial destruction");
-  class RowReference : public ConstRowReference {
-   public:
-    RowReference(const MmapRecordTable* table, uint32_t row_number)
-        : ConstRowReference(table, row_number) {}
-
-    void set_ts(
-        ColumnType::ts::non_optional_type v) {
-      return mutable_table()->mutable_ts()->Set(row_number_, v);
-    }
-    void set_upid(
-        ColumnType::upid::non_optional_type v) {
-      return mutable_table()->mutable_upid()->Set(row_number_, v);
-    }
-    void set_mapping_id(
-        ColumnType::mapping_id::non_optional_type v) {
-      return mutable_table()->mutable_mapping_id()->Set(row_number_, v);
-    }
-    void set_file_id(
-        ColumnType::file_id::non_optional_type v) {
-      return mutable_table()->mutable_file_id()->Set(row_number_, v);
-    }
-
-   private:
-    MmapRecordTable* mutable_table() const {
-      return const_cast<MmapRecordTable*>(table());
-    }
-  };
-  static_assert(std::is_trivially_destructible_v<RowReference>,
-                "Inheritance used without trivial destruction");
-
-  class ConstIterator;
-  class ConstIterator : public macros_internal::AbstractConstIterator<
-    ConstIterator, MmapRecordTable, RowNumber, ConstRowReference> {
-   public:
-    ColumnType::id::type id() const {
-      const auto& col = table()->id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::ts::type ts() const {
-      const auto& col = table()->ts();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::upid::type upid() const {
-      const auto& col = table()->upid();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::mapping_id::type mapping_id() const {
-      const auto& col = table()->mapping_id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-    ColumnType::file_id::type file_id() const {
-      const auto& col = table()->file_id();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }
-
-   protected:
-    explicit ConstIterator(const MmapRecordTable* table,
-                           Table::Iterator iterator)
-        : AbstractConstIterator(table, std::move(iterator)) {}
-
-    uint32_t CurrentRowNumber() const {
-      return iterator_.StorageIndexForLastOverlay();
-    }
-
-   private:
-    friend class MmapRecordTable;
-    friend class macros_internal::AbstractConstIterator<
-      ConstIterator, MmapRecordTable, RowNumber, ConstRowReference>;
-  };
-  class Iterator : public ConstIterator {
-    public:
-     RowReference row_reference() const {
-       return {const_cast<MmapRecordTable*>(table()), CurrentRowNumber()};
-     }
-
-    private:
-     friend class MmapRecordTable;
-
-     explicit Iterator(MmapRecordTable* table, Table::Iterator iterator)
-        : ConstIterator(table, std::move(iterator)) {}
-  };
-
-  struct IdAndRow {
-    Id id;
-    uint32_t row;
-    RowReference row_reference;
-    RowNumber row_number;
-  };
-
-  static std::vector<ColumnLegacy> GetColumns(
-      MmapRecordTable* self,
-      const macros_internal::MacroTable* parent) {
-    std::vector<ColumnLegacy> columns =
-        CopyColumnsFromParentOrAddRootColumns(parent);
-    uint32_t olay_idx = OverlayCount(parent);
-    AddColumnToVector(columns, "ts", &self->ts_, ColumnFlag::ts,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "upid", &self->upid_, ColumnFlag::upid,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "mapping_id", &self->mapping_id_, ColumnFlag::mapping_id,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    AddColumnToVector(columns, "file_id", &self->file_id_, ColumnFlag::file_id,
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    base::ignore_result(self);
-    return columns;
-  }
-
-  PERFETTO_NO_INLINE explicit MmapRecordTable(StringPool* pool)
-      : macros_internal::MacroTable(
-          pool,
-          GetColumns(this, nullptr),
-          nullptr),
-        ts_(ColumnStorage<ColumnType::ts::stored_type>::Create<false>()),
-        upid_(ColumnStorage<ColumnType::upid::stored_type>::Create<false>()),
-        mapping_id_(ColumnStorage<ColumnType::mapping_id::stored_type>::Create<false>()),
-        file_id_(ColumnStorage<ColumnType::file_id::stored_type>::Create<false>())
-,
-        id_storage_layer_(new column::IdStorage()),
-        ts_storage_layer_(
-        new column::NumericStorage<ColumnType::ts::non_optional_stored_type>(
-          &ts_.vector(),
-          ColumnTypeHelper<ColumnType::ts::stored_type>::ToColumnType(),
-          false)),
-        upid_storage_layer_(
-          new column::NumericStorage<ColumnType::upid::non_optional_stored_type>(
-            &upid_.non_null_vector(),
-            ColumnTypeHelper<ColumnType::upid::stored_type>::ToColumnType(),
-            false)),
-        mapping_id_storage_layer_(
-        new column::NumericStorage<ColumnType::mapping_id::non_optional_stored_type>(
-          &mapping_id_.vector(),
-          ColumnTypeHelper<ColumnType::mapping_id::stored_type>::ToColumnType(),
-          false)),
-        file_id_storage_layer_(
-          new column::NumericStorage<ColumnType::file_id::non_optional_stored_type>(
-            &file_id_.non_null_vector(),
-            ColumnTypeHelper<ColumnType::file_id::stored_type>::ToColumnType(),
-            false))
-,
-        upid_null_layer_(new column::NullOverlay(upid_.bv())),
-        file_id_null_layer_(new column::NullOverlay(file_id_.bv())) {
-    static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::ts::stored_type>(
-          ColumnFlag::ts),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::upid::stored_type>(
-          ColumnFlag::upid),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::mapping_id::stored_type>(
-          ColumnFlag::mapping_id),
-        "Column type and flag combination is not valid");
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::file_id::stored_type>(
-          ColumnFlag::file_id),
-        "Column type and flag combination is not valid");
-    OnConstructionCompletedRegularConstructor(
-      {id_storage_layer_,ts_storage_layer_,upid_storage_layer_,mapping_id_storage_layer_,file_id_storage_layer_},
-      {{},{},upid_null_layer_,{},file_id_null_layer_});
-  }
-  ~MmapRecordTable() override;
-
-  static const char* Name() { return "__intrinsic_mmap_record"; }
-
-  static Table::Schema ComputeStaticSchema() {
-    Table::Schema schema;
-    schema.columns.emplace_back(Table::Schema::Column{
-        "id", SqlValue::Type::kLong, true, true, false, false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "ts", ColumnType::ts::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "upid", ColumnType::upid::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "mapping_id", ColumnType::mapping_id::SqlValueType(), false,
-        false,
-        false,
-        false});
-    schema.columns.emplace_back(Table::Schema::Column{
-        "file_id", ColumnType::file_id::SqlValueType(), false,
-        false,
-        false,
-        false});
-    return schema;
-  }
-
-  ConstIterator IterateRows() const {
-    return ConstIterator(this, Table::IterateRows());
-  }
-
-  Iterator IterateRows() { return Iterator(this, Table::IterateRows()); }
-
-  ConstIterator FilterToIterator(const Query& q) const {
-    return ConstIterator(this, QueryToIterator(q));
-  }
-
-  Iterator FilterToIterator(const Query& q) {
-    return Iterator(this, QueryToIterator(q));
-  }
-
-  void ShrinkToFit() {
-    ts_.ShrinkToFit();
-    upid_.ShrinkToFit();
-    mapping_id_.ShrinkToFit();
-    file_id_.ShrinkToFit();
-  }
-
-  ConstRowReference operator[](uint32_t r) const {
-    return ConstRowReference(this, r);
-  }
-  RowReference operator[](uint32_t r) { return RowReference(this, r); }
-  ConstRowReference operator[](RowNumber r) const {
-    return ConstRowReference(this, r.row_number());
-  }
-  RowReference operator[](RowNumber r) {
-    return RowReference(this, r.row_number());
-  }
-
-  std::optional<ConstRowReference> FindById(Id find_id) const {
-    std::optional<uint32_t> row = id().IndexOf(find_id);
-    return row ? std::make_optional(ConstRowReference(this, *row))
-               : std::nullopt;
-  }
-
-  std::optional<RowReference> FindById(Id find_id) {
-    std::optional<uint32_t> row = id().IndexOf(find_id);
-    return row ? std::make_optional(RowReference(this, *row)) : std::nullopt;
-  }
+  explicit MmapRecordTable(StringPool* pool)
+      : dataframe_(dataframe::Dataframe::CreateFromTypedSpec(kSpec, pool)) {}
 
   IdAndRow Insert(const Row& row) {
-    uint32_t row_number = row_count();
-    Id id = Id{row_number};
-    mutable_ts()->Append(row.ts);
-    mutable_upid()->Append(row.upid);
-    mutable_mapping_id()->Append(row.mapping_id);
-    mutable_file_id()->Append(row.file_id);
-    UpdateSelfOverlayAfterInsert();
-    return IdAndRow{id, row_number, RowReference(this, row_number),
-                     RowNumber(row_number)};
+    uint32_t row_count = dataframe_.row_count();
+    dataframe_.InsertUnchecked(kSpec, std::monostate(), row.ts, row.upid, row.mapping_id.value, row.file_id ? std::make_optional(row.file_id->value) : std::nullopt);
+    return IdAndRow{Id{row_count}, RowNumber{row_count}, row_count, RowReference(this, row_count)};
   }
 
-  
-
-  const IdColumn<MmapRecordTable::Id>& id() const {
-    return static_cast<const ColumnType::id&>(columns()[ColumnIndex::id]);
-  }
-  const TypedColumn<int64_t>& ts() const {
-    return static_cast<const ColumnType::ts&>(columns()[ColumnIndex::ts]);
-  }
-  const TypedColumn<std::optional<uint32_t>>& upid() const {
-    return static_cast<const ColumnType::upid&>(columns()[ColumnIndex::upid]);
-  }
-  const TypedColumn<StackProfileMappingTable::Id>& mapping_id() const {
-    return static_cast<const ColumnType::mapping_id&>(columns()[ColumnIndex::mapping_id]);
-  }
-  const TypedColumn<std::optional<FileTable::Id>>& file_id() const {
-    return static_cast<const ColumnType::file_id&>(columns()[ColumnIndex::file_id]);
+  uint32_t row_count() const {
+    return dataframe_.row_count();
   }
 
-  TypedColumn<int64_t>* mutable_ts() {
-    return static_cast<ColumnType::ts*>(
-        GetColumn(ColumnIndex::ts));
+  std::optional<ConstRowReference> FindById(Id id) const {
+    return ConstRowReference(this, id.value);
   }
-  TypedColumn<std::optional<uint32_t>>* mutable_upid() {
-    return static_cast<ColumnType::upid*>(
-        GetColumn(ColumnIndex::upid));
+  ConstRowReference operator[](uint32_t row) const {
+    return ConstRowReference(this, row);
   }
-  TypedColumn<StackProfileMappingTable::Id>* mutable_mapping_id() {
-    return static_cast<ColumnType::mapping_id*>(
-        GetColumn(ColumnIndex::mapping_id));
+
+  std::optional<RowReference> FindById(Id id) {
+    return RowReference(this, id.value);
   }
-  TypedColumn<std::optional<FileTable::Id>>* mutable_file_id() {
-    return static_cast<ColumnType::file_id*>(
-        GetColumn(ColumnIndex::file_id));
+  RowReference operator[](uint32_t row) {
+    return RowReference(this, row);
+  }
+
+  ConstCursor CreateCursor(
+      std::vector<dataframe::FilterSpec> filters = {},
+      std::vector<dataframe::SortSpec> sorts = {}) const {
+    return ConstCursor(dataframe_, std::move(filters), std::move(sorts));
+  }
+  Cursor CreateCursor(
+      std::vector<dataframe::FilterSpec> filters = {},
+      std::vector<dataframe::SortSpec> sorts = {}) {
+    return Cursor(dataframe_, std::move(filters), std::move(sorts));
+  }
+
+  Iterator IterateRows() { return Iterator(this); }
+  ConstIterator IterateRows() const { return ConstIterator(this); }
+
+  void Finalize() { dataframe_.Finalize(); }
+
+  void Clear() { dataframe_.Clear(); }
+
+  static const char* Name() {
+    return "__intrinsic_mmap_record";
+  }
+
+  dataframe::Dataframe& dataframe() {
+    return dataframe_;
+  }
+  const dataframe::Dataframe& dataframe() const {
+    return dataframe_;
   }
 
  private:
-  
-  
-  ColumnStorage<ColumnType::ts::stored_type> ts_;
-  ColumnStorage<ColumnType::upid::stored_type> upid_;
-  ColumnStorage<ColumnType::mapping_id::stored_type> mapping_id_;
-  ColumnStorage<ColumnType::file_id::stored_type> file_id_;
-
-  RefPtr<column::StorageLayer> id_storage_layer_;
-  RefPtr<column::StorageLayer> ts_storage_layer_;
-  RefPtr<column::StorageLayer> upid_storage_layer_;
-  RefPtr<column::StorageLayer> mapping_id_storage_layer_;
-  RefPtr<column::StorageLayer> file_id_storage_layer_;
-
-  RefPtr<column::OverlayLayer> upid_null_layer_;
-  RefPtr<column::OverlayLayer> file_id_null_layer_;
+  dataframe::Dataframe dataframe_;
 };
 
 }  // namespace perfetto

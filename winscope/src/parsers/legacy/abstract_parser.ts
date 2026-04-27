@@ -14,20 +14,22 @@
  * limitations under the License.
  */
 
+import {NOT_IMPLEMENTED_ERROR} from 'common/errors';
 import {Timestamp} from 'common/time/time';
 import {ParserTimestampConverter} from 'common/time/timestamp_converter';
-import {CoarseVersion} from 'trace/coarse_version';
+import {perfetto} from 'protos/perfetto/trace/static';
+import {TraceFile} from 'trace/trace_file';
+import {CoarseVersion} from 'trace_api/coarse_version';
 import {
   CustomQueryParamTypeMap,
   CustomQueryParserResultTypeMap,
   CustomQueryType,
-} from 'trace/custom_query';
-import {AbsoluteEntryIndex, EntriesRange} from 'trace/index_types';
-import {Parser} from 'trace/parser';
-import {TraceFile} from 'trace/trace_file';
-import {TraceMetadata} from 'trace/trace_metadata';
-import {TraceType} from 'trace/trace_type';
-import {ParsingUtils} from './parsing_utils';
+} from 'trace_api/custom_query';
+import {AbsoluteEntryIndex, EntriesRange} from 'trace_api/index_types';
+import {Parser} from 'trace_api/parser';
+import {TraceMetadata} from 'trace_api/trace_metadata';
+import {TraceType} from 'trace_api/trace_type';
+import {throwIfMagicNumberDoesNotMatch} from './parsing_utils';
 
 export abstract class AbstractParser<
   T extends object,
@@ -43,7 +45,6 @@ export abstract class AbstractParser<
   protected abstract getMagicNumber(): undefined | number[];
   protected abstract decodeTrace(trace: Uint8Array): U[] | Promise<U[]>;
   protected abstract getTimestamp(decodedEntry: U): Timestamp;
-  protected abstract processDecodedEntry(index: number, decodedEntry: U): T;
 
   constructor(
     trace: TraceFile,
@@ -55,12 +56,13 @@ export abstract class AbstractParser<
     this.metadata = metadata;
   }
 
+  isPerfetto(): boolean {
+    return false;
+  }
+
   async parse() {
     const traceBuffer = new Uint8Array(await this.traceFile.file.arrayBuffer());
-    ParsingUtils.throwIfMagicNumberDoesNotMatch(
-      traceBuffer,
-      this.getMagicNumber(),
-    );
+    throwIfMagicNumberDoesNotMatch(traceBuffer, this.getMagicNumber());
     this.decodedEntries = await this.decodeTrace(traceBuffer);
   }
 
@@ -70,6 +72,14 @@ export abstract class AbstractParser<
 
   getLengthEntries(): number {
     return this.decodedEntries.length;
+  }
+
+  getAllEntries(): Promise<T[]> {
+    throw NOT_IMPLEMENTED_ERROR;
+  }
+
+  getRangeOfEntries(entriesRange: EntriesRange): Promise<Array<T | undefined>> {
+    throw NOT_IMPLEMENTED_ERROR;
   }
 
   createTimestamps() {
@@ -94,7 +104,26 @@ export abstract class AbstractParser<
     entriesRange: EntriesRange,
     param?: CustomQueryParamTypeMap[Q],
   ): Promise<CustomQueryParserResultTypeMap[Q]> {
-    throw new Error('Not implemented');
+    throw NOT_IMPLEMENTED_ERROR;
+  }
+
+  canConvertToPerfetto(): boolean {
+    return false;
+  }
+
+  convertToPerfettoPackets(
+    sequenceId: number,
+    trustedPid: number,
+    trustedUid: number,
+  ): perfetto.protos.TracePacket[] {
+    throw NOT_IMPLEMENTED_ERROR;
+  }
+
+  protected processDecodedEntry(index: number, decodedEntry: U): T {
+    // Legacy parsers that implement convertToPerfettoPackets should not
+    // parser and provide individual trace entries, as they should be
+    // converted to perfetto using LegacyToPerfettoConverter
+    throw NOT_IMPLEMENTED_ERROR;
   }
 
   private decodeTimestamps(): Timestamp[] {

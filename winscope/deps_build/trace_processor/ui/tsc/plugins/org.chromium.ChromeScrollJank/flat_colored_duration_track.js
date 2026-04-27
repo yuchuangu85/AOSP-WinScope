@@ -71,10 +71,10 @@ function createFlatColoredDurationTrack(trace, uri, sqlSrc) {
                         right: row.id,
                     }), (0, mithril_1.default)(tree_1.TreeNode, {
                         left: 'Timestamp',
-                        right: (0, mithril_1.default)(timestamp_1.Timestamp, { ts: time_1.Time.fromRaw(row.ts) }),
+                        right: (0, mithril_1.default)(timestamp_1.Timestamp, { trace, ts: time_1.Time.fromRaw(row.ts) }),
                     }), (0, mithril_1.default)(tree_1.TreeNode, {
                         left: 'Duration',
-                        right: (0, mithril_1.default)(duration_1.DurationWidget, { dur: row.dur }),
+                        right: (0, mithril_1.default)(duration_1.DurationWidget, { trace, dur: row.dur }),
                     })));
                 },
             };

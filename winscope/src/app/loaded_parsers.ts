@@ -14,20 +14,35 @@
  * limitations under the License.
  */
 
-import {assertDefined} from 'common/assert_utils';
-import {FileUtils} from 'common/file_utils';
-import {OnProgressUpdateType} from 'common/function_utils';
+import {assertDefined} from 'common/assert';
+import {
+  createZipArchive,
+  getFileExtension,
+  removeDirFromFileName,
+  removeExtensionFromFilename,
+  OnProgressUpdateType,
+} from 'common/io';
 import {INVALID_TIME_NS, TimeRange, Timestamp} from 'common/time/time';
 import {TIME_UNIT_TO_NANO} from 'common/time/time_units';
-import {UserNotifier} from 'common/user_notifier';
 import {TraceHasOldData, TraceOverridden} from 'messaging/user_warnings';
 import {FileAndParser} from 'parsers/file_and_parser';
 import {FileAndParsers} from 'parsers/file_and_parsers';
-import {Parser} from 'trace/parser';
+import {
+  getParserWithLatestRealToBootTimeOffset,
+  getParserWithLatestRealToMonotonicTimeOffset,
+} from 'parsers/parser_time_utils';
+import {UserNotifier} from 'services/user_notifier';
 import {TraceFile} from 'trace/trace_file';
-import {TRACE_INFO} from 'trace/trace_info';
-import {TraceEntryTypeMap, TraceType} from 'trace/trace_type';
+import {Parser} from 'trace_api/parser';
+import {TRACE_INFO} from 'trace_api/trace_info';
+import {TraceEntryTypeMap, TraceType} from 'trace_api/trace_type';
 
+/**
+ * A collection of parsers loaded from user-provided files.
+ *
+ * The collection can be updated with new parsers. When this happens, the collection tries to
+ * filter out parsers with old data that would produce a confusing visualization.
+ */
 export class LoadedParsers {
   static readonly MAX_ALLOWED_TIME_GAP_BETWEEN_TRACES_NS = BigInt(
     5 * TIME_UNIT_TO_NANO.m,
@@ -61,6 +76,7 @@ export class LoadedParsers {
     );
     legacyParsers = this.filterOutLegacyParsersWithOldData(legacyParsers);
     legacyParsers = this.filterScreenshotParsersIfRequired(legacyParsers);
+    legacyParsers = this.filterEventlogParsersIfRequired(legacyParsers);
 
     this.addLegacyParsers(legacyParsers);
   }
@@ -71,6 +87,10 @@ export class LoadedParsers {
       ...this.perfettoParsers.values(),
     ];
     return fileAndParsers.map((fileAndParser) => fileAndParser.parser);
+  }
+
+  getPerfettoFile(): TraceFile | undefined {
+    return this.perfettoParsers.at(0)?.file;
   }
 
   remove<T extends TraceType>(
@@ -138,9 +158,8 @@ export class LoadedParsers {
         return new File([file], filename);
       }
 
-      const filenameWithoutExt =
-        FileUtils.removeExtensionFromFilename(filename);
-      const extension = FileUtils.getFileExtension(filename);
+      const filenameWithoutExt = removeExtensionFromFilename(filename);
+      const extension = getFileExtension(filename);
 
       if (extension === undefined) {
         return new File([file], `${filename} (${clashCount})`);
@@ -153,9 +172,9 @@ export class LoadedParsers {
     };
 
     const tryPushOutPerfettoFile = (parsers: FileAndParser[]) => {
-      const file: TraceFile = parsers.values().next().value.file;
-      let outputFilename = FileUtils.removeDirFromFileName(file.file.name);
-      if (FileUtils.getFileExtension(file.file.name) === undefined) {
+      const file = parsers[0].file;
+      let outputFilename = removeDirFromFileName(file.file.name);
+      if (getFileExtension(file.file.name) === undefined) {
         outputFilename += '.perfetto-trace';
       }
       tryPushOutputFile(file.file, outputFilename);
@@ -180,9 +199,8 @@ export class LoadedParsers {
         TRACE_INFO[traceType].downloadArchiveDir.length > 0
           ? TRACE_INFO[traceType].downloadArchiveDir + '/'
           : '';
-      let outputFilename =
-        archiveDir + FileUtils.removeDirFromFileName(file.file.name);
-      if (FileUtils.getFileExtension(file.file.name) === undefined) {
+      let outputFilename = archiveDir + removeDirFromFileName(file.file.name);
+      if (getFileExtension(file.file.name) === undefined) {
         outputFilename += TRACE_INFO[traceType].legacyExt;
       }
       tryPushOutputFile(file.file, outputFilename);
@@ -203,42 +221,12 @@ export class LoadedParsers {
       })
       .flat();
 
-    return await FileUtils.createZipArchive(
+    return await createZipArchive(
       archiveFiles,
       onProgressUpdate
         ? (perc: number) => onProgressUpdate(0.5 * (1 + perc))
         : undefined,
     );
-  }
-
-  getLatestRealToMonotonicOffset(
-    parsers: Array<Parser<object>>,
-  ): bigint | undefined {
-    const p = parsers
-      .filter((offset) => offset.getRealToMonotonicTimeOffsetNs() !== undefined)
-      .sort((a, b) => {
-        return Number(
-          (a.getRealToMonotonicTimeOffsetNs() ?? 0n) -
-            (b.getRealToMonotonicTimeOffsetNs() ?? 0n),
-        );
-      })
-      .at(-1);
-    return p?.getRealToMonotonicTimeOffsetNs();
-  }
-
-  getLatestRealToBootTimeOffset(
-    parsers: Array<Parser<object>>,
-  ): bigint | undefined {
-    const p = parsers
-      .filter((offset) => offset.getRealToBootTimeOffsetNs() !== undefined)
-      .sort((a, b) => {
-        return Number(
-          (a.getRealToBootTimeOffsetNs() ?? 0n) -
-            (b.getRealToBootTimeOffsetNs() ?? 0n),
-        );
-      })
-      .at(-1);
-    return p?.getRealToBootTimeOffsetNs();
   }
 
   private addLegacyParsers(parsers: FileAndParser[]) {
@@ -265,14 +253,7 @@ export class LoadedParsers {
       // dangling in the disk that get automatically included into bugreports. Hence, Perfetto
       // parsers must always override legacy ones so that dangling legacy files are ignored.
       this.legacyParsers = this.legacyParsers.filter((fileAndParser) => {
-        const isOverriddenByPerfettoParser =
-          fileAndParser.parser.getTraceType() === parser.getTraceType();
-        if (isOverriddenByPerfettoParser) {
-          UserNotifier.add(
-            new TraceOverridden(fileAndParser.parser.getDescriptors().join()),
-          );
-        }
-        return !isOverriddenByPerfettoParser;
+        return fileAndParser.parser.getTraceType() !== parser.getTraceType();
       });
     });
   }
@@ -281,16 +262,10 @@ export class LoadedParsers {
     // While transitioning to the Perfetto format, devices might still have old legacy trace files
     // dangling in the disk that get automatically included into bugreports. Hence, Perfetto parsers
     // must always override legacy ones so that dangling legacy files are ignored.
-    const isOverriddenByPerfettoParser = this.perfettoParsers.some(
+    return !this.perfettoParsers.some(
       (fileAndParser) =>
         fileAndParser.parser.getTraceType() === newParser.getTraceType(),
     );
-    if (isOverriddenByPerfettoParser) {
-      UserNotifier.add(new TraceOverridden(newParser.getDescriptors().join()));
-      return false;
-    }
-
-    return true;
   }
 
   private filterOutLegacyParsersWithOldData(
@@ -302,12 +277,12 @@ export class LoadedParsers {
       ...this.perfettoParsers.values(),
     ];
 
-    const latestMonotonicOffset = this.getLatestRealToMonotonicOffset(
-      allParsers.map(({parser, file}) => parser),
-    );
-    const latestBootTimeOffset = this.getLatestRealToBootTimeOffset(
-      allParsers.map(({parser, file}) => parser),
-    );
+    const latestMonotonicOffset = getParserWithLatestRealToMonotonicTimeOffset(
+      allParsers.map(({parser}) => parser),
+    )?.getRealToMonotonicTimeOffsetNs();
+    const latestBootTimeOffset = getParserWithLatestRealToBootTimeOffset(
+      allParsers.map(({parser}) => parser),
+    )?.getRealToBootTimeOffsetNs();
 
     newLegacyParsers = newLegacyParsers.filter(({parser, file}) => {
       const monotonicOffset = parser.getRealToMonotonicTimeOffsetNs();
@@ -370,7 +345,7 @@ export class LoadedParsers {
       timestamps = assertDefined(timestamps);
 
       const endTimestamp = timestamps[timestamps.length - 1];
-      const isOldData = endTimestamp.getValueNs() <= timeGap.from.getValueNs();
+      const isOldData = endTimestamp.getValueNs() <= timeGap.startNs;
       if (isOldData) {
         UserNotifier.add(new TraceHasOldData(file.getDescriptor(), timeGap));
         return false;
@@ -430,19 +405,38 @@ export class LoadedParsers {
     );
   }
 
+  private filterEventlogParsersIfRequired(
+    newLegacyParsers: FileAndParser[],
+  ): FileAndParser[] {
+    const hasCujParsers = this.perfettoParsers.some(
+      (entry) => entry.parser.getTraceType() === TraceType.CUJS,
+    );
+    if (!hasCujParsers) {
+      return newLegacyParsers;
+    }
+    this.legacyParsers.forEach((fileAndParser) => {
+      if (fileAndParser.parser.getTraceType() === TraceType.EVENT_LOG) {
+        this.remove(fileAndParser.parser);
+      }
+    });
+    return newLegacyParsers.filter((fileAndParser) => {
+      return fileAndParser.parser.getTraceType() !== TraceType.EVENT_LOG;
+    });
+  }
+
   private filterOutParsersWithoutOffsetsIfRequired(
     newLegacyParsers: FileAndParser[],
     perfettoParsers: FileAndParsers | undefined,
   ): FileAndParser[] {
     const hasParserWithOffset =
       perfettoParsers ||
-      newLegacyParsers.find(({parser, file}) => {
+      newLegacyParsers.find(({parser}) => {
         return (
           parser.getRealToBootTimeOffsetNs() !== undefined ||
           parser.getRealToMonotonicTimeOffsetNs() !== undefined
         );
       });
-    const hasParserWithoutOffset = newLegacyParsers.find(({parser, file}) => {
+    const hasParserWithoutOffset = newLegacyParsers.find(({parser}) => {
       const timestamps = parser.getTimestamps();
       return (
         this.hasValidTimestamps(timestamps) &&
@@ -452,7 +446,7 @@ export class LoadedParsers {
     });
 
     if (hasParserWithOffset && hasParserWithoutOffset) {
-      return newLegacyParsers.filter(({parser, file}) => {
+      return newLegacyParsers.filter(({parser}) => {
         if (
           LoadedParsers.REAL_TIME_TRACES_WITHOUT_RTE_OFFSET.some(
             (traceType) => parser.getTraceType() === traceType,
@@ -478,12 +472,12 @@ export class LoadedParsers {
   ): TimeRange | undefined {
     const rangesSortedByEnd = ranges
       .slice()
-      .sort((a, b) => (a.to.getValueNs() < b.to.getValueNs() ? -1 : +1));
+      .sort((a, b) => (a.endNs < b.endNs ? -1 : +1));
 
     for (let i = rangesSortedByEnd.length - 2; i >= 0; --i) {
       const curr = rangesSortedByEnd[i];
       const next = rangesSortedByEnd[i + 1];
-      const gap = next.from.getValueNs() - curr.to.getValueNs();
+      const gap = next.startNs - curr.endNs;
       if (gap > LoadedParsers.MAX_ALLOWED_TIME_GAP_BETWEEN_TRACES_NS) {
         return new TimeRange(curr.to, next.from);
       }

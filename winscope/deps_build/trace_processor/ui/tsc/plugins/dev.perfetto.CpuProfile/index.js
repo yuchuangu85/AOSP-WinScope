@@ -24,6 +24,7 @@ const dev_perfetto_ProcessThreadGroups_1 = tslib_1.__importDefault(require("../d
 const selection_1 = require("../../public/selection");
 const query_flamegraph_1 = require("../../components/query_flamegraph");
 const flamegraph_1 = require("../../widgets/flamegraph");
+const logging_1 = require("../../base/logging");
 class default_1 {
     static id = 'dev.perfetto.CpuProfile';
     static dependencies = [dev_perfetto_ProcessThreadGroups_1.default];
@@ -53,24 +54,29 @@ class default_1 {
             const upid = it.upid;
             const threadName = it.threadName;
             const uri = `${(0, utils_1.getThreadUriPrefix)(upid, utid)}_cpu_samples`;
-            const title = `${threadName} (CPU Stack Samples)`;
             ctx.tracks.registerTrack({
                 uri,
-                title,
                 tags: {
                     kind: track_kinds_1.CPU_PROFILE_TRACK_KIND,
                     utid,
                     ...((0, utils_2.exists)(upid) && { upid }),
                 },
-                track: (0, cpu_profile_track_1.createCpuProfileTrack)(ctx, uri, utid),
+                renderer: (0, cpu_profile_track_1.createCpuProfileTrack)(ctx, uri, utid),
             });
             const group = ctx.plugins
                 .getPlugin(dev_perfetto_ProcessThreadGroups_1.default)
                 .getGroupForThread(utid);
-            const track = new workspace_1.TrackNode({ uri, title, sortOrder: -40 });
+            const track = new workspace_1.TrackNode({
+                uri,
+                name: `${threadName} (CPU Stack Samples)`,
+                sortOrder: -40,
+            });
             group?.addChildInOrder(track);
         }
         ctx.selection.registerAreaSelectionTab(createAreaSelectionTab(ctx));
+        ctx.onTraceReady.addListener(async () => {
+            await selectCpuProfileCallsite(ctx);
+        });
     }
 }
 exports.default = default_1;
@@ -111,8 +117,7 @@ function computeCpuProfileFlamegraph(trace, selection) {
           parent_id as parentId,
           name,
           mapping_name,
-          source_file,
-          cast(line_number AS text) as line_number,
+          source_file || ':' || line_number as source_location,
           self_count
         from _callstacks_for_callsites!((
           select p.callsite_id
@@ -130,18 +135,32 @@ function computeCpuProfileFlamegraph(trace, selection) {
         },
     ], 'include perfetto module callstacks.stack_profile', [{ name: 'mapping_name', displayName: 'Mapping' }], [
         {
-            name: 'source_file',
-            displayName: 'Source File',
-            mergeAggregation: 'ONE_OR_NULL',
-        },
-        {
-            name: 'line_number',
-            displayName: 'Line Number',
-            mergeAggregation: 'ONE_OR_NULL',
+            name: 'source_location',
+            displayName: 'Source Location',
+            mergeAggregation: 'ONE_OR_SUMMARY',
         },
     ]);
     return new query_flamegraph_1.QueryFlamegraph(trace, metrics, {
         state: flamegraph_1.Flamegraph.createDefaultState(metrics),
+    });
+}
+async function selectCpuProfileCallsite(trace) {
+    const profile = await (0, logging_1.assertExists)(trace.engine).query(`
+    select utid, upid
+    from cpu_profile_stack_sample
+    join thread using(utid)
+    where callsite_id is not null and not is_idle
+    order by ts desc
+    limit 1
+  `);
+    if (profile.numRows() !== 1)
+        return;
+    const { utid, upid } = profile.firstRow({ utid: query_result_1.NUM, upid: query_result_1.NUM_NULL });
+    // Create an area selection over the first process with a perf samples track
+    trace.selection.selectArea({
+        start: trace.traceInfo.start,
+        end: trace.traceInfo.end,
+        trackUris: [`${(0, utils_1.getThreadUriPrefix)(upid, utid)}_cpu_samples`],
     });
 }
 //# sourceMappingURL=index.js.map

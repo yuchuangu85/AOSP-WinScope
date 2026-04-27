@@ -19,39 +19,38 @@ const mithril_1 = tslib_1.__importDefault(require("mithril"));
 const details_1 = require("../../components/widgets/sql/details/details");
 const details_shell_1 = require("../../widgets/details_shell");
 const grid_layout_1 = require("../../widgets/grid_layout");
-var d = details_1.DetailsSchema;
 class PageLoadDetailsPanel {
     trace;
     data;
     constructor(trace, id) {
         this.trace = trace;
         this.data = new details_1.Details(this.trace, 'chrome_page_loads', id, {
-            'Navigation start': d.Timestamp('navigation_start_ts'),
-            'FCP event': d.Timestamp('fcp_ts'),
-            'FCP': d.Interval('navigation_start_ts', 'fcp'),
-            'LCP event': d.Timestamp('lcp_ts', { skipIfNull: true }),
-            'LCP': d.Interval('navigation_start_ts', 'lcp', { skipIfNull: true }),
-            'DOMContentLoaded': d.Timestamp('dom_content_loaded_event_ts', {
+            'Navigation start': details_1.DetailsSchema.Timestamp('navigation_start_ts'),
+            'FCP event': details_1.DetailsSchema.Timestamp('fcp_ts'),
+            'FCP': details_1.DetailsSchema.Interval('navigation_start_ts', 'fcp'),
+            'LCP event': details_1.DetailsSchema.Timestamp('lcp_ts', { skipIfNull: true }),
+            'LCP': details_1.DetailsSchema.Interval('navigation_start_ts', 'lcp', { skipIfNull: true }),
+            'DOMContentLoaded': details_1.DetailsSchema.Timestamp('dom_content_loaded_event_ts', {
                 skipIfNull: true,
             }),
-            'onload timestamp': d.Timestamp('load_event_ts', { skipIfNull: true }),
-            'performance.mark timings': d.Dict({
+            'onload timestamp': details_1.DetailsSchema.Timestamp('load_event_ts', { skipIfNull: true }),
+            'performance.mark timings': details_1.DetailsSchema.Dict({
                 data: {
-                    'Fully loaded': d.Timestamp('mark_fully_loaded_ts', {
+                    'Fully loaded': details_1.DetailsSchema.Timestamp('mark_fully_loaded_ts', {
                         skipIfNull: true,
                     }),
-                    'Fully visible': d.Timestamp('mark_fully_visible_ts', {
+                    'Fully visible': details_1.DetailsSchema.Timestamp('mark_fully_visible_ts', {
                         skipIfNull: true,
                     }),
-                    'Interactive': d.Timestamp('mark_interactive_ts', {
+                    'Interactive': details_1.DetailsSchema.Timestamp('mark_interactive_ts', {
                         skipIfNull: true,
                     }),
                 },
                 skipIfEmpty: true,
             }),
             'Navigation ID': 'navigation_id',
-            'Browser process': d.SqlIdRef('process', 'browser_upid'),
-            'URL': d.URLValue('url'),
+            'Browser process': details_1.DetailsSchema.SqlIdRef('process', 'browser_upid'),
+            'URL': details_1.DetailsSchema.URLValue('url'),
         });
     }
     render() {

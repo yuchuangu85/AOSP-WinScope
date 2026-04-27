@@ -17,7 +17,6 @@ exports.ChromeCategoriesWidget = void 0;
 exports.chromeRecordSection = chromeRecordSection;
 const tslib_1 = require("tslib");
 const mithril_1 = tslib_1.__importDefault(require("mithril"));
-const protos_1 = tslib_1.__importDefault(require("../../../protos"));
 const toggle_1 = require("./widgets/toggle");
 const section_1 = require("../../../widgets/section");
 const multiselect_1 = require("../../../widgets/multiselect");
@@ -81,12 +80,10 @@ function chromeProbe(chromeCategoryGetter) {
             };
             const privacyFilteringEnabled = settings.privacy.enabled;
             const chromeConfig = {
-                clientPriority: protos_1.default.ChromeConfig.ClientPriority.USER_INITIATED,
                 privacyFilteringEnabled,
                 traceConfig: JSON.stringify(jsonStruct),
             };
             const trackEvent = tc.addDataSource('track_event');
-            trackEvent.chromeConfig = chromeConfig;
             const trackEvtCfg = (trackEvent.trackEventConfig ??= {});
             trackEvtCfg.disabledCategories ??= ['*'];
             trackEvtCfg.enabledCategories ??= [];
@@ -96,8 +93,8 @@ function chromeProbe(chromeCategoryGetter) {
             trackEvtCfg.timestampUnitMultiplier = 1000;
             trackEvtCfg.filterDynamicEventNames = privacyFilteringEnabled;
             trackEvtCfg.filterDebugAnnotations = privacyFilteringEnabled;
-            tc.addDataSource('org.chromium.trace_metadata').chromeConfig =
-                chromeConfig;
+            tc.addBuffer('metadata', 256, 'DISCARD');
+            tc.addDataSource('org.chromium.trace_metadata2', 'metadata').chromeConfig = { privacyFilteringEnabled };
             if (memoryInfra) {
                 tc.addDataSource('org.chromium.memory_instrumentation').chromeConfig =
                     chromeConfig;
@@ -106,15 +103,15 @@ function chromeProbe(chromeCategoryGetter) {
             }
             if (cats.has('disabled-by-default-cpu_profiler') ||
                 cats.has('disabled-by-default-cpu_profiler.debug')) {
-                tc.addDataSource('org.chromium.sampler_profiler').chromeConfig =
-                    chromeConfig;
+                tc.addDataSource('org.chromium.sampler_profiler').chromeConfig = {
+                    privacyFilteringEnabled,
+                };
             }
             if (cats.has('disabled-by-default-system_metrics')) {
-                tc.addDataSource('org.chromium.system_metrics').chromeConfig =
-                    chromeConfig;
+                tc.addDataSource('org.chromium.system_metrics');
             }
             if (cats.has('disabled-by-default-histogram_samples')) {
-                const histogram = tc.addDataSource('org.chromium.histogram_samples');
+                const histogram = tc.addDataSource('org.chromium.histogram_sample');
                 const histogramCfg = (histogram.chromiumHistogramSamples ??= {});
                 histogramCfg.filterHistogramNames = privacyFilteringEnabled;
             }

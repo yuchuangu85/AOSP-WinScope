@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import {DOMUtils} from 'common/dom_utils';
-import {FunctionUtils} from 'common/function_utils';
+import {assertDefined} from 'common/assert';
+import {isElementVisible, isInputTextField, KeyboardEventKey} from 'common/dom';
 import {Timestamp} from 'common/time/time';
 import {Analytics} from 'logging/analytics';
 import {
@@ -24,14 +24,16 @@ import {
   WinscopeEventType,
 } from 'messaging/winscope_event';
 import {EmitEvent} from 'messaging/winscope_event_emitter';
-import {Trace, TraceEntry} from 'trace/trace';
-import {TraceEntryFinder} from 'trace/trace_entry_finder';
-import {TRACE_INFO} from 'trace/trace_info';
-import {TracePosition} from 'trace/trace_position';
-import {PropertyTreeNode} from 'trace/tree_node/property_tree_node';
+import {CustomQueryType} from 'trace_api/custom_query';
+import {Trace, TraceEntry} from 'trace_api/trace';
+import {TraceEntryFinder} from 'trace_api/trace_entry_finder';
+import {TRACE_INFO} from 'trace_api/trace_info';
+import {TracePosition} from 'trace_api/trace_position';
+import {PropertyTreeNode} from 'tree_node/property_tree_node';
 import {PropertiesPresenter} from 'viewers/common/properties_presenter';
 import {TextFilter} from 'viewers/common/text_filter';
 import {UserOptions} from 'viewers/common/user_options';
+import {LogSelectFilter} from './log_filters';
 import {LogPresenter} from './log_presenter';
 import {LogEntry, LogHeader, UiDataLog} from './ui_data_log';
 import {
@@ -48,7 +50,7 @@ export abstract class AbstractLogViewerPresenter<
   TraceEntryType extends object,
 > {
   protected static readonly VALUE_NA = 'N/A';
-  protected emitAppEvent: EmitEvent = FunctionUtils.DO_NOTHING_ASYNC;
+  protected emitAppEvent: EmitEvent = () => Promise.resolve();
   protected abstract logPresenter: LogPresenter<LogEntry>;
   protected propertiesPresenter?: PropertiesPresenter;
   protected keepCalculated?: boolean;
@@ -117,10 +119,13 @@ export abstract class AbstractLogViewerPresenter<
     );
 
     document.addEventListener('keydown', async (event: KeyboardEvent) => {
-      const isViewerVisible = DOMUtils.isElementVisible(htmlElement);
+      const isViewerVisible = isElementVisible(htmlElement);
+      const keydownOnInputField =
+        event.target instanceof HTMLElement && isInputTextField(event.target);
       const isPositionChange =
-        event.key === 'ArrowRight' || event.key === 'ArrowLeft';
-      if (!isViewerVisible || !isPositionChange) {
+        event.key === KeyboardEventKey.ARROW_RIGHT ||
+        event.key === KeyboardEventKey.ARROW_LEFT;
+      if (!isViewerVisible || keydownOnInputField || !isPositionChange) {
         return;
       }
       event.preventDefault();
@@ -160,6 +165,11 @@ export abstract class AbstractLogViewerPresenter<
     });
     await event.visit(WinscopeEventType.ACTIVE_TRACE_CHANGED, async (event) => {
       this.activeTrace = event.trace;
+      if (this.activeTrace === this.trace) {
+        this.uiData.checkScrollViewport = true;
+        this.notifyViewChanged();
+        this.uiData.checkScrollViewport = false;
+      }
     });
   }
 
@@ -218,6 +228,9 @@ export abstract class AbstractLogViewerPresenter<
     this.logPresenter.applyLogEntryClick(index);
     this.updateIndicesUiData();
     await this.updatePropertiesTree();
+    if (this.handleSpecificEntryClicks) {
+      await this.handleSpecificEntryClicks();
+    }
     this.notifyViewChanged();
   }
 
@@ -238,7 +251,7 @@ export abstract class AbstractLogViewerPresenter<
   async onPositionChangeByKeyPress(event: KeyboardEvent) {
     const currIndex = this.uiData.currentIndex;
     if (this.activeTrace === this.trace && currIndex !== undefined) {
-      if (event.key === 'ArrowRight') {
+      if (event.key === KeyboardEventKey.ARROW_RIGHT) {
         event.stopImmediatePropagation();
         if (currIndex < this.uiData.entries.length - 1) {
           const currTimestamp =
@@ -309,7 +322,6 @@ export abstract class AbstractLogViewerPresenter<
     this.uiData.selectedIndex = this.logPresenter.getSelectedIndex();
     this.uiData.scrollToIndex = this.logPresenter.getScrollToIndex();
     this.uiData.currentIndex = this.logPresenter.getCurrentIndex();
-
     if (this.propertiesPresenter) {
       await this.updatePropertiesTree();
       this.uiData.propertiesTree = this.propertiesPresenter.getFormattedTree();
@@ -323,7 +335,7 @@ export abstract class AbstractLogViewerPresenter<
       const traceName = TRACE_INFO[this.trace.type].name;
       const propertiesStartTime = Date.now();
 
-      const tree = this.getPropertiesTree();
+      const tree = await this.getPropertiesTree();
       this.propertiesPresenter.setPropertiesTree(tree);
       if (updateDefaultAllowlist && this.updateDefaultAllowlist) {
         this.updateDefaultAllowlist(tree);
@@ -348,7 +360,7 @@ export abstract class AbstractLogViewerPresenter<
     const headers = this.makeHeaders();
     const allEntries = await this.makeUiDataEntries(headers);
     if (this.updateFiltersInHeaders) {
-      this.updateFiltersInHeaders(headers, allEntries);
+      await this.updateFiltersInHeaders(headers, allEntries);
     }
     this.logPresenter.setAllEntries(allEntries);
     this.logPresenter.setHeaders(headers);
@@ -361,17 +373,32 @@ export abstract class AbstractLogViewerPresenter<
     this.uiData.scrollToIndex = this.logPresenter.getScrollToIndex();
   }
 
-  private getPropertiesTree(): PropertyTreeNode | undefined {
+  private async getPropertiesTree(): Promise<PropertyTreeNode | undefined> {
     const entries = this.logPresenter.getFilteredEntries();
     const selectedIndex = this.logPresenter.getSelectedIndex();
     const currentIndex = this.logPresenter.getCurrentIndex();
     if (selectedIndex !== undefined) {
-      return entries.at(selectedIndex)?.propertiesTree;
+      const entry = entries.at(selectedIndex);
+      return entry?.getPropertiesTree
+        ? await entry.getPropertiesTree()
+        : undefined;
     }
     if (currentIndex !== undefined) {
-      return entries.at(currentIndex)?.propertiesTree;
+      const entry = entries.at(currentIndex);
+      return entry?.getPropertiesTree
+        ? await entry.getPropertiesTree()
+        : undefined;
     }
     return undefined;
+  }
+
+  protected async updateFilterByCustomQuery(header: LogHeader) {
+    const filterValues = await this.trace.customQuery(
+      CustomQueryType.LOG_TABLE_FILTER_VALUES,
+      assertDefined(header.spec.columnType),
+    );
+    (header.filter as LogSelectFilter).options = filterValues;
+    return;
   }
 
   protected notifyViewChanged() {
@@ -383,9 +410,10 @@ export abstract class AbstractLogViewerPresenter<
     headers: LogHeader[],
   ): Promise<LogEntry[]>;
   protected initializeTraceSpecificData?(): Promise<void>;
-  protected updateFiltersInHeaders?(
+  protected async handleSpecificEntryClicks?(): Promise<void>;
+  protected async updateFiltersInHeaders?(
     headers: LogHeader[],
     allEntries: LogEntry[],
-  ): void;
+  ): Promise<void>;
   protected updateDefaultAllowlist?(tree: PropertyTreeNode | undefined): void;
 }

@@ -131,11 +131,9 @@ exports.COUNTER_TRACK_SCHEMAS = [
         group: 'Diskstat',
     },
     {
-        type: 'entity_state',
-        topLevelGroup: 'POWER',
-        group: 'Entity Residency',
-        shareYAxis: true,
-        mode: 'rate',
+        type: 'etw_meminfo',
+        topLevelGroup: 'MEMORY',
+        group: 'ETW Memory Counters',
     },
     {
         type: 'f2fs_iostat_latency',
@@ -278,13 +276,6 @@ exports.COUNTER_TRACK_SCHEMAS = [
         type: 'pixel_cpm_counters',
         topLevelGroup: 'HARDWARE',
         group: 'CPM Counters',
-    },
-    {
-        type: 'power_rails',
-        group: 'Power Rails',
-        topLevelGroup: 'POWER',
-        shareYAxis: true,
-        mode: 'rate',
     },
     {
         type: 'proc_stat_runtime',

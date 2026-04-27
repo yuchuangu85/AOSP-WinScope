@@ -21,8 +21,8 @@ const classnames_1 = require("../base/classnames");
 // It provides regular placement for the header bar and placement of buttons
 class DetailsShell {
     view({ attrs, children }) {
-        const { title, description, buttons, fillParent = true } = attrs;
-        return (0, mithril_1.default)('section.pf-details-shell', { class: (0, classnames_1.classNames)(fillParent && 'pf-fill-parent') }, (0, mithril_1.default)('header.pf-header-bar', (0, mithril_1.default)('h1.pf-header-title', title), (0, mithril_1.default)('span.pf-header-description', description), (0, mithril_1.default)('nav.pf-header-buttons', buttons)), (0, mithril_1.default)('article.pf-content', children));
+        const { title, description, buttons, fillParent = true, className } = attrs;
+        return (0, mithril_1.default)('section.pf-details-shell', { class: (0, classnames_1.classNames)(fillParent && 'pf-fill-parent', className) }, (0, mithril_1.default)('header.pf-header-bar', (0, mithril_1.default)('h1.pf-header-title', title), (0, mithril_1.default)('span.pf-header-description', description), (0, mithril_1.default)('nav.pf-header-buttons', buttons)), (0, mithril_1.default)('article.pf-content', children));
     }
 }
 exports.DetailsShell = DetailsShell;

@@ -36,8 +36,8 @@ describe('TracingSession', () => {
     listener,
   );
   const fileIdentifiers = [
-    new AdbFileIdentifier('test path 1', ['matcher'], 'saved file 1'),
-    new AdbFileIdentifier('test path 2', ['matcher'], 'saved file 2'),
+    new AdbFileIdentifier('test path 1', ['matcher'], 'saved_file_1'),
+    new AdbFileIdentifier('test path 2', ['matcher'], 'saved_file_2'),
   ];
   const sessionName = 'TestSession';
   const stopCmd = 'test stop cmd';
@@ -47,7 +47,6 @@ describe('TracingSession', () => {
   let target: TraceTarget;
   let startTraceSpy: jasmine.Spy;
   let endTraceSpy: jasmine.Spy;
-  let moveFilesSpy: jasmine.Spy;
   let runShellCmdSpy: jasmine.Spy;
   let findFilesSpy: jasmine.Spy;
 
@@ -66,7 +65,6 @@ describe('TracingSession', () => {
     findFilesSpy = spyOn(mockDevice, 'findFiles').and.returnValue(
       Promise.resolve(['file']),
     );
-    moveFilesSpy = spyOn(session, 'moveFiles').and.callThrough();
   });
 
   it('starts traces', async () => {
@@ -108,19 +106,45 @@ describe('TracingSession', () => {
       ['test path 2', ['matcher']],
     ]);
     expect(runShellCmdSpy.calls.allArgs()).toEqual([
+      ['su root id -u'],
       [
-        `su root [ ! -f file ] || su root mv file ${WINSCOPE_BACKUP_DIR}saved file 1`,
+        `[ -f file ] && cp -p file ${WINSCOPE_BACKUP_DIR}saved_file_1 && rm -f file`,
       ],
       [
-        `su root [ ! -f file ] || su root mv file ${WINSCOPE_BACKUP_DIR}saved file 2`,
+        `[ -f file ] && cp -p file ${WINSCOPE_BACKUP_DIR}saved_file_2 && rm -f file`,
+      ],
+    ]);
+  });
+
+  it('moves files as root', async () => {
+    runShellCmdSpy.and.returnValue(Promise.resolve(''));
+    setDeviceAsRoot();
+    await session.moveFiles(mockDevice);
+    expect(findFilesSpy.calls.allArgs()).toEqual([
+      ['test path 1', ['matcher']],
+      ['test path 2', ['matcher']],
+    ]);
+    expect(runShellCmdSpy.calls.allArgs()).toEqual([
+      ['su root id -u'],
+      [
+        `su root [ -f file ] && su root cp -p file ${WINSCOPE_BACKUP_DIR}saved_file_1 && su root rm -f file`,
+      ],
+      [
+        `su root [ -f file ] && su root cp -p file ${WINSCOPE_BACKUP_DIR}saved_file_2 && su root rm -f file`,
       ],
     ]);
   });
 
   it('handles error in move command', async () => {
+    runShellCmdSpy.and.returnValue(Promise.resolve(''));
     runShellCmdSpy
       .withArgs(
-        `su root [ ! -f file ] || su root mv file ${WINSCOPE_BACKUP_DIR}saved file 1`,
+        `[ -f file ] && cp -p file ${WINSCOPE_BACKUP_DIR}saved_file_1 && rm -f file`,
+      )
+      .and.throwError(new Error());
+    runShellCmdSpy
+      .withArgs(
+        `[ -f file ] && cp -p file ${WINSCOPE_BACKUP_DIR}saved_file_2 && rm -f file`,
       )
       .and.throwError(new Error());
     await expectAsync(session.moveFiles(mockDevice)).toBeResolved();
@@ -128,9 +152,14 @@ describe('TracingSession', () => {
 
   function checkTraceStopSpies(times: number, endArgs?: TraceTarget[]) {
     expect(endTraceSpy).toHaveBeenCalledTimes(times);
-    expect(moveFilesSpy).toHaveBeenCalledTimes(times);
     if (endArgs) {
       expect(endTraceSpy).toHaveBeenCalledWith(...endArgs);
     }
+  }
+
+  function setDeviceAsRoot() {
+    runShellCmdSpy
+      .withArgs('su root id -u')
+      .and.returnValue(Promise.resolve('0'));
   }
 });

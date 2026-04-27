@@ -24,7 +24,6 @@ const utils_1 = require("../../base/utils");
 const query_result_1 = require("../../trace_processor/query_result");
 const anchor_1 = require("../../widgets/anchor");
 const scroll_jank_cause_map_1 = require("./scroll_jank_cause_map");
-const scroll_helper_1 = require("../../public/scroll_helper");
 const UNKNOWN_NAME = 'Unknown';
 async function getScrollJankCauseStage(engine, eventLatencyId) {
     const queryResult = await engine.query(`
@@ -140,11 +139,11 @@ function getCauseLink(trace, threadTracks, tracksByTrackId, ts, dur) {
     return (0, mithril_1.default)(`div[style='width:250px']`, (0, mithril_1.default)(anchor_1.Anchor, {
         icon: semantic_icons_1.Icons.UpdateSelection,
         onclick: () => {
-            (0, scroll_helper_1.scrollTo)({
+            trace.scrollTo({
                 track: { uri: trackUris[0], expandGroup: true },
             });
             if ((0, utils_1.exists)(ts) && (0, utils_1.exists)(dur)) {
-                (0, scroll_helper_1.scrollTo)({
+                trace.scrollTo({
                     time: {
                         start: ts,
                         end: time_1.Time.fromRaw(ts + dur),

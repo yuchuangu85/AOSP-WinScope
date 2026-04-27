@@ -16,6 +16,7 @@ namespace perfetto {
 namespace protos {
 namespace pbzero {
 class CSwitchEtwEvent;
+class MemInfoEtwEvent;
 class ReadyThreadEtwEvent;
 } // Namespace pbzero.
 } // Namespace protos.
@@ -25,7 +26,7 @@ namespace perfetto {
 namespace protos {
 namespace pbzero {
 
-class EtwTraceEvent_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/4, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
+class EtwTraceEvent_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/6, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
  public:
   EtwTraceEvent_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
   explicit EtwTraceEvent_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
@@ -34,10 +35,14 @@ class EtwTraceEvent_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_
   uint64_t timestamp() const { return at<1>().as_uint64(); }
   bool has_cpu() const { return at<4>().valid(); }
   uint32_t cpu() const { return at<4>().as_uint32(); }
+  bool has_thread_id() const { return at<5>().valid(); }
+  uint32_t thread_id() const { return at<5>().as_uint32(); }
   bool has_c_switch() const { return at<2>().valid(); }
   ::protozero::ConstBytes c_switch() const { return at<2>().as_bytes(); }
   bool has_ready_thread() const { return at<3>().valid(); }
   ::protozero::ConstBytes ready_thread() const { return at<3>().as_bytes(); }
+  bool has_mem_info() const { return at<6>().valid(); }
+  ::protozero::ConstBytes mem_info() const { return at<6>().as_bytes(); }
 };
 
 class EtwTraceEvent : public ::protozero::Message {
@@ -46,8 +51,10 @@ class EtwTraceEvent : public ::protozero::Message {
   enum : int32_t {
     kTimestampFieldNumber = 1,
     kCpuFieldNumber = 4,
+    kThreadIdFieldNumber = 5,
     kCSwitchFieldNumber = 2,
     kReadyThreadFieldNumber = 3,
+    kMemInfoFieldNumber = 6,
   };
   static constexpr const char* GetName() { return ".perfetto.protos.EtwTraceEvent"; }
 
@@ -88,6 +95,24 @@ class EtwTraceEvent : public ::protozero::Message {
         ::Append(*this, field_id, value);
   }
 
+  using FieldMetadata_ThreadId =
+    ::protozero::proto_utils::FieldMetadata<
+      5,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kUint32,
+      uint32_t,
+      EtwTraceEvent>;
+
+  static constexpr FieldMetadata_ThreadId kThreadId{};
+  void set_thread_id(uint32_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_ThreadId::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint32>
+        ::Append(*this, field_id, value);
+  }
+
   using FieldMetadata_CSwitch =
     ::protozero::proto_utils::FieldMetadata<
       2,
@@ -113,6 +138,20 @@ class EtwTraceEvent : public ::protozero::Message {
   static constexpr FieldMetadata_ReadyThread kReadyThread{};
   template <typename T = ReadyThreadEtwEvent> T* set_ready_thread() {
     return BeginNestedMessage<T>(3);
+  }
+
+
+  using FieldMetadata_MemInfo =
+    ::protozero::proto_utils::FieldMetadata<
+      6,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      MemInfoEtwEvent,
+      EtwTraceEvent>;
+
+  static constexpr FieldMetadata_MemInfo kMemInfo{};
+  template <typename T = MemInfoEtwEvent> T* set_mem_info() {
+    return BeginNestedMessage<T>(6);
   }
 
 };

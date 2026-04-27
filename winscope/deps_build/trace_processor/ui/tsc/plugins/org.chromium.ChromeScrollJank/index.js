@@ -36,7 +36,7 @@ class default_1 {
     static dependencies = [dev_perfetto_SqlModules_1.default];
     async onTraceLoad(ctx) {
         const group = new workspace_1.TrackNode({
-            title: 'Chrome Scroll Jank',
+            name: 'Chrome Scroll Jank',
             sortOrder: -30,
             isSummary: true,
         });
@@ -59,10 +59,9 @@ class default_1 {
         const title = 'Chrome Scrolls';
         ctx.tracks.registerTrack({
             uri,
-            title,
-            track: (0, scroll_track_1.createTopLevelScrollTrack)(ctx, uri),
+            renderer: (0, scroll_track_1.createTopLevelScrollTrack)(ctx, uri),
         });
-        const track = new workspace_1.TrackNode({ uri, title });
+        const track = new workspace_1.TrackNode({ uri, name: title });
         group.addChildInOrder(track);
     }
     async addEventLatencyTrack(ctx, group) {
@@ -157,10 +156,9 @@ class default_1 {
         const title = 'Chrome Scroll Input Latencies';
         ctx.tracks.registerTrack({
             uri,
-            title,
-            track: (0, event_latency_track_1.createEventLatencyTrack)(ctx, uri, baseTable),
+            renderer: (0, event_latency_track_1.createEventLatencyTrack)(ctx, uri, baseTable),
         });
-        const track = new workspace_1.TrackNode({ uri, title });
+        const track = new workspace_1.TrackNode({ uri, name: title });
         group.addChildInOrder(track);
     }
     async addScrollJankV3ScrollTrack(ctx, group) {
@@ -169,10 +167,9 @@ class default_1 {
         const title = 'Chrome Scroll Janks';
         ctx.tracks.registerTrack({
             uri,
-            title,
-            track: (0, scroll_jank_v3_track_1.createScrollJankV3Track)(ctx, uri),
+            renderer: (0, scroll_jank_v3_track_1.createScrollJankV3Track)(ctx, uri),
         });
-        const track = new workspace_1.TrackNode({ uri, title });
+        const track = new workspace_1.TrackNode({ uri, name: title });
         group.addChildInOrder(track);
     }
     async addScrollTimelineTrack(ctx, group) {
@@ -182,10 +179,9 @@ class default_1 {
         const model = await (0, scroll_timeline_model_1.createScrollTimelineModel)(ctx.engine, tableName, uri);
         ctx.tracks.registerTrack({
             uri,
-            title,
-            track: (0, scroll_timeline_track_1.createScrollTimelineTrack)(ctx, model),
+            renderer: (0, scroll_timeline_track_1.createScrollTimelineTrack)(ctx, model),
         });
-        const track = new workspace_1.TrackNode({ uri, title });
+        const track = new workspace_1.TrackNode({ uri, name: title });
         group.addChildInOrder(track);
     }
     async addVsyncTracks(ctx, group) {
@@ -211,17 +207,15 @@ class default_1 {
                 argColumns: ['id', 'track_id', 'ts', 'dur'],
                 uri,
             });
-            const title = 'Chrome VSync';
-            ctx.tracks.registerTrack({ uri, title, track });
-            group.addChildInOrder(new workspace_1.TrackNode({ uri, title }));
+            ctx.tracks.registerTrack({ uri, renderer: track });
+            group.addChildInOrder(new workspace_1.TrackNode({ uri, name: 'Chrome VSync' }));
         }
         {
             // Add a track which tracks the differences between VSyncs.
             const uri = 'org.chromium.ChromeScrollJank#ChromeVsyncDelta';
             const track = (0, flat_colored_duration_track_1.createFlatColoredDurationTrack)(ctx, uri, `(SELECT id, ts, LEAD(ts) OVER (ORDER BY ts) - ts as dur FROM ${vsyncTable})`);
-            const title = 'Chrome VSync delta';
-            ctx.tracks.registerTrack({ uri, title, track });
-            group.addChildInOrder(new workspace_1.TrackNode({ uri, title }));
+            ctx.tracks.registerTrack({ uri, renderer: track });
+            group.addChildInOrder(new workspace_1.TrackNode({ uri, name: 'Chrome VSync delta' }));
         }
         {
             // Add a track which tracks the differences between inputs.
@@ -232,9 +226,8 @@ class default_1 {
           LEAD(generation_ts) OVER (ORDER BY generation_ts) - generation_ts as dur
         FROM chrome_scroll_update_info
         WHERE generation_ts IS NOT NULL)`);
-            const title = 'Chrome input delta';
-            ctx.tracks.registerTrack({ uri, title, track });
-            group.addChildInOrder(new workspace_1.TrackNode({ uri, title }));
+            ctx.tracks.registerTrack({ uri, renderer: track });
+            group.addChildInOrder(new workspace_1.TrackNode({ uri, name: 'Chrome input delta' }));
         }
         {
             const steps = [
@@ -288,8 +281,8 @@ class default_1 {
                     }),
                     detailsPanel: () => new thread_slice_details_tab_1.ThreadSliceDetailsPanel(ctx),
                 });
-                ctx.tracks.registerTrack({ uri, title: step.name, track });
-                group.addChildInOrder(new workspace_1.TrackNode({ uri, title: step.name }));
+                ctx.tracks.registerTrack({ uri, renderer: track });
+                group.addChildInOrder(new workspace_1.TrackNode({ uri, name: step.name }));
             }
         }
     }

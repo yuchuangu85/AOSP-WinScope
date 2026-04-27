@@ -56,7 +56,7 @@ const char* ChromeConfig_ClientPriority_Name(::perfetto::protos::pbzero::ChromeC
   return "PBZERO_UNKNOWN_ENUM_VALUE";
 }
 
-class ChromeConfig_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/5, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
+class ChromeConfig_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/6, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
  public:
   ChromeConfig_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
   explicit ChromeConfig_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
@@ -71,6 +71,8 @@ class ChromeConfig_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_I
   int32_t client_priority() const { return at<4>().as_int32(); }
   bool has_json_agent_label_filter() const { return at<5>().valid(); }
   ::protozero::ConstChars json_agent_label_filter() const { return at<5>().as_string(); }
+  bool has_event_package_name_filter_enabled() const { return at<6>().valid(); }
+  bool event_package_name_filter_enabled() const { return at<6>().as_bool(); }
 };
 
 class ChromeConfig : public ::protozero::Message {
@@ -82,6 +84,7 @@ class ChromeConfig : public ::protozero::Message {
     kConvertToLegacyJsonFieldNumber = 3,
     kClientPriorityFieldNumber = 4,
     kJsonAgentLabelFilterFieldNumber = 5,
+    kEventPackageNameFilterEnabledFieldNumber = 6,
   };
   static constexpr const char* GetName() { return ".perfetto.protos.ChromeConfig"; }
 
@@ -193,6 +196,24 @@ class ChromeConfig : public ::protozero::Message {
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
       ::protozero::proto_utils::ProtoSchemaType::kString>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_EventPackageNameFilterEnabled =
+    ::protozero::proto_utils::FieldMetadata<
+      6,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kBool,
+      bool,
+      ChromeConfig>;
+
+  static constexpr FieldMetadata_EventPackageNameFilterEnabled kEventPackageNameFilterEnabled{};
+  void set_event_package_name_filter_enabled(bool value) {
+    static constexpr uint32_t field_id = FieldMetadata_EventPackageNameFilterEnabled::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kBool>
         ::Append(*this, field_id, value);
   }
 };

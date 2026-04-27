@@ -348,7 +348,296 @@ const char* CSwitchEtwEvent_OldThreadState_Name(::perfetto::protos::pbzero::CSwi
   return "PBZERO_UNKNOWN_ENUM_VALUE";
 }
 
-class ReadyThreadEtwEvent_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/4, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
+class MemInfoEtwEvent_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/13, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
+ public:
+  MemInfoEtwEvent_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
+  explicit MemInfoEtwEvent_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
+  explicit MemInfoEtwEvent_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
+  bool has_priority_levels() const { return at<1>().valid(); }
+  uint32_t priority_levels() const { return at<1>().as_uint32(); }
+  bool has_zero_page_count() const { return at<2>().valid(); }
+  uint64_t zero_page_count() const { return at<2>().as_uint64(); }
+  bool has_free_page_count() const { return at<3>().valid(); }
+  uint64_t free_page_count() const { return at<3>().as_uint64(); }
+  bool has_modified_page_count() const { return at<4>().valid(); }
+  uint64_t modified_page_count() const { return at<4>().as_uint64(); }
+  bool has_modified_no_write_page_count() const { return at<5>().valid(); }
+  uint64_t modified_no_write_page_count() const { return at<5>().as_uint64(); }
+  bool has_bad_page_count() const { return at<6>().valid(); }
+  uint64_t bad_page_count() const { return at<6>().as_uint64(); }
+  bool has_standby_page_counts() const { return at<7>().valid(); }
+  ::protozero::RepeatedFieldIterator<uint64_t> standby_page_counts() const { return GetRepeated<uint64_t>(7); }
+  bool has_repurposed_page_counts() const { return at<8>().valid(); }
+  ::protozero::RepeatedFieldIterator<uint64_t> repurposed_page_counts() const { return GetRepeated<uint64_t>(8); }
+  bool has_modified_page_count_page_file() const { return at<9>().valid(); }
+  uint64_t modified_page_count_page_file() const { return at<9>().as_uint64(); }
+  bool has_paged_pool_page_count() const { return at<10>().valid(); }
+  uint64_t paged_pool_page_count() const { return at<10>().as_uint64(); }
+  bool has_non_paged_pool_page_count() const { return at<11>().valid(); }
+  uint64_t non_paged_pool_page_count() const { return at<11>().as_uint64(); }
+  bool has_mdl_page_count() const { return at<12>().valid(); }
+  uint64_t mdl_page_count() const { return at<12>().as_uint64(); }
+  bool has_commit_page_count() const { return at<13>().valid(); }
+  uint64_t commit_page_count() const { return at<13>().as_uint64(); }
+};
+
+class MemInfoEtwEvent : public ::protozero::Message {
+ public:
+  using Decoder = MemInfoEtwEvent_Decoder;
+  enum : int32_t {
+    kPriorityLevelsFieldNumber = 1,
+    kZeroPageCountFieldNumber = 2,
+    kFreePageCountFieldNumber = 3,
+    kModifiedPageCountFieldNumber = 4,
+    kModifiedNoWritePageCountFieldNumber = 5,
+    kBadPageCountFieldNumber = 6,
+    kStandbyPageCountsFieldNumber = 7,
+    kRepurposedPageCountsFieldNumber = 8,
+    kModifiedPageCountPageFileFieldNumber = 9,
+    kPagedPoolPageCountFieldNumber = 10,
+    kNonPagedPoolPageCountFieldNumber = 11,
+    kMdlPageCountFieldNumber = 12,
+    kCommitPageCountFieldNumber = 13,
+  };
+  static constexpr const char* GetName() { return ".perfetto.protos.MemInfoEtwEvent"; }
+
+
+  using FieldMetadata_PriorityLevels =
+    ::protozero::proto_utils::FieldMetadata<
+      1,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kUint32,
+      uint32_t,
+      MemInfoEtwEvent>;
+
+  static constexpr FieldMetadata_PriorityLevels kPriorityLevels{};
+  void set_priority_levels(uint32_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_PriorityLevels::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint32>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_ZeroPageCount =
+    ::protozero::proto_utils::FieldMetadata<
+      2,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kUint64,
+      uint64_t,
+      MemInfoEtwEvent>;
+
+  static constexpr FieldMetadata_ZeroPageCount kZeroPageCount{};
+  void set_zero_page_count(uint64_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_ZeroPageCount::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint64>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_FreePageCount =
+    ::protozero::proto_utils::FieldMetadata<
+      3,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kUint64,
+      uint64_t,
+      MemInfoEtwEvent>;
+
+  static constexpr FieldMetadata_FreePageCount kFreePageCount{};
+  void set_free_page_count(uint64_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_FreePageCount::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint64>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_ModifiedPageCount =
+    ::protozero::proto_utils::FieldMetadata<
+      4,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kUint64,
+      uint64_t,
+      MemInfoEtwEvent>;
+
+  static constexpr FieldMetadata_ModifiedPageCount kModifiedPageCount{};
+  void set_modified_page_count(uint64_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_ModifiedPageCount::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint64>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_ModifiedNoWritePageCount =
+    ::protozero::proto_utils::FieldMetadata<
+      5,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kUint64,
+      uint64_t,
+      MemInfoEtwEvent>;
+
+  static constexpr FieldMetadata_ModifiedNoWritePageCount kModifiedNoWritePageCount{};
+  void set_modified_no_write_page_count(uint64_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_ModifiedNoWritePageCount::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint64>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_BadPageCount =
+    ::protozero::proto_utils::FieldMetadata<
+      6,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kUint64,
+      uint64_t,
+      MemInfoEtwEvent>;
+
+  static constexpr FieldMetadata_BadPageCount kBadPageCount{};
+  void set_bad_page_count(uint64_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_BadPageCount::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint64>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_StandbyPageCounts =
+    ::protozero::proto_utils::FieldMetadata<
+      7,
+      ::protozero::proto_utils::RepetitionType::kRepeatedNotPacked,
+      ::protozero::proto_utils::ProtoSchemaType::kUint64,
+      uint64_t,
+      MemInfoEtwEvent>;
+
+  static constexpr FieldMetadata_StandbyPageCounts kStandbyPageCounts{};
+  void add_standby_page_counts(uint64_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_StandbyPageCounts::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint64>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_RepurposedPageCounts =
+    ::protozero::proto_utils::FieldMetadata<
+      8,
+      ::protozero::proto_utils::RepetitionType::kRepeatedNotPacked,
+      ::protozero::proto_utils::ProtoSchemaType::kUint64,
+      uint64_t,
+      MemInfoEtwEvent>;
+
+  static constexpr FieldMetadata_RepurposedPageCounts kRepurposedPageCounts{};
+  void add_repurposed_page_counts(uint64_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_RepurposedPageCounts::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint64>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_ModifiedPageCountPageFile =
+    ::protozero::proto_utils::FieldMetadata<
+      9,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kUint64,
+      uint64_t,
+      MemInfoEtwEvent>;
+
+  static constexpr FieldMetadata_ModifiedPageCountPageFile kModifiedPageCountPageFile{};
+  void set_modified_page_count_page_file(uint64_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_ModifiedPageCountPageFile::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint64>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_PagedPoolPageCount =
+    ::protozero::proto_utils::FieldMetadata<
+      10,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kUint64,
+      uint64_t,
+      MemInfoEtwEvent>;
+
+  static constexpr FieldMetadata_PagedPoolPageCount kPagedPoolPageCount{};
+  void set_paged_pool_page_count(uint64_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_PagedPoolPageCount::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint64>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_NonPagedPoolPageCount =
+    ::protozero::proto_utils::FieldMetadata<
+      11,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kUint64,
+      uint64_t,
+      MemInfoEtwEvent>;
+
+  static constexpr FieldMetadata_NonPagedPoolPageCount kNonPagedPoolPageCount{};
+  void set_non_paged_pool_page_count(uint64_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_NonPagedPoolPageCount::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint64>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_MdlPageCount =
+    ::protozero::proto_utils::FieldMetadata<
+      12,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kUint64,
+      uint64_t,
+      MemInfoEtwEvent>;
+
+  static constexpr FieldMetadata_MdlPageCount kMdlPageCount{};
+  void set_mdl_page_count(uint64_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_MdlPageCount::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint64>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_CommitPageCount =
+    ::protozero::proto_utils::FieldMetadata<
+      13,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kUint64,
+      uint64_t,
+      MemInfoEtwEvent>;
+
+  static constexpr FieldMetadata_CommitPageCount kCommitPageCount{};
+  void set_commit_page_count(uint64_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_CommitPageCount::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint64>
+        ::Append(*this, field_id, value);
+  }
+};
+
+class ReadyThreadEtwEvent_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/6, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
  public:
   ReadyThreadEtwEvent_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
   explicit ReadyThreadEtwEvent_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
@@ -357,10 +646,14 @@ class ReadyThreadEtwEvent_Decoder : public ::protozero::TypedProtoDecoder</*MAX_
   uint32_t t_thread_id() const { return at<1>().as_uint32(); }
   bool has_adjust_reason() const { return at<2>().valid(); }
   int32_t adjust_reason() const { return at<2>().as_int32(); }
+  bool has_adjust_reason_int() const { return at<5>().valid(); }
+  int32_t adjust_reason_int() const { return at<5>().as_int32(); }
   bool has_adjust_increment() const { return at<3>().valid(); }
   int32_t adjust_increment() const { return at<3>().as_sint32(); }
   bool has_flag() const { return at<4>().valid(); }
   int32_t flag() const { return at<4>().as_int32(); }
+  bool has_flag_int() const { return at<6>().valid(); }
+  int32_t flag_int() const { return at<6>().as_int32(); }
 };
 
 class ReadyThreadEtwEvent : public ::protozero::Message {
@@ -369,8 +662,10 @@ class ReadyThreadEtwEvent : public ::protozero::Message {
   enum : int32_t {
     kTThreadIdFieldNumber = 1,
     kAdjustReasonFieldNumber = 2,
+    kAdjustReasonIntFieldNumber = 5,
     kAdjustIncrementFieldNumber = 3,
     kFlagFieldNumber = 4,
+    kFlagIntFieldNumber = 6,
   };
   static constexpr const char* GetName() { return ".perfetto.protos.ReadyThreadEtwEvent"; }
 
@@ -428,6 +723,24 @@ class ReadyThreadEtwEvent : public ::protozero::Message {
         ::Append(*this, field_id, value);
   }
 
+  using FieldMetadata_AdjustReasonInt =
+    ::protozero::proto_utils::FieldMetadata<
+      5,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kInt32,
+      int32_t,
+      ReadyThreadEtwEvent>;
+
+  static constexpr FieldMetadata_AdjustReasonInt kAdjustReasonInt{};
+  void set_adjust_reason_int(int32_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_AdjustReasonInt::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kInt32>
+        ::Append(*this, field_id, value);
+  }
+
   using FieldMetadata_AdjustIncrement =
     ::protozero::proto_utils::FieldMetadata<
       3,
@@ -463,9 +776,27 @@ class ReadyThreadEtwEvent : public ::protozero::Message {
       ::protozero::proto_utils::ProtoSchemaType::kEnum>
         ::Append(*this, field_id, value);
   }
+
+  using FieldMetadata_FlagInt =
+    ::protozero::proto_utils::FieldMetadata<
+      6,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kInt32,
+      int32_t,
+      ReadyThreadEtwEvent>;
+
+  static constexpr FieldMetadata_FlagInt kFlagInt{};
+  void set_flag_int(int32_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_FlagInt::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kInt32>
+        ::Append(*this, field_id, value);
+  }
 };
 
-class CSwitchEtwEvent_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/10, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
+class CSwitchEtwEvent_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/13, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
  public:
   CSwitchEtwEvent_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
   explicit CSwitchEtwEvent_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
@@ -482,10 +813,16 @@ class CSwitchEtwEvent_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIEL
   uint32_t previous_c_state() const { return at<5>().as_uint32(); }
   bool has_old_thread_wait_reason() const { return at<6>().valid(); }
   int32_t old_thread_wait_reason() const { return at<6>().as_int32(); }
+  bool has_old_thread_wait_reason_int() const { return at<11>().valid(); }
+  int32_t old_thread_wait_reason_int() const { return at<11>().as_int32(); }
   bool has_old_thread_wait_mode() const { return at<7>().valid(); }
   int32_t old_thread_wait_mode() const { return at<7>().as_int32(); }
+  bool has_old_thread_wait_mode_int() const { return at<12>().valid(); }
+  int32_t old_thread_wait_mode_int() const { return at<12>().as_int32(); }
   bool has_old_thread_state() const { return at<8>().valid(); }
   int32_t old_thread_state() const { return at<8>().as_int32(); }
+  bool has_old_thread_state_int() const { return at<13>().valid(); }
+  int32_t old_thread_state_int() const { return at<13>().as_sint32(); }
   bool has_old_thread_wait_ideal_processor() const { return at<9>().valid(); }
   int32_t old_thread_wait_ideal_processor() const { return at<9>().as_sint32(); }
   bool has_new_thread_wait_time() const { return at<10>().valid(); }
@@ -502,8 +839,11 @@ class CSwitchEtwEvent : public ::protozero::Message {
     kOldThreadPriorityFieldNumber = 4,
     kPreviousCStateFieldNumber = 5,
     kOldThreadWaitReasonFieldNumber = 6,
+    kOldThreadWaitReasonIntFieldNumber = 11,
     kOldThreadWaitModeFieldNumber = 7,
+    kOldThreadWaitModeIntFieldNumber = 12,
     kOldThreadStateFieldNumber = 8,
+    kOldThreadStateIntFieldNumber = 13,
     kOldThreadWaitIdealProcessorFieldNumber = 9,
     kNewThreadWaitTimeFieldNumber = 10,
   };
@@ -681,6 +1021,24 @@ class CSwitchEtwEvent : public ::protozero::Message {
         ::Append(*this, field_id, value);
   }
 
+  using FieldMetadata_OldThreadWaitReasonInt =
+    ::protozero::proto_utils::FieldMetadata<
+      11,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kInt32,
+      int32_t,
+      CSwitchEtwEvent>;
+
+  static constexpr FieldMetadata_OldThreadWaitReasonInt kOldThreadWaitReasonInt{};
+  void set_old_thread_wait_reason_int(int32_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_OldThreadWaitReasonInt::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kInt32>
+        ::Append(*this, field_id, value);
+  }
+
   using FieldMetadata_OldThreadWaitMode =
     ::protozero::proto_utils::FieldMetadata<
       7,
@@ -699,6 +1057,24 @@ class CSwitchEtwEvent : public ::protozero::Message {
         ::Append(*this, field_id, value);
   }
 
+  using FieldMetadata_OldThreadWaitModeInt =
+    ::protozero::proto_utils::FieldMetadata<
+      12,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kInt32,
+      int32_t,
+      CSwitchEtwEvent>;
+
+  static constexpr FieldMetadata_OldThreadWaitModeInt kOldThreadWaitModeInt{};
+  void set_old_thread_wait_mode_int(int32_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_OldThreadWaitModeInt::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kInt32>
+        ::Append(*this, field_id, value);
+  }
+
   using FieldMetadata_OldThreadState =
     ::protozero::proto_utils::FieldMetadata<
       8,
@@ -714,6 +1090,24 @@ class CSwitchEtwEvent : public ::protozero::Message {
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
       ::protozero::proto_utils::ProtoSchemaType::kEnum>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_OldThreadStateInt =
+    ::protozero::proto_utils::FieldMetadata<
+      13,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kSint32,
+      int32_t,
+      CSwitchEtwEvent>;
+
+  static constexpr FieldMetadata_OldThreadStateInt kOldThreadStateInt{};
+  void set_old_thread_state_int(int32_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_OldThreadStateInt::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kSint32>
         ::Append(*this, field_id, value);
   }
 

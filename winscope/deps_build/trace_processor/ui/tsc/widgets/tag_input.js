@@ -16,8 +16,10 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.TagInput = void 0;
 const tslib_1 = require("tslib");
 const mithril_1 = tslib_1.__importDefault(require("mithril"));
-const icon_1 = require("./icon");
+const common_1 = require("./common");
 const dom_utils_1 = require("../base/dom_utils");
+const chip_1 = require("./chip");
+const stack_1 = require("./stack");
 const INPUT_REF = 'input';
 /**
  * TagInput displays Tag elements inside an input, followed by an interactive
@@ -81,7 +83,7 @@ class TagInput {
                 }
             },
             ...htmlAttrs,
-        }, tags.map((tag, index) => renderTag(tag, onChange, () => onTagRemove(index))), (0, mithril_1.default)('input', {
+        }, (0, mithril_1.default)(stack_1.Stack, { orientation: 'horizontal', spacing: 'small' }, tags.map((tag, index) => renderTag(tag, onChange, () => onTagRemove(index)))), (0, mithril_1.default)('input', {
             ref: INPUT_REF,
             value,
             placeholder,
@@ -116,18 +118,18 @@ class TagInput {
 }
 exports.TagInput = TagInput;
 function renderTag(text, onChange, onRemove) {
-    return (0, mithril_1.default)('span.pf-tag', {
+    return (0, mithril_1.default)(chip_1.Chip, {
         ondblclick: onChange
             ? () => {
                 onChange(text);
                 onRemove();
             }
             : undefined,
-    }, text, (0, mithril_1.default)(icon_1.Icon, {
-        icon: 'close',
-        onclick: () => {
-            onRemove();
-        },
-    }));
+        label: text,
+        removable: true,
+        compact: true,
+        intent: common_1.Intent.Primary,
+        onRemove: () => onRemove(),
+    });
 }
 //# sourceMappingURL=tag_input.js.map

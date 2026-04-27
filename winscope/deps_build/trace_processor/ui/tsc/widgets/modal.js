@@ -23,6 +23,8 @@ const tslib_1 = require("tslib");
 const mithril_1 = tslib_1.__importDefault(require("mithril"));
 const deferred_1 = require("../base/deferred");
 const icon_1 = require("./icon");
+const button_1 = require("./button");
+const common_1 = require("./common");
 // Usually users don't need to care about this class, as this is instantiated
 // by showModal. The only case when users should depend on this is when they
 // want to nest a modal dialog in a <div> they control (i.e. when the modal
@@ -54,7 +56,7 @@ class Modal {
             // even if the user has not clicked yet on any element.
             // If there is a primary button, focus that, so Enter does the default
             // action. If not just focus the whole dialog.
-            const primaryBtn = vnode.dom.querySelector('.modal-btn-primary');
+            const primaryBtn = vnode.dom.querySelector('.pf-button.pf-intent-primary');
             if (primaryBtn) {
                 primaryBtn.focus();
             }
@@ -70,24 +72,27 @@ class Modal {
         const attrs = vnode.attrs;
         const buttons = [];
         for (const button of attrs.buttons || []) {
-            buttons.push((0, mithril_1.default)('button.modal-btn', {
-                class: button.primary ? 'modal-btn-primary' : '',
+            buttons.push((0, mithril_1.default)(button_1.Button, {
+                intent: button.primary ? common_1.Intent.Primary : common_1.Intent.None,
+                variant: button_1.ButtonVariant.Filled,
                 id: button.id,
                 onclick: () => {
                     closeModal(attrs.key);
                     if (button.action !== undefined)
                         button.action();
                 },
-            }, button.text));
+                label: button.text,
+                disabled: button.disabled,
+            }));
         }
         const aria = '[aria-labelledby=mm-title][aria-model][role=dialog]';
-        const align = attrs.vAlign === 'TOP' ? '.modal-dialog-valign-top' : '';
-        return (0, mithril_1.default)('.modal-backdrop', {
+        const align = attrs.vAlign === 'TOP' ? '.pf-modal-dialog-valign-top' : '';
+        const customClass = attrs.className ? '.' + attrs.className : '';
+        return (0, mithril_1.default)('.pf-modal-backdrop', {
             onclick: this.onBackdropClick.bind(this, attrs),
-            onkeyup: this.onBackdropKeyupdown.bind(this, attrs),
-            onkeydown: this.onBackdropKeyupdown.bind(this, attrs),
+            onkeydown: this.onBackdropKeydown.bind(this, attrs),
             tabIndex: 0,
-        }, (0, mithril_1.default)(`.modal-dialog${align}${aria}`, (0, mithril_1.default)('header', (0, mithril_1.default)('h2', { id: 'mm-title' }, attrs.title), (0, mithril_1.default)('button[aria-label=Close Modal]', { onclick: () => closeModal(attrs.key) }, (0, mithril_1.default)(icon_1.Icon, { icon: 'close' }))), (0, mithril_1.default)('main', vnode.children), buttons.length > 0 ? (0, mithril_1.default)('footer', buttons) : null));
+        }, (0, mithril_1.default)(`.pf-modal-dialog${align}${customClass}${aria}`, (0, mithril_1.default)('header', (0, mithril_1.default)('.modal-title', attrs.icon && (0, mithril_1.default)(icon_1.Icon, { icon: attrs.icon }), (0, mithril_1.default)('h2', { id: 'mm-title' }, attrs.title)), (0, mithril_1.default)('button[aria-label=Close Modal]', { onclick: () => closeModal(attrs.key) }, (0, mithril_1.default)(icon_1.Icon, { icon: 'close' }))), (0, mithril_1.default)('main', vnode.children), buttons.length > 0 ? (0, mithril_1.default)('footer', buttons) : null));
     }
     onBackdropClick(attrs, e) {
         e.stopPropagation();
@@ -98,9 +103,9 @@ class Modal {
             closeModal(attrs.key);
         }
     }
-    onBackdropKeyupdown(attrs, e) {
+    onBackdropKeydown(attrs, e) {
         e.stopPropagation();
-        if (e.key === 'Escape' && e.type !== 'keyup') {
+        if (e.key === 'Escape') {
             closeModal(attrs.key);
         }
     }

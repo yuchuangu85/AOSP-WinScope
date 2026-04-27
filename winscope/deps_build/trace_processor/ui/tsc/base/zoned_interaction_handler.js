@@ -49,6 +49,7 @@ const array_utils_1 = require("./array_utils");
 const disposable_stack_1 = require("./disposable_stack");
 const dom_utils_1 = require("./dom_utils");
 const geom_1 = require("./geom");
+const touchscreen_handler_1 = require("./touchscreen_handler");
 class ZonedInteractionHandler {
     target;
     trash = new disposable_stack_1.DisposableStack();
@@ -64,6 +65,11 @@ class ZonedInteractionHandler {
         this.bindEvent(document, 'keydown', this.onKeyDown.bind(this));
         this.bindEvent(document, 'keyup', this.onKeyUp.bind(this));
         this.bindEvent(this.target, 'wheel', this.handleWheel.bind(this));
+        this.trash.use((0, touchscreen_handler_1.convertTouchIntoMouseEvents)(this.target, [
+            'down-up-move',
+            'pan-x',
+            'pinch-zoom-as-ctrl-wheel',
+        ]));
     }
     [Symbol.dispose]() {
         this.trash.dispose();

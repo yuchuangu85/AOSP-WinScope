@@ -108,6 +108,7 @@ async function createEngine(app, engineId) {
         console.log('Opening trace using built-in WASM engine');
         engine = new wasm_engine_proxy_1.WasmEngineProxy(engineId);
         engine.resetTraceProcessor({
+            tokenizeOnly: false,
             cropTrackEvents: CROP_TRACK_EVENTS_FLAG.get(),
             ingestFtraceInRawTable: INGEST_FTRACE_IN_RAW_TABLE_FLAG.get(),
             analyzeTraceProtoContent: ANALYZE_TRACE_PROTO_CONTENT_FLAG.get(),
@@ -122,7 +123,7 @@ async function createEngine(app, engineId) {
 }
 async function loadTraceIntoEngine(app, traceSource, engine) {
     let traceStream;
-    let serializedAppState;
+    const serializedAppState = traceSource.serializedAppState;
     if (traceSource.type === 'FILE') {
         traceStream = new trace_stream_1.TraceFileStream(traceSource.file);
     }
@@ -131,10 +132,12 @@ async function loadTraceIntoEngine(app, traceSource, engine) {
     }
     else if (traceSource.type === 'URL') {
         traceStream = new trace_stream_1.TraceHttpStream(traceSource.url);
-        serializedAppState = traceSource.serializedAppState;
     }
     else if (traceSource.type === 'HTTP_RPC') {
         traceStream = undefined;
+    }
+    else if (traceSource.type === 'MULTIPLE_FILES') {
+        traceStream = new trace_stream_1.TraceMultipleFilesStream(traceSource.files);
     }
     else {
         throw new Error(`Unknown source: ${JSON.stringify(traceSource)}`);
@@ -172,7 +175,7 @@ async function loadTraceIntoEngine(app, traceSource, engine) {
     for (const p of app.extraSqlPackages) {
         await engine.registerSqlPackages(p);
     }
-    const traceDetails = await getTraceInfo(engine, traceSource);
+    const traceDetails = await getTraceInfo(engine, app, traceSource);
     const trace = trace_impl_1.TraceImpl.createInstanceForCore(app, engine, traceDetails);
     app.setActiveTrace(trace);
     const visibleTimeSpan = await computeVisibleTime(traceDetails.start, traceDetails.end, trace.traceInfo.traceType === 'json', engine);
@@ -189,6 +192,8 @@ async function loadTraceIntoEngine(app, traceSource, engine) {
         updateStatus(app, `Running plugin: ${id}`);
     });
     decideTabs(trace);
+    updateStatus(app, `Loading minimap`);
+    await trace.minimap.load(traceDetails.start, traceDetails.end);
     // Trace Processor doesn't support the reliable range feature for JSON
     // traces.
     if (trace.traceInfo.traceType !== 'json' &&
@@ -210,6 +215,20 @@ async function loadTraceIntoEngine(app, traceSource, engine) {
         // TODO(primiano): this can probably be removed once we refactor tracks
         // to be URI based and can deal with non-existing URIs.
         (0, state_serialization_1.deserializeAppStatePhase2)(serializedAppState, trace);
+    }
+    // Execute startup commands as the final step - simulates user actions
+    // after the trace is fully loaded and any saved state has been restored.
+    // This ensures startup commands see the complete, final state of the trace.
+    if (trace.commands.hasStartupCommands()) {
+        updateStatus(app, 'Running startup commands');
+        // Disable prompts during startup commands to prevent blocking
+        app.omnibox.disablePrompts();
+        try {
+            await trace.commands.runStartupCommands();
+        }
+        finally {
+            app.omnibox.enablePrompts();
+        }
     }
     return trace;
 }
@@ -275,7 +294,7 @@ async function computeVisibleTime(traceStart, traceEnd, isJsonTrace, engine) {
     }
     return new time_1.TimeSpan(visibleStart, visibleEnd);
 }
-async function getTraceInfo(engine, traceSource) {
+async function getTraceInfo(engine, app, traceSource) {
     const traceTime = await getTraceTimeBounds(engine);
     // Find the first REALTIME or REALTIME_COARSE clock snapshot.
     // Prioritize REALTIME over REALTIME_COARSE.
@@ -327,10 +346,7 @@ async function getTraceInfo(engine, traceSource) {
     // This is the offset between the unix epoch and ts in the ts domain.
     // I.e. the value of ts at the time of the unix epoch - usually some large
     // negative value.
-    const realtimeOffset = time_1.Time.sub(snapshot.ts, snapshot.clockValue);
-    // Find the previous closest midnight from the trace start time.
-    const utcOffset = time_1.Time.getLatestMidnight(traceTime.start, realtimeOffset);
-    const traceTzOffset = time_1.Time.getLatestMidnight(traceTime.start, time_1.Time.sub(realtimeOffset, time_1.Time.fromSeconds(tzOffMin * 60)));
+    const unixOffset = time_1.Time.sub(snapshot.ts, snapshot.clockValue);
     let traceTitle = '';
     let traceUrl = '';
     switch (traceSource.type) {
@@ -363,6 +379,7 @@ async function getTraceInfo(engine, traceSource) {
     // trace_uuid can be missing from the TP tables if the trace is empty or in
     // other similar edge cases.
     const uuid = uuidRes.numRows() > 0 ? uuidRes.firstRow({ uuid: query_result_1.STR }).uuid : '';
+    updateStatus(app, 'Caching trace...');
     const cached = await (0, cache_manager_1.cacheTrace)(traceSource, uuid);
     const downloadable = (traceSource.type === 'ARRAY_BUFFER' && !traceSource.localOnly) ||
         traceSource.type === 'FILE' ||
@@ -371,9 +388,8 @@ async function getTraceInfo(engine, traceSource) {
         ...traceTime,
         traceTitle,
         traceUrl,
-        realtimeOffset,
-        utcOffset,
-        traceTzOffset,
+        tzOffMin,
+        unixOffset,
         cpus: await getCpus(engine),
         importErrors: await getTraceErrors(engine),
         source: traceSource,

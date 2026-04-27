@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.TraceHttpStream = exports.TraceBufferStream = exports.TraceFileStream = void 0;
+exports.TraceMultipleFilesStream = exports.TraceHttpStream = exports.TraceBufferStream = exports.TraceFileStream = void 0;
 const deferred_1 = require("../base/deferred");
 const logging_1 = require("../base/logging");
 const utils_1 = require("../base/utils");
@@ -28,6 +28,13 @@ class TraceFileStream {
         this.traceFile = traceFile;
         this.reader = new FileReader();
         this.reader.onloadend = () => this.onLoad();
+    }
+    readChunk() {
+        const sliceEnd = Math.min(this.bytesRead + SLICE_SIZE, this.traceFile.size);
+        const slice = this.traceFile.slice(this.bytesRead, sliceEnd);
+        this.pendingRead = (0, deferred_1.defer)();
+        this.reader.readAsArrayBuffer(slice);
+        return this.pendingRead;
     }
     onLoad() {
         const pendingRead = (0, logging_1.assertExists)(this.pendingRead);
@@ -44,13 +51,6 @@ class TraceFileStream {
             bytesRead: this.bytesRead,
             bytesTotal: this.traceFile.size,
         });
-    }
-    readChunk() {
-        const sliceEnd = Math.min(this.bytesRead + SLICE_SIZE, this.traceFile.size);
-        const slice = this.traceFile.slice(this.bytesRead, sliceEnd);
-        this.pendingRead = (0, deferred_1.defer)();
-        this.reader.readAsArrayBuffer(slice);
-        return this.pendingRead;
     }
 }
 exports.TraceFileStream = TraceFileStream;
@@ -144,4 +144,119 @@ class TraceHttpStream {
     }
 }
 exports.TraceHttpStream = TraceHttpStream;
+// Creates a single trace stream from multiple files by packing them into a TAR
+// container on the fly. This is because TraceProcessor has a built-in TAR
+// importer that can deal with concatenated files.
+class TraceMultipleFilesStream {
+    traceFiles;
+    state = { kind: 'HEADER' };
+    bytesRead;
+    bytesTotal;
+    index = 0;
+    stream;
+    constructor(traceFiles) {
+        this.traceFiles = traceFiles;
+        this.stream = new TraceFileStream(traceFiles[this.index]);
+        this.bytesRead = 0;
+        // The total size of the TAR archive is the sum of:
+        // - 512 bytes for each file's header.
+        // - The size of each file, rounded up to the next 512-byte boundary.
+        // - 1024 bytes for the two empty EOF blocks at the end.
+        this.bytesTotal = this.traceFiles.reduce((r, f) => r + 512 + Math.ceil(f.size / 512) * 512, 1024);
+    }
+    async readChunk() {
+        switch (this.state.kind) {
+            case 'HEADER': {
+                // Construct the 512-byte TAR header for the current file.
+                const data = new Uint8Array(512);
+                const name = this.traceFiles[this.index].name;
+                for (let i = 0; i < Math.max(name.length, 99); ++i) {
+                    data[i] = name.charCodeAt(i);
+                }
+                const size = this.traceFiles[this.index].size.toString(8);
+                if (size.length >= 12) {
+                    throw new Error('Trace file size is too big to encode as tar file');
+                }
+                const sizePadded = size.padStart(12, '0');
+                for (let i = 0; i < sizePadded.length; ++i) {
+                    data[124 + i] = sizePadded.charCodeAt(i);
+                }
+                // These magic numbers are part of the TAR header specification.
+                // Type flag: '0' for regular file.
+                data[156] = 48;
+                // Magic: "ustar"
+                data[257] = 117;
+                data[258] = 115;
+                data[259] = 116;
+                data[260] = 97;
+                data[261] = 114;
+                // Version: "00"
+                data[263] = 48;
+                data[264] = 48;
+                this.bytesRead += 512;
+                this.state = {
+                    kind: 'CONTENT',
+                };
+                return {
+                    data,
+                    eof: false,
+                    bytesRead: this.bytesRead,
+                    bytesTotal: this.bytesTotal,
+                };
+            }
+            case 'CONTENT':
+                // Stream the content of the current file.
+                const { data, eof, bytesRead, bytesTotal } = await this.stream.readChunk();
+                if (eof) {
+                    // Once the file is fully read, we need to add padding.
+                    this.state = {
+                        kind: 'CONTENT_PADDING',
+                        lastBlockSize: bytesTotal % 512,
+                    };
+                }
+                this.bytesRead += bytesRead;
+                return {
+                    data: data,
+                    eof: false,
+                    bytesRead: this.bytesRead,
+                    bytesTotal: this.bytesTotal,
+                };
+            case 'CONTENT_PADDING':
+                // Add padding to align the end of the file to a 512-byte boundary.
+                const lastBlockSize = this.state.lastBlockSize;
+                if (this.index == this.traceFiles.length - 1) {
+                    // If this was the last file, move to the EOF state.
+                    this.state = { kind: 'EOF' };
+                }
+                else {
+                    // Otherwise, move to the HEADER state for the next file.
+                    this.state = { kind: 'HEADER' };
+                    this.stream = new TraceFileStream(this.traceFiles[++this.index]);
+                }
+                if (lastBlockSize === 0) {
+                    // If the file size is a multiple of 512, no padding is needed.
+                    return this.readChunk();
+                }
+                (0, logging_1.assertTrue)(lastBlockSize > 0 && lastBlockSize < 512);
+                const padding = 512 - lastBlockSize;
+                this.bytesRead += padding;
+                return {
+                    data: new Uint8Array(padding),
+                    eof: false,
+                    bytesRead: this.bytesRead,
+                    bytesTotal: this.bytesTotal,
+                };
+            case 'EOF':
+                // The TAR archive is terminated by two empty 512-byte blocks.
+                this.bytesRead += 1024;
+                return {
+                    data: new Uint8Array(1024),
+                    eof: true,
+                    bytesRead: this.bytesRead,
+                    bytesTotal: this.bytesTotal,
+                };
+        }
+    }
+}
+exports.TraceMultipleFilesStream = TraceMultipleFilesStream;
 //# sourceMappingURL=trace_stream.js.map

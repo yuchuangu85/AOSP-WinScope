@@ -13,25 +13,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import {assertDefined} from 'common/assert_utils';
+import {assertDefined} from 'common/assert';
+import {getPerfettoParser} from 'test/unit/fixture_utils';
 import {
-  TimestampConverterUtils,
+  makeRealTimestamp,
   timestampEqualityTester,
-} from 'common/time/test_utils';
+} from 'test/unit/time_test_helpers';
 import {TraceBuilder} from 'test/unit/trace_builder';
-import {UnitTestUtils} from 'test/unit/utils';
-import {CoarseVersion} from 'trace/coarse_version';
-import {CustomQueryType} from 'trace/custom_query';
-import {Parser} from 'trace/parser';
-import {TraceType} from 'trace/trace_type';
-import {PropertyTreeNode} from 'trace/tree_node/property_tree_node';
+import {CoarseVersion} from 'trace_api/coarse_version';
+import {CustomQueryType} from 'trace_api/custom_query';
+import {Parser} from 'trace_api/parser';
+import {TraceType} from 'trace_api/trace_type';
+import {HierarchyTreeNode} from 'tree_node/hierarchy_tree_node';
 
-describe('Perfetto ParserMotionEvent', () => {
-  let parser: Parser<PropertyTreeNode>;
+describe('PerfettoParserMotionEvent', () => {
+  let parser: Parser<HierarchyTreeNode>;
 
   beforeAll(async () => {
     jasmine.addCustomEqualityTester(timestampEqualityTester);
-    parser = await UnitTestUtils.getPerfettoParser(
+    parser = await getPerfettoParser(
       TraceType.INPUT_MOTION_EVENT,
       'traces/perfetto/input-events.perfetto-trace',
     );
@@ -48,52 +48,73 @@ describe('Perfetto ParserMotionEvent', () => {
   it('provides timestamps', () => {
     const timestamps = assertDefined(parser.getTimestamps());
 
-    expect(timestamps.length).toEqual(6);
+    expect(timestamps.length).toBe(6);
 
     const expected = [
-      TimestampConverterUtils.makeRealTimestamp(1718386903800330430n),
-      TimestampConverterUtils.makeRealTimestamp(1718386903800330430n),
-      TimestampConverterUtils.makeRealTimestamp(1718386903821511338n),
-      TimestampConverterUtils.makeRealTimestamp(1718386903827304592n),
-      TimestampConverterUtils.makeRealTimestamp(1718386903836681382n),
-      TimestampConverterUtils.makeRealTimestamp(1718386903841727281n),
+      makeRealTimestamp(1718386903800330430n),
+      makeRealTimestamp(1718386903800330430n),
+      makeRealTimestamp(1718386903821511338n),
+      makeRealTimestamp(1718386903827304592n),
+      makeRealTimestamp(1718386903836681382n),
+      makeRealTimestamp(1718386903841727281n),
     ];
     expect(timestamps).toEqual(expected);
   });
 
-  it('retrieves trace entry from timestamp', async () => {
-    const entry = await parser.getEntry(1);
-    expect(entry.id).toEqual('AndroidMotionEvent entry');
+  it('retrieves all entries', async () => {
+    const entries = await parser.getAllEntries();
+    expect(entries.length).toBe(6);
+    expect(entries.every((entry) => entry !== undefined)).toBeTrue();
   });
 
-  it('transforms fake motion event proto built from trace processor args', async () => {
-    const entry = await parser.getEntry(0);
-    const motionEvent = assertDefined(entry.getChildByName('motionEvent'));
+  it('retrieves trace entry from timestamp', async () => {
+    const entry = await parser.getEntry(1);
+    expect(entry.id).toBe('AndroidMotionEvent entry');
+  });
 
-    expect(motionEvent?.getChildByName('eventId')?.getValue()).toEqual(
-      330184796,
+  it('retrieves and translates eager property values', async () => {
+    const entry = await parser.getEntry(0);
+
+    expect(entry.getEagerPropertyByName('eventId')?.getValue()).toBe(
+      330184796n,
     );
-    expect(motionEvent?.getChildByName('action')?.formattedValue()).toEqual(
+    expect(entry.getEagerPropertyByName('action')?.formattedValue()).toBe(
       'ACTION_DOWN',
     );
-    expect(motionEvent?.getChildByName('source')?.formattedValue()).toEqual(
+    expect(entry.getEagerPropertyByName('source')?.formattedValue()).toBe(
       'SOURCE_TOUCHSCREEN',
     );
-    expect(motionEvent?.getChildByName('flags')?.formattedValue()).toEqual(
-      'UNKNOWN (0x80)',
+    expect(entry.getEagerPropertyByName('deviceId')?.formattedValue()).toBe(
+      '4',
     );
-    expect(motionEvent?.getChildByName('deviceId')?.getValue()).toEqual(4);
-    expect(motionEvent?.getChildByName('displayId')?.getValue()).toEqual(0);
-    expect(
-      motionEvent?.getChildByName('classification')?.formattedValue(),
-    ).toEqual('CLASSIFICATION_NONE');
-    expect(motionEvent?.getChildByName('cursorPositionX')?.getValue()).toEqual(
-      null,
+    expect(entry.getEagerPropertyByName('displayId')?.formattedValue()).toBe(
+      '0',
     );
-    expect(motionEvent?.getChildByName('cursorPositionY')?.getValue()).toEqual(
-      null,
+  });
+
+  it('transforms fake key event proto built from trace processor args', async () => {
+    const entry = await parser.getEntry(0);
+
+    const properties = await entry.getAllProperties();
+    const motionEvent = assertDefined(properties.getChildByName('event'));
+
+    expect(motionEvent.getChildByName('flags')?.formattedValue()).toBe(
+      'FLAG_SUPPORTS_ORIENTATION',
     );
-    expect(motionEvent?.getChildByName('metaState')?.formattedValue()).toEqual(
+    expect(motionEvent.getChildByName('action')?.formattedValue()).toBe(
+      'ACTION_DOWN',
+    );
+    expect(motionEvent.getChildByName('source')?.formattedValue()).toBe(
+      'SOURCE_TOUCHSCREEN',
+    );
+    expect(motionEvent.getChildByName('deviceId')?.getValue()).toBe(4);
+    expect(motionEvent.getChildByName('displayId')?.getValue()).toBe(0);
+    expect(motionEvent.getChildByName('classification')?.formattedValue()).toBe(
+      'CLASSIFICATION_NONE',
+    );
+    expect(motionEvent.getChildByName('cursorPositionX')).toBeUndefined();
+    expect(motionEvent.getChildByName('cursorPositionY')).toBeUndefined();
+    expect(motionEvent.getChildByName('metaState')?.formattedValue()).toBe(
       '0x0',
     );
 
@@ -101,9 +122,9 @@ describe('Perfetto ParserMotionEvent', () => {
       ?.getChildByName('pointer')
       ?.getChildByName('0');
 
-    expect(firstPointer?.getChildByName('pointerId')?.getValue()).toEqual(0);
+    expect(firstPointer?.getChildByName('pointerId')?.getValue()).toBe(0);
 
-    expect(firstPointer?.getChildByName('toolType')?.formattedValue()).toEqual(
+    expect(firstPointer?.getChildByName('toolType')?.formattedValue()).toBe(
       'TOOL_TYPE_FINGER',
     );
 
@@ -113,7 +134,7 @@ describe('Perfetto ParserMotionEvent', () => {
         ?.getChildByName('0')
         ?.getChildByName('axis')
         ?.formattedValue(),
-    ).toEqual('AXIS_X');
+    ).toBe('AXIS_X');
 
     expect(
       firstPointer
@@ -121,7 +142,7 @@ describe('Perfetto ParserMotionEvent', () => {
         ?.getChildByName('0')
         ?.getChildByName('value')
         ?.getValue(),
-    ).toEqual(431);
+    ).toBe(431);
 
     expect(
       firstPointer
@@ -129,7 +150,7 @@ describe('Perfetto ParserMotionEvent', () => {
         ?.getChildByName('1')
         ?.getChildByName('axis')
         ?.formattedValue(),
-    ).toEqual('AXIS_Y');
+    ).toBe('AXIS_Y');
 
     expect(
       firstPointer
@@ -137,46 +158,48 @@ describe('Perfetto ParserMotionEvent', () => {
         ?.getChildByName('1')
         ?.getChildByName('value')
         ?.getValue(),
-    ).toEqual(624);
+    ).toBe(624);
   });
 
-  it('merges motion event with all associated dispatch events', async () => {
+  it('merges key event with all associated dispatch events', async () => {
     const entry = await parser.getEntry(0);
+    const properties = await entry.getAllProperties();
+
     const windowDispatchEvents = assertDefined(
-      entry.getChildByName('windowDispatchEvents'),
+      properties.getChildByName('dispatchEvents'),
     );
 
-    expect(windowDispatchEvents?.getAllChildren().length).toEqual(5);
+    expect(windowDispatchEvents?.getAllChildren().length).toBe(5);
     expect(
       windowDispatchEvents
         ?.getChildByName('0')
         ?.getChildByName('windowId')
         ?.getValue(),
-    ).toEqual(212n);
+    ).toBe(212n);
     expect(
       windowDispatchEvents
         ?.getChildByName('1')
         ?.getChildByName('windowId')
         ?.getValue(),
-    ).toEqual(64n);
+    ).toBe(64n);
     expect(
       windowDispatchEvents
         ?.getChildByName('2')
         ?.getChildByName('windowId')
         ?.getValue(),
-    ).toEqual(82n);
+    ).toBe(82n);
     expect(
       windowDispatchEvents
         ?.getChildByName('3')
         ?.getChildByName('windowId')
         ?.getValue(),
-    ).toEqual(75n);
+    ).toBe(75n);
     expect(
       windowDispatchEvents
         ?.getChildByName('4')
         ?.getChildByName('windowId')
         ?.getValue(),
-    ).toEqual(0n);
+    ).toBe(0n);
   });
 
   it('supports VSYNCID custom query', async () => {

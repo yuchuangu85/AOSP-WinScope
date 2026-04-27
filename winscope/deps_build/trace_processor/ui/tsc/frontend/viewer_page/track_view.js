@@ -32,7 +32,6 @@ const semantic_icons_1 = require("../../base/semantic_icons");
 const time_scale_1 = require("../../base/time_scale");
 const perf_stats_1 = require("../../core/perf_stats");
 const raf_scheduler_1 = require("../../core/raf_scheduler");
-const workspace_1 = require("../../public/workspace");
 const button_1 = require("../../widgets/button");
 const menu_1 = require("../../widgets/menu");
 const track_shell_1 = require("../../widgets/track_shell");
@@ -42,8 +41,8 @@ const resolution_1 = require("./resolution");
 const anchor_1 = require("../../widgets/anchor");
 const modal_1 = require("../../widgets/modal");
 const clipboard_1 = require("../../base/clipboard");
+const popup_1 = require("../../widgets/popup");
 const TRACK_HEIGHT_MIN_PX = 18;
-const TRACK_HEIGHT_DEFAULT_PX = 30;
 function getTrackHeight(node, track) {
     // Headless tracks have an effective height of 0.
     if (node.headless)
@@ -51,10 +50,10 @@ function getTrackHeight(node, track) {
     // Expanded summary tracks don't show any data, so make them a little more
     // compact to save space.
     if (node.isSummary && node.expanded)
-        return TRACK_HEIGHT_DEFAULT_PX;
-    const trackHeight = track?.getHeight();
+        return TRACK_HEIGHT_MIN_PX;
+    const trackHeight = track?.getHeight?.();
     if (trackHeight === undefined)
-        return TRACK_HEIGHT_DEFAULT_PX;
+        return TRACK_HEIGHT_MIN_PX;
     // Limit the minimum height of a track, and also round up to the nearest
     // integer, as sub-integer DOM alignment can cause issues e.g. with sticky
     // positioning.
@@ -91,10 +90,13 @@ class TrackView {
     renderDOM(attrs, children) {
         const { scrollToOnCreate, reorderable = false, collapsible, removable, } = attrs;
         const { node, renderer, height } = this;
+        const description = renderer?.desc.description;
         const buttons = attrs.lite
             ? []
             : [
                 renderer?.track.getTrackShellButtons?.(),
+                description !== undefined &&
+                    this.renderHelpButton(typeof description === 'function' ? description() : description),
                 (removable || node.removable) && this.renderCloseButton(),
                 // We don't want summary tracks to be pinned as they rarely have
                 // useful information.
@@ -117,7 +119,7 @@ class TrackView {
         }
         return (0, mithril_1.default)(track_shell_1.TrackShell, {
             id: node.id,
-            title: node.title,
+            title: node.name,
             subtitle: renderer?.desc.subtitle,
             ref: node.fullPath.join('/'),
             heightPx: height,
@@ -144,10 +146,12 @@ class TrackView {
                     timescale,
                 });
                 raf_scheduler_1.raf.scheduleCanvasRedraw();
+                attrs.onTrackMouseOver();
             },
             onTrackContentMouseOut: () => {
                 renderer?.track.onMouseOut?.();
                 raf_scheduler_1.raf.scheduleCanvasRedraw();
+                attrs.onTrackMouseOut();
             },
             onTrackContentClick: (pos, bounds) => {
                 const timescale = this.getTimescaleForBounds(bounds);
@@ -226,15 +230,30 @@ class TrackView {
                 left: 0,
                 right: trackRect.width,
             });
+            const maybeNewResolution = (0, resolution_1.calculateResolution)(visibleWindow, trackRect.width);
+            if (!maybeNewResolution.ok) {
+                return;
+            }
+            const theme = {
+                COLOR_BORDER: css_constants_1.COLOR_BORDER,
+                COLOR_BORDER_SECONDARY: css_constants_1.COLOR_BORDER_SECONDARY,
+                COLOR_BACKGROUND_SECONDARY: css_constants_1.COLOR_BACKGROUND_SECONDARY,
+                COLOR_ACCENT: css_constants_1.COLOR_ACCENT,
+                COLOR_BACKGROUND: css_constants_1.COLOR_BACKGROUND,
+                COLOR_NEUTRAL: css_constants_1.COLOR_NEUTRAL,
+                COLOR_TEXT: css_constants_1.COLOR_TEXT,
+                COLOR_TEXT_MUTED: css_constants_1.COLOR_TEXT_MUTED,
+            };
             const start = performance.now();
             node.uri &&
                 renderer?.render({
                     trackUri: node.uri,
                     visibleWindow,
                     size: trackRect,
-                    resolution: (0, resolution_1.calculateResolution)(visibleWindow, trackRect.width),
+                    resolution: maybeNewResolution.value,
                     ctx,
                     timescale,
+                    theme,
                 });
             this.highlightIfTrackInAreaSelection(ctx, timescale, trackRect);
             const renderTime = performance.now() - start;
@@ -277,6 +296,15 @@ class TrackView {
             title: isPinned ? 'Unpin' : 'Pin to top',
             compact: true,
         });
+    }
+    renderHelpButton(helpText) {
+        return (0, mithril_1.default)(popup_1.Popup, {
+            trigger: (0, mithril_1.default)(button_1.Button, {
+                className: (0, classnames_1.classNames)('pf-visible-on-hover'),
+                icon: semantic_icons_1.Icons.Help,
+                compact: true,
+            }),
+        }, helpText);
     }
     renderTrackMenuButton() {
         return (0, mithril_1.default)(menu_1.PopupMenu, {
@@ -394,8 +422,10 @@ class TrackView {
         }
         if (selected) {
             const selectedAreaDuration = selection.end - selection.start;
-            ctx.fillStyle = css_constants_1.SELECTION_FILL_COLOR;
+            ctx.globalAlpha = 0.3;
+            ctx.fillStyle = css_constants_1.COLOR_ACCENT;
             ctx.fillRect(timescale.timeToPx(selection.start), 0, timescale.durationToPx(selectedAreaDuration), size.height);
+            ctx.globalAlpha = 1.0;
         }
     }
     updateAndRenderTrackPerfStats(ctx, size, renderTime, trackPerfStats) {
@@ -431,6 +461,7 @@ const TrackPopupMenu = {
         return [
             (0, mithril_1.default)(menu_1.MenuItem, {
                 label: 'Select track',
+                icon: 'select',
                 disabled: !attrs.node.uri,
                 onclick: () => {
                     attrs.trace.selection.selectTrack(attrs.node.uri);
@@ -439,17 +470,18 @@ const TrackPopupMenu = {
                     ? 'Select track'
                     : 'Track has no URI and cannot be selected',
             }),
-            (0, mithril_1.default)(menu_1.MenuItem, { label: 'Track details' }, renderTrackDetailsMenu(attrs.node, attrs.descriptor)),
+            (0, mithril_1.default)(menu_1.MenuItem, { label: 'Track details', icon: 'info' }, renderTrackDetailsMenu(attrs.node, attrs.descriptor)),
             (0, mithril_1.default)(menu_1.MenuDivider),
-            (0, mithril_1.default)(menu_1.MenuItem, { label: 'Copy to workspace' }, attrs.trace.workspaces.all.map((ws) => (0, mithril_1.default)(menu_1.MenuItem, {
+            (0, mithril_1.default)(menu_1.MenuItem, { label: 'Copy to workspace', icon: 'content_copy' }, attrs.trace.workspaces.all.map((ws) => (0, mithril_1.default)(menu_1.MenuItem, {
                 label: ws.title,
                 disabled: !ws.userEditable,
                 onclick: () => copyToWorkspace(attrs.trace, attrs.node, ws),
             })), (0, mithril_1.default)(menu_1.MenuDivider), (0, mithril_1.default)(menu_1.MenuItem, {
                 label: 'New workspace...',
+                icon: 'add',
                 onclick: () => copyToWorkspace(attrs.trace, attrs.node),
             })),
-            (0, mithril_1.default)(menu_1.MenuItem, { label: 'Copy & switch to workspace' }, attrs.trace.workspaces.all.map((ws) => (0, mithril_1.default)(menu_1.MenuItem, {
+            (0, mithril_1.default)(menu_1.MenuItem, { label: 'Copy & switch to workspace', icon: 'content_copy' }, attrs.trace.workspaces.all.map((ws) => (0, mithril_1.default)(menu_1.MenuItem, {
                 label: ws.title,
                 disabled: !ws.userEditable,
                 onclick: async () => {
@@ -458,11 +490,32 @@ const TrackPopupMenu = {
                 },
             })), (0, mithril_1.default)(menu_1.MenuDivider), (0, mithril_1.default)(menu_1.MenuItem, {
                 label: 'New workspace...',
+                icon: 'add',
                 onclick: async () => {
                     const ws = copyToWorkspace(attrs.trace, attrs.node);
                     attrs.trace.workspaces.switchWorkspace(ws);
                 },
             })),
+            (0, mithril_1.default)(menu_1.MenuDivider),
+            (0, mithril_1.default)(menu_1.MenuItem, {
+                label: 'Rename',
+                icon: 'edit',
+                disabled: !attrs.node.workspace?.userEditable,
+                onclick: async () => {
+                    const newName = await attrs.trace.omnibox.prompt('New name');
+                    if (newName) {
+                        attrs.node.name = newName;
+                    }
+                },
+            }),
+            (0, mithril_1.default)(menu_1.MenuItem, {
+                label: 'Remove',
+                icon: 'delete',
+                disabled: !attrs.node.workspace?.userEditable,
+                onclick: () => {
+                    attrs.node.remove();
+                },
+            }),
         ];
     },
 };
@@ -478,20 +531,15 @@ function copyToWorkspace(trace, node, ws) {
     return ws;
 }
 function renderTrackDetailsMenu(node, descriptor) {
-    let parent = node.parent;
-    let fullPath = [node.title];
-    while (parent && parent instanceof workspace_1.TrackNode) {
-        fullPath = [parent.title, ' \u2023 ', ...fullPath];
-        parent = parent.parent;
-    }
-    const query = descriptor?.track.getDataset?.()?.query();
+    const fullPath = node.fullPath.join(' \u2023 ');
+    const query = descriptor?.renderer.getDataset?.()?.query();
     return (0, mithril_1.default)('.pf-track__track-details-popup', (0, mithril_1.default)(tree_1.Tree, (0, mithril_1.default)(tree_1.TreeNode, { left: 'Track Node ID', right: node.id }), (0, mithril_1.default)(tree_1.TreeNode, { left: 'Collapsed', right: `${node.collapsed}` }), (0, mithril_1.default)(tree_1.TreeNode, { left: 'URI', right: node.uri }), (0, mithril_1.default)(tree_1.TreeNode, {
         left: 'Is Summary Track',
         right: `${node.isSummary}`,
     }), (0, mithril_1.default)(tree_1.TreeNode, {
         left: 'SortOrder',
         right: node.sortOrder ?? '0 (undefined)',
-    }), (0, mithril_1.default)(tree_1.TreeNode, { left: 'Path', right: fullPath }), (0, mithril_1.default)(tree_1.TreeNode, { left: 'Title', right: node.title }), (0, mithril_1.default)(tree_1.TreeNode, {
+    }), (0, mithril_1.default)(tree_1.TreeNode, { left: 'Path', right: fullPath }), (0, mithril_1.default)(tree_1.TreeNode, { left: 'Name', right: node.name }), (0, mithril_1.default)(tree_1.TreeNode, {
         left: 'Workspace',
         right: node.workspace?.title ?? '[no workspace]',
     }), descriptor &&

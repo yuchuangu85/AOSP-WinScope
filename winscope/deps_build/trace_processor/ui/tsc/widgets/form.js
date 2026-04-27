@@ -33,6 +33,7 @@ class Form {
             rightIcon: submitIcon,
             className: popup_1.Popup.DISMISS_POPUP_GROUP_CLASS,
             intent: common_1.Intent.Primary,
+            variant: button_1.ButtonVariant.Filled,
             onclick: (e) => {
                 preventDefault && e.preventDefault();
                 onSubmit();
@@ -43,12 +44,14 @@ class Form {
             (0, mithril_1.default)(button_1.Button, {
                 type: 'button',
                 label: cancelLabel,
+                variant: button_1.ButtonVariant.Filled,
                 className: popup_1.Popup.DISMISS_POPUP_GROUP_CLASS,
             }), 
         // This reset button just clears the form.
         resetLabel &&
             (0, mithril_1.default)(button_1.Button, {
                 label: resetLabel,
+                variant: button_1.ButtonVariant.Filled,
                 type: 'reset',
             })));
     }

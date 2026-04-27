@@ -42,14 +42,26 @@ class SearchOverviewTrack {
         this.trace = trace;
     }
     render(ctx, size) {
-        this.maybeUpdate(size);
+        this.maybeUpdate(size.width);
         this.renderSearchOverview(ctx, size);
     }
     async initialize() {
         const engine = this.trace.engine;
-        this.trash.use(await (0, sql_utils_1.createVirtualTable)(engine, 'search_summary_window', 'window'));
-        this.trash.use(await (0, sql_utils_1.createVirtualTable)(engine, 'search_summary_sched_span', 'span_join(sched PARTITIONED cpu, search_summary_window)'));
-        this.trash.use(await (0, sql_utils_1.createVirtualTable)(engine, 'search_summary_slice_span', 'span_join(slice PARTITIONED track_id, search_summary_window)'));
+        this.trash.use(await (0, sql_utils_1.createVirtualTable)({
+            engine,
+            name: 'search_summary_window',
+            using: '__intrinsic_window(0, 0, 1)',
+        }));
+        this.trash.use(await (0, sql_utils_1.createVirtualTable)({
+            engine,
+            name: 'search_summary_sched_span',
+            using: 'span_join(sched PARTITIONED cpu, search_summary_window)',
+        }));
+        this.trash.use(await (0, sql_utils_1.createVirtualTable)({
+            engine,
+            name: 'search_summary_slice_span',
+            using: 'span_join(slice PARTITIONED track_id, search_summary_window)',
+        }));
     }
     async update(search, start, end, resolution) {
         if (!this.initialized) {
@@ -62,11 +74,14 @@ class SearchOverviewTrack {
         start = time_1.Time.quantFloor(start, quantum);
         const windowDur = time_1.Duration.max(time_1.Time.diff(end, start), 1n);
         const engine = this.trace.engine;
-        await engine.query(`update search_summary_window set
-      window_start=${start},
-      window_dur=${windowDur},
-      quantum=${quantum}
-      where rowid = 0;`);
+        // Regneerate the search window table based on the new quantums.
+        // TODO(lalitm): this is a big hack. When searching is rewritten, we need to
+        // remove this.
+        await engine.query(`
+      drop table search_summary_window;
+      create virtual table search_summary_window
+        using __intrinsic_window(${start}, ${windowDur}, ${quantum});
+    `);
         const utidRes = await engine.query(`select utid from thread join process
       using(upid) where thread.name glob ${searchLiteral}
       or process.name glob ${searchLiteral}`);
@@ -106,7 +121,7 @@ class SearchOverviewTrack {
         }
         return summary;
     }
-    maybeUpdate(size) {
+    maybeUpdate(timelineWidth) {
         const searchManager = this.trace.search;
         const timeline = this.trace.timeline;
         if (!searchManager.hasResults) {
@@ -114,7 +129,11 @@ class SearchOverviewTrack {
         }
         const newSpan = timeline.visibleWindow;
         const newSearchGeneration = searchManager.searchGeneration;
-        const newResolution = (0, resolution_1.calculateResolution)(newSpan, size.width);
+        const maybeNewResolution = (0, resolution_1.calculateResolution)(newSpan, timelineWidth);
+        if (!maybeNewResolution.ok) {
+            return;
+        }
+        const newResolution = maybeNewResolution.value;
         const newTimeSpan = newSpan.toTimeSpan();
         if (this.previousSpan?.containsSpan(newTimeSpan.start, newTimeSpan.end) &&
             this.previousResolution === newResolution &&

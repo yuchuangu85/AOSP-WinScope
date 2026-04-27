@@ -13,15 +13,4 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.scrollTo = scrollTo;
-exports.setScrollToFunction = setScrollToFunction;
-let _scrollToFunction = undefined;
-// If a Trace object is avilable, prefer Trace.scrollTo(). It points to the
-// same function.
-function scrollTo(args) {
-    _scrollToFunction?.(args);
-}
-function setScrollToFunction(f) {
-    _scrollToFunction = f;
-}
 //# sourceMappingURL=scroll_helper.js.map

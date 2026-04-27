@@ -17,16 +17,16 @@ const fake_trace_impl_1 = require("../../../../core/fake_trace_impl");
 const table_column_1 = require("./table_column");
 const state_1 = require("./state");
 const columns_1 = require("./columns");
+const trace = (0, fake_trace_impl_1.createFakeTraceImpl)({ allowQueries: true });
 const idColumn = new columns_1.StandardColumn('id');
 const nameColumn = new columns_1.StandardColumn('name');
-const tsColumn = new columns_1.TimestampColumn('ts');
+const tsColumn = new columns_1.TimestampColumn(trace, 'ts');
 const table = {
     name: 'table',
     displayName: 'Table',
     columns: [idColumn, nameColumn, tsColumn],
 };
 test('sqlTableState: columnManupulation', () => {
-    const trace = (0, fake_trace_impl_1.createFakeTraceImpl)({ allowQueries: true });
     const state = new state_1.SqlTableState(trace, table);
     state.addColumn(tsColumn, 0);
     expect(state.getSelectedColumns().map((c) => (0, table_column_1.tableColumnId)(c))).toEqual([

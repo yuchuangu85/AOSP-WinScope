@@ -18,22 +18,6 @@ const sql_utils_1 = require("./sql_utils");
 function normalize(s) {
     return s.replace(/\s+/g, ' ');
 }
-test('constraintsToQueryPrefix: empty', () => {
-    expect(normalize((0, sql_utils_1.constraintsToQueryPrefix)({}))).toEqual('');
-});
-test('constraintsToQueryPrefix: one CTE', () => {
-    expect(normalize((0, sql_utils_1.constraintsToQueryPrefix)({
-        commonTableExpressions: { foo: 'select * from bar' },
-    }))).toEqual('WITH foo AS (select * from bar)');
-});
-test('constraintsToQueryPrefix: one CTE', () => {
-    expect(normalize((0, sql_utils_1.constraintsToQueryPrefix)({
-        commonTableExpressions: {
-            foo1: 'select * from bar1',
-            foo2: 'select * from bar2',
-        },
-    }))).toEqual('WITH foo1 AS (select * from bar1), foo2 AS (select * from bar2)');
-});
 test('constraintsToQuerySuffix: where', () => {
     expect(normalize((0, sql_utils_1.constraintsToQuerySuffix)({
         filters: ['ts > 1000', 'dur != 0'],

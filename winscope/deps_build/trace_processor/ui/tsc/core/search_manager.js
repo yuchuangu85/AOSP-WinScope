@@ -19,9 +19,9 @@ const string_utils_1 = require("../base/string_utils");
 const time_1 = require("../base/time");
 const utils_1 = require("../base/utils");
 const track_kinds_1 = require("../public/track_kinds");
-const dataset_1 = require("../trace_processor/dataset");
 const query_result_1 = require("../trace_processor/query_result");
 const query_utils_1 = require("../trace_processor/query_utils");
+const dataset_search_1 = require("./dataset_search");
 const feature_flags_1 = require("./feature_flags");
 const raf_scheduler_1 = require("./raf_scheduler");
 const DATASET_SEARCH = feature_flags_1.featureFlags.register({
@@ -44,12 +44,16 @@ class SearchManagerImpl {
     _engine;
     _limiter = new async_limiter_1.AsyncLimiter();
     _onResultStep;
+    _providers = [];
     constructor(args) {
         this._timeline = args?.timeline;
         this._trackManager = args?.trackManager;
         this._engine = args?.engine;
         this._workspace = args?.workspace;
         this._onResultStep = args?.onResultStep;
+    }
+    registerSearchProvider(provider) {
+        this._providers.push(provider);
     }
     search(text) {
         if (text === this._searchText) {
@@ -219,7 +223,7 @@ class SearchManagerImpl {
             // We don't support searching for tracks that don't have a URI.
             if (!track.uri)
                 continue;
-            if (track.title.toLowerCase().indexOf(lowerSearch) === -1) {
+            if (track.name.toLowerCase().indexOf(lowerSearch) === -1) {
                 continue;
             }
             searchResults.totalResults++;
@@ -297,76 +301,41 @@ class SearchManagerImpl {
             return;
         }
         const generation = this._searchGeneration;
-        const searchLiteral = (0, query_utils_1.escapeSearchQuery)(this._searchText);
-        const datasets = trackManager
-            .getAllTracks()
-            .map((t) => {
-            const dataset = t.track.getDataset?.();
-            if (dataset) {
-                return [dataset, t.uri];
-            }
-            else {
-                return undefined;
-            }
-        })
-            .filter(utils_1.exists)
-            .filter(([dataset]) => dataset.implements({ id: query_result_1.NUM, ts: query_result_1.LONG, name: query_result_1.STR }))
-            .map(([dataset, uri]) => new dataset_1.SourceDataset({
-            src: `
-              select
-                id,
-                ts,
-                name,
-                '${uri}' as uri
-              from (${dataset.query()})`,
-            schema: { id: query_result_1.NUM, ts: query_result_1.LONG, name: query_result_1.STR, uri: query_result_1.STR },
-        }));
-        const union = new dataset_1.UnionDataset(datasets);
-        const result = await engine.query(`
-      select
-        id,
-        uri,
-        ts
-      from (${union.query()})
-      where name glob ${searchLiteral}
-    `);
-        const numRows = result.numRows();
+        const allResults = await (0, dataset_search_1.searchTrackEvents)(engine, trackManager.getAllTracks(), this._providers, this._searchText);
+        const numRows = allResults.length;
         const searchResults = {
             eventIds: new Float64Array(numRows),
             tses: new BigInt64Array(numRows),
-            utids: new Float64Array(numRows),
+            utids: new Float64Array(numRows).fill(-1), // Fill with -1 as utid is unknown
             sources: [],
             trackUris: [],
             totalResults: numRows,
         };
-        let i = 0;
-        for (const iter = result.iter({ id: query_result_1.NUM, ts: query_result_1.LONG, uri: query_result_1.STR }); iter.valid(); iter.next()) {
-            searchResults.eventIds[i] = iter.id;
-            searchResults.tses[i] = iter.ts;
-            searchResults.utids[i] = -1; // We don't know anything about utids.
+        for (let i = 0; i < numRows; i++) {
+            const { id, ts, track } = allResults[i];
+            searchResults.eventIds[i] = id;
+            searchResults.tses[i] = ts;
+            searchResults.trackUris.push(track.uri);
+            // Assuming all results from datasets correspond to 'event' type search
             searchResults.sources.push('event');
-            searchResults.trackUris.push(iter.uri);
-            ++i;
         }
         if (generation !== this._searchGeneration) {
-            // We arrived too late. By the time we computed results the user issued
-            // another search.
+            // We arrived too late.
             return;
         }
         this._results = searchResults;
-        // We have changed the search results - try and find the first result that's
-        // after the start of this visible window.
+        // Find first result after the start of the visible window
         const visibleWindow = this._timeline?.visibleWindow.toTimeSpan();
-        if (visibleWindow) {
-            const foundIndex = this._results.tses.findIndex((ts) => ts >= visibleWindow.start);
-            if (foundIndex === -1) {
-                this._resultIndex = -1;
+        if (visibleWindow && this._results.totalResults > 0) {
+            let foundIndex = -1;
+            for (let i = 0; i < this._results.tses.length; i++) {
+                if (this._results.tses[i] >= visibleWindow.start) {
+                    foundIndex = i;
+                    break;
+                }
             }
-            else {
-                // Store the value before the found one, so that when the user presses
-                // enter we navigate to the correct one.
-                this._resultIndex = foundIndex - 1;
-            }
+            // Store the index *before* the found one, so the first step lands on it.
+            this._resultIndex = foundIndex === -1 ? -1 : foundIndex - 1;
         }
         else {
             this._resultIndex = -1;

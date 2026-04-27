@@ -42,25 +42,28 @@ const AOMT_FLAG = feature_flags_1.featureFlags.register({
     description: 'Enables trace events in the UI and trace processor',
     defaultValue: false,
 });
-const AOMT_DETAILED_FLAG = feature_flags_1.featureFlags.register({
-    id: 'alwaysOnMetatracing_detailed',
-    name: 'Detailed always-on-metatracing',
+const MT_DETAILED_FLAG = feature_flags_1.featureFlags.register({
+    id: 'detailedMetatracing',
+    name: 'Detailed metatracing',
     description: 'Enables recording additional events for trace event',
     defaultValue: false,
 });
-function getInitialCategories() {
-    if (!AOMT_FLAG.get())
-        return undefined;
-    if (AOMT_DETAILED_FLAG.get())
+function getDefaultCategories() {
+    if (MT_DETAILED_FLAG.get())
         return protos_1.default.MetatraceCategories.ALL;
     return (protos_1.default.MetatraceCategories.QUERY_TIMELINE |
         protos_1.default.MetatraceCategories.API_TIMELINE);
+}
+function getInitialCategories() {
+    if (!AOMT_FLAG.get())
+        return undefined;
+    return getDefaultCategories();
 }
 let enabledCategories = getInitialCategories();
 function enableMetatracing(categories) {
     enabledCategories =
         categories === undefined || categories === protos_1.default.MetatraceCategories.NONE
-            ? protos_1.default.MetatraceCategories.ALL
+            ? getDefaultCategories()
             : categories;
 }
 function disableMetatracingAndGetTrace() {

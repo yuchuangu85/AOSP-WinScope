@@ -27,7 +27,10 @@ class default_1 {
         IO: makeGroupNode('IO'),
         MEMORY: makeGroupNode('Memory'),
         NETWORK: makeGroupNode('Network'),
+        DEVICE_STATE: makeGroupNode('Device State'),
         SYSTEM: makeGroupNode('System'),
+        KERNEL: makeGroupNode('Kernel'),
+        HYPERVISOR: makeGroupNode('Hypervisor'),
     };
     async onTraceLoad() { }
     /**
@@ -45,7 +48,7 @@ class default_1 {
     }
 }
 exports.default = default_1;
-function makeGroupNode(title, collapsed = true) {
-    return new workspace_1.TrackNode({ title, isSummary: true, collapsed });
+function makeGroupNode(name, collapsed = true) {
+    return new workspace_1.TrackNode({ name, isSummary: true, collapsed });
 }
 //# sourceMappingURL=index.js.map

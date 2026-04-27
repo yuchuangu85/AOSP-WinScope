@@ -14,12 +14,8 @@
 // limitations under the License.
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ActiveCPUCountTrack = exports.CPUType = void 0;
-const tslib_1 = require("tslib");
-const mithril_1 = tslib_1.__importDefault(require("mithril"));
-const semantic_icons_1 = require("../../base/semantic_icons");
 const string_utils_1 = require("../../base/string_utils");
 const base_counter_track_1 = require("../../components/tracks/base_counter_track");
-const button_1 = require("../../widgets/button");
 var CPUType;
 (function (CPUType) {
     CPUType["Big"] = "big";
@@ -31,16 +27,6 @@ class ActiveCPUCountTrack extends base_counter_track_1.BaseCounterTrack {
     constructor(ctx, trace, cpuType) {
         super(trace, ctx.trackUri);
         this.cpuType = cpuType;
-    }
-    getTrackShellButtons() {
-        return (0, mithril_1.default)(button_1.Button, {
-            onclick: () => {
-                this.trace.workspace.getTrackByUri(this.uri)?.remove();
-            },
-            icon: semantic_icons_1.Icons.Close,
-            title: 'Close',
-            compact: true,
-        });
     }
     getDefaultCounterOptions() {
         const options = super.getDefaultCounterOptions();

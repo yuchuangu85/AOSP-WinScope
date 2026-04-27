@@ -75,8 +75,12 @@ class StartupDetailsPanel {
         details['Activity ID'] = this.data.startupId;
         details['Browser Upid'] = this.data.upid;
         details['Startup Event'] = this.data.eventName;
-        details['Startup Timestamp'] = (0, mithril_1.default)(timestamp_1.Timestamp, { ts: this.data.startupBeginTs });
+        details['Startup Timestamp'] = (0, mithril_1.default)(timestamp_1.Timestamp, {
+            trace: this.trace,
+            ts: this.data.startupBeginTs,
+        });
         details['Duration to First Visible Content'] = (0, mithril_1.default)(duration_1.DurationWidget, {
+            trace: this.trace,
             dur: this.data.durToFirstVisibleContent,
         });
         if (this.data.launchCause) {

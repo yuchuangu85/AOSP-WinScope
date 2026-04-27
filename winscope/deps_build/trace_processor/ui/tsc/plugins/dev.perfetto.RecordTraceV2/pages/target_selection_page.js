@@ -28,7 +28,7 @@ const select_1 = require("../../../widgets/select");
 const disposable_stack_1 = require("../../../base/disposable_stack");
 const download_utils_1 = require("../../../base/download_utils");
 const checkbox_1 = require("../../../widgets/checkbox");
-const mithril_utils_1 = require("../../../base/mithril_utils");
+const anchor_1 = require("../../../widgets/anchor");
 function targetSelectionPage(recMgr) {
     return {
         kind: 'GLOBAL_PAGE',
@@ -102,7 +102,7 @@ class TransportSelector {
                     },
                     checked: attrs.recMgr.currentProvider === provider,
                 }),
-                (0, mithril_1.default)(`label[for=${id}]`, (0, mithril_1.default)(icon_1.Icon, { icon: provider.icon }), (0, mithril_1.default)('.title', provider.name), (0, mithril_1.default)('.description', (0, mithril_utils_1.linkify)(provider.description))),
+                (0, mithril_1.default)(`label[for=${id}]`, (0, mithril_1.default)(icon_1.Icon, { icon: provider.icon }), (0, mithril_1.default)('.title', provider.name), (0, mithril_1.default)('.description', (0, anchor_1.linkify)(provider.description))),
             ]);
         }
         return [
@@ -174,6 +174,7 @@ class TargetSelector {
                     label: 'Connect new device',
                     icon: 'add',
                     intent: common_1.Intent.Primary,
+                    variant: button_1.ButtonVariant.Filled,
                     onclick: async () => {
                         const target = await attrs.provider.pairNewTarget();
                         target && recMgr.setTarget(target);
@@ -215,29 +216,30 @@ class TargetDetails {
 class SessionMgmtRenderer {
     view({ attrs }) {
         const session = attrs.recMgr.currentSession;
+        const isValid = attrs.recMgr.recordConfig.traceConfig.mode !== 'LONG_TRACE';
         const isRecording = session?.state === 'RECORDING';
         return [
             (0, mithril_1.default)('header', 'Tracing session'),
-            (0, mithril_1.default)('div', (0, mithril_1.default)(button_1.Button, {
+            (0, mithril_1.default)(button_1.ButtonBar, (0, mithril_1.default)(button_1.Button, {
                 label: 'Start tracing',
                 icon: 'not_started',
                 iconFilled: true,
                 className: 'start',
-                disabled: isRecording,
+                disabled: isRecording || !isValid,
                 onclick: () => attrs.recMgr.startTracing().then(() => mithril_1.default.redraw()),
             }), (0, mithril_1.default)(button_1.Button, {
                 label: 'Stop',
                 icon: 'stop',
                 className: 'stop',
                 iconFilled: true,
-                disabled: !isRecording,
+                disabled: !isRecording || !isValid,
                 onclick: () => session?.session?.stop().then(() => mithril_1.default.redraw()),
             }), (0, mithril_1.default)(button_1.Button, {
                 label: 'Cancel',
                 icon: 'cancel',
                 className: 'cancel',
                 iconFilled: true,
-                disabled: !isRecording,
+                disabled: !isRecording || !isValid,
                 onclick: () => session?.session?.cancel().then(() => mithril_1.default.redraw()),
             }), (0, mithril_1.default)(checkbox_1.Checkbox, {
                 label: 'Open trace when done',
@@ -294,7 +296,10 @@ class SessionStateRenderer {
             }), (0, mithril_1.default)(button_1.Button, {
                 label: 'Download',
                 icon: 'download',
-                onclick: () => (0, download_utils_1.downloadData)(this.session.fileName, traceData),
+                onclick: () => (0, download_utils_1.download)({
+                    fileName: this.session.fileName,
+                    content: traceData,
+                }),
             }))), logs != '' && (0, mithril_1.default)('tr', (0, mithril_1.default)('td', 'Logs'), (0, mithril_1.default)('td', (0, mithril_1.default)('pre.logs', logs))));
     }
     onremove() {

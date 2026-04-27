@@ -48,6 +48,9 @@ function getTrackName(args) {
     else if (isUidTrack && hasName && hasUid) {
         return `${name} ${uid}`;
     }
+    else if (hasName && !hasUpid && !hasUtid) {
+        return `${name}${machineLabel}`;
+    }
     else if (hasName) {
         return `${name}`;
     }
@@ -99,7 +102,7 @@ function getThreadUriPrefix(upid, utid) {
 // Returns the time span of the current selection, or the visible window if
 // there is no current selection.
 async function getTimeSpanOfSelectionOrVisibleWindow(trace) {
-    const range = await trace.selection.findTimeRangeOfSelection();
+    const range = await trace.selection.getTimeSpanOfSelection();
     if ((0, utils_1.exists)(range)) {
         return new time_1.TimeSpan(range.start, range.end);
     }

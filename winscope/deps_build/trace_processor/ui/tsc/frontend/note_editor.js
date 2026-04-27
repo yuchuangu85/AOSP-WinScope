@@ -20,6 +20,11 @@ const logging_1 = require("../base/logging");
 const semantic_icons_1 = require("../base/semantic_icons");
 const timestamp_1 = require("../components/widgets/timestamp");
 const button_1 = require("../widgets/button");
+const text_input_1 = require("../widgets/text_input");
+const tree_1 = require("../widgets/tree");
+const details_shell_1 = require("../widgets/details_shell");
+const section_1 = require("../widgets/section");
+const grid_layout_1 = require("../widgets/grid_layout");
 function getStartTimestamp(note) {
     const noteType = note.noteType;
     switch (noteType) {
@@ -40,32 +45,42 @@ class NoteEditor {
             return (0, mithril_1.default)('.', `No Note with id ${id}`);
         }
         const startTime = getStartTimestamp(note);
-        return (0, mithril_1.default)('.notes-editor-panel', {
-            key: id, // Every note shoul get its own brand new DOM.
-        }, (0, mithril_1.default)('.notes-editor-panel-heading-bar', (0, mithril_1.default)('.notes-editor-panel-heading', `Annotation at `, (0, mithril_1.default)(timestamp_1.Timestamp, { ts: startTime })), (0, mithril_1.default)('input[type=text]', {
-            oncreate: (v) => {
-                // NOTE: due to bad design decisions elsewhere this component is
-                // rendered every time the mouse moves on the canvas. We cannot set
-                // `value: note.text` as an input as that will clobber the input
-                // value as we move the mouse.
-                const inputElement = v.dom;
-                inputElement.value = note.text;
-            },
-            onchange: (e) => {
-                const newText = e.target.value;
-                trace.notes.changeNote(id, { text: newText });
-            },
-        }), (0, mithril_1.default)('span.color-change', `Change color: `, (0, mithril_1.default)('input[type=color]', {
-            value: note.color,
-            onchange: (e) => {
-                const newColor = e.target.value;
-                trace.notes.changeNote(id, { color: newColor });
-            },
-        })), (0, mithril_1.default)(button_1.Button, {
+        return (0, mithril_1.default)(details_shell_1.DetailsShell, {
+            title: 'Note',
+            key: id, // Every note should get its own brand new DOM.
+        }, (0, mithril_1.default)(grid_layout_1.GridLayout, (0, mithril_1.default)(section_1.Section, { title: 'Details' }, (0, mithril_1.default)(tree_1.Tree, (0, mithril_1.default)(tree_1.TreeNode, {
+            left: 'Annotation',
+            right: (0, mithril_1.default)(timestamp_1.Timestamp, { trace, ts: startTime }),
+        }), (0, mithril_1.default)(tree_1.TreeNode, {
+            left: 'Name',
+            right: (0, mithril_1.default)(text_input_1.TextInput, {
+                oncreate: (v) => {
+                    // NOTE: due to bad design decisions elsewhere this component is
+                    // rendered every time the mouse moves on the canvas. We cannot set
+                    // `value: note.text` as an input as that will clobber the input
+                    // value as we move the mouse.
+                    const inputElement = v.dom;
+                    inputElement.value = note.text;
+                },
+                onchange: (e) => {
+                    const newText = e.target.value;
+                    trace.notes.changeNote(id, { text: newText });
+                },
+            }),
+        }), (0, mithril_1.default)(tree_1.TreeNode, {
+            left: 'Color',
+            right: (0, mithril_1.default)('input[type=color]', {
+                value: note.color,
+                onchange: (e) => {
+                    const newColor = e.target.value;
+                    trace.notes.changeNote(id, { color: newColor });
+                },
+            }),
+        }), (0, mithril_1.default)(button_1.Button, {
             label: 'Remove',
             icon: semantic_icons_1.Icons.Delete,
             onclick: () => trace.notes.removeNote(id),
-        })));
+        })))));
     }
 }
 exports.NoteEditor = NoteEditor;

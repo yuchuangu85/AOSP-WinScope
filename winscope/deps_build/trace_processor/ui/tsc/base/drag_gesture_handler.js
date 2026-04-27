@@ -16,6 +16,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.DragGestureHandler = void 0;
 const tslib_1 = require("tslib");
 const mithril_1 = tslib_1.__importDefault(require("mithril"));
+const disposable_stack_1 = require("./disposable_stack");
+const touchscreen_handler_1 = require("./touchscreen_handler");
 class DragGestureHandler {
     element;
     onDrag;
@@ -27,12 +29,22 @@ class DragGestureHandler {
     clientRect;
     pendingMouseDownEvent;
     _isDragging = false;
+    _trash = new disposable_stack_1.DisposableStack();
     constructor(element, onDrag, onDragStarted = () => { }, onDragFinished = () => { }) {
         this.element = element;
         this.onDrag = onDrag;
         this.onDragStarted = onDragStarted;
         this.onDragFinished = onDragFinished;
         element.addEventListener('mousedown', this.boundOnMouseDown);
+        this._trash.use((0, touchscreen_handler_1.convertTouchIntoMouseEvents)(element, ['down-up-move']));
+        this._trash.defer(() => {
+            if (this._isDragging) {
+                this.onMouseUp();
+            }
+            document.body.removeEventListener('mousedown', this.boundOnMouseDown);
+            document.body.removeEventListener('mousemove', this.boundOnMouseMove);
+            document.body.removeEventListener('mouseup', this.boundOnMouseUp);
+        });
     }
     onMouseDown(e) {
         this._isDragging = true;
@@ -75,12 +87,7 @@ class DragGestureHandler {
         return this._isDragging;
     }
     [Symbol.dispose]() {
-        if (this._isDragging) {
-            this.onMouseUp();
-        }
-        document.body.removeEventListener('mousedown', this.boundOnMouseDown);
-        document.body.removeEventListener('mousemove', this.boundOnMouseMove);
-        document.body.removeEventListener('mouseup', this.boundOnMouseUp);
+        this._trash.dispose();
     }
 }
 exports.DragGestureHandler = DragGestureHandler;

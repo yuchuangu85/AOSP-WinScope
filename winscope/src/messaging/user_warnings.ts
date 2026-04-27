@@ -14,12 +14,16 @@
  * limitations under the License.
  */
 
+import {BugreportData, BuildType} from 'app/trace_file_filter';
 import {TimeRange} from 'common/time/time';
 import {TimeDuration} from 'common/time/time_duration';
-import {TRACE_INFO} from 'trace/trace_info';
-import {TraceType} from 'trace/trace_type';
+import {TRACE_INFO} from 'trace_api/trace_info';
+import {TraceType} from 'trace_api/trace_type';
 import {UserWarning} from './user_warning';
 
+/**
+ * A warning for a corrupted archive.
+ */
 export class CorruptedArchive extends UserWarning {
   constructor(private readonly file: File) {
     super();
@@ -34,6 +38,9 @@ export class CorruptedArchive extends UserWarning {
   }
 }
 
+/**
+ * A warning for when no valid files are found.
+ */
 export class NoValidFiles extends UserWarning {
   constructor(private traces?: string[]) {
     super();
@@ -50,6 +57,37 @@ export class NoValidFiles extends UserWarning {
   }
 }
 
+/**
+ * A warning for a missing persistent trace.
+ */
+export class MissingPersistentTrace extends UserWarning {
+  constructor(private bugreportData: BugreportData) {
+    super();
+  }
+
+  override getDescriptor(): string {
+    return 'missing persistent trace';
+  }
+
+  override getMessage(): string {
+    const baseMessage = 'No Winscope Perfetto trace found in bug report.';
+
+    if (this.bugreportData.buildType === BuildType.USER) {
+      return `${baseMessage} This is expected on 'user' builds. Persistent tracing usually requires a 'userdebug' or 'eng' build, or root access.`;
+    }
+
+    if (!this.bugreportData.isPersistentTracingEnabled) {
+      return `${baseMessage} The persistent tracing property ('persist.debug.perfetto.persistent') seems to be disabled. You can try enabling it via:\n'adb shell setprop persist.debug.perfetto.persistent 1 && adb reboot'\nThen, reproduce the issue and capture a new bug report.`;
+    }
+
+    // Unknown issue
+    return `${baseMessage} Ensure the bugreport comes from a device where persistent tracing is enabled (e.g., dogfood devices or using 'adb shell setprop persist.debug.perfetto.persistent 1').`;
+  }
+}
+
+/**
+ * A warning for a trace with old data.
+ */
 export class TraceHasOldData extends UserWarning {
   constructor(
     private readonly descriptor: string,
@@ -64,9 +102,7 @@ export class TraceHasOldData extends UserWarning {
 
   getMessage(): string {
     const elapsedTime = this.timeGap
-      ? new TimeDuration(
-          this.timeGap.to.getValueNs() - this.timeGap.from.getValueNs(),
-        )
+      ? new TimeDuration(this.timeGap.endNs - this.timeGap.startNs)
       : undefined;
     return (
       `${this.descriptor}: discarded because data is old` +
@@ -75,6 +111,9 @@ export class TraceHasOldData extends UserWarning {
   }
 }
 
+/**
+ * A warning for a trace that has been overridden.
+ */
 export class TraceOverridden extends UserWarning {
   constructor(
     private readonly descriptor: string,
@@ -97,6 +136,9 @@ export class TraceOverridden extends UserWarning {
   }
 }
 
+/**
+ * A warning for an unsupported file format.
+ */
 export class UnsupportedFileFormat extends UserWarning {
   constructor(private readonly descriptor: string) {
     super();
@@ -111,6 +153,9 @@ export class UnsupportedFileFormat extends UserWarning {
   }
 }
 
+/**
+ * A warning for an invalid legacy trace.
+ */
 export class InvalidLegacyTrace extends UserWarning {
   constructor(
     private readonly descriptor: string,
@@ -128,6 +173,9 @@ export class InvalidLegacyTrace extends UserWarning {
   }
 }
 
+/**
+ * A warning for an invalid Perfetto trace.
+ */
 export class InvalidPerfettoTrace extends UserWarning {
   constructor(
     private readonly descriptor: string,
@@ -145,6 +193,9 @@ export class InvalidPerfettoTrace extends UserWarning {
   }
 }
 
+/**
+ * A warning for when a traces parser fails to be created.
+ */
 export class FailedToCreateTracesParser extends UserWarning {
   constructor(
     private readonly traceType: TraceType,
@@ -164,6 +215,9 @@ export class FailedToCreateTracesParser extends UserWarning {
   }
 }
 
+/**
+ * A warning for when a trace entry cannot be visualized.
+ */
 export class CannotVisualizeTraceEntry extends UserWarning {
   constructor(private readonly errorMessage: string) {
     super();
@@ -178,6 +232,9 @@ export class CannotVisualizeTraceEntry extends UserWarning {
   }
 }
 
+/**
+ * A warning for when timeline data fails to initialize.
+ */
 export class FailedToInitializeTimelineData extends UserWarning {
   getDescriptor(): string {
     return 'failed to initialize timeline data';
@@ -188,6 +245,9 @@ export class FailedToInitializeTimelineData extends UserWarning {
   }
 }
 
+/**
+ * A warning for an incomplete frame mapping.
+ */
 export class IncompleteFrameMapping extends UserWarning {
   constructor(private readonly errorMessage: string) {
     super();
@@ -202,6 +262,9 @@ export class IncompleteFrameMapping extends UserWarning {
   }
 }
 
+/**
+ * A warning for when no trace targets are selected.
+ */
 export class NoTraceTargetsSelected extends UserWarning {
   getDescriptor(): string {
     return 'No trace targets selected';
@@ -212,6 +275,9 @@ export class NoTraceTargetsSelected extends UserWarning {
   }
 }
 
+/**
+ * A warning for a missing vsync ID.
+ */
 export class MissingVsyncId extends UserWarning {
   constructor(private readonly tableName: string) {
     super();
@@ -226,6 +292,9 @@ export class MissingVsyncId extends UserWarning {
   }
 }
 
+/**
+ * A warning for a proxy trace timeout.
+ */
 export class ProxyTraceTimeout extends UserWarning {
   getDescriptor(): string {
     return 'proxy trace timeout';
@@ -236,6 +305,9 @@ export class ProxyTraceTimeout extends UserWarning {
   }
 }
 
+/**
+ * A warning for proxy tracing warnings.
+ */
 export class ProxyTracingWarnings extends UserWarning {
   constructor(private readonly warnings: string[]) {
     super();
@@ -250,6 +322,9 @@ export class ProxyTracingWarnings extends UserWarning {
   }
 }
 
+/**
+ * A warning for proxy tracing errors.
+ */
 export class ProxyTracingErrors extends UserWarning {
   constructor(private readonly errorMessages: string[]) {
     super();
@@ -264,6 +339,9 @@ export class ProxyTracingErrors extends UserWarning {
   }
 }
 
+/**
+ * A warning for missing layer IDs.
+ */
 export class MissingLayerIds extends UserWarning {
   getDescriptor(): string {
     return 'missing layer ids';
@@ -274,6 +352,9 @@ export class MissingLayerIds extends UserWarning {
   }
 }
 
+/**
+ * A warning for duplicate layer IDs.
+ */
 export class DuplicateLayerIds extends UserWarning {
   constructor(private readonly layerIds: number[]) {
     super();
@@ -287,6 +368,25 @@ export class DuplicateLayerIds extends UserWarning {
     const optionalPlural = this.layerIds.length > 1 ? 's' : '';
     const layerIds = this.layerIds.join(', ');
     return `Duplicate SF layer id${optionalPlural} ${layerIds} found - adding as "Duplicate" to the hierarchy`;
+  }
+}
+
+export class RecursiveLayerIds extends UserWarning {
+  constructor(private readonly layerIds: number[]) {
+    super();
+  }
+
+  getDescriptor(): string {
+    return 'recursive layer id';
+  }
+
+  getMessage(): string {
+    const optionalPlural = this.layerIds.length > 1 ? 's' : '';
+    const layerIds = this.layerIds.join(', ');
+    return (
+      `Recursive SF layer${optionalPlural} ${layerIds} found - same value set for id and parent,` +
+      ` so added to separate root in hierarchy.`
+    );
   }
 }
 
@@ -325,18 +425,16 @@ export class TraceSearchQueryFailed extends UserWarning {
   }
 }
 
-export class PerfettoPacketLoss extends UserWarning {
-  constructor(private descriptor: string, private totalPacketLoss: number) {
+export class FailedToConvertLegacyTraces extends UserWarning {
+  constructor(private readonly errorMessage: string) {
     super();
   }
 
   getDescriptor(): string {
-    return 'perfetto packet loss';
+    return 'failed to convert legacy trace';
   }
 
   getMessage(): string {
-    return `${this.descriptor}: ${this.totalPacketLoss} packet${
-      this.totalPacketLoss > 1 ? 's' : ''
-    } lost during tracing - data may be incomplete`;
+    return `Legacy to perfetto conversion failed: ${this.errorMessage}\nDiscarding legacy traces.`;
   }
 }

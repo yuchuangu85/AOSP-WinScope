@@ -47,11 +47,9 @@ class default_1 {
                 processName = `${it.pid}`;
             }
             const uri = `dev.perfetto.GpuByProcess#${upid}`;
-            const title = `GPU ${processName}`;
             ctx.tracks.registerTrack({
                 uri,
-                title,
-                track: new dataset_slice_track_1.DatasetSliceTrack({
+                renderer: new dataset_slice_track_1.DatasetSliceTrack({
                     trace: ctx,
                     uri,
                     dataset: new dataset_1.SourceDataset({
@@ -72,7 +70,10 @@ class default_1 {
                     detailsPanel: () => new thread_slice_details_tab_1.ThreadSliceDetailsPanel(ctx),
                 }),
             });
-            const track = new workspace_1.TrackNode({ uri, title });
+            const track = new workspace_1.TrackNode({
+                uri,
+                name: `GPU ${processName}`,
+            });
             ctx.workspace.addChildInOrder(track);
         }
     }

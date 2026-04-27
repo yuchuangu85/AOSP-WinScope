@@ -16,7 +16,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.Textarea = void 0;
 const tslib_1 = require("tslib");
 const mithril_1 = tslib_1.__importDefault(require("mithril"));
-const docs_chip_1 = require("./docs_chip");
+const anchor_1 = require("../../../../widgets/anchor");
+const semantic_icons_1 = require("../../../../base/semantic_icons");
 class Textarea {
     attrs;
     _text;
@@ -40,7 +41,10 @@ class Textarea {
         }
     }
     render() {
-        return (0, mithril_1.default)('.textarea-holder', (0, mithril_1.default)('header', this.attrs.title, this.attrs.docsLink && [' ', (0, mithril_1.default)(docs_chip_1.DocsChip, { href: this.attrs.docsLink })]), (0, mithril_1.default)(`textarea.extra-input${this.attrs.cssClass ?? ''}`, {
+        return (0, mithril_1.default)('.textarea-holder', (0, mithril_1.default)('header', this.attrs.title, this.attrs.docsLink && [
+            ' ',
+            (0, mithril_1.default)(anchor_1.Anchor, { icon: semantic_icons_1.Icons.ExternalLink, href: this.attrs.docsLink }, 'Docs'),
+        ]), (0, mithril_1.default)(`textarea.extra-input${this.attrs.cssClass ?? ''}`, {
             onchange: (e) => {
                 this.setText(e.target.value);
                 this.attrs.onChange?.(this._text);

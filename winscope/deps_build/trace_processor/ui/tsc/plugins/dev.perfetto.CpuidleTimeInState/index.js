@@ -35,10 +35,9 @@ class default_1 {
         });
         ctx.tracks.registerTrack({
             uri,
-            title: name,
-            track,
+            renderer: track,
         });
-        const node = new workspace_1.TrackNode({ uri, title: name });
+        const node = new workspace_1.TrackNode({ uri, name });
         group.addChildInOrder(node);
     }
     async addIdleStateTrack(ctx, state, group) {
@@ -61,7 +60,7 @@ class default_1 {
     }
     async onTraceLoad(ctx) {
         const group = new workspace_1.TrackNode({
-            title: 'CPU Idle Time In State',
+            name: 'CPU Idle Time In State',
             isSummary: true,
         });
         const e = ctx.engine;
@@ -78,7 +77,7 @@ class default_1 {
             cpuGroup.addChildInOrder(group);
         }
         const perCpuGroup = new workspace_1.TrackNode({
-            title: 'CPU Idle Per Cpu Time In State',
+            name: 'CPU Idle Per Cpu Time In State',
             isSummary: true,
         });
         const perCpuStates = await e.query(`select distinct state, cpu from linux_per_cpu_idle_time_in_state_counters`);

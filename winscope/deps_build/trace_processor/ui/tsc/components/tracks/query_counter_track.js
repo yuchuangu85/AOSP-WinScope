@@ -45,7 +45,7 @@ async function createPerfettoTableForTrack(engine, tableName, data, columnMappin
     from data
     order by ts
   `;
-    return await (0, sql_utils_1.createPerfettoTable)(engine, tableName, query);
+    return await (0, sql_utils_1.createPerfettoTable)({ engine, name: tableName, as: query });
 }
 class SqlTableCounterTrack extends base_counter_track_1.BaseCounterTrack {
     sqlSource;

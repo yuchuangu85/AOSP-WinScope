@@ -19,17 +19,16 @@ const mithril_1 = tslib_1.__importDefault(require("mithril"));
 const details_1 = require("../../components/widgets/sql/details/details");
 const details_shell_1 = require("../../widgets/details_shell");
 const grid_layout_1 = require("../../widgets/grid_layout");
-var d = details_1.DetailsSchema;
 class ChromeTasksDetailsPanel {
     data;
     constructor(trace, eventId) {
         this.data = new details_1.Details(trace, 'chrome_tasks', eventId, {
             'Task name': 'name',
-            'Start time': d.Timestamp('ts'),
-            'Duration': d.Interval('ts', 'dur'),
-            'Process': d.SqlIdRef('process', 'upid'),
-            'Thread': d.SqlIdRef('thread', 'utid'),
-            'Slice': d.SqlIdRef('slice', 'id'),
+            'Start time': details_1.DetailsSchema.Timestamp('ts'),
+            'Duration': details_1.DetailsSchema.Interval('ts', 'dur'),
+            'Process': details_1.DetailsSchema.SqlIdRef('process', 'upid'),
+            'Thread': details_1.DetailsSchema.SqlIdRef('thread', 'utid'),
+            'Slice': details_1.DetailsSchema.SqlIdRef('slice', 'id'),
         });
     }
     render() {

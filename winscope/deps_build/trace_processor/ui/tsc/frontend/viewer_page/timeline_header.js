@@ -118,6 +118,7 @@ class TimelineHeader {
                     minDistance: 1,
                     cursorWhileDragging: 'text',
                     onDrag: (e) => {
+                        this.trace.raf.scheduleCanvasRedraw();
                         const dragRect = geom_1.Rect2D.fromPoints(e.dragStart, e.dragCurrent);
                         const timeSpan = timescale
                             .pxSpanToHpTimeSpan(dragRect)

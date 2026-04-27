@@ -16,15 +16,20 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.EmptyState = void 0;
 const tslib_1 = require("tslib");
 const mithril_1 = tslib_1.__importDefault(require("mithril"));
+const classnames_1 = require("../base/classnames");
+const icon_1 = require("./icon");
+const semantic_icons_1 = require("../base/semantic_icons");
 // Something to show when there's nothing else to show!
 // Features a large icon, followed by some text explaining what went wrong, and
 // some optional content passed as children elements, usually containing common
 // actions for things you might want to do next (e.g. clear a search box).
 class EmptyState {
     view({ attrs, children }) {
-        const { icon = 'search', // Icon defaults to the search symbol
-        title, className, } = attrs;
-        return (0, mithril_1.default)('.pf-empty-state', { className }, (0, mithril_1.default)('i.material-icons', icon), title && (0, mithril_1.default)('.pf-empty-state-title', title), (0, mithril_1.default)('.pf-empty-state-content', children));
+        const { icon = semantic_icons_1.Icons.Search, // Icon defaults to the search symbol
+        title, className, fillHeight, } = attrs;
+        return (0, mithril_1.default)('.pf-empty-state', {
+            className: (0, classnames_1.classNames)(className, fillHeight && 'pf-empty-state--fill-height'),
+        }, (0, mithril_1.default)(icon_1.Icon, { className: 'pf-empty-state__main-icon', icon }), title && (0, mithril_1.default)('.pf-empty-state__title', title), (0, mithril_1.default)('.pf-empty-state__content', children));
     }
 }
 exports.EmptyState = EmptyState;

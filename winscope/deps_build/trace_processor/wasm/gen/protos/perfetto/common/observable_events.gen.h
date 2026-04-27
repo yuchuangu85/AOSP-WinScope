@@ -113,6 +113,7 @@ class PERFETTO_EXPORT_COMPONENT ObservableEvents_CloneTriggerHit : public ::prot
     kProducerNameFieldNumber = 3,
     kProducerUidFieldNumber = 4,
     kBootTimeNsFieldNumber = 5,
+    kTriggerDelayMsFieldNumber = 6,
   };
 
   ObservableEvents_CloneTriggerHit();
@@ -149,18 +150,23 @@ class PERFETTO_EXPORT_COMPONENT ObservableEvents_CloneTriggerHit : public ::prot
   uint64_t boot_time_ns() const { return boot_time_ns_; }
   void set_boot_time_ns(uint64_t value) { boot_time_ns_ = value; _has_field_.set(5); }
 
+  bool has_trigger_delay_ms() const { return _has_field_[6]; }
+  uint64_t trigger_delay_ms() const { return trigger_delay_ms_; }
+  void set_trigger_delay_ms(uint64_t value) { trigger_delay_ms_ = value; _has_field_.set(6); }
+
  private:
   int64_t tracing_session_id_{};
   std::string trigger_name_{};
   std::string producer_name_{};
   uint32_t producer_uid_{};
   uint64_t boot_time_ns_{};
+  uint64_t trigger_delay_ms_{};
 
   // Allows to preserve unknown protobuf fields for compatibility
   // with future versions of .proto files.
   std::string unknown_fields_;
 
-  std::bitset<6> _has_field_{};
+  std::bitset<7> _has_field_{};
 };
 
 

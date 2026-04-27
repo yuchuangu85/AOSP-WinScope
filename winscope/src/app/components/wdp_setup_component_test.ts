@@ -14,34 +14,37 @@
  * limitations under the License.
  */
 import {CommonModule} from '@angular/common';
-import {NO_ERRORS_SCHEMA} from '@angular/core';
-import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {TestBed} from '@angular/core/testing';
 import {MatButtonModule} from '@angular/material/button';
 import {MatIconModule} from '@angular/material/icon';
-import {BrowserAnimationsModule} from '@angular/platform-browser/animations';
-import {assertDefined} from 'common/assert_utils';
+import {
+  BrowserAnimationsModule,
+  NoopAnimationsModule,
+} from '@angular/platform-browser/animations';
+import {assertDefined} from 'common/assert';
+import {DOMTestHelper} from 'test/unit/dom_test_helpers';
 import {ConnectionState} from 'trace_collection/connection_state';
 import {WdpSetupComponent} from './wdp_setup_component';
 
 describe('WdpSetupComponent', () => {
-  let fixture: ComponentFixture<WdpSetupComponent>;
   let component: WdpSetupComponent;
-  let htmlElement: HTMLElement;
+  let dom: DOMTestHelper<WdpSetupComponent>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [
+        NoopAnimationsModule,
         CommonModule,
         MatIconModule,
         BrowserAnimationsModule,
         MatButtonModule,
+        WdpSetupComponent,
       ],
-      declarations: [WdpSetupComponent],
-      schemas: [NO_ERRORS_SCHEMA],
+      schemas: [],
     }).compileComponents();
-    fixture = TestBed.createComponent(WdpSetupComponent);
+    const fixture = TestBed.createComponent(WdpSetupComponent);
     component = fixture.componentInstance;
-    htmlElement = fixture.nativeElement;
+    dom = new DOMTestHelper(fixture, fixture.nativeElement);
     component.state = ConnectionState.CONNECTING;
   });
 
@@ -50,54 +53,53 @@ describe('WdpSetupComponent', () => {
   });
 
   it('correct connecting message', () => {
-    fixture.detectChanges();
-    expect(
-      htmlElement.querySelector('.connecting-message')?.textContent,
-    ).toContain('Connecting...');
-    expect(htmlElement.querySelector('.retry')).toBeNull();
-    expect(htmlElement.querySelector('.install')).toBeNull();
+    dom.detectChanges();
+    dom.get('.connecting-message').checkText('Connecting...');
+    expect(dom.find('.retry')).toBeUndefined();
+    expect(dom.find('.install')).toBeUndefined();
   });
 
   it('correct icon and message displays if no proxy', () => {
     component.state = ConnectionState.NOT_FOUND;
-    fixture.detectChanges();
-    const text = htmlElement.querySelector(
-      '.further-adb-info-text',
-    )?.textContent;
-    expect(text).toContain(
+    dom.detectChanges();
+    const text = dom.get('.further-adb-info-text');
+    text.checkText(
       "Failed to connect. Web Device Proxy doesn't seem to be running.",
     );
-    expect(text).toContain('Please check you have Web Device Proxy installed.');
+    text.checkText('Please check you have Web Device Proxy installed.');
     checkRetryButton();
 
     const windowSpy = spyOn(window, 'open');
-    assertDefined(
-      htmlElement.querySelector<HTMLButtonElement>('.install'),
-    ).click();
-    fixture.detectChanges();
+    dom.findAndClick('.install');
     expect(windowSpy).toHaveBeenCalledOnceWith(
       'https://tools.google.com/dlpage/android_web_device_proxy',
+      '_blank',
+    );
+
+    windowSpy.calls.reset();
+    dom.findAndClickByIndex('.install', 1);
+    expect(windowSpy).toHaveBeenCalledOnceWith(
+      'http://go/web-device-proxy#setup',
       '_blank',
     );
   });
 
   it('correct icon and message displays if unauthorized proxy', () => {
     component.state = ConnectionState.UNAUTH;
-    fixture.detectChanges();
-    expect(htmlElement.querySelector('.adb-info')?.textContent).toEqual(
-      'Web Device Proxy not yet authorized. Enable popups and try again.',
-    );
-    expect(htmlElement.querySelector('.adb-icon')?.textContent).toEqual('lock');
+    dom.detectChanges();
+    dom
+      .get('.adb-info')
+      .checkTextExact(
+        'Web Device Proxy not yet authorized. Enable popups and try again.',
+      );
+    dom.get('.adb-icon').checkTextExact('lock');
     checkRetryButton();
-    expect(htmlElement.querySelector('.install')).toBeNull();
+    expect(dom.find('.install')).toBeUndefined();
   });
 
   function checkRetryButton() {
     const spy = spyOn(assertDefined(component.retryConnection), 'emit');
-    assertDefined(
-      htmlElement.querySelector<HTMLButtonElement>('.retry'),
-    ).click();
-    fixture.detectChanges();
+    dom.findAndClick('.retry');
     expect(spy).toHaveBeenCalled();
   }
 });

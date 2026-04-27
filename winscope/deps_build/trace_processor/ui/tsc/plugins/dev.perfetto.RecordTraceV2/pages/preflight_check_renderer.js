@@ -18,7 +18,7 @@ const tslib_1 = require("tslib");
 const mithril_1 = tslib_1.__importDefault(require("mithril"));
 const spinner_1 = require("../../../widgets/spinner");
 const icon_1 = require("../../../widgets/icon");
-const mithril_utils_1 = require("../../../base/mithril_utils");
+const anchor_1 = require("../../../widgets/anchor");
 class PreflightCheckRenderer {
     testTarget;
     results = new Array();
@@ -56,8 +56,8 @@ class PreflightCheckRenderer {
         return (0, mithril_1.default)('table.preflight-checks-table', this.results.map((res) => (0, mithril_1.default)('tr', (0, mithril_1.default)('td', res.name), (0, mithril_1.default)('td', res.result === undefined
             ? (0, mithril_1.default)(spinner_1.Spinner)
             : res.result.ok
-                ? (0, mithril_1.default)('span.ok', (0, mithril_utils_1.linkify)(res.result.value))
-                : (0, mithril_1.default)('span.error', (0, mithril_utils_1.linkify)(res.result.error)), res.remediation && (0, mithril_1.default)('div', (0, mithril_1.default)(res.remediation))))));
+                ? (0, mithril_1.default)('span.ok', (0, anchor_1.linkify)(res.result.value))
+                : (0, mithril_1.default)('span.error', (0, anchor_1.linkify)(res.result.error)), res.remediation && (0, mithril_1.default)('div', (0, mithril_1.default)(res.remediation))))));
     }
 }
 exports.PreflightCheckRenderer = PreflightCheckRenderer;

@@ -106,33 +106,37 @@ async function computeFlamegraphTree(engine, { dependencySql, statement, unaggre
         if (view.kind === 'PIVOT') {
             showStackAndPivot.push(view.pivot);
         }
+        const agg = aggregatableProperties ?? [];
+        const aggCols = agg.map((x) => x.name);
+        const unagg = unaggregatableProperties ?? [];
+        const unaggCols = unagg.map((x) => x.name);
+        const matchingColumns = ['name', ...unaggCols];
+        const matchExpr = (x) => matchingColumns.map((c) => `(IFNULL(${c}, '') like '${makeSqlFilter(x)}' escape '\\')`);
         const showStackFilter = showStackAndPivot.length === 0
             ? '0'
             : showStackAndPivot
-                .map((x, i) => `((name like '${makeSqlFilter(x)}' escape '\\') << ${i})`)
+                .map((x, i) => `((${matchExpr(x).join(' OR ')}) << ${i})`)
                 .join(' | ');
         const showStackBits = (1 << showStackAndPivot.length) - 1;
         const hideStackFilter = hideStack.length === 0
             ? 'false'
             : hideStack
-                .map((x) => `name like '${makeSqlFilter(x)}' escape '\\'`)
+                .map((x) => matchExpr(x))
+                .flat()
                 .join(' OR ');
         const showFromFrameFilter = showFromFrame.length === 0
             ? '0'
             : showFromFrame
-                .map((x, i) => `((name like '${makeSqlFilter(x)}' escape '\\') << ${i})`)
+                .map((x, i) => `((${matchExpr(x).join(' OR ')}) << ${i})`)
                 .join(' | ');
         const showFromFrameBits = (1 << showFromFrame.length) - 1;
         const hideFrameFilter = hideFrame.length === 0
             ? 'false'
             : hideFrame
-                .map((x) => `name like '${makeSqlFilter(x)}' escape '\\'`)
+                .map((x) => matchExpr(x))
+                .flat()
                 .join(' OR ');
-        const pivotFilter = getPivotFilter(view);
-        const unagg = unaggregatableProperties ?? [];
-        const unaggCols = unagg.map((x) => x.name);
-        const agg = aggregatableProperties ?? [];
-        const aggCols = agg.map((x) => x.name);
+        const pivotFilter = getPivotFilter(view, matchExpr);
         const nodeActions = optionalNodeActions ?? [];
         const rootActions = optionalRootActions ?? [];
         const groupingColumns = `(${(unaggCols.length === 0 ? ['groupingColumn'] : unaggCols).join()})`;
@@ -143,11 +147,22 @@ async function computeFlamegraphTree(engine, { dependencySql, statement, unaggre
         await engine.query(`include perfetto module viz.flamegraph;`);
         const uuid = (0, uuid_1.uuidv4Sql)();
         const disposable = tslib_1.__addDisposableResource(env_1, new disposable_stack_1.AsyncDisposableStack(), true);
-        disposable.use(await (0, sql_utils_1.createPerfettoTable)(engine, `_flamegraph_materialized_statement_${uuid}`, statement));
-        disposable.use(await (0, sql_utils_1.createPerfettoIndex)(engine, `_flamegraph_materialized_statement_${uuid}_index`, `_flamegraph_materialized_statement_${uuid}(parentId)`));
+        disposable.use(await (0, sql_utils_1.createPerfettoTable)({
+            engine,
+            name: `_flamegraph_materialized_statement_${uuid}`,
+            as: statement,
+        }));
+        disposable.use(await (0, sql_utils_1.createPerfettoIndex)({
+            engine,
+            name: `_flamegraph_materialized_statement_${uuid}_index`,
+            on: `_flamegraph_materialized_statement_${uuid}(parentId)`,
+        }));
         // TODO(lalitm): this doesn't need to be called unless we have
         // a non-empty set of filters.
-        disposable.use(await (0, sql_utils_1.createPerfettoTable)(engine, `_flamegraph_source_${uuid}`, `
+        disposable.use(await (0, sql_utils_1.createPerfettoTable)({
+            engine,
+            name: `_flamegraph_source_${uuid}`,
+            as: `
         select *
         from _viz_flamegraph_prepare_filter!(
           (
@@ -157,11 +172,11 @@ async function computeFlamegraphTree(engine, { dependencySql, statement, unaggre
               s.name,
               s.value,
               ${(unaggCols.length === 0
-            ? [`'' as groupingColumn`]
-            : unaggCols.map((x) => `s.${x}`)).join()},
+                ? [`'' as groupingColumn`]
+                : unaggCols.map((x) => `s.${x}`)).join()},
               ${(aggCols.length === 0
-            ? [`'' as groupedColumn`]
-            : aggCols.map((x) => `s.${x}`)).join()}
+                ? [`'' as groupedColumn`]
+                : aggCols.map((x) => `s.${x}`)).join()}
             from _flamegraph_materialized_statement_${uuid} s
           ),
           (${showStackFilter}),
@@ -172,24 +187,41 @@ async function computeFlamegraphTree(engine, { dependencySql, statement, unaggre
           ${1 << showStackAndPivot.length},
           ${groupingColumns}
         )
-      `));
+      `,
+        }));
         // TODO(lalitm): this doesn't need to be called unless we have
         // a non-empty set of filters.
-        disposable.use(await (0, sql_utils_1.createPerfettoTable)(engine, `_flamegraph_filtered_${uuid}`, `
+        disposable.use(await (0, sql_utils_1.createPerfettoTable)({
+            engine,
+            name: `_flamegraph_filtered_${uuid}`,
+            as: `
         select *
         from _viz_flamegraph_filter_frames!(
           _flamegraph_source_${uuid},
           ${showFromFrameBits}
         )
-      `));
-        disposable.use(await (0, sql_utils_1.createPerfettoTable)(engine, `_flamegraph_accumulated_${uuid}`, `
+      `,
+        }));
+        disposable.use(await (0, sql_utils_1.createPerfettoIndex)({
+            engine,
+            name: `_flamegraph_filtered_${uuid}_index`,
+            on: `_flamegraph_filtered_${uuid}(parentId)`,
+        }));
+        disposable.use(await (0, sql_utils_1.createPerfettoTable)({
+            engine,
+            name: `_flamegraph_accumulated_${uuid}`,
+            as: `
         select *
         from _viz_flamegraph_accumulate!(
           _flamegraph_filtered_${uuid},
           ${showStackBits}
         )
-      `));
-        disposable.use(await (0, sql_utils_1.createPerfettoTable)(engine, `_flamegraph_hash_${uuid}`, `
+      `,
+        }));
+        disposable.use(await (0, sql_utils_1.createPerfettoTable)({
+            engine,
+            name: `_flamegraph_hash_${uuid}`,
+            as: `
         select *
         from _viz_flamegraph_downwards_hash!(
           _flamegraph_source_${uuid},
@@ -209,21 +241,35 @@ async function computeFlamegraphTree(engine, { dependencySql, statement, unaggre
           ${groupedColumns}
         )
         order by hash
-      `));
-        disposable.use(await (0, sql_utils_1.createPerfettoTable)(engine, `_flamegraph_merged_${uuid}`, `
+      `,
+        }));
+        disposable.use(await (0, sql_utils_1.createPerfettoTable)({
+            engine,
+            name: `_flamegraph_merged_${uuid}`,
+            as: `
         select *
         from _viz_flamegraph_merge_hashes!(
           _flamegraph_hash_${uuid},
           ${groupingColumns},
           ${computeGroupedAggExprs(agg)}
         )
-      `));
-        disposable.use(await (0, sql_utils_1.createPerfettoTable)(engine, `_flamegraph_layout_${uuid}`, `
+      `,
+        }));
+        disposable.use(await (0, sql_utils_1.createPerfettoIndex)({
+            engine,
+            name: `_flamegraph_merged_${uuid}_index`,
+            on: `_flamegraph_merged_${uuid}(parentId)`,
+        }));
+        disposable.use(await (0, sql_utils_1.createPerfettoTable)({
+            engine,
+            name: `_flamegraph_layout_${uuid}`,
+            as: `
         select *
         from _viz_flamegraph_local_layout!(
           _flamegraph_merged_${uuid}
         );
-      `));
+      `,
+        }));
         const res = await engine.query(`
     select *
     from _viz_flamegraph_global_layout!(
@@ -312,9 +358,9 @@ function makeSqlFilter(x) {
     }
     return `%${x}%`;
 }
-function getPivotFilter(view) {
+function getPivotFilter(view, makeFilterExpr) {
     if (view.kind === 'PIVOT') {
-        return `name like '${makeSqlFilter(view.pivot)}'`;
+        return makeFilterExpr(view.pivot).join(' OR ');
     }
     if (view.kind === 'BOTTOM_UP') {
         return 'value > 0';
@@ -324,8 +370,14 @@ function getPivotFilter(view) {
 function computeGroupedAggExprs(agg) {
     const aggFor = (x) => {
         switch (x.mergeAggregation) {
-            case 'ONE_OR_NULL':
-                return `IIF(COUNT() = 1, ${x.name}, NULL) AS ${x.name}`;
+            case 'ONE_OR_SUMMARY':
+                return `
+          ${x.name} || IIF(
+            COUNT() = 1,
+            '',
+            ' ' || ' and ' || cast_string!(COUNT(DISTINCT ${x.name})) || ' others'
+          ) AS ${x.name}
+        `;
             case 'SUM':
                 return `SUM(${x.name}) AS ${x.name}`;
             case 'CONCAT_WITH_COMMA':

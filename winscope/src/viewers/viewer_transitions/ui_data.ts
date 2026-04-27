@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-import {TraceEntry} from 'trace/trace';
-import {PropertyTreeNode} from 'trace/tree_node/property_tree_node';
+import {TraceEntry} from 'trace_api/trace';
+import {HierarchyTreeNode} from 'tree_node/hierarchy_tree_node';
+import {LazyPropertiesStrategyType} from 'tree_node/properties_provider';
 import {TextFilter} from 'viewers/common/text_filter';
 import {
   LogEntry,
@@ -36,6 +37,7 @@ export class UiData implements UiDataLog {
   ) {}
 
   isFetchingData = false;
+  checkScrollViewport = false;
   propertiesFilter = new TextFilter();
 
   static createEmpty(): UiData {
@@ -45,14 +47,8 @@ export class UiData implements UiDataLog {
 
 export class TransitionsEntry implements LogEntry {
   constructor(
-    public traceEntry: TraceEntry<PropertyTreeNode>,
+    public traceEntry: TraceEntry<HierarchyTreeNode>,
     public fields: LogField[],
-    public propertiesTree: PropertyTreeNode | undefined,
+    public getPropertiesTree: LazyPropertiesStrategyType | undefined,
   ) {}
-}
-
-export enum TransitionStatus {
-  ABORTED = 'ABORTED',
-  MERGED = 'MERGED',
-  PLAYED = 'PLAYED',
 }

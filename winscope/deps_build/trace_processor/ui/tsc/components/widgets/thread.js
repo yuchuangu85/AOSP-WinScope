@@ -28,18 +28,14 @@ const menu_1 = require("../../widgets/menu");
 const thread_details_tab_1 = require("../details/thread_details_tab");
 const sql_ref_renderer_registry_1 = require("./sql/details/sql_ref_renderer_registry");
 const core_types_1 = require("../sql_utils/core_types");
-const app_impl_1 = require("../../core/app_impl");
-function showThreadDetailsMenuItem(utid, tid) {
+function showThreadDetailsMenuItem(trace, utid, tid) {
     return (0, mithril_1.default)(menu_1.MenuItem, {
         icon: semantic_icons_1.Icons.ExternalLink,
         label: 'Show thread details',
         onclick: () => {
-            // TODO(primiano): `trace` should be injected, but doing so would require
-            // an invasive refactoring of most classes in frontend/widgets/sql/*.
-            const trace = app_impl_1.AppImpl.instance.trace;
             if (trace === undefined)
                 return;
-            (0, add_ephemeral_tab_1.addEphemeralTab)('threadDetails', new thread_details_tab_1.ThreadDetailsTab({
+            (0, add_ephemeral_tab_1.addEphemeralTab)(trace, 'threadDetails', new thread_details_tab_1.ThreadDetailsTab({
                 trace,
                 utid,
                 tid,
@@ -47,7 +43,7 @@ function showThreadDetailsMenuItem(utid, tid) {
         },
     });
 }
-function threadRefMenuItems(info) {
+function threadRefMenuItems(trace, info) {
     // We capture a copy to be able to pass it across async boundary to `onclick`.
     const name = info.name;
     return [
@@ -68,15 +64,15 @@ function threadRefMenuItems(info) {
             label: 'Copy utid',
             onclick: () => (0, clipboard_1.copyToClipboard)(`${info.utid}`),
         }),
-        showThreadDetailsMenuItem(info.utid, info.tid),
+        showThreadDetailsMenuItem(trace, info.utid, info.tid),
     ];
 }
-function renderThreadRef(info) {
+function renderThreadRef(trace, info) {
     return (0, mithril_1.default)(menu_1.PopupMenu, {
         trigger: (0, mithril_1.default)(anchor_1.Anchor, (0, thread_1.getThreadName)(info)),
-    }, threadRefMenuItems(info));
+    }, threadRefMenuItems(trace, info));
 }
-sql_ref_renderer_registry_1.sqlIdRegistry['thread'] = (0, sql_ref_renderer_registry_1.createSqlIdRefRenderer)(async (engine, id) => await (0, thread_1.getThreadInfo)(engine, (0, core_types_1.asUtid)(Number(id))), (data) => ({
-    value: renderThreadRef(data),
+sql_ref_renderer_registry_1.sqlIdRegistry['thread'] = (0, sql_ref_renderer_registry_1.createSqlIdRefRenderer)(async (engine, id) => await (0, thread_1.getThreadInfo)(engine, (0, core_types_1.asUtid)(Number(id))), (trace, data) => ({
+    value: renderThreadRef(trace, data),
 }));
 //# sourceMappingURL=thread.js.map

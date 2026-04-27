@@ -14,7 +14,6 @@
 // limitations under the License.
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.copyToClipboard = copyToClipboard;
-exports.download = download;
 async function copyToClipboard(text) {
     try {
         await navigator.clipboard.writeText(text);
@@ -22,15 +21,5 @@ async function copyToClipboard(text) {
     catch (err) {
         console.error(`Failed to copy "${text}" to clipboard: ${err}`);
     }
-}
-function download(file, name) {
-    const url = URL.createObjectURL(file);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = name === undefined ? file.name : name;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
 }
 //# sourceMappingURL=clipboard.js.map

@@ -16,17 +16,17 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.FtraceExplorer = void 0;
 const tslib_1 = require("tslib");
 const mithril_1 = tslib_1.__importDefault(require("mithril"));
+const async_limiter_1 = require("../../base/async_limiter");
+const monitor_1 = require("../../base/monitor");
 const time_1 = require("../../base/time");
+const colorizer_1 = require("../../components/colorizer");
+const timestamp_1 = require("../../components/widgets/timestamp");
+const query_result_1 = require("../../trace_processor/query_result");
+const button_1 = require("../../widgets/button");
 const details_shell_1 = require("../../widgets/details_shell");
 const multiselect_1 = require("../../widgets/multiselect");
 const popup_1 = require("../../widgets/popup");
-const timestamp_1 = require("../../components/widgets/timestamp");
-const query_result_1 = require("../../trace_processor/query_result");
-const async_limiter_1 = require("../../base/async_limiter");
-const monitor_1 = require("../../base/monitor");
-const button_1 = require("../../widgets/button");
 const virtual_table_1 = require("../../widgets/virtual_table");
-const colorizer_1 = require("../../components/colorizer");
 const ROW_H = 20;
 async function getFtraceCounters(engine) {
     // TODO(stevegolton): this is an extraordinarily slow query on large traces
@@ -53,6 +53,7 @@ async function getFtraceCounters(engine) {
     return counters;
 }
 class FtraceExplorer {
+    trace;
     pagination = {
         offset: 0,
         count: 0,
@@ -62,6 +63,7 @@ class FtraceExplorer {
     // A cache of the data we have most recently loaded from our store
     data;
     constructor({ attrs }) {
+        this.trace = attrs.trace;
         this.monitor = new monitor_1.Monitor([
             () => attrs.trace.timeline.visibleWindow.toTimeSpan().start,
             () => attrs.trace.timeline.visibleWindow.toTimeSpan().end,
@@ -127,7 +129,7 @@ class FtraceExplorer {
         }
         return this.data.events.map((event) => {
             const { ts, name, cpu, process, args, id } = event;
-            const timestamp = (0, mithril_1.default)(timestamp_1.Timestamp, { ts });
+            const timestamp = (0, mithril_1.default)(timestamp_1.Timestamp, { trace: this.trace, ts });
             const color = (0, colorizer_1.materialColorScheme)(name).base.cssString;
             return {
                 id,

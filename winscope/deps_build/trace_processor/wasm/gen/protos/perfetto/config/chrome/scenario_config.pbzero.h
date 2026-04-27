@@ -95,13 +95,15 @@ class ChromeFieldTracingConfig : public ::protozero::Message {
 
 };
 
-class ScenarioConfig_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/8, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
+class ScenarioConfig_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/9, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
  public:
   ScenarioConfig_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
   explicit ScenarioConfig_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
   explicit ScenarioConfig_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
   bool has_scenario_name() const { return at<1>().valid(); }
   ::protozero::ConstChars scenario_name() const { return at<1>().as_string(); }
+  bool has_scenario_description() const { return at<9>().valid(); }
+  ::protozero::ConstChars scenario_description() const { return at<9>().as_string(); }
   bool has_start_rules() const { return at<2>().valid(); }
   ::protozero::RepeatedFieldIterator<::protozero::ConstBytes> start_rules() const { return GetRepeated<::protozero::ConstBytes>(2); }
   bool has_stop_rules() const { return at<3>().valid(); }
@@ -123,6 +125,7 @@ class ScenarioConfig : public ::protozero::Message {
   using Decoder = ScenarioConfig_Decoder;
   enum : int32_t {
     kScenarioNameFieldNumber = 1,
+    kScenarioDescriptionFieldNumber = 9,
     kStartRulesFieldNumber = 2,
     kStopRulesFieldNumber = 3,
     kUploadRulesFieldNumber = 4,
@@ -151,6 +154,30 @@ class ScenarioConfig : public ::protozero::Message {
   }
   void set_scenario_name(std::string value) {
     static constexpr uint32_t field_id = FieldMetadata_ScenarioName::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kString>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_ScenarioDescription =
+    ::protozero::proto_utils::FieldMetadata<
+      9,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kString,
+      std::string,
+      ScenarioConfig>;
+
+  static constexpr FieldMetadata_ScenarioDescription kScenarioDescription{};
+  void set_scenario_description(const char* data, size_t size) {
+    AppendBytes(FieldMetadata_ScenarioDescription::kFieldId, data, size);
+  }
+  void set_scenario_description(::protozero::ConstChars chars) {
+    AppendBytes(FieldMetadata_ScenarioDescription::kFieldId, chars.data, chars.size);
+  }
+  void set_scenario_description(std::string value) {
+    static constexpr uint32_t field_id = FieldMetadata_ScenarioDescription::kFieldId;
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<

@@ -17,11 +17,11 @@ exports.EventLatencySliceDetailsPanel = void 0;
 const tslib_1 = require("tslib");
 const mithril_1 = tslib_1.__importDefault(require("mithril"));
 const time_1 = require("../../base/time");
-const slice_args_1 = require("../../components/details/slice_args");
+const args_1 = require("../../components/details/args");
 const slice_details_1 = require("../../components/details/slice_details");
 const slice_1 = require("../../components/sql_utils/slice");
 const core_types_1 = require("../../components/sql_utils/core_types");
-const table_1 = require("../../widgets/table");
+const grid_1 = require("../../widgets/grid");
 const treetable_1 = require("../../components/widgets/treetable");
 const query_result_1 = require("../../trace_processor/query_result");
 const details_shell_1 = require("../../widgets/details_shell");
@@ -33,6 +33,7 @@ const scroll_jank_cause_link_utils_1 = require("./scroll_jank_cause_link_utils")
 const scroll_jank_cause_map_1 = require("./scroll_jank_cause_map");
 const slice_2 = require("../../components/widgets/slice");
 const utils_1 = require("./utils");
+const slice_args_1 = require("../../components/details/slice_args");
 // Given a node in the slice tree, return a path from root to it.
 function getPath(slice) {
     const result = [];
@@ -248,37 +249,17 @@ class EventLatencySliceDetailsPanel {
             return undefined;
         const childWidgets = [];
         childWidgets.push((0, mithril_1.default)(text_paragraph_1.TextParagraph, { text: stageDetails.description }));
-        const columns = [
-            (0, table_1.widgetColumn)('Relevant Thread', (x) => (0, scroll_jank_cause_link_utils_1.getCauseLink)(this.trace, x.tracks, this.tracksByTrackId, x.ts, x.dur)),
-            (0, table_1.widgetColumn)('Description', (x) => {
-                if (x.description === '') {
-                    return x.description;
+        if (this.relevantThreadTracks.length > 0) {
+            childWidgets.push((0, mithril_1.default)(grid_1.Grid, (0, mithril_1.default)(grid_1.GridHeader, (0, mithril_1.default)(grid_1.GridRow, (0, mithril_1.default)(grid_1.GridHeaderCell, 'Relevant Thread'), (0, mithril_1.default)(grid_1.GridHeaderCell, 'Description'))), (0, mithril_1.default)(grid_1.GridBody, this.relevantThreadTracks.map((track, i) => {
+                let description = '';
+                if (i == 0 ||
+                    track.thread != this.relevantThreadTracks[i - 1].thread) {
+                    description = track.causeDescription;
                 }
-                else {
-                    return (0, mithril_1.default)(text_paragraph_1.TextParagraph, { text: x.description });
-                }
-            }),
-        ];
-        const trackLinks = [];
-        for (let i = 0; i < this.relevantThreadTracks.length; i++) {
-            const track = this.relevantThreadTracks[i];
-            let description = '';
-            if (i == 0 || track.thread != this.relevantThreadTracks[i - 1].thread) {
-                description = track.causeDescription;
-            }
-            trackLinks.push({
-                description: description,
-                tracks: this.relevantThreadTracks[i],
-                ts: ts,
-                dur: dur,
-            });
-        }
-        const tableData = new table_1.TableData(trackLinks);
-        if (trackLinks.length > 0) {
-            childWidgets.push((0, mithril_1.default)(table_1.Table, {
-                data: tableData,
-                columns: columns,
-            }));
+                return (0, mithril_1.default)(grid_1.GridRow, (0, mithril_1.default)(grid_1.GridDataCell, (0, scroll_jank_cause_link_utils_1.getCauseLink)(this.trace, track, this.tracksByTrackId, ts, dur)), (0, mithril_1.default)(grid_1.GridDataCell, description === ''
+                    ? description
+                    : (0, mithril_1.default)(text_paragraph_1.TextParagraph, { text: description })));
+            }))));
         }
         return (0, mithril_1.default)(section_1.Section, { title: this.isJankStage ? `Jank Cause: ${name}` : name }, childWidgets);
     }
@@ -304,7 +285,7 @@ class EventLatencySliceDetailsPanel {
     getLinksSection() {
         return (0, mithril_1.default)(section_1.Section, { title: 'Quick links' }, (0, mithril_1.default)(tree_1.Tree, (0, mithril_1.default)(tree_1.TreeNode, {
             left: this.sliceDetails
-                ? (0, slice_2.sliceRef)(this.sliceDetails, 'EventLatency in context of other Input events')
+                ? (0, slice_2.sliceRef)(this.trace, this.sliceDetails, 'EventLatency in context of other Input events')
                 : 'EventLatency in context of other Input events',
             right: this.sliceDetails ? '' : 'N/A',
         }), this.jankySlice &&
@@ -374,8 +355,8 @@ class EventLatencySliceDetailsPanel {
             return (0, mithril_1.default)(details_shell_1.DetailsShell, {
                 title: 'Slice',
                 description: this.name,
-            }, (0, mithril_1.default)(grid_layout_1.GridLayout, (0, mithril_1.default)(grid_layout_1.GridLayoutColumn, (0, slice_details_1.renderDetails)(this.trace, slice), (0, slice_args_1.hasArgs)(slice.args) &&
-                (0, mithril_1.default)(section_1.Section, { title: 'Arguments' }, (0, mithril_1.default)(tree_1.Tree, (0, slice_args_1.renderArguments)(this.trace, slice.args)))), (0, mithril_1.default)(grid_layout_1.GridLayoutColumn, rightSideWidgets)));
+            }, (0, mithril_1.default)(grid_layout_1.GridLayout, (0, mithril_1.default)(grid_layout_1.GridLayoutColumn, (0, slice_details_1.renderDetails)(this.trace, slice), (0, args_1.hasArgs)(slice.args) &&
+                (0, mithril_1.default)(section_1.Section, { title: 'Arguments' }, (0, mithril_1.default)(tree_1.Tree, (0, slice_args_1.renderSliceArguments)(this.trace, slice.args)))), (0, mithril_1.default)(grid_layout_1.GridLayoutColumn, rightSideWidgets)));
         }
         else {
             return (0, mithril_1.default)(details_shell_1.DetailsShell, { title: 'Slice', description: 'Loading...' });

@@ -64,23 +64,22 @@ class default_1 {
             });
             ctx.tracks.registerTrack({
                 uri,
-                title: packageName,
                 tags: {
                     trackIds: [trackId],
                     kind: track_kinds_1.SLICE_TRACK_KIND,
                 },
-                track,
+                renderer: track,
             });
             let workPeriod = workPeriodByGpu.get(gpuId);
             if (workPeriod === undefined) {
                 workPeriod = new workspace_1.TrackNode({
-                    title: `GPU Work Period (GPU ${gpuId})`,
+                    name: `GPU Work Period (GPU ${gpuId})`,
                     isSummary: true,
                 });
                 workPeriodByGpu.set(gpuId, workPeriod);
                 ctx.workspace.addChildInOrder(workPeriod);
             }
-            workPeriod.addChildInOrder(new workspace_1.TrackNode({ title: packageName, uri }));
+            workPeriod.addChildInOrder(new workspace_1.TrackNode({ name: packageName, uri: uri }));
         }
     }
 }

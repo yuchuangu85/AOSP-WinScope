@@ -14,21 +14,21 @@
 // limitations under the License.
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BaseSliceTrack = exports.BASE_ROW = exports.filterVisibleSlicesForTesting = exports.FADE_THIN_SLICES_FLAG = exports.CROP_INCOMPLETE_SLICE_FLAG = exports.SLICE_FLAGS_INSTANT = exports.SLICE_FLAGS_INCOMPLETE = void 0;
+const canvas_utils_1 = require("../../base/canvas_utils");
+const color_1 = require("../../base/color");
+const disposable_stack_1 = require("../../base/disposable_stack");
 const logging_1 = require("../../base/logging");
 const math_utils_1 = require("../../base/math_utils");
+const string_utils_1 = require("../../base/string_utils");
 const time_1 = require("../../base/time");
 const utils_1 = require("../../base/utils");
-const canvas_utils_1 = require("../../base/canvas_utils");
-const string_utils_1 = require("../../base/string_utils");
-const color_1 = require("../../base/color");
-const colorizer_1 = require("../colorizer");
+const uuid_1 = require("../../base/uuid");
 const feature_flags_1 = require("../../core/feature_flags");
 const raf_scheduler_1 = require("../../core/raf_scheduler");
 const query_result_1 = require("../../trace_processor/query_result");
 const checkerboard_1 = require("../checkerboard");
+const colorizer_1 = require("../colorizer");
 const timeline_cache_1 = require("./timeline_cache");
-const uuid_1 = require("../../base/uuid");
-const disposable_stack_1 = require("../../base/disposable_stack");
 // The common class that underpins all tracks drawing slices.
 exports.SLICE_FLAGS_INCOMPLETE = 1;
 exports.SLICE_FLAGS_INSTANT = 2;
@@ -112,6 +112,7 @@ exports.BASE_ROW = {
     dur: query_result_1.LONG, // True duration in nanoseconds. -1 = incomplete, 0 = instant.
     tsQ: query_result_1.LONG, // Quantized start time in nanoseconds.
     durQ: query_result_1.LONG, // Quantized duration in nanoseconds.
+    count: query_result_1.NUM, // Number of slices that were merged to create this slice.
     depth: query_result_1.NUM, // Vertical depth.
 };
 class BaseSliceTrack {
@@ -120,6 +121,7 @@ class BaseSliceTrack {
     rowSpec;
     depthGuess;
     instantWidthPx;
+    forceTimestampRenderOrder;
     sliceLayout;
     trackUuid = (0, uuid_1.uuidv4Sql)();
     // This is the over-skirted cached bounds:
@@ -137,9 +139,7 @@ class BaseSliceTrack {
     selectedSlice;
     extraSqlColumns;
     charWidth = -1;
-    hoverPos;
     hoveredSlice;
-    hoverTooltip = [];
     maxDataDepth = 0;
     // Computed layout.
     computedTrackHeight = 0;
@@ -155,6 +155,11 @@ class BaseSliceTrack {
     // called on the returned hook. In the common case of where
     // the data for this track is a SQL fragment this does nothing.
     async onInit() { }
+    // Override me if you want to define what is rendered on the tooltip. Called
+    // every DOM render cycle. The raw slice data is passed to this function
+    renderTooltipForSlice(_) {
+        return undefined;
+    }
     onSliceOver(_args) { }
     onSliceOut(_args) { }
     // By default, clicked slices create track selections
@@ -173,12 +178,13 @@ class BaseSliceTrack {
     }
     // TODO(hjd): Remove.
     drawSchedLatencyArrow(_, _selectedSlice) { }
-    constructor(trace, uri, rowSpec, sliceLayout = {}, depthGuess = 0, instantWidthPx = CHEVRON_WIDTH_PX) {
+    constructor(trace, uri, rowSpec, sliceLayout = {}, depthGuess = 0, instantWidthPx = CHEVRON_WIDTH_PX, forceTimestampRenderOrder = false) {
         this.trace = trace;
         this.uri = uri;
         this.rowSpec = rowSpec;
         this.depthGuess = depthGuess;
         this.instantWidthPx = instantWidthPx;
+        this.forceTimestampRenderOrder = forceTimestampRenderOrder;
         // Work out the extra columns.
         // This is the union of the embedder-defined columns and the base columns
         // we know about (ts, dur, ...).
@@ -213,9 +219,14 @@ class BaseSliceTrack {
     getTableName() {
         return `slice_${this.trackUuid}`;
     }
-    async onCreate() {
+    oldQuery;
+    async initialize() {
+        // This disposes all already initialized stuff and empties the trash.
+        await this.trash.asyncDispose();
         const result = await this.onInit();
         result && this.trash.use(result);
+        // Calc the number of rows based on the depth col.
+        const rowCount = await this.getRowCount();
         // TODO(hjd): Consider case below:
         // raw:
         // 0123456789
@@ -236,6 +247,7 @@ class BaseSliceTrack {
             depth,
             ts as tsQ,
             ts,
+            1 as count,
             -1 as durQ,
             -1 as dur,
             id
@@ -250,6 +262,7 @@ class BaseSliceTrack {
           depth,
           max(ts) as tsQ,
           ts,
+          1 as count,
           -1 as durQ,
           -1 as dur,
           id
@@ -266,19 +279,42 @@ class BaseSliceTrack {
         }
         this.onUpdatedSlices(incomplete);
         this.incomplete = incomplete;
+        // Multiply the layer parameter by the rowCount
         await this.engine.query(`
       create virtual table ${this.getTableName()}
       using __intrinsic_slice_mipmap((
-        select id, ts, dur, depth
+        select id, ts, dur, ((layer * ${rowCount ?? 1}) + depth) as depth
         from (${this.getSqlSource()})
         where dur != -1
       ));
     `);
         this.trash.defer(async () => {
             await this.engine.tryQuery(`drop table ${this.getTableName()}`);
+            this.oldQuery = undefined;
+            this.slicesKey = timeline_cache_1.CacheKey.zero();
         });
     }
+    /**
+     * Calculate the number of rows in the track from the max depth value.
+     *
+     * @returns The number of rows in the track, or undefined if track is empty.
+     */
+    async getRowCount() {
+        const result = await this.engine.query(`
+      SELECT
+        IFNULL(depth, 0) + 1 AS rowCount
+      FROM (${this.getSqlSource()})
+      ORDER BY depth DESC
+      LIMIT 1
+    `);
+        return result.maybeFirstRow({ rowCount: query_result_1.NUM })?.rowCount;
+    }
     async onUpdate({ visibleWindow, size }) {
+        const query = this.getSqlSource();
+        if (query !== this.oldQuery) {
+            await this.initialize();
+            this.oldQuery = query;
+        }
         const windowSizePx = Math.max(1, size.width);
         const timespan = visibleWindow.toTimeSpan();
         const rawSlicesKey = timeline_cache_1.CacheKey.create(timespan.start, timespan.end, windowSizePx);
@@ -367,15 +403,18 @@ class BaseSliceTrack {
         }
         // Second pass: fill slices by color.
         const vizSlicesByColor = vizSlices.slice();
-        vizSlicesByColor.sort((a, b) => (0, color_1.colorCompare)(a.colorScheme.base, b.colorScheme.base));
+        if (!this.forceTimestampRenderOrder) {
+            vizSlicesByColor.sort((a, b) => (0, color_1.colorCompare)(a.colorScheme.base, b.colorScheme.base));
+        }
         let lastColor = undefined;
-        for (const slice of vizSlicesByColor) {
+        for (const slice of vizSlices) {
             const color = slice.isHighlighted
-                ? slice.colorScheme.variant.cssString
-                : slice.colorScheme.base.cssString;
-            if (color !== lastColor) {
-                lastColor = color;
-                ctx.fillStyle = color;
+                ? slice.colorScheme.variant
+                : slice.colorScheme.base;
+            const colorString = color.cssString;
+            if (colorString !== lastColor) {
+                lastColor = colorString;
+                ctx.fillStyle = colorString;
             }
             const y = padding + slice.depth * (sliceHeight + rowSpacing);
             if (slice.flags & exports.SLICE_FLAGS_INSTANT) {
@@ -385,7 +424,7 @@ class BaseSliceTrack {
                 const w = exports.CROP_INCOMPLETE_SLICE_FLAG.get()
                     ? slice.w
                     : Math.max(slice.w - 2, 2);
-                (0, canvas_utils_1.drawIncompleteSlice)(ctx, slice.x, y, w, sliceHeight, !exports.CROP_INCOMPLETE_SLICE_FLAG.get());
+                (0, canvas_utils_1.drawIncompleteSlice)(ctx, slice.x, y, w, sliceHeight, color, !exports.CROP_INCOMPLETE_SLICE_FLAG.get());
             }
             else {
                 const w = Math.max(slice.w, exports.FADE_THIN_SLICES_FLAG.get()
@@ -479,21 +518,16 @@ class BaseSliceTrack {
         // have some abstraction for that arrow (ideally the same we'd use for
         // flows).
         this.drawSchedLatencyArrow(ctx, this.selectedSlice);
-        // If a slice is hovered, draw the tooltip.
-        const tooltip = this.hoverTooltip;
-        if (this.hoveredSlice !== undefined &&
-            tooltip.length > 0 &&
-            this.hoverPos !== undefined) {
-            if (tooltip.length === 1) {
-                (0, canvas_utils_1.drawTrackHoverTooltip)(ctx, this.hoverPos, size, tooltip[0]);
-            }
-            else {
-                (0, canvas_utils_1.drawTrackHoverTooltip)(ctx, this.hoverPos, size, tooltip[0], tooltip[1]);
-            }
-        } // if (hoveredSlice)
     }
     async onDestroy() {
         await this.trash.asyncDispose();
+    }
+    renderTooltip() {
+        const hoveredSlice = this.hoveredSlice;
+        if (hoveredSlice) {
+            return this.renderTooltipForSlice(hoveredSlice);
+        }
+        return undefined;
     }
     // This method figures out if the visible window is outside the bounds of
     // the cached data and if so issues new queries (i.e. sorta subsumes the
@@ -518,17 +552,18 @@ class BaseSliceTrack {
       SELECT
         (z.ts / ${resolution}) * ${resolution} as tsQ,
         ((z.dur + ${resolution - 1n}) / ${resolution}) * ${resolution} as durQ,
+        z.count as count,
         s.ts as ts,
         s.dur as dur,
         s.id,
-        z.depth
+        s.depth
         ${extraCols ? ',' + extraCols : ''}
       FROM ${this.getTableName()}(
         ${slicesKey.start},
         ${slicesKey.end},
         ${resolution}
       ) z
-      CROSS JOIN (${this.getJoinSqlSource()}) s using (id)
+      CROSS JOIN (${this.getSqlSource()}) s using (id)
     `);
         const it = queryRes.iter(this.rowSpec);
         let maxDataDepth = this.maxDataDepth;
@@ -578,6 +613,7 @@ class BaseSliceTrack {
             endNs: time_1.Time.fromRaw(row.tsQ + row.durQ),
             durNs: row.durQ,
             ts: time_1.Time.fromRaw(row.ts),
+            count: row.count,
             dur: row.dur,
             flags,
             depth: row.depth,
@@ -624,14 +660,8 @@ class BaseSliceTrack {
         return undefined;
     }
     onMouseMove(event) {
-        const { x, y } = event;
-        this.hoverPos = { x, y };
         this.updateHoveredSlice(this.findSlice(event));
-        // We need to do a full redraw in order to update the hovered slice properly
-        // due to the way this system is plumbed together right now, despite the
-        // fact that changing the hovered slice SHOULD only require a canvas redraw.
-        //
-        // TODO(stevegolton): Fix this.
+        // Maybe do this in the caller?
         this.trace.raf.scheduleFullRedraw();
     }
     onMouseOut() {
@@ -646,14 +676,11 @@ class BaseSliceTrack {
         if (this.hoveredSlice === undefined) {
             this.trace.timeline.highlightedSliceId = undefined;
             this.onSliceOut({ slice: (0, logging_1.assertExists)(lastHoveredSlice) });
-            this.hoverTooltip = [];
-            this.hoverPos = undefined;
         }
         else {
             const args = { slice: this.hoveredSlice };
             this.trace.timeline.highlightedSliceId = this.hoveredSlice.id;
             this.onSliceOver(args);
-            this.hoverTooltip = args.tooltip || [];
         }
     }
     onMouseClick(event) {

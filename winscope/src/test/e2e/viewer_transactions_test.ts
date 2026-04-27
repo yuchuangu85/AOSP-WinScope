@@ -15,57 +15,57 @@
  */
 
 import {browser, by, element} from 'protractor';
-import {E2eTestUtils} from './utils';
+import {
+  changeRealTimestampInWinscope,
+  checkFinalRealTimestamp,
+  checkInitialRealTimestamp,
+  checkItemInPropertiesTree,
+  checkScrollPresent,
+  checkSelectFilter,
+  checkTimelineTraceSelector,
+  checkTotalScrollEntries,
+  checkWinscopeRealTimestamp,
+  loadTraceAndCheckViewer,
+  setTimeouts,
+  WINSCOPE_URL,
+} from './utils';
 
 describe('Viewer Transactions', () => {
   const viewerSelector = 'viewer-transactions';
   const totalEntries = 9534;
 
   beforeEach(async () => {
-    jasmine.DEFAULT_TIMEOUT_INTERVAL = 20000;
-    await E2eTestUtils.beforeEach(2000);
-    await browser.get(E2eTestUtils.WINSCOPE_URL);
+    await setTimeouts(2000);
+    await browser.get(WINSCOPE_URL);
   });
 
   it('processes trace from zip and navigates correctly', async () => {
-    await E2eTestUtils.loadTraceAndCheckViewer(
-      'traces/deployment_full_trace_phone.zip',
+    await loadTraceAndCheckViewer(
+      'archives/deployment_full_trace_phone.zip',
       'Transactions',
       viewerSelector,
     );
-    await E2eTestUtils.checkScrollPresent(viewerSelector);
-    await E2eTestUtils.checkTotalScrollEntries(
-      viewerSelector,
-      totalEntries,
-      true,
-    );
-    await E2eTestUtils.checkTimelineTraceSelector({
+    await checkScrollPresent(viewerSelector);
+    await checkTotalScrollEntries(viewerSelector, totalEntries, true);
+    await checkTimelineTraceSelector({
       icon: 'show_chart',
       color: 'rgba(13, 101, 45, 1)',
     });
-    await E2eTestUtils.checkFinalRealTimestamp('2022-11-21, 18:05:19.592');
-    await E2eTestUtils.checkInitialRealTimestamp('2022-11-21, 11:36:19.513');
+    await checkFinalRealTimestamp('2022-11-21, 18:05:19.592');
+    await checkInitialRealTimestamp('2022-11-21, 11:36:19.513');
 
-    await E2eTestUtils.changeRealTimestampInWinscope(
-      '2022-11-21, 18:05:17.505',
-    );
-    await E2eTestUtils.checkWinscopeRealTimestamp('18:05:17.505');
+    await changeRealTimestampInWinscope('2022-11-21, 18:05:17.505');
+    await checkWinscopeRealTimestamp('18:05:17.505');
     await checkSelectedEntry();
-    await E2eTestUtils.checkSelectFilter(
-      viewerSelector,
-      '.pid',
-      ['6914'],
-      2,
-      totalEntries,
-    );
-    await E2eTestUtils.checkSelectFilter(
+    await checkSelectFilter(viewerSelector, '.pid', ['6914'], 2, totalEntries);
+    await checkSelectFilter(
       viewerSelector,
       '.uid',
       ['10161'],
       16,
       totalEntries,
     );
-    await E2eTestUtils.checkSelectFilter(
+    await checkSelectFilter(
       viewerSelector,
       '.flags',
       ['eBackgroundBlurRadiusChanged'],
@@ -79,36 +79,36 @@ describe('Viewer Transactions', () => {
     expect(await selectedEntry.isPresent()).toBeTruthy();
 
     const transactionId = selectedEntry.element(by.css('.transaction-id'));
-    expect(await transactionId.getText()).toEqual('7975754272149');
+    expect(await transactionId.getText()).toBe('7975754272149');
 
     const vsyncId = selectedEntry.element(by.css('.vsyncid'));
-    expect(await vsyncId.getText()).toEqual('93389');
+    expect(await vsyncId.getText()).toBe('93389');
 
     const pid = selectedEntry.element(by.css('.pid'));
-    expect(await pid.getText()).toEqual('1857');
+    expect(await pid.getText()).toBe('1857');
 
     const uid = selectedEntry.element(by.css('.uid'));
-    expect(await uid.getText()).toEqual('1000');
+    expect(await uid.getText()).toBe('1000');
 
     const type = selectedEntry.element(by.css('.transaction-type'));
-    expect(await type.getText()).toEqual('LAYER_CHANGED');
+    expect(await type.getText()).toBe('LAYER_CHANGED');
 
     const layerOrDisplayId = selectedEntry.element(
       by.css('.layer-or-display-id'),
     );
-    expect(await layerOrDisplayId.getText()).toEqual('798');
+    expect(await layerOrDisplayId.getText()).toBe('798');
 
     const whatString =
       'eLayerChanged | eAlphaChanged | eFlagsChanged | eReparent | eColorChanged | eHasListenerCallbacksChanged';
     const what = selectedEntry.element(by.css('.flags'));
     expect(await what.getText()).toEqual(whatString);
 
-    await E2eTestUtils.checkItemInPropertiesTree(
+    await checkItemInPropertiesTree(
       viewerSelector,
       'what',
       'what:\n' + whatString,
     );
-    await E2eTestUtils.checkItemInPropertiesTree(
+    await checkItemInPropertiesTree(
       viewerSelector,
       'color',
       'color:\n(0.106, 0.106, 0.106)',

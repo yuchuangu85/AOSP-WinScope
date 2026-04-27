@@ -62,17 +62,17 @@ class Popup {
     static DISMISS_POPUP_GROUP_CLASS = 'pf-dismiss-popup-group';
     view({ attrs, children }) {
         const { trigger, isOpen = this.isOpen, onChange = () => { }, closeOnEscape = true, closeOnOutsideClick = true, } = attrs;
-        this.isOpen = isOpen;
         this.onChange = onChange;
         this.closeOnEscape = closeOnEscape;
         this.closeOnOutsideClick = closeOnOutsideClick;
         return [
-            this.renderTrigger(trigger),
+            this.renderTrigger(trigger, isOpen),
             isOpen && this.renderPopup(attrs, children),
         ];
     }
+    renderTrigger(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    renderTrigger(trigger) {
+    trigger, isOpen) {
         trigger.attrs = {
             ...trigger.attrs,
             ref: Popup.TRIGGER_REF,
@@ -80,23 +80,34 @@ class Popup {
                 this.togglePopup();
                 e.preventDefault();
             },
-            active: this.isOpen,
+            active: isOpen,
         };
         return trigger;
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     renderPopup(attrs, children) {
-        const { className, showArrow = true, createNewGroup = true, onPopupMount = () => { }, onPopupUnMount = () => { }, } = attrs;
+        const { className, showArrow = true, createNewGroup = true, onPopupMount = () => { }, onPopupUnMount = () => { }, matchWidth, fitContent, } = attrs;
         const portalAttrs = {
             className: 'pf-popup-portal',
             onBeforeContentMount: (dom) => {
-                // Check to see if dom is a descendant of a popup
+                // Check to see if dom is a descendant of a popup or modal
                 // If so, get the popup's "container" and put it in there instead
                 // This handles the case where popups are placed inside the other popups
                 // we nest outselves in their containers instead of document body which
                 // means we become part of their hitbox for mouse events.
                 const closestPopup = dom.closest(`[ref=${Popup.POPUP_REF}]`);
-                return { container: closestPopup ?? undefined };
+                if (closestPopup) {
+                    return { container: closestPopup };
+                }
+                const closestModal = dom.closest('.pf-modal-dialog');
+                if (closestModal) {
+                    return { container: closestModal };
+                }
+                const closestContainer = dom.closest('.pf-overlay-container');
+                if (closestContainer) {
+                    return { container: closestContainer };
+                }
+                return { container: undefined };
             },
             onContentMount: (dom) => {
                 const popupElement = (0, dom_utils_1.toHTMLElement)((0, logging_1.assertExists)((0, dom_utils_1.findRef)(dom, Popup.POPUP_REF)));
@@ -125,7 +136,7 @@ class Popup {
             },
         };
         return (0, mithril_1.default)(portal_1.Portal, portalAttrs, (0, mithril_1.default)('.pf-popup', {
-            class: (0, classnames_1.classNames)(className, createNewGroup && Popup.POPUP_GROUP_CLASS),
+            class: (0, classnames_1.classNames)(className, createNewGroup && Popup.POPUP_GROUP_CLASS, matchWidth && 'pf-popup--match-width', fitContent && 'pf-popup--fit-content'),
             ref: Popup.POPUP_REF,
         }, showArrow && (0, mithril_1.default)('.pf-popup-arrow[data-popper-arrow]'), (0, mithril_1.default)('.pf-popup-content', children)));
     }
@@ -235,11 +246,9 @@ class Popup {
         }
     };
     closePopup() {
-        if (this.isOpen) {
-            this.isOpen = false;
-            this.onChange(this.isOpen);
-            mithril_1.default.redraw();
-        }
+        this.isOpen = false;
+        this.onChange(false);
+        mithril_1.default.redraw();
     }
     togglePopup() {
         this.isOpen = !this.isOpen;

@@ -41,11 +41,11 @@ class default_1 {
         // so they can easily be inspected without scrolling through a lot of
         // vertical space.
         trace.commands.registerCommand({
-            id: 'org.chromium.ChromeNavigation#PinNavigationTracks',
+            id: 'org.chromium.PinNavigationTracks',
             name: 'Chrome Navigation: Pin relevant tracks',
             callback: () => {
                 trace.workspace.flatTracks
-                    .filter((t) => PIN_TRACK_NAME_PATTERNS.some((p) => t.title.match(p)))
+                    .filter((t) => PIN_TRACK_NAME_PATTERNS.some((p) => t.name.match(p)))
                     .forEach((t) => t.pin());
             },
         });
@@ -57,7 +57,7 @@ class default_1 {
         // their parent tracks, so we can have the collapsable process/thread
         // tracks and keep the UI consistent.
         trace.commands.registerCommand({
-            id: 'org.chromium.ChromeNavigation#CreateWorkspaceWithTracks',
+            id: 'org.chromium.CreateWorkspaceWithTracks',
             name: `Chrome Navigation: Go to "${NAVIGATION_WORKSPACE_NAME}" workspace`,
             defaultHotkey: 'Shift+N',
             callback: () => {
@@ -70,7 +70,7 @@ class default_1 {
                 }
                 // Find all tracks that we want to be visible.
                 trace.workspace.flatTracks
-                    .filter((t) => INTERESTING_TRACKS_NAME_PATTERNS.some((p) => t.title.match(p)))
+                    .filter((t) => INTERESTING_TRACKS_NAME_PATTERNS.some((p) => t.name.match(p)))
                     .forEach((e) => flatIds.add(e.id));
                 // A lambda that will be invoked for each TrackNode to check whehter it
                 // is of interest or is an ancestor of a TrackNode of interest.
@@ -81,7 +81,7 @@ class default_1 {
                         .filter((t) => t !== undefined);
                     // We need to create a new node if we have added any children
                     // or this track itself should be copied because the name matches.
-                    const nameMatch = INTERESTING_TRACKS_NAME_PATTERNS.some((p) => track.title.match(p));
+                    const nameMatch = INTERESTING_TRACKS_NAME_PATTERNS.some((p) => track.name.match(p));
                     if (children.length === 0 && !nameMatch) {
                         return undefined;
                     }

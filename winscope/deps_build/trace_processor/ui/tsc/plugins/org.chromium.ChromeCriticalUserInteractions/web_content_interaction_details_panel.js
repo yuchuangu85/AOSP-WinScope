@@ -78,10 +78,14 @@ class WebContentInteractionPanel {
         if (this.data === undefined)
             return details;
         details['Interaction'] = this.data.interactionType;
-        details['Timestamp'] = (0, mithril_1.default)(timestamp_1.Timestamp, { ts: this.data.ts });
-        details['Duration'] = (0, mithril_1.default)(duration_1.DurationWidget, { dur: this.data.dur });
+        details['Timestamp'] = (0, mithril_1.default)(timestamp_1.Timestamp, { trace: this.trace, ts: this.data.ts });
+        details['Duration'] = (0, mithril_1.default)(duration_1.DurationWidget, {
+            trace: this.trace,
+            dur: this.data.dur,
+        });
         details['Renderer Upid'] = this.data.upid;
         details['Total duration of all events'] = (0, mithril_1.default)(duration_1.DurationWidget, {
+            trace: this.trace,
             dur: this.data.totalDurationMs,
         });
         details['SQL ID'] = (0, mithril_1.default)(sql_ref_1.SqlRef, {

@@ -15,18 +15,30 @@
  */
 
 import {Component, Input} from '@angular/core';
-import {TimelineUtils} from 'app/components/timeline/timeline_utils';
-import {assertDefined, assertTrue} from 'common/assert_utils';
+import {MatTooltipModule} from '@angular/material/tooltip';
+import {
+  getTimeRangeForTransition,
+  isTransitionWithUnknownEnd,
+  isTransitionWithUnknownStart,
+} from 'app/components/timeline/timeline_utils';
+import {assertDefined, assertTrue} from 'common/assert';
 import {Point} from 'common/geometry/point';
 import {Rect} from 'common/geometry/rect';
 import {TimeRange, Timestamp} from 'common/time/time';
-import {AbsoluteEntryIndex, Trace, TraceEntry} from 'trace/trace';
-import {TraceType} from 'trace/trace_type';
-import {PropertyTreeNode} from 'trace/tree_node/property_tree_node';
+import {TransitionStatus} from 'trace/transitions/status';
+import {AbsoluteEntryIndex} from 'trace_api/index_types';
+import {Trace, TraceEntry} from 'trace_api/trace';
+import {TraceType} from 'trace_api/trace_type';
+import {HierarchyTreeNode} from 'tree_node/hierarchy_tree_node';
 import {AbstractTimelineRowComponent} from './abstract_timeline_row_component';
 
+/**
+ * A component for displaying a timeline of transitions.
+ */
 @Component({
   selector: 'transition-timeline',
+  standalone: true,
+  imports: [MatTooltipModule],
   template: `
     <div
       class="transition-timeline"
@@ -53,13 +65,13 @@ import {AbstractTimelineRowComponent} from './abstract_timeline_row_component';
     `,
   ],
 })
-export class TransitionTimelineComponent extends AbstractTimelineRowComponent<PropertyTreeNode> {
-  @Input() selectedEntry: TraceEntry<PropertyTreeNode> | undefined;
-  @Input() trace: Trace<PropertyTreeNode> | undefined;
-  @Input() transitionEntries: Array<PropertyTreeNode | undefined> | undefined;
+export class TransitionTimelineComponent extends AbstractTimelineRowComponent<HierarchyTreeNode> {
+  @Input() selectedEntry: TraceEntry<HierarchyTreeNode> | undefined;
+  @Input() trace: Trace<HierarchyTreeNode> | undefined;
+  @Input() transitionEntries: Array<HierarchyTreeNode | undefined> | undefined;
   @Input() fullRange: TimeRange | undefined;
 
-  hoveringEntry?: TraceEntry<PropertyTreeNode>;
+  hoveringEntry?: TraceEntry<HierarchyTreeNode>;
   rowsToUse = new Map<number, number>();
   maxRowsRequires = 0;
   shouldNotRenderEntries: number[] = [];
@@ -116,7 +128,7 @@ export class TransitionTimelineComponent extends AbstractTimelineRowComponent<Pr
     if (!transition) {
       return undefined;
     }
-    const timeRange = TimelineUtils.getTimeRangeForTransition(
+    const timeRange = getTimeRangeForTransition(
       transition,
       assertDefined(this.selectionRange),
       assertDefined(this.timestampConverter),
@@ -130,7 +142,7 @@ export class TransitionTimelineComponent extends AbstractTimelineRowComponent<Pr
 
   protected override getEntryAt(
     mousePoint: Point,
-  ): TraceEntry<PropertyTreeNode> | undefined {
+  ): TraceEntry<HierarchyTreeNode> | undefined {
     const transitionEntries = assertDefined(this.trace).mapEntry(
       (entry) => entry,
     );
@@ -164,8 +176,8 @@ export class TransitionTimelineComponent extends AbstractTimelineRowComponent<Pr
   }
 
   private getXPosOf(entry: Timestamp): number {
-    const start = assertDefined(this.selectionRange).from.getValueNs();
-    const end = assertDefined(this.selectionRange).to.getValueNs();
+    const start = assertDefined(this.selectionRange).startNs;
+    const end = assertDefined(this.selectionRange).endNs;
 
     return Number(
       (BigInt(this.getAvailableWidth()) * (entry.getValueNs() - start)) /
@@ -179,8 +191,8 @@ export class TransitionTimelineComponent extends AbstractTimelineRowComponent<Pr
     rowToUse: number,
   ): Rect {
     const xPosStart = this.getXPosOf(start);
-    const selectionStart = assertDefined(this.selectionRange).from.getValueNs();
-    const selectionEnd = assertDefined(this.selectionRange).to.getValueNs();
+    const selectionStart = assertDefined(this.selectionRange).startNs;
+    const selectionEnd = assertDefined(this.selectionRange).endNs;
 
     const borderPadding = 5;
     let totalRowHeight =
@@ -199,8 +211,8 @@ export class TransitionTimelineComponent extends AbstractTimelineRowComponent<Pr
     const width = Math.max(
       Number(
         (BigInt(this.getAvailableWidth()) *
-          (end.getValueNs() - start.getValueNs())) /
-          (selectionEnd - selectionStart),
+          BigInt(end.getValueNs() - start.getValueNs())) /
+          BigInt(selectionEnd - selectionStart),
       ),
       rowHeight,
     );
@@ -213,21 +225,18 @@ export class TransitionTimelineComponent extends AbstractTimelineRowComponent<Pr
     );
   }
 
-  private drawSegment(rect: Rect, transition: PropertyTreeNode) {
-    const aborted = assertDefined(
-      transition.getChildByName('aborted'),
-    ).getValue();
+  private drawSegment(rect: Rect, transition: HierarchyTreeNode) {
+    const aborted =
+      transition.getEagerPropertyByName('status')?.formattedValue() ===
+      TransitionStatus.ABORTED;
     const alpha = aborted ? 0.25 : 1.0;
 
-    const hasUnknownStart =
-      TimelineUtils.isTransitionWithUnknownStart(transition);
-    const hasUnknownEnd = TimelineUtils.isTransitionWithUnknownEnd(transition);
     this.canvasDrawer.drawRect(
       rect,
       this.color,
       alpha,
-      hasUnknownStart,
-      hasUnknownEnd,
+      isTransitionWithUnknownStart(transition),
+      isTransitionWithUnknownEnd(transition),
     );
   }
 
@@ -248,7 +257,7 @@ export class TransitionTimelineComponent extends AbstractTimelineRowComponent<Pr
         return;
       }
 
-      const timeRange = TimelineUtils.getTimeRangeForTransition(
+      const timeRange = getTimeRangeForTransition(
         transition,
         assertDefined(this.fullRange),
         assertDefined(this.timestampConverter),
@@ -260,11 +269,11 @@ export class TransitionTimelineComponent extends AbstractTimelineRowComponent<Pr
       }
 
       let rowToUse = 0;
-      while ((rowAvailableFrom[rowToUse] ?? 0n) > timeRange.from.getValueNs()) {
+      while ((rowAvailableFrom[rowToUse] ?? 0n) > timeRange.startNs) {
         rowToUse++;
       }
 
-      rowAvailableFrom[rowToUse] = timeRange.to.getValueNs();
+      rowAvailableFrom[rowToUse] = timeRange.endNs;
 
       if (rowToUse + 1 > this.maxRowsRequires) {
         this.maxRowsRequires = rowToUse + 1;

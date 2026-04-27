@@ -15,6 +15,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const tslib_1 = require("tslib");
 // Keep this import first.
+const zod_1 = tslib_1.__importDefault(require("zod"));
 require("../base/disposable_polyfill");
 require("../base/static_initializers");
 const all_plugins_1 = tslib_1.__importDefault(require("../gen/all_plugins"));
@@ -27,11 +28,10 @@ const live_reload_1 = require("../core/live_reload");
 const raf_scheduler_1 = require("../core/raf_scheduler");
 const wasm_engine_proxy_1 = require("../trace_processor/wasm_engine_proxy");
 const ui_main_1 = require("./ui_main");
-const css_constants_1 = require("./css_constants");
 const debug_1 = require("./debug");
 const error_dialog_1 = require("./error_dialog");
 const file_drop_handler_1 = require("./file_drop_handler");
-const globals_1 = require("./globals");
+const is_internal_user_script_loader_1 = require("./is_internal_user_script_loader");
 const home_page_1 = require("./home_page");
 const post_message_handler_1 = require("./post_message_handler");
 const router_1 = require("../core/router");
@@ -48,6 +48,14 @@ const debug_tracks_1 = require("../components/tracks/debug_tracks");
 const visualized_args_tracks_1 = require("../components/tracks/visualized_args_tracks");
 const query_result_tab_1 = require("../components/query_table/query_result_tab");
 const assets_1 = require("../base/assets");
+const settings_manager_1 = require("../core/settings_manager");
+const local_storage_1 = require("../core/local_storage");
+const timeline_1 = require("../public/timeline");
+const time_1 = require("../base/time");
+const theme_provider_1 = require("./theme_provider");
+const overlay_container_1 = require("../widgets/overlay_container");
+const json_settings_editor_1 = require("../components/json_settings_editor");
+const command_manager_1 = require("../core/command_manager");
 const CSP_WS_PERMISSIVE_PORT = feature_flags_1.featureFlags.register({
     id: 'cspAllowAnyWebsocketPort',
     name: 'Relax Content Security Policy for 127.0.0.1:*',
@@ -135,8 +143,96 @@ function main() {
     // Setup content security policy before anything else.
     setupContentSecurityPolicy();
     (0, assets_1.initAssets)();
+    // Create settings Manager
+    const settingsManager = new settings_manager_1.SettingsManagerImpl(new local_storage_1.LocalStorage(settings_manager_1.PERFETTO_SETTINGS_STORAGE_KEY));
+    // Initialize core settings...
+    const timestampFormatSetting = settingsManager.register({
+        id: 'timestampFormat',
+        name: 'Timestamp format',
+        description: 'The format of timestamps throughout Perfetto.',
+        schema: zod_1.default.nativeEnum(timeline_1.TimestampFormat),
+        defaultValue: timeline_1.TimestampFormat.Timecode,
+    });
+    const timezoneOverrideSetting = settingsManager.register({
+        id: 'timezoneOverride',
+        name: 'Timezone Override',
+        description: "When 'Timestamp Format' is set to 'CustomTimezone', this setting controls which timezone is used.",
+        schema: zod_1.default.enum(Object.keys(time_1.timezoneOffsetMap)),
+        defaultValue: '(UTC+00:00) London, Dublin, Lisbon, Casablanca', // UTC by default.
+    });
+    const durationPrecisionSetting = settingsManager.register({
+        id: 'durationPrecision',
+        name: 'Duration precision',
+        description: 'The precision of durations throughout Perfetto.',
+        schema: zod_1.default.nativeEnum(timeline_1.DurationPrecision),
+        defaultValue: timeline_1.DurationPrecision.Full,
+    });
+    const analyticsSetting = settingsManager.register({
+        id: 'analyticsEnable',
+        name: 'Enable UI telemetry',
+        description: `
+      This setting controls whether the Perfetto UI logs coarse-grained
+      information about your usage of the UI and any errors encountered. This
+      information helps us understand how the UI is being used and allows us to
+      better prioritise features and fix bugs. If this option is disabled,
+      no information will be logged.
+
+      Note: even if this option is enabled, information about the *contents* of
+      traces is *not* logged.
+
+      Note: this setting only has an effect on the ui.perfetto.dev and localhost
+      origins: all other origins do not log telemetry even if this option is
+      enabled.
+    `,
+        schema: zod_1.default.boolean(),
+        defaultValue: true,
+        requiresReload: true,
+    });
+    const startupCommandsEditor = new json_settings_editor_1.JsonSettingsEditor({
+        schema: command_manager_1.commandInvocationArraySchema,
+    });
+    const startupCommandsSetting = settingsManager.register({
+        id: 'startupCommands',
+        name: 'Startup Commands',
+        description: `
+      Commands to run automatically after a trace loads and any saved state is
+      restored. These commands execute as if a user manually invoked them after
+      the trace is fully ready, making them ideal for automating common
+      post-load actions like running queries, expanding tracks, or setting up
+      custom views.
+    `,
+        schema: command_manager_1.commandInvocationArraySchema,
+        defaultValue: [],
+        render: (setting) => startupCommandsEditor.render(setting),
+    });
+    const enforceStartupCommandAllowlistSetting = settingsManager.register({
+        id: 'enforceStartupCommandAllowlist',
+        name: 'Enforce Startup Command Allowlist',
+        description: `
+      When enabled, only commands in the predefined allowlist can be executed
+      as startup commands. When disabled, all startup commands will be
+      executed without filtering.
+
+      The command allowlist encodes the set of commands which Perfetto UI
+      maintainers expect to maintain backwards compatibility for the forseeable\
+      future.
+
+      WARNING: if this setting is disabled, any command outside the allowlist
+      has *no* backwards compatibility guarantees and is can change without
+      warning at any time.
+    `,
+        schema: zod_1.default.boolean(),
+        defaultValue: true,
+    });
     app_impl_1.AppImpl.initialize({
         initialRouteArgs: router_1.Router.parseUrl(window.location.href).args,
+        settingsManager,
+        timestampFormatSetting,
+        durationPrecisionSetting,
+        timezoneOverrideSetting,
+        analyticsSetting,
+        startupCommandsSetting,
+        enforceStartupCommandAllowlistSetting,
     });
     // Load the css. The load is asynchronous and the CSS is not ready by the time
     // appendChild returns.
@@ -150,19 +246,13 @@ function main() {
     if (favicon instanceof HTMLLinkElement) {
         favicon.href = (0, assets_1.assetSrc)('assets/favicon.png');
     }
+    document.head.append(css);
     // Load the script to detect if this is a Googler (see comments on globals.ts)
     // and initialize GA after that (or after a timeout if something goes wrong).
-    function initAnalyticsOnScriptLoad() {
-        app_impl_1.AppImpl.instance.analytics.initialize(globals_1.globals.isInternalUser);
-    }
-    const script = document.createElement('script');
-    script.src =
-        'https://storage.cloud.google.com/perfetto-ui-internal/is_internal_user.js';
-    script.async = true;
-    script.onerror = () => initAnalyticsOnScriptLoad();
-    script.onload = () => initAnalyticsOnScriptLoad();
-    setTimeout(() => initAnalyticsOnScriptLoad(), 5000);
-    document.head.append(script, css);
+    const app = app_impl_1.AppImpl.instance;
+    (0, is_internal_user_script_loader_1.tryLoadIsInternalUserScript)(app).then(() => {
+        app.analytics.initialize(app.isInternalUser);
+    });
     // Route errors to both the UI bugreport dialog and Analytics (if enabled).
     (0, logging_1.addErrorHandler)(error_dialog_1.maybeShowErrorDialog);
     (0, logging_1.addErrorHandler)((e) => app_impl_1.AppImpl.instance.analytics.logError(e));
@@ -187,18 +277,38 @@ function main() {
     };
 }
 function onCssLoaded() {
-    (0, css_constants_1.initCssConstants)();
     // Clear all the contents of the initial page (e.g. the <pre> error message)
     // And replace it with the root <main> element which will be used by mithril.
     document.body.innerHTML = '';
     const pages = app_impl_1.AppImpl.instance.pages;
-    const traceless = true;
-    pages.registerPage({ route: '/', traceless, page: home_page_1.HomePage });
-    pages.registerPage({ route: '/viewer', page: viewer_page_1.ViewerPage });
+    pages.registerPage({ route: '/', render: () => (0, mithril_1.default)(home_page_1.HomePage) });
+    pages.registerPage({ route: '/viewer', render: () => (0, viewer_page_1.renderViewerPage)() });
     const router = new router_1.Router();
     router.onRouteChanged = routeChange;
+    const themeSetting = app_impl_1.AppImpl.instance.settings.register({
+        id: 'theme',
+        name: '[Experimental] UI Theme',
+        description: 'Warning: Dark mode is not fully supported yet.',
+        schema: zod_1.default.enum(['dark', 'light']),
+        defaultValue: 'light',
+    });
+    // Add command to toggle the theme.
+    app_impl_1.AppImpl.instance.commands.registerCommand({
+        id: 'dev.perfetto.ToggleTheme',
+        name: '[Experimental] Toggle UI Theme',
+        callback: () => {
+            const currentTheme = themeSetting.get();
+            themeSetting.set(currentTheme === 'dark' ? 'light' : 'dark');
+        },
+    });
     // Mount the main mithril component. This also forces a sync render pass.
-    raf_scheduler_1.raf.mount(document.body, ui_main_1.UiMain);
+    raf_scheduler_1.raf.mount(document.body, {
+        view: () => (0, mithril_1.default)(theme_provider_1.ThemeProvider, { theme: themeSetting.get() }, [
+            (0, mithril_1.default)(overlay_container_1.OverlayContainer, { fillParent: true }, [
+                (0, mithril_1.default)(ui_main_1.UiMain, { key: themeSetting.get() }),
+            ]),
+        ]),
+    });
     if ((location.origin.startsWith('http://localhost:') ||
         location.origin.startsWith('http://127.0.0.1:')) &&
         !app_impl_1.AppImpl.instance.embeddedMode &&
@@ -212,7 +322,7 @@ function onCssLoaded() {
     // accidentially clober the state of an open trace processor instance
     // otherwise.
     maybeChangeRpcPortFromFragment();
-    (0, rpc_http_dialog_1.CheckHttpRpcConnection)().then(() => {
+    (0, rpc_http_dialog_1.checkHttpRpcConnection)().then(() => {
         const route = router_1.Router.parseUrl(window.location.href);
         if (!app_impl_1.AppImpl.instance.embeddedMode) {
             (0, file_drop_handler_1.installFileDropHandler)();

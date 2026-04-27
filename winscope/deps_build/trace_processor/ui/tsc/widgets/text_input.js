@@ -16,19 +16,27 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.TextInput = void 0;
 const tslib_1 = require("tslib");
 const mithril_1 = tslib_1.__importDefault(require("mithril"));
-// For now, this component is just a simple wrapper around a plain old input
-// element, which does no more than specify a class. However, in the future we
-// might want to add more features such as an optional icon or button (e.g. a
-// clear button), at which point the benefit of having this as a component would
-// become more apparent.
+const icon_1 = require("./icon"); // Import Icon component
 class TextInput {
     oncreate(vnode) {
         if (vnode.attrs.autofocus) {
-            vnode.dom.focus();
+            // Focus the actual input element inside the wrapper
+            const inputElement = vnode.dom.querySelector('input');
+            if (inputElement) {
+                inputElement.focus();
+            }
         }
     }
     view({ attrs }) {
-        return (0, mithril_1.default)('input.pf-text-input', attrs);
+        const { leftIcon, className, ...inputAttrs } = attrs; // Destructure icon from other attrs
+        return (0, mithril_1.default)('.pf-text-input', // Add a wrapper div
+        {
+            className,
+        }, leftIcon &&
+            (0, mithril_1.default)(icon_1.Icon, { icon: leftIcon, className: 'pf-text-input__left-icon' }), // Conditionally render icon
+        (0, mithril_1.default)('input.pf-text-input__input', {
+            ...inputAttrs, // Pass remaining attrs to the input
+        }));
     }
 }
 exports.TextInput = TextInput;

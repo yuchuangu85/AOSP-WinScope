@@ -138,6 +138,16 @@ class PivotTableState {
         });
         this.data.result?.tree.sort(this.orderBy);
     }
+    clearPivotSort(pivot) {
+        const id = (0, ids_1.pivotId)(pivot);
+        this.orderBy = this.orderBy.filter((c) => !(c.type === 'pivot' && c.id === id));
+        this.data.result?.tree.sort(this.orderBy);
+    }
+    clearAggregationSort(agg) {
+        const id = (0, ids_1.aggregationId)(agg);
+        this.orderBy = this.orderBy.filter((c) => !(c.type === 'aggregation' && c.id === id));
+        this.data.result?.tree.sort(this.orderBy);
+    }
     isSortedByPivot(pivot) {
         if (this.orderBy.length === 0)
             return undefined;

@@ -26,6 +26,11 @@ exports.SLICE_TRACK_SCHEMAS = [
         group: 'Bluetooth',
     },
     {
+        type: 'app_wakelock_events',
+        topLevelGroup: 'POWER',
+        group: 'App Wakelocks',
+    },
+    {
         type: 'legacy_async_process_slice',
         topLevelGroup: 'PROCESS',
         group: undefined,
@@ -96,6 +101,11 @@ exports.SLICE_TRACK_SCHEMAS = [
         group: 'Softirqs',
     },
     {
+        type: 'cpu_hrtimer',
+        topLevelGroup: 'CPU',
+        group: 'HRTimers',
+    },
+    {
         type: 'net_socket_set_state',
         topLevelGroup: 'NETWORK',
         group: 'Socket Set State',
@@ -152,7 +162,7 @@ exports.SLICE_TRACK_SCHEMAS = [
     },
     {
         type: 'pkvm_hypervisor',
-        topLevelGroup: 'SYSTEM',
+        topLevelGroup: 'HYPERVISOR',
         group: undefined,
     },
     {

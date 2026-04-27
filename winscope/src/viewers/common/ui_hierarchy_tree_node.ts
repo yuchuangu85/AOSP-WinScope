@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {HierarchyTreeNode} from 'trace/tree_node/hierarchy_tree_node';
+import {HierarchyTreeNode} from 'tree_node/hierarchy_tree_node';
 import {Chip} from './chip';
 import {DiffNode} from './diff_node';
 import {DiffType} from './diff_type';
@@ -39,6 +39,9 @@ export class UiHierarchyTreeNode extends HierarchyTreeNode implements DiffNode {
     );
     const rects = node.getRects();
     if (rects) displayNode.setRects(rects);
+
+    const secondaryRects = node.getSecondaryRects();
+    if (secondaryRects) displayNode.setSecondaryRects(secondaryRects);
 
     if (parent) displayNode.setParent(parent);
 

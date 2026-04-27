@@ -48,7 +48,7 @@ class EngineBase {
     pendingReadMetatrace;
     pendingRegisterSqlPackage;
     pendingAnalyzeStructuredQueries;
-    _isMetatracingEnabled = false;
+    pendingTraceSummary;
     _numRequestsPending = 0;
     _failed = undefined;
     _queryLog = [];
@@ -189,11 +189,20 @@ class EngineBase {
                     res.resolve();
                 }
                 break;
+            case TPM.TPM_SUMMARIZE_TRACE:
+                const summaryRes = (0, logging_1.assertExists)(rpc.traceSummaryResult);
+                (0, logging_1.assertExists)(this.pendingTraceSummary).resolve(summaryRes);
+                this.pendingTraceSummary = undefined;
+                break;
             case TPM.TPM_ANALYZE_STRUCTURED_QUERY:
                 const analyzeRes = (0, logging_1.assertExists)(rpc.analyzeStructuredQueryResult);
                 const x = (0, logging_1.assertExists)(this.pendingAnalyzeStructuredQueries);
                 x.resolve(analyzeRes);
                 this.pendingAnalyzeStructuredQueries = undefined;
+                break;
+            case TPM.TPM_ENABLE_METATRACE:
+                // We don't have any pending promises for this request so just
+                // return.
                 break;
             default:
                 console.log('Unexpected TraceProcessor response received: ', rpc.response);
@@ -231,7 +240,7 @@ class EngineBase {
     // Updates the TraceProcessor Config. This method creates a new
     // TraceProcessor instance, so it should be called before passing any trace
     // data.
-    resetTraceProcessor({ cropTrackEvents, ingestFtraceInRawTable, analyzeTraceProtoContent, ftraceDropUntilAllCpusValid, }) {
+    resetTraceProcessor({ tokenizeOnly, cropTrackEvents, ingestFtraceInRawTable, analyzeTraceProtoContent, ftraceDropUntilAllCpusValid, }) {
         const asyncRes = (0, deferred_1.defer)();
         this.pendingResetTraceProcessors.push(asyncRes);
         const rpc = protos_1.default.TraceProcessorRpc.create();
@@ -245,6 +254,9 @@ class EngineBase {
         args.ingestFtraceInRawTable = ingestFtraceInRawTable;
         args.analyzeTraceProtoContent = analyzeTraceProtoContent;
         args.ftraceDropUntilAllCpusValid = ftraceDropUntilAllCpusValid;
+        args.parsingMode = tokenizeOnly
+            ? protos_1.default.ResetTraceProcessorArgs.ParsingMode.TOKENIZE_ONLY
+            : protos_1.default.ResetTraceProcessorArgs.ParsingMode.DEFAULT;
         this.rpcSendRequest(rpc);
         return asyncRes;
     }
@@ -280,6 +292,48 @@ class EngineBase {
         }
         this.rpcSendRequest(rpc);
         return asyncRes;
+    }
+    summarizeTrace(summarySpecs, metricIds, metadataId, format) {
+        if (this.pendingTraceSummary) {
+            return Promise.reject(new Error('Already summarizing trace'));
+        }
+        if (summarySpecs.length === 0) {
+            return Promise.reject(new Error('No summary specs provided'));
+        }
+        const result = (0, deferred_1.defer)();
+        const rpc = protos_1.default.TraceProcessorRpc.create();
+        rpc.request = TPM.TPM_SUMMARIZE_TRACE;
+        const args = (rpc.traceSummaryArgs = new protos_1.default.TraceSummaryArgs());
+        const computationSpec = new protos_1.default.TraceSummaryArgs.ComputationSpec();
+        if (metricIds) {
+            computationSpec.metricIds = metricIds;
+        }
+        else {
+            computationSpec.runAllMetrics = true;
+        }
+        if (metadataId) {
+            computationSpec.metadataQueryId = metadataId;
+        }
+        args.computationSpec = computationSpec;
+        if (typeof summarySpecs[0] === 'string') {
+            args.textprotoSpecs = summarySpecs;
+        }
+        else {
+            args.protoSpecs = summarySpecs;
+        }
+        switch (format) {
+            case 'prototext':
+                args.outputFormat = protos_1.default.TraceSummaryArgs.Format.TEXTPROTO;
+                break;
+            case 'proto':
+                args.outputFormat = protos_1.default.TraceSummaryArgs.Format.BINARY_PROTOBUF;
+                break;
+            default:
+                (0, logging_1.assertUnreachable)(format);
+        }
+        this.pendingTraceSummary = result;
+        this.rpcSendRequest(rpc);
+        return result;
     }
     // Issues a streaming query and retrieve results in batches.
     // The returned QueryResult object will be populated over time with batches
@@ -359,9 +413,6 @@ class EngineBase {
             return (0, result_1.errResult)(msg);
         }
     }
-    isMetatracingEnabled() {
-        return this._isMetatracingEnabled;
-    }
     enableMetatrace(categories) {
         const rpc = protos_1.default.TraceProcessorRpc.create();
         rpc.request = TPM.TPM_ENABLE_METATRACE;
@@ -370,7 +421,6 @@ class EngineBase {
             rpc.enableMetatraceArgs = new protos_1.default.EnableMetatraceArgs();
             rpc.enableMetatraceArgs.categories = categories;
         }
-        this._isMetatracingEnabled = true;
         this.rpcSendRequest(rpc);
     }
     stopAndGetMetatrace() {
@@ -381,7 +431,6 @@ class EngineBase {
         const result = (0, deferred_1.defer)();
         const rpc = protos_1.default.TraceProcessorRpc.create();
         rpc.request = TPM.TPM_DISABLE_AND_READ_METATRACE;
-        this._isMetatracingEnabled = false;
         this.pendingReadMetatrace = result;
         this.rpcSendRequest(rpc);
         return result;
@@ -478,6 +527,9 @@ class EngineProxy {
             return (0, deferred_1.defer)(); // Return a promise that will hang forever.
         }
         return this.engine.computeMetric(metrics, format);
+    }
+    summarizeTrace(summarySpecs, metricIds, metadataId, format) {
+        return this.engine.summarizeTrace(summarySpecs, metricIds, metadataId, format);
     }
     enableMetatrace(categories) {
         this.engine.enableMetatrace(categories);

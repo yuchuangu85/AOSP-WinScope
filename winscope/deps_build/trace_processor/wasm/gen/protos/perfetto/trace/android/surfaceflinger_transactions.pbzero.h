@@ -16,6 +16,8 @@ namespace perfetto {
 namespace protos {
 namespace pbzero {
 class BlurRegion;
+class BorderSettings;
+class BoxShadowSettings;
 class ColorTransformProto;
 class DisplayInfo;
 class DisplayState;
@@ -23,10 +25,12 @@ class LayerCreationArgs;
 class LayerState;
 class LayerState_BufferData;
 class LayerState_Color3;
+class LayerState_CornerRadii;
 class LayerState_Matrix22;
 class LayerState_WindowInfo;
 class RectProto;
 class RegionProto;
+class TransactionBarrier;
 class TransactionState;
 class TransactionTraceEntry;
 class Transform;
@@ -236,13 +240,17 @@ enum ChangesMsb : int32_t {
   eStretchChanged = 8192,
   eTrustedOverlayChanged = 16384,
   eDropInputModeChanged = 32768,
+  eClientDrawnCornerRadiusChanged = 65536,
+  eSystemContentPriorityChanged = 131072,
+  eBoxShadowSettingsChanged = 262144,
+  eBorderSettingsChanged = 524288,
 };
 } // namespace perfetto_pbzero_enum_LayerState
 using LayerState_ChangesMsb = perfetto_pbzero_enum_LayerState::ChangesMsb;
 
 
 constexpr LayerState_ChangesMsb LayerState_ChangesMsb_MIN = LayerState_ChangesMsb::eChangesMsbNone;
-constexpr LayerState_ChangesMsb LayerState_ChangesMsb_MAX = LayerState_ChangesMsb::eDropInputModeChanged;
+constexpr LayerState_ChangesMsb LayerState_ChangesMsb_MAX = LayerState_ChangesMsb::eBorderSettingsChanged;
 
 
 PERFETTO_PROTOZERO_CONSTEXPR14_OR_INLINE
@@ -298,6 +306,18 @@ const char* LayerState_ChangesMsb_Name(::perfetto::protos::pbzero::LayerState_Ch
 
   case ::perfetto::protos::pbzero::LayerState_ChangesMsb::eDropInputModeChanged:
     return "eDropInputModeChanged";
+
+  case ::perfetto::protos::pbzero::LayerState_ChangesMsb::eClientDrawnCornerRadiusChanged:
+    return "eClientDrawnCornerRadiusChanged";
+
+  case ::perfetto::protos::pbzero::LayerState_ChangesMsb::eSystemContentPriorityChanged:
+    return "eSystemContentPriorityChanged";
+
+  case ::perfetto::protos::pbzero::LayerState_ChangesMsb::eBoxShadowSettingsChanged:
+    return "eBoxShadowSettingsChanged";
+
+  case ::perfetto::protos::pbzero::LayerState_ChangesMsb::eBorderSettingsChanged:
+    return "eBorderSettingsChanged";
   }
   return "PBZERO_UNKNOWN_ENUM_VALUE";
 }
@@ -723,7 +743,7 @@ class DisplayState : public ::protozero::Message {
   }
 };
 
-class LayerState_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/43, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
+class LayerState_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/49, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
  public:
   LayerState_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
   explicit LayerState_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
@@ -814,6 +834,18 @@ class LayerState_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=
   int32_t drop_input_mode() const { return at<42>().as_int32(); }
   bool has_trusted_overlay() const { return at<43>().valid(); }
   int32_t trusted_overlay() const { return at<43>().as_int32(); }
+  bool has_background_blur_scale() const { return at<44>().valid(); }
+  float background_blur_scale() const { return at<44>().as_float(); }
+  bool has_corner_radii() const { return at<45>().valid(); }
+  ::protozero::ConstBytes corner_radii() const { return at<45>().as_bytes(); }
+  bool has_client_drawn_corner_radii() const { return at<46>().valid(); }
+  ::protozero::ConstBytes client_drawn_corner_radii() const { return at<46>().as_bytes(); }
+  bool has_system_content_priority() const { return at<47>().valid(); }
+  int32_t system_content_priority() const { return at<47>().as_int32(); }
+  bool has_box_shadow_settings() const { return at<48>().valid(); }
+  ::protozero::ConstBytes box_shadow_settings() const { return at<48>().as_bytes(); }
+  bool has_border_settings() const { return at<49>().valid(); }
+  ::protozero::ConstBytes border_settings() const { return at<49>().as_bytes(); }
 };
 
 class LayerState : public ::protozero::Message {
@@ -863,10 +895,17 @@ class LayerState : public ::protozero::Message {
     kDestinationFrameFieldNumber = 41,
     kDropInputModeFieldNumber = 42,
     kTrustedOverlayFieldNumber = 43,
+    kBackgroundBlurScaleFieldNumber = 44,
+    kCornerRadiiFieldNumber = 45,
+    kClientDrawnCornerRadiiFieldNumber = 46,
+    kSystemContentPriorityFieldNumber = 47,
+    kBoxShadowSettingsFieldNumber = 48,
+    kBorderSettingsFieldNumber = 49,
   };
   static constexpr const char* GetName() { return ".perfetto.protos.LayerState"; }
 
   using Matrix22 = ::perfetto::protos::pbzero::LayerState_Matrix22;
+  using CornerRadii = ::perfetto::protos::pbzero::LayerState_CornerRadii;
   using Color3 = ::perfetto::protos::pbzero::LayerState_Color3;
   using BufferData = ::perfetto::protos::pbzero::LayerState_BufferData;
   using WindowInfo = ::perfetto::protos::pbzero::LayerState_WindowInfo;
@@ -935,6 +974,10 @@ class LayerState : public ::protozero::Message {
   static inline const ChangesMsb eStretchChanged = ChangesMsb::eStretchChanged;
   static inline const ChangesMsb eTrustedOverlayChanged = ChangesMsb::eTrustedOverlayChanged;
   static inline const ChangesMsb eDropInputModeChanged = ChangesMsb::eDropInputModeChanged;
+  static inline const ChangesMsb eClientDrawnCornerRadiusChanged = ChangesMsb::eClientDrawnCornerRadiusChanged;
+  static inline const ChangesMsb eSystemContentPriorityChanged = ChangesMsb::eSystemContentPriorityChanged;
+  static inline const ChangesMsb eBoxShadowSettingsChanged = ChangesMsb::eBoxShadowSettingsChanged;
+  static inline const ChangesMsb eBorderSettingsChanged = ChangesMsb::eBorderSettingsChanged;
   static inline const Flags eFlagsNone = Flags::eFlagsNone;
   static inline const Flags eLayerHidden = Flags::eLayerHidden;
   static inline const Flags eLayerOpaque = Flags::eLayerOpaque;
@@ -1679,6 +1722,98 @@ class LayerState : public ::protozero::Message {
       ::protozero::proto_utils::ProtoSchemaType::kEnum>
         ::Append(*this, field_id, value);
   }
+
+  using FieldMetadata_BackgroundBlurScale =
+    ::protozero::proto_utils::FieldMetadata<
+      44,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kFloat,
+      float,
+      LayerState>;
+
+  static constexpr FieldMetadata_BackgroundBlurScale kBackgroundBlurScale{};
+  void set_background_blur_scale(float value) {
+    static constexpr uint32_t field_id = FieldMetadata_BackgroundBlurScale::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kFloat>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_CornerRadii =
+    ::protozero::proto_utils::FieldMetadata<
+      45,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      LayerState_CornerRadii,
+      LayerState>;
+
+  static constexpr FieldMetadata_CornerRadii kCornerRadii{};
+  template <typename T = LayerState_CornerRadii> T* set_corner_radii() {
+    return BeginNestedMessage<T>(45);
+  }
+
+
+  using FieldMetadata_ClientDrawnCornerRadii =
+    ::protozero::proto_utils::FieldMetadata<
+      46,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      LayerState_CornerRadii,
+      LayerState>;
+
+  static constexpr FieldMetadata_ClientDrawnCornerRadii kClientDrawnCornerRadii{};
+  template <typename T = LayerState_CornerRadii> T* set_client_drawn_corner_radii() {
+    return BeginNestedMessage<T>(46);
+  }
+
+
+  using FieldMetadata_SystemContentPriority =
+    ::protozero::proto_utils::FieldMetadata<
+      47,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kInt32,
+      int32_t,
+      LayerState>;
+
+  static constexpr FieldMetadata_SystemContentPriority kSystemContentPriority{};
+  void set_system_content_priority(int32_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_SystemContentPriority::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kInt32>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_BoxShadowSettings =
+    ::protozero::proto_utils::FieldMetadata<
+      48,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      BoxShadowSettings,
+      LayerState>;
+
+  static constexpr FieldMetadata_BoxShadowSettings kBoxShadowSettings{};
+  template <typename T = BoxShadowSettings> T* set_box_shadow_settings() {
+    return BeginNestedMessage<T>(48);
+  }
+
+
+  using FieldMetadata_BorderSettings =
+    ::protozero::proto_utils::FieldMetadata<
+      49,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      BorderSettings,
+      LayerState>;
+
+  static constexpr FieldMetadata_BorderSettings kBorderSettings{};
+  template <typename T = BorderSettings> T* set_border_settings() {
+    return BeginNestedMessage<T>(49);
+  }
+
 };
 
 class LayerState_WindowInfo_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/12, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
@@ -2229,6 +2364,106 @@ class LayerState_Color3 : public ::protozero::Message {
   }
 };
 
+class LayerState_CornerRadii_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/4, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
+ public:
+  LayerState_CornerRadii_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
+  explicit LayerState_CornerRadii_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
+  explicit LayerState_CornerRadii_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
+  bool has_tl() const { return at<1>().valid(); }
+  float tl() const { return at<1>().as_float(); }
+  bool has_tr() const { return at<2>().valid(); }
+  float tr() const { return at<2>().as_float(); }
+  bool has_bl() const { return at<3>().valid(); }
+  float bl() const { return at<3>().as_float(); }
+  bool has_br() const { return at<4>().valid(); }
+  float br() const { return at<4>().as_float(); }
+};
+
+class LayerState_CornerRadii : public ::protozero::Message {
+ public:
+  using Decoder = LayerState_CornerRadii_Decoder;
+  enum : int32_t {
+    kTlFieldNumber = 1,
+    kTrFieldNumber = 2,
+    kBlFieldNumber = 3,
+    kBrFieldNumber = 4,
+  };
+  static constexpr const char* GetName() { return ".perfetto.protos.LayerState.CornerRadii"; }
+
+
+  using FieldMetadata_Tl =
+    ::protozero::proto_utils::FieldMetadata<
+      1,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kFloat,
+      float,
+      LayerState_CornerRadii>;
+
+  static constexpr FieldMetadata_Tl kTl{};
+  void set_tl(float value) {
+    static constexpr uint32_t field_id = FieldMetadata_Tl::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kFloat>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_Tr =
+    ::protozero::proto_utils::FieldMetadata<
+      2,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kFloat,
+      float,
+      LayerState_CornerRadii>;
+
+  static constexpr FieldMetadata_Tr kTr{};
+  void set_tr(float value) {
+    static constexpr uint32_t field_id = FieldMetadata_Tr::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kFloat>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_Bl =
+    ::protozero::proto_utils::FieldMetadata<
+      3,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kFloat,
+      float,
+      LayerState_CornerRadii>;
+
+  static constexpr FieldMetadata_Bl kBl{};
+  void set_bl(float value) {
+    static constexpr uint32_t field_id = FieldMetadata_Bl::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kFloat>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_Br =
+    ::protozero::proto_utils::FieldMetadata<
+      4,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kFloat,
+      float,
+      LayerState_CornerRadii>;
+
+  static constexpr FieldMetadata_Br kBr{};
+  void set_br(float value) {
+    static constexpr uint32_t field_id = FieldMetadata_Br::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kFloat>
+        ::Append(*this, field_id, value);
+  }
+};
+
 class LayerState_Matrix22_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/4, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
  public:
   LayerState_Matrix22_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
@@ -2329,7 +2564,7 @@ class LayerState_Matrix22 : public ::protozero::Message {
   }
 };
 
-class TransactionState_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/9, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
+class TransactionState_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/11, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
  public:
   TransactionState_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
   explicit TransactionState_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
@@ -2352,6 +2587,10 @@ class TransactionState_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIE
   ::protozero::RepeatedFieldIterator<::protozero::ConstBytes> display_changes() const { return GetRepeated<::protozero::ConstBytes>(8); }
   bool has_merged_transaction_ids() const { return at<9>().valid(); }
   ::protozero::RepeatedFieldIterator<uint64_t> merged_transaction_ids() const { return GetRepeated<uint64_t>(9); }
+  bool has_apply_token() const { return at<10>().valid(); }
+  uint64_t apply_token() const { return at<10>().as_uint64(); }
+  bool has_transaction_barriers() const { return at<11>().valid(); }
+  ::protozero::RepeatedFieldIterator<::protozero::ConstBytes> transaction_barriers() const { return GetRepeated<::protozero::ConstBytes>(11); }
 };
 
 class TransactionState : public ::protozero::Message {
@@ -2367,6 +2606,8 @@ class TransactionState : public ::protozero::Message {
     kLayerChangesFieldNumber = 7,
     kDisplayChangesFieldNumber = 8,
     kMergedTransactionIdsFieldNumber = 9,
+    kApplyTokenFieldNumber = 10,
+    kTransactionBarriersFieldNumber = 11,
   };
   static constexpr const char* GetName() { return ".perfetto.protos.TransactionState"; }
 
@@ -2522,6 +2763,102 @@ class TransactionState : public ::protozero::Message {
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
       ::protozero::proto_utils::ProtoSchemaType::kUint64>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_ApplyToken =
+    ::protozero::proto_utils::FieldMetadata<
+      10,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kUint64,
+      uint64_t,
+      TransactionState>;
+
+  static constexpr FieldMetadata_ApplyToken kApplyToken{};
+  void set_apply_token(uint64_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_ApplyToken::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint64>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_TransactionBarriers =
+    ::protozero::proto_utils::FieldMetadata<
+      11,
+      ::protozero::proto_utils::RepetitionType::kRepeatedNotPacked,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      TransactionBarrier,
+      TransactionState>;
+
+  static constexpr FieldMetadata_TransactionBarriers kTransactionBarriers{};
+  template <typename T = TransactionBarrier> T* add_transaction_barriers() {
+    return BeginNestedMessage<T>(11);
+  }
+
+};
+
+class TransactionBarrier_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/2, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
+ public:
+  TransactionBarrier_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
+  explicit TransactionBarrier_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
+  explicit TransactionBarrier_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
+  bool has_barrier_token() const { return at<1>().valid(); }
+  ::protozero::ConstChars barrier_token() const { return at<1>().as_string(); }
+  bool has_kind() const { return at<2>().valid(); }
+  uint32_t kind() const { return at<2>().as_uint32(); }
+};
+
+class TransactionBarrier : public ::protozero::Message {
+ public:
+  using Decoder = TransactionBarrier_Decoder;
+  enum : int32_t {
+    kBarrierTokenFieldNumber = 1,
+    kKindFieldNumber = 2,
+  };
+  static constexpr const char* GetName() { return ".perfetto.protos.TransactionBarrier"; }
+
+
+  using FieldMetadata_BarrierToken =
+    ::protozero::proto_utils::FieldMetadata<
+      1,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kString,
+      std::string,
+      TransactionBarrier>;
+
+  static constexpr FieldMetadata_BarrierToken kBarrierToken{};
+  void set_barrier_token(const char* data, size_t size) {
+    AppendBytes(FieldMetadata_BarrierToken::kFieldId, data, size);
+  }
+  void set_barrier_token(::protozero::ConstChars chars) {
+    AppendBytes(FieldMetadata_BarrierToken::kFieldId, chars.data, chars.size);
+  }
+  void set_barrier_token(std::string value) {
+    static constexpr uint32_t field_id = FieldMetadata_BarrierToken::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kString>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_Kind =
+    ::protozero::proto_utils::FieldMetadata<
+      2,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kUint32,
+      uint32_t,
+      TransactionBarrier>;
+
+  static constexpr FieldMetadata_Kind kKind{};
+  void set_kind(uint32_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_Kind::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint32>
         ::Append(*this, field_id, value);
   }
 };

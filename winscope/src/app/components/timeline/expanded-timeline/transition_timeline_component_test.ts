@@ -16,7 +16,7 @@
 
 import {DragDropModule} from '@angular/cdk/drag-drop';
 import {ChangeDetectionStrategy} from '@angular/core';
-import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {TestBed} from '@angular/core/testing';
 import {FormsModule, ReactiveFormsModule} from '@angular/forms';
 import {MatButtonModule} from '@angular/material/button';
 import {MatFormFieldModule} from '@angular/material/form-field';
@@ -24,34 +24,38 @@ import {MatIconModule} from '@angular/material/icon';
 import {MatInputModule} from '@angular/material/input';
 import {MatSelectModule} from '@angular/material/select';
 import {MatTooltipModule} from '@angular/material/tooltip';
-import {BrowserAnimationsModule} from '@angular/platform-browser/animations';
-import {assertDefined} from 'common/assert_utils';
+import {
+  BrowserAnimationsModule,
+  NoopAnimationsModule,
+} from '@angular/platform-browser/animations';
+import {assertDefined} from 'common/assert';
 import {Rect} from 'common/geometry/rect';
-import {TimestampConverterUtils} from 'common/time/test_utils';
 import {TimeRange, Timestamp} from 'common/time/time';
-import {PropertyTreeBuilder} from 'test/unit/property_tree_builder';
+import {DOMTestHelper} from 'test/unit/dom_test_helpers';
+import {HierarchyTreeBuilder} from 'test/unit/hierarchy_tree_builder';
+import {makeRealTimestamp, UTC_CONVERTER} from 'test/unit/time_test_helpers';
+import {waitToBeCalled} from 'test/unit/spy_utils';
 import {TraceBuilder} from 'test/unit/trace_builder';
-import {waitToBeCalled} from 'test/utils';
-import {TraceType} from 'trace/trace_type';
-import {PropertyTreeNode} from 'trace/tree_node/property_tree_node';
+import {TransitionStatus} from 'trace/transitions/status';
+import {TraceType} from 'trace_api/trace_type';
+import {HierarchyTreeNode} from 'tree_node/hierarchy_tree_node';
 import {TransitionTimelineComponent} from './transition_timeline_component';
 
 describe('TransitionTimelineComponent', () => {
-  let fixture: ComponentFixture<TransitionTimelineComponent>;
   let component: TransitionTimelineComponent;
-  let htmlElement: HTMLElement;
+  let dom: DOMTestHelper<TransitionTimelineComponent>;
 
-  const time0 = TimestampConverterUtils.makeRealTimestamp(0n);
-  const time5 = TimestampConverterUtils.makeRealTimestamp(5n);
-  const time10 = TimestampConverterUtils.makeRealTimestamp(10n);
-  const time20 = TimestampConverterUtils.makeRealTimestamp(20n);
-  const time30 = TimestampConverterUtils.makeRealTimestamp(30n);
-  const time35 = TimestampConverterUtils.makeRealTimestamp(35n);
-  const time60 = TimestampConverterUtils.makeRealTimestamp(60n);
-  const time85 = TimestampConverterUtils.makeRealTimestamp(85n);
-  const time110 = TimestampConverterUtils.makeRealTimestamp(110n);
-  const time120 = TimestampConverterUtils.makeRealTimestamp(120n);
-  const time160 = TimestampConverterUtils.makeRealTimestamp(160n);
+  const time0 = makeRealTimestamp(0n);
+  const time5 = makeRealTimestamp(5n);
+  const time10 = makeRealTimestamp(10n);
+  const time20 = makeRealTimestamp(20n);
+  const time30 = makeRealTimestamp(30n);
+  const time35 = makeRealTimestamp(35n);
+  const time60 = makeRealTimestamp(60n);
+  const time85 = makeRealTimestamp(85n);
+  const time110 = makeRealTimestamp(110n);
+  const time120 = makeRealTimestamp(120n);
+  const time160 = makeRealTimestamp(160n);
 
   const range10to110 = new TimeRange(time10, time110);
   const range0to160 = new TimeRange(time0, time160);
@@ -59,6 +63,7 @@ describe('TransitionTimelineComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [
+        NoopAnimationsModule,
         FormsModule,
         MatButtonModule,
         MatFormFieldModule,
@@ -69,17 +74,17 @@ describe('TransitionTimelineComponent', () => {
         ReactiveFormsModule,
         BrowserAnimationsModule,
         DragDropModule,
+        TransitionTimelineComponent,
       ],
-      declarations: [TransitionTimelineComponent],
     })
       .overrideComponent(TransitionTimelineComponent, {
         set: {changeDetection: ChangeDetectionStrategy.Default},
       })
       .compileComponents();
-    fixture = TestBed.createComponent(TransitionTimelineComponent);
+    const fixture = TestBed.createComponent(TransitionTimelineComponent);
     component = fixture.componentInstance;
-    htmlElement = fixture.nativeElement;
-    component.timestampConverter = TimestampConverterUtils.TIMESTAMP_CONVERTER;
+    dom = new DOMTestHelper(fixture, fixture.nativeElement);
+    component.timestampConverter = UTC_CONVERTER;
     component.fullRange = range0to160;
   });
 
@@ -227,14 +232,12 @@ describe('TransitionTimelineComponent', () => {
 
     const mouseoutEvent = new MouseEvent('mouseout');
     component.getCanvas().dispatchEvent(mouseoutEvent);
-    fixture.detectChanges();
-    await fixture.whenRenderingDone();
+    await dom.detectChangesAndRenderingDone();
     expect(drawRectSpy).not.toHaveBeenCalled();
 
     await dispatchMousemoveEvent();
     component.getCanvas().dispatchEvent(mouseoutEvent);
-    fixture.detectChanges();
-    await fixture.whenRenderingDone();
+    await dom.detectChangesAndRenderingDone();
 
     expect(drawRectSpy).toHaveBeenCalledOnceWith(
       getExpectedBorderedRect(),
@@ -403,7 +406,7 @@ describe('TransitionTimelineComponent', () => {
     const transition0 = makeTransition(time10, time30);
     const transition1 = makeTransition(time60, time110);
 
-    component.trace = new TraceBuilder<PropertyTreeNode>()
+    component.trace = new TraceBuilder<HierarchyTreeNode>()
       .setType(TraceType.TRANSITION)
       .setEntries([transition0, transition1])
       .setTimestamps([time10, time20])
@@ -413,18 +416,14 @@ describe('TransitionTimelineComponent', () => {
 
     const drawRectSpy = spyOn(component.canvasDrawer, 'drawRect');
 
-    fixture.detectChanges();
-    await fixture.whenRenderingDone();
-
+    await dom.detectChangesAndRenderingDone();
     expect(drawRectSpy).toHaveBeenCalledTimes(1);
   });
 
   it('emits scroll event', async () => {
     await setDefaultTraceAndSelectionRange();
-
     const spy = spyOn(component.onScrollEvent, 'emit');
-    htmlElement.dispatchEvent(new WheelEvent('wheel'));
-    fixture.detectChanges();
+    dom.dispatchEvent(new WheelEvent('wheel'));
     expect(spy).toHaveBeenCalled();
   });
 
@@ -438,19 +437,19 @@ describe('TransitionTimelineComponent', () => {
     Object.defineProperty(mouseMoveEvent, 'target', {value: canvas});
     Object.defineProperty(mouseMoveEvent, 'offsetX', {value: 100});
     canvas.dispatchEvent(mouseMoveEvent);
-    fixture.detectChanges();
+    dom.detectChanges();
 
     expect(spy).toHaveBeenCalledWith(100 / canvas.offsetWidth);
 
     const mouseLeaveEvent = new MouseEvent('mouseleave');
     canvas.dispatchEvent(mouseLeaveEvent);
-    fixture.detectChanges();
+    dom.detectChanges();
     expect(spy).toHaveBeenCalledWith(undefined);
   });
 
   async function setDefaultTraceAndSelectionRange(setSelectedEntry = false) {
     const transitions = [makeTransition(time35, time85)];
-    component.trace = new TraceBuilder<PropertyTreeNode>()
+    component.trace = new TraceBuilder<HierarchyTreeNode>()
       .setType(TraceType.TRANSITION)
       .setEntries(transitions)
       .setTimestamps([time35])
@@ -458,64 +457,42 @@ describe('TransitionTimelineComponent', () => {
     component.transitionEntries = transitions;
     component.selectionRange = range10to110;
     if (setSelectedEntry) component.selectedEntry = component.trace.getEntry(0);
-    fixture.detectChanges();
-    await fixture.whenRenderingDone();
+    await dom.detectChangesAndRenderingDone();
   }
 
   function makeTransition(
-    dispatchTime: Timestamp | undefined,
-    finishTime: Timestamp | undefined,
-    abortTime?: Timestamp,
-    createTime?: Timestamp,
-  ): PropertyTreeNode {
-    const shellDataChildren = [];
-    if (dispatchTime !== undefined) {
-      shellDataChildren.push({name: 'dispatchTimeNs', value: dispatchTime});
-    }
-    if (dispatchTime !== undefined) {
-      shellDataChildren.push({name: 'abortTimeNs', value: abortTime});
-    }
-
-    const wmDataChildren = [];
-    if (finishTime !== undefined) {
-      wmDataChildren.push({name: 'finishTimeNs', value: finishTime});
-    }
-    if (createTime !== undefined) {
-      wmDataChildren.push({name: 'createTimeNs', value: createTime});
-    }
-
-    return new PropertyTreeBuilder()
-      .setIsRoot(true)
-      .setRootId('TransitionsTraceEntry')
+    dispatchTimeNs: Timestamp | undefined,
+    finishTimeNs: Timestamp | undefined,
+    shellAbortTimeNs?: Timestamp,
+    createTimeNs?: Timestamp,
+  ): HierarchyTreeNode {
+    return new HierarchyTreeBuilder()
+      .setId('TransitionsTraceEntry')
       .setName('transition')
-      .setChildren([
-        {
-          name: 'wmData',
-          children: wmDataChildren,
-        },
-        {
-          name: 'shellData',
-          children: shellDataChildren,
-        },
-        {name: 'aborted', value: abortTime !== undefined},
-      ])
+      .setProperties({
+        dispatchTimeNs,
+        shellAbortTimeNs,
+        finishTimeNs,
+        createTimeNs,
+        status:
+          shellAbortTimeNs !== undefined ? TransitionStatus.ABORTED : undefined,
+      })
       .build();
   }
 
   async function setTraceAndSelectionRange(
-    transitions: PropertyTreeNode[],
+    transitions: HierarchyTreeNode[],
     timestamps: Timestamp[],
     range = range10to110,
   ) {
-    component.trace = new TraceBuilder<PropertyTreeNode>()
+    component.trace = new TraceBuilder<HierarchyTreeNode>()
       .setType(TraceType.TRANSITION)
       .setEntries(transitions)
       .setTimestamps(timestamps)
       .build();
     component.transitionEntries = transitions;
     component.selectionRange = range;
-    fixture.detectChanges();
-    await fixture.whenRenderingDone();
+    await dom.detectChangesAndRenderingDone();
   }
 
   function getExpectedBorderedRect(): Rect {
@@ -538,7 +515,6 @@ describe('TransitionTimelineComponent', () => {
     );
     spyOnProperty(mousemoveEvent, 'offsetY').and.returnValue(25 / 2);
     component.getCanvas().dispatchEvent(mousemoveEvent);
-    fixture.detectChanges();
-    await fixture.whenRenderingDone();
+    await dom.detectChangesAndRenderingDone();
   }
 });

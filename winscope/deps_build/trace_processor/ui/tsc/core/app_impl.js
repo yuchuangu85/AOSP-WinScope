@@ -14,22 +14,21 @@
 // limitations under the License.
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AppImpl = exports.AppContext = void 0;
+const async_limiter_1 = require("../base/async_limiter");
 const logging_1 = require("../base/logging");
-const command_manager_1 = require("./command_manager");
-const omnibox_manager_1 = require("./omnibox_manager");
-const raf_scheduler_1 = require("./raf_scheduler");
-const sidebar_manager_1 = require("./sidebar_manager");
-const plugin_manager_1 = require("./plugin_manager");
-const load_trace_1 = require("./load_trace");
-const plugin_manager_2 = require("./plugin_manager");
-const router_1 = require("./router");
-const analytics_impl_1 = require("./analytics_impl");
 const utils_1 = require("../base/utils");
+const service_worker_controller_1 = require("../frontend/service_worker_controller");
+const analytics_impl_1 = require("./analytics_impl");
+const command_manager_1 = require("./command_manager");
+const feature_flags_1 = require("./feature_flags");
+const load_trace_1 = require("./load_trace");
+const omnibox_manager_1 = require("./omnibox_manager");
 const page_manager_1 = require("./page_manager");
 const perf_manager_1 = require("./perf_manager");
-const service_worker_controller_1 = require("../frontend/service_worker_controller");
-const feature_flags_1 = require("./feature_flags");
-const async_limiter_1 = require("../base/async_limiter");
+const plugin_manager_1 = require("./plugin_manager");
+const raf_scheduler_1 = require("./raf_scheduler");
+const router_1 = require("./router");
+const sidebar_manager_1 = require("./sidebar_manager");
 /**
  * Handles the global state of the ui, for anything that is not related to a
  * specific trace. This is always available even before a trace is loaded (in
@@ -59,6 +58,7 @@ class AppContext {
     embeddedMode;
     testingMode;
     openTraceAsyncLimiter = new async_limiter_1.AsyncLimiter();
+    settingsManager;
     // This is normally empty and is injected with extra google-internal packages
     // via is_internal_user.js
     extraSqlPackages = [];
@@ -72,9 +72,22 @@ class AppContext {
     static get instance() {
         return (0, logging_1.assertExists)(AppContext._instance);
     }
+    timestampFormat;
+    durationPrecision;
+    timezoneOverride;
+    startupCommandsSetting;
+    enforceStartupCommandAllowlistSetting;
+    _isInternalUser;
     // This constructor is invoked only once, when frontend/index.ts invokes
     // AppMainImpl.initialize().
     constructor(initArgs) {
+        this.timestampFormat = initArgs.timestampFormatSetting;
+        this.durationPrecision = initArgs.durationPrecisionSetting;
+        this.timezoneOverride = initArgs.timezoneOverrideSetting;
+        this.startupCommandsSetting = initArgs.startupCommandsSetting;
+        this.enforceStartupCommandAllowlistSetting =
+            initArgs.enforceStartupCommandAllowlistSetting;
+        this.settingsManager = initArgs.settingsManager;
         this.initArgs = initArgs;
         this.initialRouteArgs = initArgs.initialRouteArgs;
         this.serviceWorkerController = new service_worker_controller_1.ServiceWorkerController();
@@ -86,7 +99,7 @@ class AppContext {
             disabled: this.embeddedMode,
             hidden: this.initialRouteArgs.hideSidebar,
         });
-        this.analytics = (0, analytics_impl_1.initAnalytics)(this.testingMode, this.embeddedMode);
+        this.analytics = (0, analytics_impl_1.initAnalytics)(this.testingMode, this.embeddedMode, initArgs.analyticsSetting.get());
         this.pluginMgr = new plugin_manager_1.PluginManagerImpl({
             forkForPlugin: (pluginId) => this.forPlugin(pluginId),
             get trace() {
@@ -119,6 +132,17 @@ class AppContext {
         this.closeCurrentTrace();
         this.currentTrace = traceCtx;
     }
+    get isInternalUser() {
+        if (this._isInternalUser === undefined) {
+            this._isInternalUser = localStorage.getItem('isInternalUser') === '1';
+        }
+        return this._isInternalUser;
+    }
+    set isInternalUser(value) {
+        localStorage.setItem('isInternalUser', value ? '1' : '0');
+        this._isInternalUser = value;
+        raf_scheduler_1.raf.scheduleFullRedraw();
+    }
 }
 exports.AppContext = AppContext;
 /*
@@ -129,22 +153,36 @@ exports.AppContext = AppContext;
  */
 class AppImpl {
     pluginId;
+    initialPluginRouteArgs;
     appCtx;
     pageMgrProxy;
     // Invoked by frontend/index.ts.
     static initialize(args) {
-        AppContext.initialize(args).forPlugin(plugin_manager_2.CORE_PLUGIN_ID);
+        AppContext.initialize(args).forPlugin(plugin_manager_1.CORE_PLUGIN_ID);
     }
     // Gets access to the one instance that the core can use. Note that this is
     // NOT the only instance, as other AppImpl instance will be created for each
     // plugin.
     static get instance() {
-        return AppContext.instance.forPlugin(plugin_manager_2.CORE_PLUGIN_ID);
+        return AppContext.instance.forPlugin(plugin_manager_1.CORE_PLUGIN_ID);
     }
     // Only called by AppContext.forPlugin().
     constructor(appCtx, pluginId) {
         this.appCtx = appCtx;
         this.pluginId = pluginId;
+        const args = {};
+        this.initialPluginRouteArgs = Object.entries(appCtx.initialRouteArgs).reduce((result, [key, value]) => {
+            // Create a regex to match keys starting with pluginId
+            const regex = new RegExp(`^${pluginId}:(.+)$`);
+            const match = key.match(regex);
+            // Only include entries that match the regex
+            if (match) {
+                const newKey = match[1];
+                // Use the capture group (what comes after the prefix) as the new key
+                result[newKey] = value;
+            }
+            return result;
+        }, args);
         this.pageMgrProxy = (0, utils_1.createProxy)(this.appCtx.pageMgr, {
             registerPage(pageHandler) {
                 return appCtx.pageMgr.registerPage({
@@ -187,6 +225,9 @@ class AppImpl {
     get initialRouteArgs() {
         return this.appCtx.initialRouteArgs;
     }
+    get settings() {
+        return this.appCtx.settingsManager;
+    }
     get featureFlags() {
         return {
             register: (settings) => feature_flags_1.featureFlags.register(settings),
@@ -195,11 +236,14 @@ class AppImpl {
     openTraceFromFile(file) {
         this.openTrace({ type: 'FILE', file });
     }
+    openTraceFromMultipleFiles(files) {
+        this.openTrace({ type: 'MULTIPLE_FILES', files });
+    }
     openTraceFromUrl(url, serializedAppState) {
         this.openTrace({ type: 'URL', url, serializedAppState });
     }
-    openTraceFromBuffer(postMessageArgs) {
-        this.openTrace({ type: 'ARRAY_BUFFER', ...postMessageArgs });
+    openTraceFromBuffer(args, serializedAppState) {
+        this.openTrace({ ...args, type: 'ARRAY_BUFFER', serializedAppState });
     }
     openTraceFromHttpRpc() {
         this.openTrace({ type: 'HTTP_RPC' });
@@ -215,10 +259,10 @@ class AppImpl {
             // pure ArrayBuffer, and not a logical view of it with a byteOffset > 0.
             if (src.buffer.byteOffset === 0 &&
                 src.buffer.byteLength === src.buffer.buffer.byteLength) {
-                src.buffer = src.buffer.buffer;
+                src = { ...src, buffer: src.buffer.buffer };
             }
             else {
-                src.buffer = src.buffer.slice().buffer;
+                src = { ...src, buffer: src.buffer.slice().buffer };
             }
         }
         // Rationale for asyncLimiter: openTrace takes several seconds and involves
@@ -256,6 +300,9 @@ class AppImpl {
     setActiveTrace(traceImpl) {
         this.appCtx.setActiveTrace(traceImpl.__traceCtxForApp);
     }
+    closeCurrentTrace() {
+        this.appCtx.closeCurrentTrace();
+    }
     get embeddedMode() {
         return this.appCtx.embeddedMode;
     }
@@ -282,6 +329,12 @@ class AppImpl {
     }
     navigate(newHash) {
         router_1.Router.navigate(newHash);
+    }
+    get isInternalUser() {
+        return this.appCtx.isInternalUser;
+    }
+    set isInternalUser(value) {
+        this.appCtx.isInternalUser = value;
     }
 }
 exports.AppImpl = AppImpl;

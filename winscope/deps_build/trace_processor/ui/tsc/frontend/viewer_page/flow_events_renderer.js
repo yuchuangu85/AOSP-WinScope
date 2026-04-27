@@ -15,6 +15,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.renderFlows = renderFlows;
 const bezier_arrow_1 = require("../../base/bezier_arrow");
+const geom_1 = require("../../base/geom");
 const flow_types_1 = require("../../core/flow_types");
 const TRACK_GROUP_CONNECTION_OFFSET = 5;
 const TRIANGLE_SIZE = 5;
@@ -94,7 +95,7 @@ function renderFlows(trace, ctx, size, tracks, trackRoot, timescale) {
             const trackRect = trackPanel.verticalBounds;
             const sliceRectRaw = trace.tracks
                 .getTrack(trackUri)
-                ?.track.getSliceVerticalBounds?.(depth);
+                ?.renderer.getSliceVerticalBounds?.(depth);
             if (sliceRectRaw) {
                 const sliceRect = {
                     top: sliceRectRaw.top + trackRect.top,
@@ -155,8 +156,9 @@ function drawArrow(ctx, start, end, intensity, hue, width) {
     ctx.strokeStyle = `hsl(${hue}, 50%, ${intensity}%)`;
     ctx.fillStyle = `hsl(${hue}, 50%, ${intensity}%)`;
     ctx.lineWidth = width;
-    // TODO(stevegolton): Consider vertical distance too
-    const roomForArrowHead = Math.abs(start.x - end.x) > 3 * TRIANGLE_SIZE;
+    const dist = new geom_1.Vector2D(end).sub(new geom_1.Vector2D(start));
+    const roomForArrowHead = Math.abs(dist.x) > 3 * TRIANGLE_SIZE ||
+        Math.abs(dist.y) > 2 * TRIANGLE_SIZE;
     let startStyle;
     if (start.kind === 'vertical_edge') {
         startStyle = {

@@ -45,23 +45,25 @@ class default_1 {
         ctx.trash.use(filterStore);
         const cpus = await this.lookupCpuCores(ctx);
         const group = new workspace_1.TrackNode({
-            title: 'Ftrace Events',
+            name: 'Ftrace Events',
             sortOrder: -5,
             isSummary: true,
         });
         for (const cpu of cpus) {
             const uri = `/ftrace/cpu${cpu.ucpu}`;
-            const title = `Ftrace Track for CPU ${cpu.toString()}`;
             ctx.tracks.registerTrack({
                 uri,
-                title,
+                description: `Ftrace events for CPU ${cpu.toString()}`,
                 tags: {
                     cpu: cpu.cpu,
                     groupName: 'Ftrace Events',
                 },
-                track: new ftrace_track_1.FtraceRawTrack(ctx.engine, cpu.ucpu, filterStore),
+                renderer: (0, ftrace_track_1.createFtraceTrack)(ctx, uri, cpu, filterStore),
             });
-            const track = new workspace_1.TrackNode({ uri, title });
+            const track = new workspace_1.TrackNode({
+                uri,
+                name: `Ftrace Track for CPU ${cpu.toString()}`,
+            });
             group.addChildInOrder(track);
         }
         if (group.children.length) {
@@ -85,7 +87,7 @@ class default_1 {
             },
         });
         ctx.commands.registerCommand({
-            id: 'perfetto.FtraceRaw#ShowFtraceTab',
+            id: 'dev.perfetto.ShowFtraceTab',
             name: 'Show ftrace tab',
             callback: () => {
                 ctx.tabs.showTab(ftraceTabUri);
@@ -95,7 +97,12 @@ class default_1 {
     async lookupCpuCores(ctx) {
         // ctx.traceInfo.cpus contains all cpus seen from all events. Filter the set
         // if it's seen in ftrace_event.
-        const queryRes = await ctx.engine.query(`select distinct ucpu from ftrace_event order by ucpu;`);
+        const queryRes = await ctx.engine.query(`
+      SELECT DISTINCT
+        ucpu
+      FROM ftrace_event
+      ORDER BY ucpu
+    `);
         const ucpus = new Set();
         for (const it = queryRes.iter({ ucpu: query_result_1.NUM }); it.valid(); it.next()) {
             ucpus.add(it.ucpu);

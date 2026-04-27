@@ -27,6 +27,8 @@ class HttpRpcEngine extends engine_1.EngineBase {
     websocket;
     connected = false;
     disposed = false;
+    queue = [];
+    isProcessingQueue = false;
     // Can be changed by frontend/index.ts when passing ?rpc_port=1234 .
     static rpcPort = '9001';
     constructor(id) {
@@ -76,11 +78,25 @@ class HttpRpcEngine extends engine_1.EngineBase {
         }
     }
     onWebsocketMessage(e) {
-        (0, logging_1.assertExists)(e.data)
-            .arrayBuffer()
-            .then((buf) => {
-            super.onRpcResponseBytes(new Uint8Array(buf));
-        });
+        const blob = (0, logging_1.assertExists)(e.data);
+        this.queue.push(blob);
+        this.processQueue();
+    }
+    async processQueue() {
+        if (this.isProcessingQueue)
+            return;
+        this.isProcessingQueue = true;
+        while (this.queue.length > 0) {
+            try {
+                const blob = (0, logging_1.assertExists)(this.queue.shift());
+                const buf = await blob.arrayBuffer();
+                super.onRpcResponseBytes(new Uint8Array(buf));
+            }
+            catch (e) {
+                (0, logging_1.reportError)(e);
+            }
+        }
+        this.isProcessingQueue = false;
     }
     static async checkConnection() {
         const RPC_URL = `http://${HttpRpcEngine.hostAndPort}/`;

@@ -95,25 +95,25 @@ async function breakDownIntervalByThreadState(engine, range, utid) {
         root,
     };
 }
-function renderChildren(node, totalDur) {
-    const res = Array.from(node.children.entries()).map(([name, child]) => renderNode(child, name, totalDur));
+function renderChildren(trace, node, totalDur) {
+    const res = Array.from(node.children.entries()).map(([name, child]) => renderNode(trace, child, name, totalDur));
     return res;
 }
-function renderNode(node, name, totalDur) {
+function renderNode(trace, node, name, totalDur) {
     const durPercent = (100 * Number(node.dur)) / Number(totalDur);
     return (0, mithril_1.default)(tree_1.TreeNode, {
         left: name,
         right: [
-            (0, mithril_1.default)(duration_1.DurationWidget, { dur: node.dur }),
+            (0, mithril_1.default)(duration_1.DurationWidget, { trace, dur: node.dur }),
             ` (${durPercent.toFixed(2)}%)`,
         ],
         startsCollapsed: node.startsCollapsed,
-    }, renderChildren(node, totalDur));
+    }, renderChildren(trace, node, totalDur));
 }
 // A tree node that displays a nested breakdown a time interval by thread state.
 class BreakdownByThreadStateTreeNode {
     view({ attrs }) {
-        return renderChildren(attrs.data.root, attrs.dur);
+        return renderChildren(attrs.trace, attrs.data.root, attrs.dur);
     }
 }
 exports.BreakdownByThreadStateTreeNode = BreakdownByThreadStateTreeNode;

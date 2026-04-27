@@ -35,12 +35,14 @@ function createPluginSliceIdColumn(trace, trackUri, name) {
         if (value === null || typeof value !== 'bigint') {
             return (0, render_cell_utils_1.renderStandardCell)(value, name, tableManager);
         }
-        return (0, utils_1.renderSliceRef)({
-            trace: trace,
-            id: Number(value),
-            trackUri: trackUri,
-            title: `${value}`,
-        });
+        return {
+            content: (0, utils_1.renderSliceRef)({
+                trace: trace,
+                id: Number(value),
+                trackUri: trackUri,
+                title: `${value}`,
+            }),
+        };
     };
     return col;
 }
@@ -48,8 +50,8 @@ function createScrollTimelineTableColumns(trace, trackUri) {
     return [
         createPluginSliceIdColumn(trace, trackUri, 'id'),
         new columns_1.StandardColumn('scroll_update_id'),
-        new columns_1.TimestampColumn('ts'),
-        new columns_1.DurationColumn('dur'),
+        new columns_1.TimestampColumn(trace, 'ts'),
+        new columns_1.DurationColumn(trace, 'dur'),
         new columns_1.StandardColumn('name'),
         new columns_1.StandardColumn('classification'),
     ];
@@ -150,10 +152,13 @@ class ScrollTimelineDetailsPanel {
                 right: this.sliceData.name,
             }), (0, mithril_1.default)(tree_1.TreeNode, {
                 left: 'Start time',
-                right: (0, mithril_1.default)(timestamp_1.Timestamp, { ts: this.sliceData.ts }),
+                right: (0, mithril_1.default)(timestamp_1.Timestamp, { trace: this.trace, ts: this.sliceData.ts }),
             }), (0, mithril_1.default)(tree_1.TreeNode, {
                 left: 'Duration',
-                right: (0, mithril_1.default)(duration_1.DurationWidget, { dur: this.sliceData.dur }),
+                right: (0, mithril_1.default)(duration_1.DurationWidget, {
+                    trace: this.trace,
+                    dur: this.sliceData.dur,
+                }),
             }), (0, mithril_1.default)(tree_1.TreeNode, {
                 left: 'SQL ID',
                 right: (0, utils_1.renderSqlRef)({
@@ -178,13 +183,16 @@ class ScrollTimelineDetailsPanel {
             const scrollTableDescription = this.trace.plugins
                 .getPlugin(dev_perfetto_SqlModules_1.default)
                 .getSqlModules()
-                .getModuleForTable('chrome_scroll_update_info')
+                ?.getModuleForTable('chrome_scroll_update_info')
                 ?.getSqlTableDescription('chrome_scroll_update_info');
             child = (0, mithril_1.default)(tree_1.Tree, (0, mithril_1.default)(tree_1.TreeNode, {
                 left: 'Vsync interval',
                 right: this.scrollData.vsyncInterval === undefined
                     ? `${this.scrollData.vsyncInterval}`
-                    : (0, mithril_1.default)(duration_1.DurationWidget, { dur: this.scrollData.vsyncInterval }),
+                    : (0, mithril_1.default)(duration_1.DurationWidget, {
+                        trace: this.trace,
+                        dur: this.scrollData.vsyncInterval,
+                    }),
             }), (0, mithril_1.default)(tree_1.TreeNode, {
                 left: 'Is presented',
                 right: `${this.scrollData.isPresented}`,

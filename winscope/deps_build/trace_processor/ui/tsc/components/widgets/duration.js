@@ -17,26 +17,16 @@ exports.DurationWidget = void 0;
 const tslib_1 = require("tslib");
 const mithril_1 = tslib_1.__importDefault(require("mithril"));
 const clipboard_1 = require("../../base/clipboard");
-const logging_1 = require("../../base/logging");
 const semantic_icons_1 = require("../../base/semantic_icons");
-const app_impl_1 = require("../../core/app_impl");
 const anchor_1 = require("../../widgets/anchor");
 const menu_1 = require("../../widgets/menu");
 const time_utils_1 = require("../time_utils");
 const duration_precision_menu_items_1 = require("./duration_precision_menu_items");
 const timestamp_format_menu_1 = require("./timestamp_format_menu");
 class DurationWidget {
-    trace;
-    constructor() {
-        // TODO(primiano): the Trace object should be injected into the attrs, but
-        // there are too many users of this class and doing so requires a larger
-        // refactoring CL. Either that or we should find a different way to plumb
-        // the hoverCursorTimestamp.
-        this.trace = (0, logging_1.assertExists)(app_impl_1.AppImpl.instance.trace);
-    }
     view({ attrs }) {
-        const { dur } = attrs;
-        const value = dur === -1n ? (0, mithril_1.default)('i', '(Did not end)') : (0, time_utils_1.formatDuration)(this.trace, dur);
+        const { trace, dur } = attrs;
+        const value = dur === -1n ? (0, mithril_1.default)('i', '(Did not end)') : (0, time_utils_1.formatDuration)(trace, dur);
         return (0, mithril_1.default)(menu_1.PopupMenu, {
             trigger: (0, mithril_1.default)(anchor_1.Anchor, value),
         }, (0, mithril_1.default)(menu_1.MenuItem, {
@@ -45,7 +35,7 @@ class DurationWidget {
             onclick: () => {
                 (0, clipboard_1.copyToClipboard)(dur.toString());
             },
-        }), (0, mithril_1.default)(timestamp_format_menu_1.TimestampFormatMenuItem, { trace: this.trace }), (0, mithril_1.default)(duration_precision_menu_items_1.DurationPrecisionMenuItem, { trace: this.trace }), attrs.extraMenuItems ? [(0, mithril_1.default)(menu_1.MenuDivider), attrs.extraMenuItems] : null);
+        }), (0, mithril_1.default)(timestamp_format_menu_1.TimestampFormatMenuItem, { trace: trace }), (0, mithril_1.default)(duration_precision_menu_items_1.DurationPrecisionMenuItem, { trace: trace }), attrs.extraMenuItems ? [(0, mithril_1.default)(menu_1.MenuDivider), attrs.extraMenuItems] : null);
     }
 }
 exports.DurationWidget = DurationWidget;

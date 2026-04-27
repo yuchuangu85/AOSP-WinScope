@@ -197,8 +197,8 @@ function requirePerfetto_version () {
 	hasRequiredPerfetto_version = 1;
 	Object.defineProperty(perfetto_version, "__esModule", { value: true });
 	perfetto_version.SCM_REVISION = perfetto_version.VERSION = void 0;
-	perfetto_version.VERSION = "v49.0";
-	perfetto_version.SCM_REVISION = "N/A";
+	perfetto_version.VERSION = "v51.2-df0f96de5";
+	perfetto_version.SCM_REVISION = "df0f96de5f5c811168454194966553c869d56a80";
 	
 	return perfetto_version;
 }
@@ -292,23 +292,30 @@ function requireLogging () {
 	// limitations under the License.
 	Object.defineProperty(logging, "__esModule", { value: true });
 	logging.assertExists = assertExists;
+	logging.assertDefined = assertDefined;
 	logging.assertIsInstance = assertIsInstance;
 	logging.assertTrue = assertTrue;
 	logging.assertFalse = assertFalse;
+	logging.assertUnreachable = assertUnreachable;
 	logging.addErrorHandler = addErrorHandler;
 	logging.reportError = reportError;
-	logging.assertUnreachable = assertUnreachable;
 	const perfetto_version_1 = requirePerfetto_version();
 	const utils_1 = requireUtils();
 	const errorHandlers = [];
-	function assertExists(value) {
+	function assertExists(value, optMsg) {
 	    if (value === null || value === undefined) {
-	        throw new Error("Value doesn't exist");
+	        throw new Error(optMsg ?? "Value doesn't exist");
 	    }
 	    return value;
 	}
-	function assertIsInstance(value, clazz) {
-	    assertTrue(value instanceof clazz);
+	// assertExists trips over NULLs, but in many contexts NULL is a valid SQL value we have to work with.
+	function assertDefined(value) {
+	    if (value === undefined)
+	        throw new Error('Value is undefined');
+	    return value;
+	}
+	function assertIsInstance(value, clazz, optMsg) {
+	    assertTrue(value instanceof clazz, optMsg ?? `Value is not an instance of ${clazz.name}`);
 	    return value;
 	}
 	function assertTrue(value, optMsg) {
@@ -318,6 +325,16 @@ function requireLogging () {
 	}
 	function assertFalse(value, optMsg) {
 	    assertTrue(!value, optMsg);
+	}
+	// This function serves two purposes.
+	// 1) A runtime check - if we are ever called, we throw an exception.
+	// This is useful for checking that code we suspect should never be reached is
+	// actually never reached.
+	// 2) A compile time check where typescript asserts that the value passed can be
+	// cast to the "never" type.
+	// This is useful for ensuring we exhaustively check union types.
+	function assertUnreachable(value, optMsg) {
+	    throw new Error(optMsg ?? `This code should not be reachable ${value}`);
 	}
 	function addErrorHandler(handler) {
 	    if (!errorHandlers.includes(handler)) {
@@ -425,16 +442,6 @@ function requireLogging () {
 	            stack,
 	        });
 	    }
-	}
-	// This function serves two purposes.
-	// 1) A runtime check - if we are ever called, we throw an exception.
-	// This is useful for checking that code we suspect should never be reached is
-	// actually never reached.
-	// 2) A compile time check where typescript asserts that the value passed can be
-	// cast to the "never" type.
-	// This is useful for ensuring we exhastively check union types.
-	function assertUnreachable(value) {
-	    throw new Error(`This code should not be reachable ${value}`);
 	}
 	
 	return logging;
@@ -9682,6 +9689,7 @@ function requireProtos$1 () {
 	             * @property {string|null} [cloneTriggerProducerName] CloneSessionRequest cloneTriggerProducerName
 	             * @property {number|null} [cloneTriggerTrustedProducerUid] CloneSessionRequest cloneTriggerTrustedProducerUid
 	             * @property {number|null} [cloneTriggerBootTimeNs] CloneSessionRequest cloneTriggerBootTimeNs
+	             * @property {number|null} [cloneTriggerDelayMs] CloneSessionRequest cloneTriggerDelayMs
 	             */
 
 	            /**
@@ -9763,6 +9771,14 @@ function requireProtos$1 () {
 	             */
 	            CloneSessionRequest.prototype.cloneTriggerBootTimeNs = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
 
+	            /**
+	             * CloneSessionRequest cloneTriggerDelayMs.
+	             * @member {number} cloneTriggerDelayMs
+	             * @memberof perfetto.protos.CloneSessionRequest
+	             * @instance
+	             */
+	            CloneSessionRequest.prototype.cloneTriggerDelayMs = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
 	            // OneOf field names bound to virtual getters and setters
 	            var $oneOfFields;
 
@@ -9817,6 +9833,8 @@ function requireProtos$1 () {
 	                    w.uint32(56).int32(m.cloneTriggerTrustedProducerUid);
 	                if (m.cloneTriggerBootTimeNs != null && Object.hasOwnProperty.call(m, "cloneTriggerBootTimeNs"))
 	                    w.uint32(64).uint64(m.cloneTriggerBootTimeNs);
+	                if (m.cloneTriggerDelayMs != null && Object.hasOwnProperty.call(m, "cloneTriggerDelayMs"))
+	                    w.uint32(72).uint64(m.cloneTriggerDelayMs);
 	                return w;
 	            };
 
@@ -9868,6 +9886,10 @@ function requireProtos$1 () {
 	                        }
 	                    case 8: {
 	                            m.cloneTriggerBootTimeNs = r.uint64();
+	                            break;
+	                        }
+	                    case 9: {
+	                            m.cloneTriggerDelayMs = r.uint64();
 	                            break;
 	                        }
 	                    default:
@@ -9928,6 +9950,16 @@ function requireProtos$1 () {
 	                    else if (typeof d.cloneTriggerBootTimeNs === "object")
 	                        m.cloneTriggerBootTimeNs = new $util.LongBits(d.cloneTriggerBootTimeNs.low >>> 0, d.cloneTriggerBootTimeNs.high >>> 0).toNumber(true);
 	                }
+	                if (d.cloneTriggerDelayMs != null) {
+	                    if ($util.Long)
+	                        (m.cloneTriggerDelayMs = $util.Long.fromValue(d.cloneTriggerDelayMs)).unsigned = true;
+	                    else if (typeof d.cloneTriggerDelayMs === "string")
+	                        m.cloneTriggerDelayMs = parseInt(d.cloneTriggerDelayMs, 10);
+	                    else if (typeof d.cloneTriggerDelayMs === "number")
+	                        m.cloneTriggerDelayMs = d.cloneTriggerDelayMs;
+	                    else if (typeof d.cloneTriggerDelayMs === "object")
+	                        m.cloneTriggerDelayMs = new $util.LongBits(d.cloneTriggerDelayMs.low >>> 0, d.cloneTriggerDelayMs.high >>> 0).toNumber(true);
+	                }
 	                return m;
 	            };
 
@@ -9955,6 +9987,11 @@ function requireProtos$1 () {
 	                        d.cloneTriggerBootTimeNs = o.longs === String ? n.toString() : o.longs === Number ? n.toNumber() : n;
 	                    } else
 	                        d.cloneTriggerBootTimeNs = o.longs === String ? "0" : 0;
+	                    if ($util.Long) {
+	                        var n = new $util.Long(0, 0, true);
+	                        d.cloneTriggerDelayMs = o.longs === String ? n.toString() : o.longs === Number ? n.toNumber() : n;
+	                    } else
+	                        d.cloneTriggerDelayMs = o.longs === String ? "0" : 0;
 	                }
 	                if (m.sessionId != null && m.hasOwnProperty("sessionId")) {
 	                    if (typeof m.sessionId === "number")
@@ -9989,6 +10026,12 @@ function requireProtos$1 () {
 	                        d.cloneTriggerBootTimeNs = o.longs === String ? String(m.cloneTriggerBootTimeNs) : m.cloneTriggerBootTimeNs;
 	                    else
 	                        d.cloneTriggerBootTimeNs = o.longs === String ? $util.Long.prototype.toString.call(m.cloneTriggerBootTimeNs) : o.longs === Number ? new $util.LongBits(m.cloneTriggerBootTimeNs.low >>> 0, m.cloneTriggerBootTimeNs.high >>> 0).toNumber(true) : m.cloneTriggerBootTimeNs;
+	                }
+	                if (m.cloneTriggerDelayMs != null && m.hasOwnProperty("cloneTriggerDelayMs")) {
+	                    if (typeof m.cloneTriggerDelayMs === "number")
+	                        d.cloneTriggerDelayMs = o.longs === String ? String(m.cloneTriggerDelayMs) : m.cloneTriggerDelayMs;
+	                    else
+	                        d.cloneTriggerDelayMs = o.longs === String ? $util.Long.prototype.toString.call(m.cloneTriggerDelayMs) : o.longs === Number ? new $util.LongBits(m.cloneTriggerDelayMs.low >>> 0, m.cloneTriggerDelayMs.high >>> 0).toNumber(true) : m.cloneTriggerDelayMs;
 	                }
 	                return d;
 	            };
@@ -10756,6 +10799,7 @@ function requireProtos$1 () {
 	                 * @property {string|null} [producerName] CloneTriggerHit producerName
 	                 * @property {number|null} [producerUid] CloneTriggerHit producerUid
 	                 * @property {number|null} [bootTimeNs] CloneTriggerHit bootTimeNs
+	                 * @property {number|null} [triggerDelayMs] CloneTriggerHit triggerDelayMs
 	                 */
 
 	                /**
@@ -10814,6 +10858,14 @@ function requireProtos$1 () {
 	                CloneTriggerHit.prototype.bootTimeNs = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
 
 	                /**
+	                 * CloneTriggerHit triggerDelayMs.
+	                 * @member {number} triggerDelayMs
+	                 * @memberof perfetto.protos.ObservableEvents.CloneTriggerHit
+	                 * @instance
+	                 */
+	                CloneTriggerHit.prototype.triggerDelayMs = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+	                /**
 	                 * Creates a new CloneTriggerHit instance using the specified properties.
 	                 * @function create
 	                 * @memberof perfetto.protos.ObservableEvents.CloneTriggerHit
@@ -10847,6 +10899,8 @@ function requireProtos$1 () {
 	                        w.uint32(32).uint32(m.producerUid);
 	                    if (m.bootTimeNs != null && Object.hasOwnProperty.call(m, "bootTimeNs"))
 	                        w.uint32(40).uint64(m.bootTimeNs);
+	                    if (m.triggerDelayMs != null && Object.hasOwnProperty.call(m, "triggerDelayMs"))
+	                        w.uint32(48).uint64(m.triggerDelayMs);
 	                    return w;
 	                };
 
@@ -10886,6 +10940,10 @@ function requireProtos$1 () {
 	                            }
 	                        case 5: {
 	                                m.bootTimeNs = r.uint64();
+	                                break;
+	                            }
+	                        case 6: {
+	                                m.triggerDelayMs = r.uint64();
 	                                break;
 	                            }
 	                        default:
@@ -10937,6 +10995,16 @@ function requireProtos$1 () {
 	                        else if (typeof d.bootTimeNs === "object")
 	                            m.bootTimeNs = new $util.LongBits(d.bootTimeNs.low >>> 0, d.bootTimeNs.high >>> 0).toNumber(true);
 	                    }
+	                    if (d.triggerDelayMs != null) {
+	                        if ($util.Long)
+	                            (m.triggerDelayMs = $util.Long.fromValue(d.triggerDelayMs)).unsigned = true;
+	                        else if (typeof d.triggerDelayMs === "string")
+	                            m.triggerDelayMs = parseInt(d.triggerDelayMs, 10);
+	                        else if (typeof d.triggerDelayMs === "number")
+	                            m.triggerDelayMs = d.triggerDelayMs;
+	                        else if (typeof d.triggerDelayMs === "object")
+	                            m.triggerDelayMs = new $util.LongBits(d.triggerDelayMs.low >>> 0, d.triggerDelayMs.high >>> 0).toNumber(true);
+	                    }
 	                    return m;
 	                };
 
@@ -10967,6 +11035,11 @@ function requireProtos$1 () {
 	                            d.bootTimeNs = o.longs === String ? n.toString() : o.longs === Number ? n.toNumber() : n;
 	                        } else
 	                            d.bootTimeNs = o.longs === String ? "0" : 0;
+	                        if ($util.Long) {
+	                            var n = new $util.Long(0, 0, true);
+	                            d.triggerDelayMs = o.longs === String ? n.toString() : o.longs === Number ? n.toNumber() : n;
+	                        } else
+	                            d.triggerDelayMs = o.longs === String ? "0" : 0;
 	                    }
 	                    if (m.tracingSessionId != null && m.hasOwnProperty("tracingSessionId")) {
 	                        if (typeof m.tracingSessionId === "number")
@@ -10988,6 +11061,12 @@ function requireProtos$1 () {
 	                            d.bootTimeNs = o.longs === String ? String(m.bootTimeNs) : m.bootTimeNs;
 	                        else
 	                            d.bootTimeNs = o.longs === String ? $util.Long.prototype.toString.call(m.bootTimeNs) : o.longs === Number ? new $util.LongBits(m.bootTimeNs.low >>> 0, m.bootTimeNs.high >>> 0).toNumber(true) : m.bootTimeNs;
+	                    }
+	                    if (m.triggerDelayMs != null && m.hasOwnProperty("triggerDelayMs")) {
+	                        if (typeof m.triggerDelayMs === "number")
+	                            d.triggerDelayMs = o.longs === String ? String(m.triggerDelayMs) : m.triggerDelayMs;
+	                        else
+	                            d.triggerDelayMs = o.longs === String ? $util.Long.prototype.toString.call(m.triggerDelayMs) : o.longs === Number ? new $util.LongBits(m.triggerDelayMs.low >>> 0, m.triggerDelayMs.high >>> 0).toNumber(true) : m.triggerDelayMs;
 	                    }
 	                    return d;
 	                };
@@ -17358,6 +17437,8 @@ function requireProtos$1 () {
 	             * @property {perfetto.protos.TraceConfig.IAndroidReportConfig|null} [androidReportConfig] TraceConfig androidReportConfig
 	             * @property {perfetto.protos.TraceConfig.ICmdTraceStartDelay|null} [cmdTraceStartDelay] TraceConfig cmdTraceStartDelay
 	             * @property {Array.<perfetto.protos.TraceConfig.ISessionSemaphore>|null} [sessionSemaphores] TraceConfig sessionSemaphores
+	             * @property {perfetto.protos.IPriorityBoostConfig|null} [priorityBoost] TraceConfig priorityBoost
+	             * @property {number|null} [exclusivePrio] TraceConfig exclusivePrio
 	             */
 
 	            /**
@@ -17661,6 +17742,22 @@ function requireProtos$1 () {
 	            TraceConfig.prototype.sessionSemaphores = $util.emptyArray;
 
 	            /**
+	             * TraceConfig priorityBoost.
+	             * @member {perfetto.protos.IPriorityBoostConfig|null|undefined} priorityBoost
+	             * @memberof perfetto.protos.TraceConfig
+	             * @instance
+	             */
+	            TraceConfig.prototype.priorityBoost = null;
+
+	            /**
+	             * TraceConfig exclusivePrio.
+	             * @member {number} exclusivePrio
+	             * @memberof perfetto.protos.TraceConfig
+	             * @instance
+	             */
+	            TraceConfig.prototype.exclusivePrio = 0;
+
+	            /**
 	             * Creates a new TraceConfig instance using the specified properties.
 	             * @function create
 	             * @memberof perfetto.protos.TraceConfig
@@ -17764,6 +17861,10 @@ function requireProtos$1 () {
 	                    for (var i = 0; i < m.sessionSemaphores.length; ++i)
 	                        $root.perfetto.protos.TraceConfig.SessionSemaphore.encode(m.sessionSemaphores[i], w.uint32(314).fork()).ldelim();
 	                }
+	                if (m.priorityBoost != null && Object.hasOwnProperty.call(m, "priorityBoost"))
+	                    $root.perfetto.protos.PriorityBoostConfig.encode(m.priorityBoost, w.uint32(322).fork()).ldelim();
+	                if (m.exclusivePrio != null && Object.hasOwnProperty.call(m, "exclusivePrio"))
+	                    w.uint32(328).uint32(m.exclusivePrio);
 	                return w;
 	            };
 
@@ -17933,6 +18034,14 @@ function requireProtos$1 () {
 	                            if (!(m.sessionSemaphores && m.sessionSemaphores.length))
 	                                m.sessionSemaphores = [];
 	                            m.sessionSemaphores.push($root.perfetto.protos.TraceConfig.SessionSemaphore.decode(r, r.uint32()));
+	                            break;
+	                        }
+	                    case 40: {
+	                            m.priorityBoost = $root.perfetto.protos.PriorityBoostConfig.decode(r, r.uint32());
+	                            break;
+	                        }
+	                    case 41: {
+	                            m.exclusivePrio = r.uint32();
 	                            break;
 	                        }
 	                    default:
@@ -18179,6 +18288,14 @@ function requireProtos$1 () {
 	                        m.sessionSemaphores[i] = $root.perfetto.protos.TraceConfig.SessionSemaphore.fromObject(d.sessionSemaphores[i]);
 	                    }
 	                }
+	                if (d.priorityBoost != null) {
+	                    if (typeof d.priorityBoost !== "object")
+	                        throw TypeError(".perfetto.protos.TraceConfig.priorityBoost: object expected");
+	                    m.priorityBoost = $root.perfetto.protos.PriorityBoostConfig.fromObject(d.priorityBoost);
+	                }
+	                if (d.exclusivePrio != null) {
+	                    m.exclusivePrio = d.exclusivePrio >>> 0;
+	                }
 	                return m;
 	            };
 
@@ -18245,6 +18362,8 @@ function requireProtos$1 () {
 	                    d.cmdTraceStartDelay = null;
 	                    d.preferSuspendClockForDuration = false;
 	                    d.bugreportFilename = "";
+	                    d.priorityBoost = null;
+	                    d.exclusivePrio = 0;
 	                }
 	                if (m.buffers && m.buffers.length) {
 	                    d.buffers = [];
@@ -18374,6 +18493,12 @@ function requireProtos$1 () {
 	                    for (var j = 0; j < m.sessionSemaphores.length; ++j) {
 	                        d.sessionSemaphores[j] = $root.perfetto.protos.TraceConfig.SessionSemaphore.toObject(m.sessionSemaphores[j], o);
 	                    }
+	                }
+	                if (m.priorityBoost != null && m.hasOwnProperty("priorityBoost")) {
+	                    d.priorityBoost = $root.perfetto.protos.PriorityBoostConfig.toObject(m.priorityBoost, o);
+	                }
+	                if (m.exclusivePrio != null && m.hasOwnProperty("exclusivePrio")) {
+	                    d.exclusivePrio = m.exclusivePrio;
 	                }
 	                return d;
 	            };
@@ -18672,6 +18797,7 @@ function requireProtos$1 () {
 	                 * @property {perfetto.protos.IDataSourceConfig|null} [config] DataSource config
 	                 * @property {Array.<string>|null} [producerNameFilter] DataSource producerNameFilter
 	                 * @property {Array.<string>|null} [producerNameRegexFilter] DataSource producerNameRegexFilter
+	                 * @property {Array.<string>|null} [machineNameFilter] DataSource machineNameFilter
 	                 */
 
 	                /**
@@ -18685,6 +18811,7 @@ function requireProtos$1 () {
 	                function DataSource(p) {
 	                    this.producerNameFilter = [];
 	                    this.producerNameRegexFilter = [];
+	                    this.machineNameFilter = [];
 	                    if (p)
 	                        for (var ks = Object.keys(p), i = 0; i < ks.length; ++i)
 	                            if (p[ks[i]] != null)
@@ -18714,6 +18841,14 @@ function requireProtos$1 () {
 	                 * @instance
 	                 */
 	                DataSource.prototype.producerNameRegexFilter = $util.emptyArray;
+
+	                /**
+	                 * DataSource machineNameFilter.
+	                 * @member {Array.<string>} machineNameFilter
+	                 * @memberof perfetto.protos.TraceConfig.DataSource
+	                 * @instance
+	                 */
+	                DataSource.prototype.machineNameFilter = $util.emptyArray;
 
 	                /**
 	                 * Creates a new DataSource instance using the specified properties.
@@ -18748,6 +18883,10 @@ function requireProtos$1 () {
 	                    if (m.producerNameRegexFilter != null && m.producerNameRegexFilter.length) {
 	                        for (var i = 0; i < m.producerNameRegexFilter.length; ++i)
 	                            w.uint32(26).string(m.producerNameRegexFilter[i]);
+	                    }
+	                    if (m.machineNameFilter != null && m.machineNameFilter.length) {
+	                        for (var i = 0; i < m.machineNameFilter.length; ++i)
+	                            w.uint32(34).string(m.machineNameFilter[i]);
 	                    }
 	                    return w;
 	                };
@@ -18784,6 +18923,12 @@ function requireProtos$1 () {
 	                                if (!(m.producerNameRegexFilter && m.producerNameRegexFilter.length))
 	                                    m.producerNameRegexFilter = [];
 	                                m.producerNameRegexFilter.push(r.string());
+	                                break;
+	                            }
+	                        case 4: {
+	                                if (!(m.machineNameFilter && m.machineNameFilter.length))
+	                                    m.machineNameFilter = [];
+	                                m.machineNameFilter.push(r.string());
 	                                break;
 	                            }
 	                        default:
@@ -18827,6 +18972,14 @@ function requireProtos$1 () {
 	                            m.producerNameRegexFilter[i] = String(d.producerNameRegexFilter[i]);
 	                        }
 	                    }
+	                    if (d.machineNameFilter) {
+	                        if (!Array.isArray(d.machineNameFilter))
+	                            throw TypeError(".perfetto.protos.TraceConfig.DataSource.machineNameFilter: array expected");
+	                        m.machineNameFilter = [];
+	                        for (var i = 0; i < d.machineNameFilter.length; ++i) {
+	                            m.machineNameFilter[i] = String(d.machineNameFilter[i]);
+	                        }
+	                    }
 	                    return m;
 	                };
 
@@ -18846,6 +18999,7 @@ function requireProtos$1 () {
 	                    if (o.arrays || o.defaults) {
 	                        d.producerNameFilter = [];
 	                        d.producerNameRegexFilter = [];
+	                        d.machineNameFilter = [];
 	                    }
 	                    if (o.defaults) {
 	                        d.config = null;
@@ -18863,6 +19017,12 @@ function requireProtos$1 () {
 	                        d.producerNameRegexFilter = [];
 	                        for (var j = 0; j < m.producerNameRegexFilter.length; ++j) {
 	                            d.producerNameRegexFilter[j] = m.producerNameRegexFilter[j];
+	                        }
+	                    }
+	                    if (m.machineNameFilter && m.machineNameFilter.length) {
+	                        d.machineNameFilter = [];
+	                        for (var j = 0; j < m.machineNameFilter.length; ++j) {
+	                            d.machineNameFilter[j] = m.machineNameFilter[j];
 	                        }
 	                    }
 	                    return d;
@@ -22213,6 +22373,8 @@ function requireProtos$1 () {
 	             * @property {boolean|null} [enableExtraGuardrails] DataSourceConfig enableExtraGuardrails
 	             * @property {perfetto.protos.DataSourceConfig.SessionInitiator|null} [sessionInitiator] DataSourceConfig sessionInitiator
 	             * @property {number|null} [tracingSessionId] DataSourceConfig tracingSessionId
+	             * @property {perfetto.protos.DataSourceConfig.BufferExhaustedPolicy|null} [bufferExhaustedPolicy] DataSourceConfig bufferExhaustedPolicy
+	             * @property {perfetto.protos.IPriorityBoostConfig|null} [priorityBoost] DataSourceConfig priorityBoost
 	             * @property {perfetto.protos.IFtraceConfig|null} [ftraceConfig] DataSourceConfig ftraceConfig
 	             * @property {perfetto.protos.IInodeFileConfig|null} [inodeFileConfig] DataSourceConfig inodeFileConfig
 	             * @property {perfetto.protos.IProcessStatsConfig|null} [processStatsConfig] DataSourceConfig processStatsConfig
@@ -22231,6 +22393,7 @@ function requireProtos$1 () {
 	             * @property {perfetto.protos.IAndroidSystemPropertyConfig|null} [androidSystemPropertyConfig] DataSourceConfig androidSystemPropertyConfig
 	             * @property {perfetto.protos.IStatsdTracingConfig|null} [statsdTracingConfig] DataSourceConfig statsdTracingConfig
 	             * @property {perfetto.protos.ISystemInfoConfig|null} [systemInfoConfig] DataSourceConfig systemInfoConfig
+	             * @property {perfetto.protos.IFrozenFtraceConfig|null} [frozenFtraceConfig] DataSourceConfig frozenFtraceConfig
 	             * @property {perfetto.protos.IChromeConfig|null} [chromeConfig] DataSourceConfig chromeConfig
 	             * @property {perfetto.protos.IV8Config|null} [v8Config] DataSourceConfig v8Config
 	             * @property {perfetto.protos.IInterceptorConfig|null} [interceptorConfig] DataSourceConfig interceptorConfig
@@ -22248,6 +22411,7 @@ function requireProtos$1 () {
 	             * @property {perfetto.protos.IGpuRenderStagesConfig|null} [gpuRenderstagesConfig] DataSourceConfig gpuRenderstagesConfig
 	             * @property {perfetto.protos.IChromiumHistogramSamplesConfig|null} [chromiumHistogramSamples] DataSourceConfig chromiumHistogramSamples
 	             * @property {perfetto.protos.IAppWakelocksConfig|null} [appWakelocksConfig] DataSourceConfig appWakelocksConfig
+	             * @property {perfetto.protos.ICpuPerUidConfig|null} [cpuPerUidConfig] DataSourceConfig cpuPerUidConfig
 	             * @property {string|null} [legacyConfig] DataSourceConfig legacyConfig
 	             * @property {perfetto.protos.ITestConfig|null} [forTesting] DataSourceConfig forTesting
 	             */
@@ -22330,6 +22494,22 @@ function requireProtos$1 () {
 	             * @instance
 	             */
 	            DataSourceConfig.prototype.tracingSessionId = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+	            /**
+	             * DataSourceConfig bufferExhaustedPolicy.
+	             * @member {perfetto.protos.DataSourceConfig.BufferExhaustedPolicy} bufferExhaustedPolicy
+	             * @memberof perfetto.protos.DataSourceConfig
+	             * @instance
+	             */
+	            DataSourceConfig.prototype.bufferExhaustedPolicy = 0;
+
+	            /**
+	             * DataSourceConfig priorityBoost.
+	             * @member {perfetto.protos.IPriorityBoostConfig|null|undefined} priorityBoost
+	             * @memberof perfetto.protos.DataSourceConfig
+	             * @instance
+	             */
+	            DataSourceConfig.prototype.priorityBoost = null;
 
 	            /**
 	             * DataSourceConfig ftraceConfig.
@@ -22476,6 +22656,14 @@ function requireProtos$1 () {
 	            DataSourceConfig.prototype.systemInfoConfig = null;
 
 	            /**
+	             * DataSourceConfig frozenFtraceConfig.
+	             * @member {perfetto.protos.IFrozenFtraceConfig|null|undefined} frozenFtraceConfig
+	             * @memberof perfetto.protos.DataSourceConfig
+	             * @instance
+	             */
+	            DataSourceConfig.prototype.frozenFtraceConfig = null;
+
+	            /**
 	             * DataSourceConfig chromeConfig.
 	             * @member {perfetto.protos.IChromeConfig|null|undefined} chromeConfig
 	             * @memberof perfetto.protos.DataSourceConfig
@@ -22612,6 +22800,14 @@ function requireProtos$1 () {
 	            DataSourceConfig.prototype.appWakelocksConfig = null;
 
 	            /**
+	             * DataSourceConfig cpuPerUidConfig.
+	             * @member {perfetto.protos.ICpuPerUidConfig|null|undefined} cpuPerUidConfig
+	             * @memberof perfetto.protos.DataSourceConfig
+	             * @instance
+	             */
+	            DataSourceConfig.prototype.cpuPerUidConfig = null;
+
+	            /**
 	             * DataSourceConfig legacyConfig.
 	             * @member {string} legacyConfig
 	             * @memberof perfetto.protos.DataSourceConfig
@@ -22665,6 +22861,10 @@ function requireProtos$1 () {
 	                    w.uint32(56).uint32(m.stopTimeoutMs);
 	                if (m.sessionInitiator != null && Object.hasOwnProperty.call(m, "sessionInitiator"))
 	                    w.uint32(64).int32(m.sessionInitiator);
+	                if (m.bufferExhaustedPolicy != null && Object.hasOwnProperty.call(m, "bufferExhaustedPolicy"))
+	                    w.uint32(72).int32(m.bufferExhaustedPolicy);
+	                if (m.priorityBoost != null && Object.hasOwnProperty.call(m, "priorityBoost"))
+	                    $root.perfetto.protos.PriorityBoostConfig.encode(m.priorityBoost, w.uint32(82).fork()).ldelim();
 	                if (m.ftraceConfig != null && Object.hasOwnProperty.call(m, "ftraceConfig"))
 	                    $root.perfetto.protos.FtraceConfig.encode(m.ftraceConfig, w.uint32(802).fork()).ldelim();
 	                if (m.chromeConfig != null && Object.hasOwnProperty.call(m, "chromeConfig"))
@@ -22737,6 +22937,10 @@ function requireProtos$1 () {
 	                    $root.perfetto.protos.ChromiumHistogramSamplesConfig.encode(m.chromiumHistogramSamples, w.uint32(1074).fork()).ldelim();
 	                if (m.appWakelocksConfig != null && Object.hasOwnProperty.call(m, "appWakelocksConfig"))
 	                    $root.perfetto.protos.AppWakelocksConfig.encode(m.appWakelocksConfig, w.uint32(1082).fork()).ldelim();
+	                if (m.frozenFtraceConfig != null && Object.hasOwnProperty.call(m, "frozenFtraceConfig"))
+	                    $root.perfetto.protos.FrozenFtraceConfig.encode(m.frozenFtraceConfig, w.uint32(1090).fork()).ldelim();
+	                if (m.cpuPerUidConfig != null && Object.hasOwnProperty.call(m, "cpuPerUidConfig"))
+	                    $root.perfetto.protos.CpuPerUidConfig.encode(m.cpuPerUidConfig, w.uint32(1098).fork()).ldelim();
 	                if (m.legacyConfig != null && Object.hasOwnProperty.call(m, "legacyConfig"))
 	                    w.uint32(8002).string(m.legacyConfig);
 	                if (m.forTesting != null && Object.hasOwnProperty.call(m, "forTesting"))
@@ -22792,6 +22996,14 @@ function requireProtos$1 () {
 	                        }
 	                    case 4: {
 	                            m.tracingSessionId = r.uint64();
+	                            break;
+	                        }
+	                    case 9: {
+	                            m.bufferExhaustedPolicy = r.int32();
+	                            break;
+	                        }
+	                    case 10: {
+	                            m.priorityBoost = $root.perfetto.protos.PriorityBoostConfig.decode(r, r.uint32());
 	                            break;
 	                        }
 	                    case 100: {
@@ -22866,6 +23078,10 @@ function requireProtos$1 () {
 	                            m.systemInfoConfig = $root.perfetto.protos.SystemInfoConfig.decode(r, r.uint32());
 	                            break;
 	                        }
+	                    case 136: {
+	                            m.frozenFtraceConfig = $root.perfetto.protos.FrozenFtraceConfig.decode(r, r.uint32());
+	                            break;
+	                        }
 	                    case 101: {
 	                            m.chromeConfig = $root.perfetto.protos.ChromeConfig.decode(r, r.uint32());
 	                            break;
@@ -22932,6 +23148,10 @@ function requireProtos$1 () {
 	                        }
 	                    case 135: {
 	                            m.appWakelocksConfig = $root.perfetto.protos.AppWakelocksConfig.decode(r, r.uint32());
+	                            break;
+	                        }
+	                    case 137: {
+	                            m.cpuPerUidConfig = $root.perfetto.protos.CpuPerUidConfig.decode(r, r.uint32());
 	                            break;
 	                        }
 	                    case 1000: {
@@ -23005,6 +23225,35 @@ function requireProtos$1 () {
 	                        m.tracingSessionId = d.tracingSessionId;
 	                    else if (typeof d.tracingSessionId === "object")
 	                        m.tracingSessionId = new $util.LongBits(d.tracingSessionId.low >>> 0, d.tracingSessionId.high >>> 0).toNumber(true);
+	                }
+	                switch (d.bufferExhaustedPolicy) {
+	                default:
+	                    if (typeof d.bufferExhaustedPolicy === "number") {
+	                        m.bufferExhaustedPolicy = d.bufferExhaustedPolicy;
+	                        break;
+	                    }
+	                    break;
+	                case "BUFFER_EXHAUSTED_UNSPECIFIED":
+	                case 0:
+	                    m.bufferExhaustedPolicy = 0;
+	                    break;
+	                case "BUFFER_EXHAUSTED_DROP":
+	                case 1:
+	                    m.bufferExhaustedPolicy = 1;
+	                    break;
+	                case "BUFFER_EXHAUSTED_STALL_THEN_ABORT":
+	                case 2:
+	                    m.bufferExhaustedPolicy = 2;
+	                    break;
+	                case "BUFFER_EXHAUSTED_STALL_THEN_DROP":
+	                case 3:
+	                    m.bufferExhaustedPolicy = 3;
+	                    break;
+	                }
+	                if (d.priorityBoost != null) {
+	                    if (typeof d.priorityBoost !== "object")
+	                        throw TypeError(".perfetto.protos.DataSourceConfig.priorityBoost: object expected");
+	                    m.priorityBoost = $root.perfetto.protos.PriorityBoostConfig.fromObject(d.priorityBoost);
 	                }
 	                if (d.ftraceConfig != null) {
 	                    if (typeof d.ftraceConfig !== "object")
@@ -23096,6 +23345,11 @@ function requireProtos$1 () {
 	                        throw TypeError(".perfetto.protos.DataSourceConfig.systemInfoConfig: object expected");
 	                    m.systemInfoConfig = $root.perfetto.protos.SystemInfoConfig.fromObject(d.systemInfoConfig);
 	                }
+	                if (d.frozenFtraceConfig != null) {
+	                    if (typeof d.frozenFtraceConfig !== "object")
+	                        throw TypeError(".perfetto.protos.DataSourceConfig.frozenFtraceConfig: object expected");
+	                    m.frozenFtraceConfig = $root.perfetto.protos.FrozenFtraceConfig.fromObject(d.frozenFtraceConfig);
+	                }
 	                if (d.chromeConfig != null) {
 	                    if (typeof d.chromeConfig !== "object")
 	                        throw TypeError(".perfetto.protos.DataSourceConfig.chromeConfig: object expected");
@@ -23181,6 +23435,11 @@ function requireProtos$1 () {
 	                        throw TypeError(".perfetto.protos.DataSourceConfig.appWakelocksConfig: object expected");
 	                    m.appWakelocksConfig = $root.perfetto.protos.AppWakelocksConfig.fromObject(d.appWakelocksConfig);
 	                }
+	                if (d.cpuPerUidConfig != null) {
+	                    if (typeof d.cpuPerUidConfig !== "object")
+	                        throw TypeError(".perfetto.protos.DataSourceConfig.cpuPerUidConfig: object expected");
+	                    m.cpuPerUidConfig = $root.perfetto.protos.CpuPerUidConfig.fromObject(d.cpuPerUidConfig);
+	                }
 	                if (d.legacyConfig != null) {
 	                    m.legacyConfig = String(d.legacyConfig);
 	                }
@@ -23217,6 +23476,8 @@ function requireProtos$1 () {
 	                    d.enableExtraGuardrails = false;
 	                    d.stopTimeoutMs = 0;
 	                    d.sessionInitiator = o.enums === String ? "SESSION_INITIATOR_UNSPECIFIED" : 0;
+	                    d.bufferExhaustedPolicy = o.enums === String ? "BUFFER_EXHAUSTED_UNSPECIFIED" : 0;
+	                    d.priorityBoost = null;
 	                    d.ftraceConfig = null;
 	                    d.chromeConfig = null;
 	                    d.inodeFileConfig = null;
@@ -23253,6 +23514,8 @@ function requireProtos$1 () {
 	                    d.gpuRenderstagesConfig = null;
 	                    d.chromiumHistogramSamples = null;
 	                    d.appWakelocksConfig = null;
+	                    d.frozenFtraceConfig = null;
+	                    d.cpuPerUidConfig = null;
 	                    d.legacyConfig = "";
 	                    d.forTesting = null;
 	                }
@@ -23279,6 +23542,12 @@ function requireProtos$1 () {
 	                }
 	                if (m.sessionInitiator != null && m.hasOwnProperty("sessionInitiator")) {
 	                    d.sessionInitiator = o.enums === String ? $root.perfetto.protos.DataSourceConfig.SessionInitiator[m.sessionInitiator] === undefined ? m.sessionInitiator : $root.perfetto.protos.DataSourceConfig.SessionInitiator[m.sessionInitiator] : m.sessionInitiator;
+	                }
+	                if (m.bufferExhaustedPolicy != null && m.hasOwnProperty("bufferExhaustedPolicy")) {
+	                    d.bufferExhaustedPolicy = o.enums === String ? $root.perfetto.protos.DataSourceConfig.BufferExhaustedPolicy[m.bufferExhaustedPolicy] === undefined ? m.bufferExhaustedPolicy : $root.perfetto.protos.DataSourceConfig.BufferExhaustedPolicy[m.bufferExhaustedPolicy] : m.bufferExhaustedPolicy;
+	                }
+	                if (m.priorityBoost != null && m.hasOwnProperty("priorityBoost")) {
+	                    d.priorityBoost = $root.perfetto.protos.PriorityBoostConfig.toObject(m.priorityBoost, o);
 	                }
 	                if (m.ftraceConfig != null && m.hasOwnProperty("ftraceConfig")) {
 	                    d.ftraceConfig = $root.perfetto.protos.FtraceConfig.toObject(m.ftraceConfig, o);
@@ -23388,6 +23657,12 @@ function requireProtos$1 () {
 	                if (m.appWakelocksConfig != null && m.hasOwnProperty("appWakelocksConfig")) {
 	                    d.appWakelocksConfig = $root.perfetto.protos.AppWakelocksConfig.toObject(m.appWakelocksConfig, o);
 	                }
+	                if (m.frozenFtraceConfig != null && m.hasOwnProperty("frozenFtraceConfig")) {
+	                    d.frozenFtraceConfig = $root.perfetto.protos.FrozenFtraceConfig.toObject(m.frozenFtraceConfig, o);
+	                }
+	                if (m.cpuPerUidConfig != null && m.hasOwnProperty("cpuPerUidConfig")) {
+	                    d.cpuPerUidConfig = $root.perfetto.protos.CpuPerUidConfig.toObject(m.cpuPerUidConfig, o);
+	                }
 	                if (m.legacyConfig != null && m.hasOwnProperty("legacyConfig")) {
 	                    d.legacyConfig = m.legacyConfig;
 	                }
@@ -23434,6 +23709,24 @@ function requireProtos$1 () {
 	                var valuesById = {}, values = Object.create(valuesById);
 	                values[valuesById[0] = "SESSION_INITIATOR_UNSPECIFIED"] = 0;
 	                values[valuesById[1] = "SESSION_INITIATOR_TRUSTED_SYSTEM"] = 1;
+	                return values;
+	            })();
+
+	            /**
+	             * BufferExhaustedPolicy enum.
+	             * @name perfetto.protos.DataSourceConfig.BufferExhaustedPolicy
+	             * @enum {number}
+	             * @property {number} BUFFER_EXHAUSTED_UNSPECIFIED=0 BUFFER_EXHAUSTED_UNSPECIFIED value
+	             * @property {number} BUFFER_EXHAUSTED_DROP=1 BUFFER_EXHAUSTED_DROP value
+	             * @property {number} BUFFER_EXHAUSTED_STALL_THEN_ABORT=2 BUFFER_EXHAUSTED_STALL_THEN_ABORT value
+	             * @property {number} BUFFER_EXHAUSTED_STALL_THEN_DROP=3 BUFFER_EXHAUSTED_STALL_THEN_DROP value
+	             */
+	            DataSourceConfig.BufferExhaustedPolicy = (function() {
+	                var valuesById = {}, values = Object.create(valuesById);
+	                values[valuesById[0] = "BUFFER_EXHAUSTED_UNSPECIFIED"] = 0;
+	                values[valuesById[1] = "BUFFER_EXHAUSTED_DROP"] = 1;
+	                values[valuesById[2] = "BUFFER_EXHAUSTED_STALL_THEN_ABORT"] = 2;
+	                values[valuesById[3] = "BUFFER_EXHAUSTED_STALL_THEN_DROP"] = 3;
 	                return values;
 	            })();
 
@@ -25336,6 +25629,166 @@ function requireProtos$1 () {
 	            return AppWakelocksConfig;
 	        })();
 
+	        protos.CpuPerUidConfig = (function() {
+
+	            /**
+	             * Properties of a CpuPerUidConfig.
+	             * @memberof perfetto.protos
+	             * @interface ICpuPerUidConfig
+	             * @property {number|null} [pollMs] CpuPerUidConfig pollMs
+	             */
+
+	            /**
+	             * Constructs a new CpuPerUidConfig.
+	             * @memberof perfetto.protos
+	             * @classdesc Represents a CpuPerUidConfig.
+	             * @implements ICpuPerUidConfig
+	             * @constructor
+	             * @param {perfetto.protos.ICpuPerUidConfig=} [p] Properties to set
+	             */
+	            function CpuPerUidConfig(p) {
+	                if (p)
+	                    for (var ks = Object.keys(p), i = 0; i < ks.length; ++i)
+	                        if (p[ks[i]] != null)
+	                            this[ks[i]] = p[ks[i]];
+	            }
+
+	            /**
+	             * CpuPerUidConfig pollMs.
+	             * @member {number} pollMs
+	             * @memberof perfetto.protos.CpuPerUidConfig
+	             * @instance
+	             */
+	            CpuPerUidConfig.prototype.pollMs = 0;
+
+	            /**
+	             * Creates a new CpuPerUidConfig instance using the specified properties.
+	             * @function create
+	             * @memberof perfetto.protos.CpuPerUidConfig
+	             * @static
+	             * @param {perfetto.protos.ICpuPerUidConfig=} [properties] Properties to set
+	             * @returns {perfetto.protos.CpuPerUidConfig} CpuPerUidConfig instance
+	             */
+	            CpuPerUidConfig.create = function create(properties) {
+	                return new CpuPerUidConfig(properties);
+	            };
+
+	            /**
+	             * Encodes the specified CpuPerUidConfig message. Does not implicitly {@link perfetto.protos.CpuPerUidConfig.verify|verify} messages.
+	             * @function encode
+	             * @memberof perfetto.protos.CpuPerUidConfig
+	             * @static
+	             * @param {perfetto.protos.ICpuPerUidConfig} m CpuPerUidConfig message or plain object to encode
+	             * @param {$protobuf.Writer} [w] Writer to encode to
+	             * @returns {$protobuf.Writer} Writer
+	             */
+	            CpuPerUidConfig.encode = function encode(m, w) {
+	                if (!w)
+	                    w = $Writer.create();
+	                if (m.pollMs != null && Object.hasOwnProperty.call(m, "pollMs"))
+	                    w.uint32(8).uint32(m.pollMs);
+	                return w;
+	            };
+
+	            /**
+	             * Decodes a CpuPerUidConfig message from the specified reader or buffer.
+	             * @function decode
+	             * @memberof perfetto.protos.CpuPerUidConfig
+	             * @static
+	             * @param {$protobuf.Reader|Uint8Array} r Reader or buffer to decode from
+	             * @param {number} [l] Message length if known beforehand
+	             * @returns {perfetto.protos.CpuPerUidConfig} CpuPerUidConfig
+	             * @throws {Error} If the payload is not a reader or valid buffer
+	             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+	             */
+	            CpuPerUidConfig.decode = function decode(r, l) {
+	                if (!(r instanceof $Reader))
+	                    r = $Reader.create(r);
+	                var c = l === undefined ? r.len : r.pos + l, m = new $root.perfetto.protos.CpuPerUidConfig();
+	                while (r.pos < c) {
+	                    var t = r.uint32();
+	                    switch (t >>> 3) {
+	                    case 1: {
+	                            m.pollMs = r.uint32();
+	                            break;
+	                        }
+	                    default:
+	                        r.skipType(t & 7);
+	                        break;
+	                    }
+	                }
+	                return m;
+	            };
+
+	            /**
+	             * Creates a CpuPerUidConfig message from a plain object. Also converts values to their respective internal types.
+	             * @function fromObject
+	             * @memberof perfetto.protos.CpuPerUidConfig
+	             * @static
+	             * @param {Object.<string,*>} d Plain object
+	             * @returns {perfetto.protos.CpuPerUidConfig} CpuPerUidConfig
+	             */
+	            CpuPerUidConfig.fromObject = function fromObject(d) {
+	                if (d instanceof $root.perfetto.protos.CpuPerUidConfig)
+	                    return d;
+	                var m = new $root.perfetto.protos.CpuPerUidConfig();
+	                if (d.pollMs != null) {
+	                    m.pollMs = d.pollMs >>> 0;
+	                }
+	                return m;
+	            };
+
+	            /**
+	             * Creates a plain object from a CpuPerUidConfig message. Also converts values to other types if specified.
+	             * @function toObject
+	             * @memberof perfetto.protos.CpuPerUidConfig
+	             * @static
+	             * @param {perfetto.protos.CpuPerUidConfig} m CpuPerUidConfig
+	             * @param {$protobuf.IConversionOptions} [o] Conversion options
+	             * @returns {Object.<string,*>} Plain object
+	             */
+	            CpuPerUidConfig.toObject = function toObject(m, o) {
+	                if (!o)
+	                    o = {};
+	                var d = {};
+	                if (o.defaults) {
+	                    d.pollMs = 0;
+	                }
+	                if (m.pollMs != null && m.hasOwnProperty("pollMs")) {
+	                    d.pollMs = m.pollMs;
+	                }
+	                return d;
+	            };
+
+	            /**
+	             * Converts this CpuPerUidConfig to JSON.
+	             * @function toJSON
+	             * @memberof perfetto.protos.CpuPerUidConfig
+	             * @instance
+	             * @returns {Object.<string,*>} JSON object
+	             */
+	            CpuPerUidConfig.prototype.toJSON = function toJSON() {
+	                return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+	            };
+
+	            /**
+	             * Gets the default type url for CpuPerUidConfig
+	             * @function getTypeUrl
+	             * @memberof perfetto.protos.CpuPerUidConfig
+	             * @static
+	             * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+	             * @returns {string} The default type url
+	             */
+	            CpuPerUidConfig.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+	                if (typeUrlPrefix === undefined) {
+	                    typeUrlPrefix = "type.googleapis.com";
+	                }
+	                return typeUrlPrefix + "/perfetto.protos.CpuPerUidConfig";
+	            };
+
+	            return CpuPerUidConfig;
+	        })();
+
 	        protos.KernelWakelocksConfig = (function() {
 
 	            /**
@@ -25773,6 +26226,7 @@ function requireProtos$1 () {
 	             * @memberof perfetto.protos
 	             * @interface IPackagesListConfig
 	             * @property {Array.<string>|null} [packageNameFilter] PackagesListConfig packageNameFilter
+	             * @property {number|null} [onlyWriteOnCpuUseEveryMs] PackagesListConfig onlyWriteOnCpuUseEveryMs
 	             */
 
 	            /**
@@ -25798,6 +26252,14 @@ function requireProtos$1 () {
 	             * @instance
 	             */
 	            PackagesListConfig.prototype.packageNameFilter = $util.emptyArray;
+
+	            /**
+	             * PackagesListConfig onlyWriteOnCpuUseEveryMs.
+	             * @member {number} onlyWriteOnCpuUseEveryMs
+	             * @memberof perfetto.protos.PackagesListConfig
+	             * @instance
+	             */
+	            PackagesListConfig.prototype.onlyWriteOnCpuUseEveryMs = 0;
 
 	            /**
 	             * Creates a new PackagesListConfig instance using the specified properties.
@@ -25827,6 +26289,8 @@ function requireProtos$1 () {
 	                    for (var i = 0; i < m.packageNameFilter.length; ++i)
 	                        w.uint32(10).string(m.packageNameFilter[i]);
 	                }
+	                if (m.onlyWriteOnCpuUseEveryMs != null && Object.hasOwnProperty.call(m, "onlyWriteOnCpuUseEveryMs"))
+	                    w.uint32(16).uint32(m.onlyWriteOnCpuUseEveryMs);
 	                return w;
 	            };
 
@@ -25852,6 +26316,10 @@ function requireProtos$1 () {
 	                            if (!(m.packageNameFilter && m.packageNameFilter.length))
 	                                m.packageNameFilter = [];
 	                            m.packageNameFilter.push(r.string());
+	                            break;
+	                        }
+	                    case 2: {
+	                            m.onlyWriteOnCpuUseEveryMs = r.uint32();
 	                            break;
 	                        }
 	                    default:
@@ -25882,6 +26350,9 @@ function requireProtos$1 () {
 	                        m.packageNameFilter[i] = String(d.packageNameFilter[i]);
 	                    }
 	                }
+	                if (d.onlyWriteOnCpuUseEveryMs != null) {
+	                    m.onlyWriteOnCpuUseEveryMs = d.onlyWriteOnCpuUseEveryMs >>> 0;
+	                }
 	                return m;
 	            };
 
@@ -25901,11 +26372,17 @@ function requireProtos$1 () {
 	                if (o.arrays || o.defaults) {
 	                    d.packageNameFilter = [];
 	                }
+	                if (o.defaults) {
+	                    d.onlyWriteOnCpuUseEveryMs = 0;
+	                }
 	                if (m.packageNameFilter && m.packageNameFilter.length) {
 	                    d.packageNameFilter = [];
 	                    for (var j = 0; j < m.packageNameFilter.length; ++j) {
 	                        d.packageNameFilter[j] = m.packageNameFilter[j];
 	                    }
+	                }
+	                if (m.onlyWriteOnCpuUseEveryMs != null && m.hasOwnProperty("onlyWriteOnCpuUseEveryMs")) {
+	                    d.onlyWriteOnCpuUseEveryMs = m.onlyWriteOnCpuUseEveryMs;
 	                }
 	                return d;
 	            };
@@ -27551,6 +28028,7 @@ function requireProtos$1 () {
 	             * @property {boolean|null} [convertToLegacyJson] ChromeConfig convertToLegacyJson
 	             * @property {perfetto.protos.ChromeConfig.ClientPriority|null} [clientPriority] ChromeConfig clientPriority
 	             * @property {string|null} [jsonAgentLabelFilter] ChromeConfig jsonAgentLabelFilter
+	             * @property {boolean|null} [eventPackageNameFilterEnabled] ChromeConfig eventPackageNameFilterEnabled
 	             */
 
 	            /**
@@ -27609,6 +28087,14 @@ function requireProtos$1 () {
 	            ChromeConfig.prototype.jsonAgentLabelFilter = "";
 
 	            /**
+	             * ChromeConfig eventPackageNameFilterEnabled.
+	             * @member {boolean} eventPackageNameFilterEnabled
+	             * @memberof perfetto.protos.ChromeConfig
+	             * @instance
+	             */
+	            ChromeConfig.prototype.eventPackageNameFilterEnabled = false;
+
+	            /**
 	             * Creates a new ChromeConfig instance using the specified properties.
 	             * @function create
 	             * @memberof perfetto.protos.ChromeConfig
@@ -27642,6 +28128,8 @@ function requireProtos$1 () {
 	                    w.uint32(32).int32(m.clientPriority);
 	                if (m.jsonAgentLabelFilter != null && Object.hasOwnProperty.call(m, "jsonAgentLabelFilter"))
 	                    w.uint32(42).string(m.jsonAgentLabelFilter);
+	                if (m.eventPackageNameFilterEnabled != null && Object.hasOwnProperty.call(m, "eventPackageNameFilterEnabled"))
+	                    w.uint32(48).bool(m.eventPackageNameFilterEnabled);
 	                return w;
 	            };
 
@@ -27681,6 +28169,10 @@ function requireProtos$1 () {
 	                        }
 	                    case 5: {
 	                            m.jsonAgentLabelFilter = r.string();
+	                            break;
+	                        }
+	                    case 6: {
+	                            m.eventPackageNameFilterEnabled = r.bool();
 	                            break;
 	                        }
 	                    default:
@@ -27735,6 +28227,9 @@ function requireProtos$1 () {
 	                if (d.jsonAgentLabelFilter != null) {
 	                    m.jsonAgentLabelFilter = String(d.jsonAgentLabelFilter);
 	                }
+	                if (d.eventPackageNameFilterEnabled != null) {
+	                    m.eventPackageNameFilterEnabled = Boolean(d.eventPackageNameFilterEnabled);
+	                }
 	                return m;
 	            };
 
@@ -27757,6 +28252,7 @@ function requireProtos$1 () {
 	                    d.convertToLegacyJson = false;
 	                    d.clientPriority = o.enums === String ? "UNKNOWN" : 0;
 	                    d.jsonAgentLabelFilter = "";
+	                    d.eventPackageNameFilterEnabled = false;
 	                }
 	                if (m.traceConfig != null && m.hasOwnProperty("traceConfig")) {
 	                    d.traceConfig = m.traceConfig;
@@ -27772,6 +28268,9 @@ function requireProtos$1 () {
 	                }
 	                if (m.jsonAgentLabelFilter != null && m.hasOwnProperty("jsonAgentLabelFilter")) {
 	                    d.jsonAgentLabelFilter = m.jsonAgentLabelFilter;
+	                }
+	                if (m.eventPackageNameFilterEnabled != null && m.hasOwnProperty("eventPackageNameFilterEnabled")) {
+	                    d.eventPackageNameFilterEnabled = m.eventPackageNameFilterEnabled;
 	                }
 	                return d;
 	            };
@@ -28010,6 +28509,8 @@ function requireProtos$1 () {
 	             * @memberof perfetto.protos
 	             * @interface IEtwConfig
 	             * @property {Array.<perfetto.protos.EtwConfig.KernelFlag>|null} [kernelFlags] EtwConfig kernelFlags
+	             * @property {Array.<string>|null} [schedulerProviderEvents] EtwConfig schedulerProviderEvents
+	             * @property {Array.<string>|null} [memoryProviderEvents] EtwConfig memoryProviderEvents
 	             */
 
 	            /**
@@ -28022,6 +28523,8 @@ function requireProtos$1 () {
 	             */
 	            function EtwConfig(p) {
 	                this.kernelFlags = [];
+	                this.schedulerProviderEvents = [];
+	                this.memoryProviderEvents = [];
 	                if (p)
 	                    for (var ks = Object.keys(p), i = 0; i < ks.length; ++i)
 	                        if (p[ks[i]] != null)
@@ -28035,6 +28538,22 @@ function requireProtos$1 () {
 	             * @instance
 	             */
 	            EtwConfig.prototype.kernelFlags = $util.emptyArray;
+
+	            /**
+	             * EtwConfig schedulerProviderEvents.
+	             * @member {Array.<string>} schedulerProviderEvents
+	             * @memberof perfetto.protos.EtwConfig
+	             * @instance
+	             */
+	            EtwConfig.prototype.schedulerProviderEvents = $util.emptyArray;
+
+	            /**
+	             * EtwConfig memoryProviderEvents.
+	             * @member {Array.<string>} memoryProviderEvents
+	             * @memberof perfetto.protos.EtwConfig
+	             * @instance
+	             */
+	            EtwConfig.prototype.memoryProviderEvents = $util.emptyArray;
 
 	            /**
 	             * Creates a new EtwConfig instance using the specified properties.
@@ -28063,6 +28582,14 @@ function requireProtos$1 () {
 	                if (m.kernelFlags != null && m.kernelFlags.length) {
 	                    for (var i = 0; i < m.kernelFlags.length; ++i)
 	                        w.uint32(8).int32(m.kernelFlags[i]);
+	                }
+	                if (m.schedulerProviderEvents != null && m.schedulerProviderEvents.length) {
+	                    for (var i = 0; i < m.schedulerProviderEvents.length; ++i)
+	                        w.uint32(18).string(m.schedulerProviderEvents[i]);
+	                }
+	                if (m.memoryProviderEvents != null && m.memoryProviderEvents.length) {
+	                    for (var i = 0; i < m.memoryProviderEvents.length; ++i)
+	                        w.uint32(26).string(m.memoryProviderEvents[i]);
 	                }
 	                return w;
 	            };
@@ -28094,6 +28621,18 @@ function requireProtos$1 () {
 	                                    m.kernelFlags.push(r.int32());
 	                            } else
 	                                m.kernelFlags.push(r.int32());
+	                            break;
+	                        }
+	                    case 2: {
+	                            if (!(m.schedulerProviderEvents && m.schedulerProviderEvents.length))
+	                                m.schedulerProviderEvents = [];
+	                            m.schedulerProviderEvents.push(r.string());
+	                            break;
+	                        }
+	                    case 3: {
+	                            if (!(m.memoryProviderEvents && m.memoryProviderEvents.length))
+	                                m.memoryProviderEvents = [];
+	                            m.memoryProviderEvents.push(r.string());
 	                            break;
 	                        }
 	                    default:
@@ -28138,6 +28677,22 @@ function requireProtos$1 () {
 	                        }
 	                    }
 	                }
+	                if (d.schedulerProviderEvents) {
+	                    if (!Array.isArray(d.schedulerProviderEvents))
+	                        throw TypeError(".perfetto.protos.EtwConfig.schedulerProviderEvents: array expected");
+	                    m.schedulerProviderEvents = [];
+	                    for (var i = 0; i < d.schedulerProviderEvents.length; ++i) {
+	                        m.schedulerProviderEvents[i] = String(d.schedulerProviderEvents[i]);
+	                    }
+	                }
+	                if (d.memoryProviderEvents) {
+	                    if (!Array.isArray(d.memoryProviderEvents))
+	                        throw TypeError(".perfetto.protos.EtwConfig.memoryProviderEvents: array expected");
+	                    m.memoryProviderEvents = [];
+	                    for (var i = 0; i < d.memoryProviderEvents.length; ++i) {
+	                        m.memoryProviderEvents[i] = String(d.memoryProviderEvents[i]);
+	                    }
+	                }
 	                return m;
 	            };
 
@@ -28156,11 +28711,25 @@ function requireProtos$1 () {
 	                var d = {};
 	                if (o.arrays || o.defaults) {
 	                    d.kernelFlags = [];
+	                    d.schedulerProviderEvents = [];
+	                    d.memoryProviderEvents = [];
 	                }
 	                if (m.kernelFlags && m.kernelFlags.length) {
 	                    d.kernelFlags = [];
 	                    for (var j = 0; j < m.kernelFlags.length; ++j) {
 	                        d.kernelFlags[j] = o.enums === String ? $root.perfetto.protos.EtwConfig.KernelFlag[m.kernelFlags[j]] === undefined ? m.kernelFlags[j] : $root.perfetto.protos.EtwConfig.KernelFlag[m.kernelFlags[j]] : m.kernelFlags[j];
+	                    }
+	                }
+	                if (m.schedulerProviderEvents && m.schedulerProviderEvents.length) {
+	                    d.schedulerProviderEvents = [];
+	                    for (var j = 0; j < m.schedulerProviderEvents.length; ++j) {
+	                        d.schedulerProviderEvents[j] = m.schedulerProviderEvents[j];
+	                    }
+	                }
+	                if (m.memoryProviderEvents && m.memoryProviderEvents.length) {
+	                    d.memoryProviderEvents = [];
+	                    for (var j = 0; j < m.memoryProviderEvents.length; ++j) {
+	                        d.memoryProviderEvents[j] = m.memoryProviderEvents[j];
 	                    }
 	                }
 	                return d;
@@ -28376,28 +28945,33 @@ function requireProtos$1 () {
 	             * @memberof perfetto.protos
 	             * @interface IFtraceConfig
 	             * @property {Array.<string>|null} [ftraceEvents] FtraceConfig ftraceEvents
-	             * @property {Array.<perfetto.protos.FtraceConfig.IKprobeEvent>|null} [kprobeEvents] FtraceConfig kprobeEvents
 	             * @property {Array.<string>|null} [atraceCategories] FtraceConfig atraceCategories
 	             * @property {Array.<string>|null} [atraceApps] FtraceConfig atraceApps
 	             * @property {Array.<string>|null} [atraceCategoriesPreferSdk] FtraceConfig atraceCategoriesPreferSdk
+	             * @property {boolean|null} [atraceUserspaceOnly] FtraceConfig atraceUserspaceOnly
 	             * @property {number|null} [bufferSizeKb] FtraceConfig bufferSizeKb
+	             * @property {boolean|null} [bufferSizeLowerBound] FtraceConfig bufferSizeLowerBound
 	             * @property {number|null} [drainPeriodMs] FtraceConfig drainPeriodMs
 	             * @property {number|null} [drainBufferPercent] FtraceConfig drainBufferPercent
 	             * @property {perfetto.protos.FtraceConfig.ICompactSchedConfig|null} [compactSched] FtraceConfig compactSched
 	             * @property {perfetto.protos.FtraceConfig.IPrintFilter|null} [printFilter] FtraceConfig printFilter
 	             * @property {boolean|null} [symbolizeKsyms] FtraceConfig symbolizeKsyms
 	             * @property {perfetto.protos.FtraceConfig.KsymsMemPolicy|null} [ksymsMemPolicy] FtraceConfig ksymsMemPolicy
-	             * @property {boolean|null} [initializeKsymsSynchronouslyForTesting] FtraceConfig initializeKsymsSynchronouslyForTesting
 	             * @property {boolean|null} [throttleRssStat] FtraceConfig throttleRssStat
+	             * @property {boolean|null} [denserGenericEventEncoding] FtraceConfig denserGenericEventEncoding
 	             * @property {boolean|null} [disableGenericEvents] FtraceConfig disableGenericEvents
 	             * @property {Array.<string>|null} [syscallEvents] FtraceConfig syscallEvents
 	             * @property {boolean|null} [enableFunctionGraph] FtraceConfig enableFunctionGraph
 	             * @property {Array.<string>|null} [functionFilters] FtraceConfig functionFilters
 	             * @property {Array.<string>|null} [functionGraphRoots] FtraceConfig functionGraphRoots
+	             * @property {number|null} [functionGraphMaxDepth] FtraceConfig functionGraphMaxDepth
+	             * @property {Array.<perfetto.protos.FtraceConfig.IKprobeEvent>|null} [kprobeEvents] FtraceConfig kprobeEvents
 	             * @property {boolean|null} [preserveFtraceBuffer] FtraceConfig preserveFtraceBuffer
 	             * @property {boolean|null} [useMonotonicRawClock] FtraceConfig useMonotonicRawClock
 	             * @property {string|null} [instanceName] FtraceConfig instanceName
-	             * @property {boolean|null} [bufferSizeLowerBound] FtraceConfig bufferSizeLowerBound
+	             * @property {boolean|null} [debugFtraceAbi] FtraceConfig debugFtraceAbi
+	             * @property {Array.<number>|null} [tidsToTrace] FtraceConfig tidsToTrace
+	             * @property {boolean|null} [initializeKsymsSynchronouslyForTesting] FtraceConfig initializeKsymsSynchronouslyForTesting
 	             */
 
 	            /**
@@ -28410,13 +28984,14 @@ function requireProtos$1 () {
 	             */
 	            function FtraceConfig(p) {
 	                this.ftraceEvents = [];
-	                this.kprobeEvents = [];
 	                this.atraceCategories = [];
 	                this.atraceApps = [];
 	                this.atraceCategoriesPreferSdk = [];
 	                this.syscallEvents = [];
 	                this.functionFilters = [];
 	                this.functionGraphRoots = [];
+	                this.kprobeEvents = [];
+	                this.tidsToTrace = [];
 	                if (p)
 	                    for (var ks = Object.keys(p), i = 0; i < ks.length; ++i)
 	                        if (p[ks[i]] != null)
@@ -28430,14 +29005,6 @@ function requireProtos$1 () {
 	             * @instance
 	             */
 	            FtraceConfig.prototype.ftraceEvents = $util.emptyArray;
-
-	            /**
-	             * FtraceConfig kprobeEvents.
-	             * @member {Array.<perfetto.protos.FtraceConfig.IKprobeEvent>} kprobeEvents
-	             * @memberof perfetto.protos.FtraceConfig
-	             * @instance
-	             */
-	            FtraceConfig.prototype.kprobeEvents = $util.emptyArray;
 
 	            /**
 	             * FtraceConfig atraceCategories.
@@ -28464,12 +29031,28 @@ function requireProtos$1 () {
 	            FtraceConfig.prototype.atraceCategoriesPreferSdk = $util.emptyArray;
 
 	            /**
+	             * FtraceConfig atraceUserspaceOnly.
+	             * @member {boolean} atraceUserspaceOnly
+	             * @memberof perfetto.protos.FtraceConfig
+	             * @instance
+	             */
+	            FtraceConfig.prototype.atraceUserspaceOnly = false;
+
+	            /**
 	             * FtraceConfig bufferSizeKb.
 	             * @member {number} bufferSizeKb
 	             * @memberof perfetto.protos.FtraceConfig
 	             * @instance
 	             */
 	            FtraceConfig.prototype.bufferSizeKb = 0;
+
+	            /**
+	             * FtraceConfig bufferSizeLowerBound.
+	             * @member {boolean} bufferSizeLowerBound
+	             * @memberof perfetto.protos.FtraceConfig
+	             * @instance
+	             */
+	            FtraceConfig.prototype.bufferSizeLowerBound = false;
 
 	            /**
 	             * FtraceConfig drainPeriodMs.
@@ -28520,20 +29103,20 @@ function requireProtos$1 () {
 	            FtraceConfig.prototype.ksymsMemPolicy = 0;
 
 	            /**
-	             * FtraceConfig initializeKsymsSynchronouslyForTesting.
-	             * @member {boolean} initializeKsymsSynchronouslyForTesting
-	             * @memberof perfetto.protos.FtraceConfig
-	             * @instance
-	             */
-	            FtraceConfig.prototype.initializeKsymsSynchronouslyForTesting = false;
-
-	            /**
 	             * FtraceConfig throttleRssStat.
 	             * @member {boolean} throttleRssStat
 	             * @memberof perfetto.protos.FtraceConfig
 	             * @instance
 	             */
 	            FtraceConfig.prototype.throttleRssStat = false;
+
+	            /**
+	             * FtraceConfig denserGenericEventEncoding.
+	             * @member {boolean} denserGenericEventEncoding
+	             * @memberof perfetto.protos.FtraceConfig
+	             * @instance
+	             */
+	            FtraceConfig.prototype.denserGenericEventEncoding = false;
 
 	            /**
 	             * FtraceConfig disableGenericEvents.
@@ -28576,6 +29159,22 @@ function requireProtos$1 () {
 	            FtraceConfig.prototype.functionGraphRoots = $util.emptyArray;
 
 	            /**
+	             * FtraceConfig functionGraphMaxDepth.
+	             * @member {number} functionGraphMaxDepth
+	             * @memberof perfetto.protos.FtraceConfig
+	             * @instance
+	             */
+	            FtraceConfig.prototype.functionGraphMaxDepth = 0;
+
+	            /**
+	             * FtraceConfig kprobeEvents.
+	             * @member {Array.<perfetto.protos.FtraceConfig.IKprobeEvent>} kprobeEvents
+	             * @memberof perfetto.protos.FtraceConfig
+	             * @instance
+	             */
+	            FtraceConfig.prototype.kprobeEvents = $util.emptyArray;
+
+	            /**
 	             * FtraceConfig preserveFtraceBuffer.
 	             * @member {boolean} preserveFtraceBuffer
 	             * @memberof perfetto.protos.FtraceConfig
@@ -28600,12 +29199,28 @@ function requireProtos$1 () {
 	            FtraceConfig.prototype.instanceName = "";
 
 	            /**
-	             * FtraceConfig bufferSizeLowerBound.
-	             * @member {boolean} bufferSizeLowerBound
+	             * FtraceConfig debugFtraceAbi.
+	             * @member {boolean} debugFtraceAbi
 	             * @memberof perfetto.protos.FtraceConfig
 	             * @instance
 	             */
-	            FtraceConfig.prototype.bufferSizeLowerBound = false;
+	            FtraceConfig.prototype.debugFtraceAbi = false;
+
+	            /**
+	             * FtraceConfig tidsToTrace.
+	             * @member {Array.<number>} tidsToTrace
+	             * @memberof perfetto.protos.FtraceConfig
+	             * @instance
+	             */
+	            FtraceConfig.prototype.tidsToTrace = $util.emptyArray;
+
+	            /**
+	             * FtraceConfig initializeKsymsSynchronouslyForTesting.
+	             * @member {boolean} initializeKsymsSynchronouslyForTesting
+	             * @memberof perfetto.protos.FtraceConfig
+	             * @instance
+	             */
+	            FtraceConfig.prototype.initializeKsymsSynchronouslyForTesting = false;
 
 	            /**
 	             * Creates a new FtraceConfig instance using the specified properties.
@@ -28693,6 +29308,18 @@ function requireProtos$1 () {
 	                    for (var i = 0; i < m.kprobeEvents.length; ++i)
 	                        $root.perfetto.protos.FtraceConfig.KprobeEvent.encode(m.kprobeEvents[i], w.uint32(242).fork()).ldelim();
 	                }
+	                if (m.debugFtraceAbi != null && Object.hasOwnProperty.call(m, "debugFtraceAbi"))
+	                    w.uint32(248).bool(m.debugFtraceAbi);
+	                if (m.denserGenericEventEncoding != null && Object.hasOwnProperty.call(m, "denserGenericEventEncoding"))
+	                    w.uint32(256).bool(m.denserGenericEventEncoding);
+	                if (m.functionGraphMaxDepth != null && Object.hasOwnProperty.call(m, "functionGraphMaxDepth"))
+	                    w.uint32(264).uint32(m.functionGraphMaxDepth);
+	                if (m.atraceUserspaceOnly != null && Object.hasOwnProperty.call(m, "atraceUserspaceOnly"))
+	                    w.uint32(272).bool(m.atraceUserspaceOnly);
+	                if (m.tidsToTrace != null && m.tidsToTrace.length) {
+	                    for (var i = 0; i < m.tidsToTrace.length; ++i)
+	                        w.uint32(280).uint32(m.tidsToTrace[i]);
+	                }
 	                return w;
 	            };
 
@@ -28720,12 +29347,6 @@ function requireProtos$1 () {
 	                            m.ftraceEvents.push(r.string());
 	                            break;
 	                        }
-	                    case 30: {
-	                            if (!(m.kprobeEvents && m.kprobeEvents.length))
-	                                m.kprobeEvents = [];
-	                            m.kprobeEvents.push($root.perfetto.protos.FtraceConfig.KprobeEvent.decode(r, r.uint32()));
-	                            break;
-	                        }
 	                    case 2: {
 	                            if (!(m.atraceCategories && m.atraceCategories.length))
 	                                m.atraceCategories = [];
@@ -28744,8 +29365,16 @@ function requireProtos$1 () {
 	                            m.atraceCategoriesPreferSdk.push(r.string());
 	                            break;
 	                        }
+	                    case 34: {
+	                            m.atraceUserspaceOnly = r.bool();
+	                            break;
+	                        }
 	                    case 10: {
 	                            m.bufferSizeKb = r.uint32();
+	                            break;
+	                        }
+	                    case 27: {
+	                            m.bufferSizeLowerBound = r.bool();
 	                            break;
 	                        }
 	                    case 11: {
@@ -28772,12 +29401,12 @@ function requireProtos$1 () {
 	                            m.ksymsMemPolicy = r.int32();
 	                            break;
 	                        }
-	                    case 14: {
-	                            m.initializeKsymsSynchronouslyForTesting = r.bool();
-	                            break;
-	                        }
 	                    case 15: {
 	                            m.throttleRssStat = r.bool();
+	                            break;
+	                        }
+	                    case 32: {
+	                            m.denserGenericEventEncoding = r.bool();
 	                            break;
 	                        }
 	                    case 16: {
@@ -28806,6 +29435,16 @@ function requireProtos$1 () {
 	                            m.functionGraphRoots.push(r.string());
 	                            break;
 	                        }
+	                    case 33: {
+	                            m.functionGraphMaxDepth = r.uint32();
+	                            break;
+	                        }
+	                    case 30: {
+	                            if (!(m.kprobeEvents && m.kprobeEvents.length))
+	                                m.kprobeEvents = [];
+	                            m.kprobeEvents.push($root.perfetto.protos.FtraceConfig.KprobeEvent.decode(r, r.uint32()));
+	                            break;
+	                        }
 	                    case 23: {
 	                            m.preserveFtraceBuffer = r.bool();
 	                            break;
@@ -28818,8 +29457,23 @@ function requireProtos$1 () {
 	                            m.instanceName = r.string();
 	                            break;
 	                        }
-	                    case 27: {
-	                            m.bufferSizeLowerBound = r.bool();
+	                    case 31: {
+	                            m.debugFtraceAbi = r.bool();
+	                            break;
+	                        }
+	                    case 35: {
+	                            if (!(m.tidsToTrace && m.tidsToTrace.length))
+	                                m.tidsToTrace = [];
+	                            if ((t & 7) === 2) {
+	                                var c2 = r.uint32() + r.pos;
+	                                while (r.pos < c2)
+	                                    m.tidsToTrace.push(r.uint32());
+	                            } else
+	                                m.tidsToTrace.push(r.uint32());
+	                            break;
+	                        }
+	                    case 14: {
+	                            m.initializeKsymsSynchronouslyForTesting = r.bool();
 	                            break;
 	                        }
 	                    default:
@@ -28850,16 +29504,6 @@ function requireProtos$1 () {
 	                        m.ftraceEvents[i] = String(d.ftraceEvents[i]);
 	                    }
 	                }
-	                if (d.kprobeEvents) {
-	                    if (!Array.isArray(d.kprobeEvents))
-	                        throw TypeError(".perfetto.protos.FtraceConfig.kprobeEvents: array expected");
-	                    m.kprobeEvents = [];
-	                    for (var i = 0; i < d.kprobeEvents.length; ++i) {
-	                        if (typeof d.kprobeEvents[i] !== "object")
-	                            throw TypeError(".perfetto.protos.FtraceConfig.kprobeEvents: object expected");
-	                        m.kprobeEvents[i] = $root.perfetto.protos.FtraceConfig.KprobeEvent.fromObject(d.kprobeEvents[i]);
-	                    }
-	                }
 	                if (d.atraceCategories) {
 	                    if (!Array.isArray(d.atraceCategories))
 	                        throw TypeError(".perfetto.protos.FtraceConfig.atraceCategories: array expected");
@@ -28884,8 +29528,14 @@ function requireProtos$1 () {
 	                        m.atraceCategoriesPreferSdk[i] = String(d.atraceCategoriesPreferSdk[i]);
 	                    }
 	                }
+	                if (d.atraceUserspaceOnly != null) {
+	                    m.atraceUserspaceOnly = Boolean(d.atraceUserspaceOnly);
+	                }
 	                if (d.bufferSizeKb != null) {
 	                    m.bufferSizeKb = d.bufferSizeKb >>> 0;
+	                }
+	                if (d.bufferSizeLowerBound != null) {
+	                    m.bufferSizeLowerBound = Boolean(d.bufferSizeLowerBound);
 	                }
 	                if (d.drainPeriodMs != null) {
 	                    m.drainPeriodMs = d.drainPeriodMs >>> 0;
@@ -28926,11 +29576,11 @@ function requireProtos$1 () {
 	                    m.ksymsMemPolicy = 2;
 	                    break;
 	                }
-	                if (d.initializeKsymsSynchronouslyForTesting != null) {
-	                    m.initializeKsymsSynchronouslyForTesting = Boolean(d.initializeKsymsSynchronouslyForTesting);
-	                }
 	                if (d.throttleRssStat != null) {
 	                    m.throttleRssStat = Boolean(d.throttleRssStat);
+	                }
+	                if (d.denserGenericEventEncoding != null) {
+	                    m.denserGenericEventEncoding = Boolean(d.denserGenericEventEncoding);
 	                }
 	                if (d.disableGenericEvents != null) {
 	                    m.disableGenericEvents = Boolean(d.disableGenericEvents);
@@ -28962,6 +29612,19 @@ function requireProtos$1 () {
 	                        m.functionGraphRoots[i] = String(d.functionGraphRoots[i]);
 	                    }
 	                }
+	                if (d.functionGraphMaxDepth != null) {
+	                    m.functionGraphMaxDepth = d.functionGraphMaxDepth >>> 0;
+	                }
+	                if (d.kprobeEvents) {
+	                    if (!Array.isArray(d.kprobeEvents))
+	                        throw TypeError(".perfetto.protos.FtraceConfig.kprobeEvents: array expected");
+	                    m.kprobeEvents = [];
+	                    for (var i = 0; i < d.kprobeEvents.length; ++i) {
+	                        if (typeof d.kprobeEvents[i] !== "object")
+	                            throw TypeError(".perfetto.protos.FtraceConfig.kprobeEvents: object expected");
+	                        m.kprobeEvents[i] = $root.perfetto.protos.FtraceConfig.KprobeEvent.fromObject(d.kprobeEvents[i]);
+	                    }
+	                }
 	                if (d.preserveFtraceBuffer != null) {
 	                    m.preserveFtraceBuffer = Boolean(d.preserveFtraceBuffer);
 	                }
@@ -28971,8 +29634,19 @@ function requireProtos$1 () {
 	                if (d.instanceName != null) {
 	                    m.instanceName = String(d.instanceName);
 	                }
-	                if (d.bufferSizeLowerBound != null) {
-	                    m.bufferSizeLowerBound = Boolean(d.bufferSizeLowerBound);
+	                if (d.debugFtraceAbi != null) {
+	                    m.debugFtraceAbi = Boolean(d.debugFtraceAbi);
+	                }
+	                if (d.tidsToTrace) {
+	                    if (!Array.isArray(d.tidsToTrace))
+	                        throw TypeError(".perfetto.protos.FtraceConfig.tidsToTrace: array expected");
+	                    m.tidsToTrace = [];
+	                    for (var i = 0; i < d.tidsToTrace.length; ++i) {
+	                        m.tidsToTrace[i] = d.tidsToTrace[i] >>> 0;
+	                    }
+	                }
+	                if (d.initializeKsymsSynchronouslyForTesting != null) {
+	                    m.initializeKsymsSynchronouslyForTesting = Boolean(d.initializeKsymsSynchronouslyForTesting);
 	                }
 	                return m;
 	            };
@@ -28999,6 +29673,7 @@ function requireProtos$1 () {
 	                    d.functionGraphRoots = [];
 	                    d.atraceCategoriesPreferSdk = [];
 	                    d.kprobeEvents = [];
+	                    d.tidsToTrace = [];
 	                }
 	                if (o.defaults) {
 	                    d.bufferSizeKb = 0;
@@ -29016,6 +29691,10 @@ function requireProtos$1 () {
 	                    d.instanceName = "";
 	                    d.bufferSizeLowerBound = false;
 	                    d.drainBufferPercent = 0;
+	                    d.debugFtraceAbi = false;
+	                    d.denserGenericEventEncoding = false;
+	                    d.functionGraphMaxDepth = 0;
+	                    d.atraceUserspaceOnly = false;
 	                }
 	                if (m.ftraceEvents && m.ftraceEvents.length) {
 	                    d.ftraceEvents = [];
@@ -29110,6 +29789,24 @@ function requireProtos$1 () {
 	                        d.kprobeEvents[j] = $root.perfetto.protos.FtraceConfig.KprobeEvent.toObject(m.kprobeEvents[j], o);
 	                    }
 	                }
+	                if (m.debugFtraceAbi != null && m.hasOwnProperty("debugFtraceAbi")) {
+	                    d.debugFtraceAbi = m.debugFtraceAbi;
+	                }
+	                if (m.denserGenericEventEncoding != null && m.hasOwnProperty("denserGenericEventEncoding")) {
+	                    d.denserGenericEventEncoding = m.denserGenericEventEncoding;
+	                }
+	                if (m.functionGraphMaxDepth != null && m.hasOwnProperty("functionGraphMaxDepth")) {
+	                    d.functionGraphMaxDepth = m.functionGraphMaxDepth;
+	                }
+	                if (m.atraceUserspaceOnly != null && m.hasOwnProperty("atraceUserspaceOnly")) {
+	                    d.atraceUserspaceOnly = m.atraceUserspaceOnly;
+	                }
+	                if (m.tidsToTrace && m.tidsToTrace.length) {
+	                    d.tidsToTrace = [];
+	                    for (var j = 0; j < m.tidsToTrace.length; ++j) {
+	                        d.tidsToTrace[j] = m.tidsToTrace[j];
+	                    }
+	                }
 	                return d;
 	            };
 
@@ -29138,227 +29835,6 @@ function requireProtos$1 () {
 	                }
 	                return typeUrlPrefix + "/perfetto.protos.FtraceConfig";
 	            };
-
-	            FtraceConfig.KprobeEvent = (function() {
-
-	                /**
-	                 * Properties of a KprobeEvent.
-	                 * @memberof perfetto.protos.FtraceConfig
-	                 * @interface IKprobeEvent
-	                 * @property {string|null} [probe] KprobeEvent probe
-	                 * @property {perfetto.protos.FtraceConfig.KprobeEvent.KprobeType|null} [type] KprobeEvent type
-	                 */
-
-	                /**
-	                 * Constructs a new KprobeEvent.
-	                 * @memberof perfetto.protos.FtraceConfig
-	                 * @classdesc Represents a KprobeEvent.
-	                 * @implements IKprobeEvent
-	                 * @constructor
-	                 * @param {perfetto.protos.FtraceConfig.IKprobeEvent=} [p] Properties to set
-	                 */
-	                function KprobeEvent(p) {
-	                    if (p)
-	                        for (var ks = Object.keys(p), i = 0; i < ks.length; ++i)
-	                            if (p[ks[i]] != null)
-	                                this[ks[i]] = p[ks[i]];
-	                }
-
-	                /**
-	                 * KprobeEvent probe.
-	                 * @member {string} probe
-	                 * @memberof perfetto.protos.FtraceConfig.KprobeEvent
-	                 * @instance
-	                 */
-	                KprobeEvent.prototype.probe = "";
-
-	                /**
-	                 * KprobeEvent type.
-	                 * @member {perfetto.protos.FtraceConfig.KprobeEvent.KprobeType} type
-	                 * @memberof perfetto.protos.FtraceConfig.KprobeEvent
-	                 * @instance
-	                 */
-	                KprobeEvent.prototype.type = 0;
-
-	                /**
-	                 * Creates a new KprobeEvent instance using the specified properties.
-	                 * @function create
-	                 * @memberof perfetto.protos.FtraceConfig.KprobeEvent
-	                 * @static
-	                 * @param {perfetto.protos.FtraceConfig.IKprobeEvent=} [properties] Properties to set
-	                 * @returns {perfetto.protos.FtraceConfig.KprobeEvent} KprobeEvent instance
-	                 */
-	                KprobeEvent.create = function create(properties) {
-	                    return new KprobeEvent(properties);
-	                };
-
-	                /**
-	                 * Encodes the specified KprobeEvent message. Does not implicitly {@link perfetto.protos.FtraceConfig.KprobeEvent.verify|verify} messages.
-	                 * @function encode
-	                 * @memberof perfetto.protos.FtraceConfig.KprobeEvent
-	                 * @static
-	                 * @param {perfetto.protos.FtraceConfig.IKprobeEvent} m KprobeEvent message or plain object to encode
-	                 * @param {$protobuf.Writer} [w] Writer to encode to
-	                 * @returns {$protobuf.Writer} Writer
-	                 */
-	                KprobeEvent.encode = function encode(m, w) {
-	                    if (!w)
-	                        w = $Writer.create();
-	                    if (m.probe != null && Object.hasOwnProperty.call(m, "probe"))
-	                        w.uint32(10).string(m.probe);
-	                    if (m.type != null && Object.hasOwnProperty.call(m, "type"))
-	                        w.uint32(16).int32(m.type);
-	                    return w;
-	                };
-
-	                /**
-	                 * Decodes a KprobeEvent message from the specified reader or buffer.
-	                 * @function decode
-	                 * @memberof perfetto.protos.FtraceConfig.KprobeEvent
-	                 * @static
-	                 * @param {$protobuf.Reader|Uint8Array} r Reader or buffer to decode from
-	                 * @param {number} [l] Message length if known beforehand
-	                 * @returns {perfetto.protos.FtraceConfig.KprobeEvent} KprobeEvent
-	                 * @throws {Error} If the payload is not a reader or valid buffer
-	                 * @throws {$protobuf.util.ProtocolError} If required fields are missing
-	                 */
-	                KprobeEvent.decode = function decode(r, l) {
-	                    if (!(r instanceof $Reader))
-	                        r = $Reader.create(r);
-	                    var c = l === undefined ? r.len : r.pos + l, m = new $root.perfetto.protos.FtraceConfig.KprobeEvent();
-	                    while (r.pos < c) {
-	                        var t = r.uint32();
-	                        switch (t >>> 3) {
-	                        case 1: {
-	                                m.probe = r.string();
-	                                break;
-	                            }
-	                        case 2: {
-	                                m.type = r.int32();
-	                                break;
-	                            }
-	                        default:
-	                            r.skipType(t & 7);
-	                            break;
-	                        }
-	                    }
-	                    return m;
-	                };
-
-	                /**
-	                 * Creates a KprobeEvent message from a plain object. Also converts values to their respective internal types.
-	                 * @function fromObject
-	                 * @memberof perfetto.protos.FtraceConfig.KprobeEvent
-	                 * @static
-	                 * @param {Object.<string,*>} d Plain object
-	                 * @returns {perfetto.protos.FtraceConfig.KprobeEvent} KprobeEvent
-	                 */
-	                KprobeEvent.fromObject = function fromObject(d) {
-	                    if (d instanceof $root.perfetto.protos.FtraceConfig.KprobeEvent)
-	                        return d;
-	                    var m = new $root.perfetto.protos.FtraceConfig.KprobeEvent();
-	                    if (d.probe != null) {
-	                        m.probe = String(d.probe);
-	                    }
-	                    switch (d.type) {
-	                    default:
-	                        if (typeof d.type === "number") {
-	                            m.type = d.type;
-	                            break;
-	                        }
-	                        break;
-	                    case "KPROBE_TYPE_UNKNOWN":
-	                    case 0:
-	                        m.type = 0;
-	                        break;
-	                    case "KPROBE_TYPE_KPROBE":
-	                    case 1:
-	                        m.type = 1;
-	                        break;
-	                    case "KPROBE_TYPE_KRETPROBE":
-	                    case 2:
-	                        m.type = 2;
-	                        break;
-	                    case "KPROBE_TYPE_BOTH":
-	                    case 3:
-	                        m.type = 3;
-	                        break;
-	                    }
-	                    return m;
-	                };
-
-	                /**
-	                 * Creates a plain object from a KprobeEvent message. Also converts values to other types if specified.
-	                 * @function toObject
-	                 * @memberof perfetto.protos.FtraceConfig.KprobeEvent
-	                 * @static
-	                 * @param {perfetto.protos.FtraceConfig.KprobeEvent} m KprobeEvent
-	                 * @param {$protobuf.IConversionOptions} [o] Conversion options
-	                 * @returns {Object.<string,*>} Plain object
-	                 */
-	                KprobeEvent.toObject = function toObject(m, o) {
-	                    if (!o)
-	                        o = {};
-	                    var d = {};
-	                    if (o.defaults) {
-	                        d.probe = "";
-	                        d.type = o.enums === String ? "KPROBE_TYPE_UNKNOWN" : 0;
-	                    }
-	                    if (m.probe != null && m.hasOwnProperty("probe")) {
-	                        d.probe = m.probe;
-	                    }
-	                    if (m.type != null && m.hasOwnProperty("type")) {
-	                        d.type = o.enums === String ? $root.perfetto.protos.FtraceConfig.KprobeEvent.KprobeType[m.type] === undefined ? m.type : $root.perfetto.protos.FtraceConfig.KprobeEvent.KprobeType[m.type] : m.type;
-	                    }
-	                    return d;
-	                };
-
-	                /**
-	                 * Converts this KprobeEvent to JSON.
-	                 * @function toJSON
-	                 * @memberof perfetto.protos.FtraceConfig.KprobeEvent
-	                 * @instance
-	                 * @returns {Object.<string,*>} JSON object
-	                 */
-	                KprobeEvent.prototype.toJSON = function toJSON() {
-	                    return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
-	                };
-
-	                /**
-	                 * Gets the default type url for KprobeEvent
-	                 * @function getTypeUrl
-	                 * @memberof perfetto.protos.FtraceConfig.KprobeEvent
-	                 * @static
-	                 * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-	                 * @returns {string} The default type url
-	                 */
-	                KprobeEvent.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-	                    if (typeUrlPrefix === undefined) {
-	                        typeUrlPrefix = "type.googleapis.com";
-	                    }
-	                    return typeUrlPrefix + "/perfetto.protos.FtraceConfig.KprobeEvent";
-	                };
-
-	                /**
-	                 * KprobeType enum.
-	                 * @name perfetto.protos.FtraceConfig.KprobeEvent.KprobeType
-	                 * @enum {number}
-	                 * @property {number} KPROBE_TYPE_UNKNOWN=0 KPROBE_TYPE_UNKNOWN value
-	                 * @property {number} KPROBE_TYPE_KPROBE=1 KPROBE_TYPE_KPROBE value
-	                 * @property {number} KPROBE_TYPE_KRETPROBE=2 KPROBE_TYPE_KRETPROBE value
-	                 * @property {number} KPROBE_TYPE_BOTH=3 KPROBE_TYPE_BOTH value
-	                 */
-	                KprobeEvent.KprobeType = (function() {
-	                    var valuesById = {}, values = Object.create(valuesById);
-	                    values[valuesById[0] = "KPROBE_TYPE_UNKNOWN"] = 0;
-	                    values[valuesById[1] = "KPROBE_TYPE_KPROBE"] = 1;
-	                    values[valuesById[2] = "KPROBE_TYPE_KRETPROBE"] = 2;
-	                    values[valuesById[3] = "KPROBE_TYPE_BOTH"] = 3;
-	                    return values;
-	                })();
-
-	                return KprobeEvent;
-	            })();
 
 	            FtraceConfig.CompactSchedConfig = (function() {
 
@@ -30115,7 +30591,388 @@ function requireProtos$1 () {
 	                return values;
 	            })();
 
+	            FtraceConfig.KprobeEvent = (function() {
+
+	                /**
+	                 * Properties of a KprobeEvent.
+	                 * @memberof perfetto.protos.FtraceConfig
+	                 * @interface IKprobeEvent
+	                 * @property {string|null} [probe] KprobeEvent probe
+	                 * @property {perfetto.protos.FtraceConfig.KprobeEvent.KprobeType|null} [type] KprobeEvent type
+	                 */
+
+	                /**
+	                 * Constructs a new KprobeEvent.
+	                 * @memberof perfetto.protos.FtraceConfig
+	                 * @classdesc Represents a KprobeEvent.
+	                 * @implements IKprobeEvent
+	                 * @constructor
+	                 * @param {perfetto.protos.FtraceConfig.IKprobeEvent=} [p] Properties to set
+	                 */
+	                function KprobeEvent(p) {
+	                    if (p)
+	                        for (var ks = Object.keys(p), i = 0; i < ks.length; ++i)
+	                            if (p[ks[i]] != null)
+	                                this[ks[i]] = p[ks[i]];
+	                }
+
+	                /**
+	                 * KprobeEvent probe.
+	                 * @member {string} probe
+	                 * @memberof perfetto.protos.FtraceConfig.KprobeEvent
+	                 * @instance
+	                 */
+	                KprobeEvent.prototype.probe = "";
+
+	                /**
+	                 * KprobeEvent type.
+	                 * @member {perfetto.protos.FtraceConfig.KprobeEvent.KprobeType} type
+	                 * @memberof perfetto.protos.FtraceConfig.KprobeEvent
+	                 * @instance
+	                 */
+	                KprobeEvent.prototype.type = 0;
+
+	                /**
+	                 * Creates a new KprobeEvent instance using the specified properties.
+	                 * @function create
+	                 * @memberof perfetto.protos.FtraceConfig.KprobeEvent
+	                 * @static
+	                 * @param {perfetto.protos.FtraceConfig.IKprobeEvent=} [properties] Properties to set
+	                 * @returns {perfetto.protos.FtraceConfig.KprobeEvent} KprobeEvent instance
+	                 */
+	                KprobeEvent.create = function create(properties) {
+	                    return new KprobeEvent(properties);
+	                };
+
+	                /**
+	                 * Encodes the specified KprobeEvent message. Does not implicitly {@link perfetto.protos.FtraceConfig.KprobeEvent.verify|verify} messages.
+	                 * @function encode
+	                 * @memberof perfetto.protos.FtraceConfig.KprobeEvent
+	                 * @static
+	                 * @param {perfetto.protos.FtraceConfig.IKprobeEvent} m KprobeEvent message or plain object to encode
+	                 * @param {$protobuf.Writer} [w] Writer to encode to
+	                 * @returns {$protobuf.Writer} Writer
+	                 */
+	                KprobeEvent.encode = function encode(m, w) {
+	                    if (!w)
+	                        w = $Writer.create();
+	                    if (m.probe != null && Object.hasOwnProperty.call(m, "probe"))
+	                        w.uint32(10).string(m.probe);
+	                    if (m.type != null && Object.hasOwnProperty.call(m, "type"))
+	                        w.uint32(16).int32(m.type);
+	                    return w;
+	                };
+
+	                /**
+	                 * Decodes a KprobeEvent message from the specified reader or buffer.
+	                 * @function decode
+	                 * @memberof perfetto.protos.FtraceConfig.KprobeEvent
+	                 * @static
+	                 * @param {$protobuf.Reader|Uint8Array} r Reader or buffer to decode from
+	                 * @param {number} [l] Message length if known beforehand
+	                 * @returns {perfetto.protos.FtraceConfig.KprobeEvent} KprobeEvent
+	                 * @throws {Error} If the payload is not a reader or valid buffer
+	                 * @throws {$protobuf.util.ProtocolError} If required fields are missing
+	                 */
+	                KprobeEvent.decode = function decode(r, l) {
+	                    if (!(r instanceof $Reader))
+	                        r = $Reader.create(r);
+	                    var c = l === undefined ? r.len : r.pos + l, m = new $root.perfetto.protos.FtraceConfig.KprobeEvent();
+	                    while (r.pos < c) {
+	                        var t = r.uint32();
+	                        switch (t >>> 3) {
+	                        case 1: {
+	                                m.probe = r.string();
+	                                break;
+	                            }
+	                        case 2: {
+	                                m.type = r.int32();
+	                                break;
+	                            }
+	                        default:
+	                            r.skipType(t & 7);
+	                            break;
+	                        }
+	                    }
+	                    return m;
+	                };
+
+	                /**
+	                 * Creates a KprobeEvent message from a plain object. Also converts values to their respective internal types.
+	                 * @function fromObject
+	                 * @memberof perfetto.protos.FtraceConfig.KprobeEvent
+	                 * @static
+	                 * @param {Object.<string,*>} d Plain object
+	                 * @returns {perfetto.protos.FtraceConfig.KprobeEvent} KprobeEvent
+	                 */
+	                KprobeEvent.fromObject = function fromObject(d) {
+	                    if (d instanceof $root.perfetto.protos.FtraceConfig.KprobeEvent)
+	                        return d;
+	                    var m = new $root.perfetto.protos.FtraceConfig.KprobeEvent();
+	                    if (d.probe != null) {
+	                        m.probe = String(d.probe);
+	                    }
+	                    switch (d.type) {
+	                    default:
+	                        if (typeof d.type === "number") {
+	                            m.type = d.type;
+	                            break;
+	                        }
+	                        break;
+	                    case "KPROBE_TYPE_UNKNOWN":
+	                    case 0:
+	                        m.type = 0;
+	                        break;
+	                    case "KPROBE_TYPE_KPROBE":
+	                    case 1:
+	                        m.type = 1;
+	                        break;
+	                    case "KPROBE_TYPE_KRETPROBE":
+	                    case 2:
+	                        m.type = 2;
+	                        break;
+	                    case "KPROBE_TYPE_BOTH":
+	                    case 3:
+	                        m.type = 3;
+	                        break;
+	                    }
+	                    return m;
+	                };
+
+	                /**
+	                 * Creates a plain object from a KprobeEvent message. Also converts values to other types if specified.
+	                 * @function toObject
+	                 * @memberof perfetto.protos.FtraceConfig.KprobeEvent
+	                 * @static
+	                 * @param {perfetto.protos.FtraceConfig.KprobeEvent} m KprobeEvent
+	                 * @param {$protobuf.IConversionOptions} [o] Conversion options
+	                 * @returns {Object.<string,*>} Plain object
+	                 */
+	                KprobeEvent.toObject = function toObject(m, o) {
+	                    if (!o)
+	                        o = {};
+	                    var d = {};
+	                    if (o.defaults) {
+	                        d.probe = "";
+	                        d.type = o.enums === String ? "KPROBE_TYPE_UNKNOWN" : 0;
+	                    }
+	                    if (m.probe != null && m.hasOwnProperty("probe")) {
+	                        d.probe = m.probe;
+	                    }
+	                    if (m.type != null && m.hasOwnProperty("type")) {
+	                        d.type = o.enums === String ? $root.perfetto.protos.FtraceConfig.KprobeEvent.KprobeType[m.type] === undefined ? m.type : $root.perfetto.protos.FtraceConfig.KprobeEvent.KprobeType[m.type] : m.type;
+	                    }
+	                    return d;
+	                };
+
+	                /**
+	                 * Converts this KprobeEvent to JSON.
+	                 * @function toJSON
+	                 * @memberof perfetto.protos.FtraceConfig.KprobeEvent
+	                 * @instance
+	                 * @returns {Object.<string,*>} JSON object
+	                 */
+	                KprobeEvent.prototype.toJSON = function toJSON() {
+	                    return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+	                };
+
+	                /**
+	                 * Gets the default type url for KprobeEvent
+	                 * @function getTypeUrl
+	                 * @memberof perfetto.protos.FtraceConfig.KprobeEvent
+	                 * @static
+	                 * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+	                 * @returns {string} The default type url
+	                 */
+	                KprobeEvent.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+	                    if (typeUrlPrefix === undefined) {
+	                        typeUrlPrefix = "type.googleapis.com";
+	                    }
+	                    return typeUrlPrefix + "/perfetto.protos.FtraceConfig.KprobeEvent";
+	                };
+
+	                /**
+	                 * KprobeType enum.
+	                 * @name perfetto.protos.FtraceConfig.KprobeEvent.KprobeType
+	                 * @enum {number}
+	                 * @property {number} KPROBE_TYPE_UNKNOWN=0 KPROBE_TYPE_UNKNOWN value
+	                 * @property {number} KPROBE_TYPE_KPROBE=1 KPROBE_TYPE_KPROBE value
+	                 * @property {number} KPROBE_TYPE_KRETPROBE=2 KPROBE_TYPE_KRETPROBE value
+	                 * @property {number} KPROBE_TYPE_BOTH=3 KPROBE_TYPE_BOTH value
+	                 */
+	                KprobeEvent.KprobeType = (function() {
+	                    var valuesById = {}, values = Object.create(valuesById);
+	                    values[valuesById[0] = "KPROBE_TYPE_UNKNOWN"] = 0;
+	                    values[valuesById[1] = "KPROBE_TYPE_KPROBE"] = 1;
+	                    values[valuesById[2] = "KPROBE_TYPE_KRETPROBE"] = 2;
+	                    values[valuesById[3] = "KPROBE_TYPE_BOTH"] = 3;
+	                    return values;
+	                })();
+
+	                return KprobeEvent;
+	            })();
+
 	            return FtraceConfig;
+	        })();
+
+	        protos.FrozenFtraceConfig = (function() {
+
+	            /**
+	             * Properties of a FrozenFtraceConfig.
+	             * @memberof perfetto.protos
+	             * @interface IFrozenFtraceConfig
+	             * @property {string|null} [instanceName] FrozenFtraceConfig instanceName
+	             */
+
+	            /**
+	             * Constructs a new FrozenFtraceConfig.
+	             * @memberof perfetto.protos
+	             * @classdesc Represents a FrozenFtraceConfig.
+	             * @implements IFrozenFtraceConfig
+	             * @constructor
+	             * @param {perfetto.protos.IFrozenFtraceConfig=} [p] Properties to set
+	             */
+	            function FrozenFtraceConfig(p) {
+	                if (p)
+	                    for (var ks = Object.keys(p), i = 0; i < ks.length; ++i)
+	                        if (p[ks[i]] != null)
+	                            this[ks[i]] = p[ks[i]];
+	            }
+
+	            /**
+	             * FrozenFtraceConfig instanceName.
+	             * @member {string} instanceName
+	             * @memberof perfetto.protos.FrozenFtraceConfig
+	             * @instance
+	             */
+	            FrozenFtraceConfig.prototype.instanceName = "";
+
+	            /**
+	             * Creates a new FrozenFtraceConfig instance using the specified properties.
+	             * @function create
+	             * @memberof perfetto.protos.FrozenFtraceConfig
+	             * @static
+	             * @param {perfetto.protos.IFrozenFtraceConfig=} [properties] Properties to set
+	             * @returns {perfetto.protos.FrozenFtraceConfig} FrozenFtraceConfig instance
+	             */
+	            FrozenFtraceConfig.create = function create(properties) {
+	                return new FrozenFtraceConfig(properties);
+	            };
+
+	            /**
+	             * Encodes the specified FrozenFtraceConfig message. Does not implicitly {@link perfetto.protos.FrozenFtraceConfig.verify|verify} messages.
+	             * @function encode
+	             * @memberof perfetto.protos.FrozenFtraceConfig
+	             * @static
+	             * @param {perfetto.protos.IFrozenFtraceConfig} m FrozenFtraceConfig message or plain object to encode
+	             * @param {$protobuf.Writer} [w] Writer to encode to
+	             * @returns {$protobuf.Writer} Writer
+	             */
+	            FrozenFtraceConfig.encode = function encode(m, w) {
+	                if (!w)
+	                    w = $Writer.create();
+	                if (m.instanceName != null && Object.hasOwnProperty.call(m, "instanceName"))
+	                    w.uint32(10).string(m.instanceName);
+	                return w;
+	            };
+
+	            /**
+	             * Decodes a FrozenFtraceConfig message from the specified reader or buffer.
+	             * @function decode
+	             * @memberof perfetto.protos.FrozenFtraceConfig
+	             * @static
+	             * @param {$protobuf.Reader|Uint8Array} r Reader or buffer to decode from
+	             * @param {number} [l] Message length if known beforehand
+	             * @returns {perfetto.protos.FrozenFtraceConfig} FrozenFtraceConfig
+	             * @throws {Error} If the payload is not a reader or valid buffer
+	             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+	             */
+	            FrozenFtraceConfig.decode = function decode(r, l) {
+	                if (!(r instanceof $Reader))
+	                    r = $Reader.create(r);
+	                var c = l === undefined ? r.len : r.pos + l, m = new $root.perfetto.protos.FrozenFtraceConfig();
+	                while (r.pos < c) {
+	                    var t = r.uint32();
+	                    switch (t >>> 3) {
+	                    case 1: {
+	                            m.instanceName = r.string();
+	                            break;
+	                        }
+	                    default:
+	                        r.skipType(t & 7);
+	                        break;
+	                    }
+	                }
+	                return m;
+	            };
+
+	            /**
+	             * Creates a FrozenFtraceConfig message from a plain object. Also converts values to their respective internal types.
+	             * @function fromObject
+	             * @memberof perfetto.protos.FrozenFtraceConfig
+	             * @static
+	             * @param {Object.<string,*>} d Plain object
+	             * @returns {perfetto.protos.FrozenFtraceConfig} FrozenFtraceConfig
+	             */
+	            FrozenFtraceConfig.fromObject = function fromObject(d) {
+	                if (d instanceof $root.perfetto.protos.FrozenFtraceConfig)
+	                    return d;
+	                var m = new $root.perfetto.protos.FrozenFtraceConfig();
+	                if (d.instanceName != null) {
+	                    m.instanceName = String(d.instanceName);
+	                }
+	                return m;
+	            };
+
+	            /**
+	             * Creates a plain object from a FrozenFtraceConfig message. Also converts values to other types if specified.
+	             * @function toObject
+	             * @memberof perfetto.protos.FrozenFtraceConfig
+	             * @static
+	             * @param {perfetto.protos.FrozenFtraceConfig} m FrozenFtraceConfig
+	             * @param {$protobuf.IConversionOptions} [o] Conversion options
+	             * @returns {Object.<string,*>} Plain object
+	             */
+	            FrozenFtraceConfig.toObject = function toObject(m, o) {
+	                if (!o)
+	                    o = {};
+	                var d = {};
+	                if (o.defaults) {
+	                    d.instanceName = "";
+	                }
+	                if (m.instanceName != null && m.hasOwnProperty("instanceName")) {
+	                    d.instanceName = m.instanceName;
+	                }
+	                return d;
+	            };
+
+	            /**
+	             * Converts this FrozenFtraceConfig to JSON.
+	             * @function toJSON
+	             * @memberof perfetto.protos.FrozenFtraceConfig
+	             * @instance
+	             * @returns {Object.<string,*>} JSON object
+	             */
+	            FrozenFtraceConfig.prototype.toJSON = function toJSON() {
+	                return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+	            };
+
+	            /**
+	             * Gets the default type url for FrozenFtraceConfig
+	             * @function getTypeUrl
+	             * @memberof perfetto.protos.FrozenFtraceConfig
+	             * @static
+	             * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+	             * @returns {string} The default type url
+	             */
+	            FrozenFtraceConfig.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+	                if (typeUrlPrefix === undefined) {
+	                    typeUrlPrefix = "type.googleapis.com";
+	                }
+	                return typeUrlPrefix + "/perfetto.protos.FrozenFtraceConfig";
+	            };
+
+	            return FrozenFtraceConfig;
 	        })();
 
 	        protos.GpuCounterConfig = (function() {
@@ -44079,6 +44936,221 @@ function requireProtos$1 () {
 	            return values;
 	        })();
 
+	        protos.PriorityBoostConfig = (function() {
+
+	            /**
+	             * Properties of a PriorityBoostConfig.
+	             * @memberof perfetto.protos
+	             * @interface IPriorityBoostConfig
+	             * @property {perfetto.protos.PriorityBoostConfig.BoostPolicy|null} [policy] PriorityBoostConfig policy
+	             * @property {number|null} [priority] PriorityBoostConfig priority
+	             */
+
+	            /**
+	             * Constructs a new PriorityBoostConfig.
+	             * @memberof perfetto.protos
+	             * @classdesc Represents a PriorityBoostConfig.
+	             * @implements IPriorityBoostConfig
+	             * @constructor
+	             * @param {perfetto.protos.IPriorityBoostConfig=} [p] Properties to set
+	             */
+	            function PriorityBoostConfig(p) {
+	                if (p)
+	                    for (var ks = Object.keys(p), i = 0; i < ks.length; ++i)
+	                        if (p[ks[i]] != null)
+	                            this[ks[i]] = p[ks[i]];
+	            }
+
+	            /**
+	             * PriorityBoostConfig policy.
+	             * @member {perfetto.protos.PriorityBoostConfig.BoostPolicy} policy
+	             * @memberof perfetto.protos.PriorityBoostConfig
+	             * @instance
+	             */
+	            PriorityBoostConfig.prototype.policy = 0;
+
+	            /**
+	             * PriorityBoostConfig priority.
+	             * @member {number} priority
+	             * @memberof perfetto.protos.PriorityBoostConfig
+	             * @instance
+	             */
+	            PriorityBoostConfig.prototype.priority = 0;
+
+	            /**
+	             * Creates a new PriorityBoostConfig instance using the specified properties.
+	             * @function create
+	             * @memberof perfetto.protos.PriorityBoostConfig
+	             * @static
+	             * @param {perfetto.protos.IPriorityBoostConfig=} [properties] Properties to set
+	             * @returns {perfetto.protos.PriorityBoostConfig} PriorityBoostConfig instance
+	             */
+	            PriorityBoostConfig.create = function create(properties) {
+	                return new PriorityBoostConfig(properties);
+	            };
+
+	            /**
+	             * Encodes the specified PriorityBoostConfig message. Does not implicitly {@link perfetto.protos.PriorityBoostConfig.verify|verify} messages.
+	             * @function encode
+	             * @memberof perfetto.protos.PriorityBoostConfig
+	             * @static
+	             * @param {perfetto.protos.IPriorityBoostConfig} m PriorityBoostConfig message or plain object to encode
+	             * @param {$protobuf.Writer} [w] Writer to encode to
+	             * @returns {$protobuf.Writer} Writer
+	             */
+	            PriorityBoostConfig.encode = function encode(m, w) {
+	                if (!w)
+	                    w = $Writer.create();
+	                if (m.policy != null && Object.hasOwnProperty.call(m, "policy"))
+	                    w.uint32(8).int32(m.policy);
+	                if (m.priority != null && Object.hasOwnProperty.call(m, "priority"))
+	                    w.uint32(16).uint32(m.priority);
+	                return w;
+	            };
+
+	            /**
+	             * Decodes a PriorityBoostConfig message from the specified reader or buffer.
+	             * @function decode
+	             * @memberof perfetto.protos.PriorityBoostConfig
+	             * @static
+	             * @param {$protobuf.Reader|Uint8Array} r Reader or buffer to decode from
+	             * @param {number} [l] Message length if known beforehand
+	             * @returns {perfetto.protos.PriorityBoostConfig} PriorityBoostConfig
+	             * @throws {Error} If the payload is not a reader or valid buffer
+	             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+	             */
+	            PriorityBoostConfig.decode = function decode(r, l) {
+	                if (!(r instanceof $Reader))
+	                    r = $Reader.create(r);
+	                var c = l === undefined ? r.len : r.pos + l, m = new $root.perfetto.protos.PriorityBoostConfig();
+	                while (r.pos < c) {
+	                    var t = r.uint32();
+	                    switch (t >>> 3) {
+	                    case 1: {
+	                            m.policy = r.int32();
+	                            break;
+	                        }
+	                    case 2: {
+	                            m.priority = r.uint32();
+	                            break;
+	                        }
+	                    default:
+	                        r.skipType(t & 7);
+	                        break;
+	                    }
+	                }
+	                return m;
+	            };
+
+	            /**
+	             * Creates a PriorityBoostConfig message from a plain object. Also converts values to their respective internal types.
+	             * @function fromObject
+	             * @memberof perfetto.protos.PriorityBoostConfig
+	             * @static
+	             * @param {Object.<string,*>} d Plain object
+	             * @returns {perfetto.protos.PriorityBoostConfig} PriorityBoostConfig
+	             */
+	            PriorityBoostConfig.fromObject = function fromObject(d) {
+	                if (d instanceof $root.perfetto.protos.PriorityBoostConfig)
+	                    return d;
+	                var m = new $root.perfetto.protos.PriorityBoostConfig();
+	                switch (d.policy) {
+	                default:
+	                    if (typeof d.policy === "number") {
+	                        m.policy = d.policy;
+	                        break;
+	                    }
+	                    break;
+	                case "POLICY_UNSPECIFIED":
+	                case 0:
+	                    m.policy = 0;
+	                    break;
+	                case "POLICY_SCHED_OTHER":
+	                case 1:
+	                    m.policy = 1;
+	                    break;
+	                case "POLICY_SCHED_FIFO":
+	                case 2:
+	                    m.policy = 2;
+	                    break;
+	                }
+	                if (d.priority != null) {
+	                    m.priority = d.priority >>> 0;
+	                }
+	                return m;
+	            };
+
+	            /**
+	             * Creates a plain object from a PriorityBoostConfig message. Also converts values to other types if specified.
+	             * @function toObject
+	             * @memberof perfetto.protos.PriorityBoostConfig
+	             * @static
+	             * @param {perfetto.protos.PriorityBoostConfig} m PriorityBoostConfig
+	             * @param {$protobuf.IConversionOptions} [o] Conversion options
+	             * @returns {Object.<string,*>} Plain object
+	             */
+	            PriorityBoostConfig.toObject = function toObject(m, o) {
+	                if (!o)
+	                    o = {};
+	                var d = {};
+	                if (o.defaults) {
+	                    d.policy = o.enums === String ? "POLICY_UNSPECIFIED" : 0;
+	                    d.priority = 0;
+	                }
+	                if (m.policy != null && m.hasOwnProperty("policy")) {
+	                    d.policy = o.enums === String ? $root.perfetto.protos.PriorityBoostConfig.BoostPolicy[m.policy] === undefined ? m.policy : $root.perfetto.protos.PriorityBoostConfig.BoostPolicy[m.policy] : m.policy;
+	                }
+	                if (m.priority != null && m.hasOwnProperty("priority")) {
+	                    d.priority = m.priority;
+	                }
+	                return d;
+	            };
+
+	            /**
+	             * Converts this PriorityBoostConfig to JSON.
+	             * @function toJSON
+	             * @memberof perfetto.protos.PriorityBoostConfig
+	             * @instance
+	             * @returns {Object.<string,*>} JSON object
+	             */
+	            PriorityBoostConfig.prototype.toJSON = function toJSON() {
+	                return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+	            };
+
+	            /**
+	             * Gets the default type url for PriorityBoostConfig
+	             * @function getTypeUrl
+	             * @memberof perfetto.protos.PriorityBoostConfig
+	             * @static
+	             * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+	             * @returns {string} The default type url
+	             */
+	            PriorityBoostConfig.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+	                if (typeUrlPrefix === undefined) {
+	                    typeUrlPrefix = "type.googleapis.com";
+	                }
+	                return typeUrlPrefix + "/perfetto.protos.PriorityBoostConfig";
+	            };
+
+	            /**
+	             * BoostPolicy enum.
+	             * @name perfetto.protos.PriorityBoostConfig.BoostPolicy
+	             * @enum {number}
+	             * @property {number} POLICY_UNSPECIFIED=0 POLICY_UNSPECIFIED value
+	             * @property {number} POLICY_SCHED_OTHER=1 POLICY_SCHED_OTHER value
+	             * @property {number} POLICY_SCHED_FIFO=2 POLICY_SCHED_FIFO value
+	             */
+	            PriorityBoostConfig.BoostPolicy = (function() {
+	                var valuesById = {}, values = Object.create(valuesById);
+	                values[valuesById[0] = "POLICY_UNSPECIFIED"] = 0;
+	                values[valuesById[1] = "POLICY_SCHED_OTHER"] = 1;
+	                values[valuesById[2] = "POLICY_SCHED_FIFO"] = 2;
+	                return values;
+	            })();
+
+	            return PriorityBoostConfig;
+	        })();
+
 	        protos.ProcessStatsConfig = (function() {
 
 	            /**
@@ -44090,10 +45162,11 @@ function requireProtos$1 () {
 	             * @property {boolean|null} [recordThreadNames] ProcessStatsConfig recordThreadNames
 	             * @property {number|null} [procStatsPollMs] ProcessStatsConfig procStatsPollMs
 	             * @property {number|null} [procStatsCacheTtlMs] ProcessStatsConfig procStatsCacheTtlMs
-	             * @property {boolean|null} [resolveProcessFds] ProcessStatsConfig resolveProcessFds
 	             * @property {boolean|null} [scanSmapsRollup] ProcessStatsConfig scanSmapsRollup
 	             * @property {boolean|null} [recordProcessAge] ProcessStatsConfig recordProcessAge
 	             * @property {boolean|null} [recordProcessRuntime] ProcessStatsConfig recordProcessRuntime
+	             * @property {boolean|null} [recordProcessDmabufRss] ProcessStatsConfig recordProcessDmabufRss
+	             * @property {boolean|null} [resolveProcessFds] ProcessStatsConfig resolveProcessFds
 	             */
 
 	            /**
@@ -44153,14 +45226,6 @@ function requireProtos$1 () {
 	            ProcessStatsConfig.prototype.procStatsCacheTtlMs = 0;
 
 	            /**
-	             * ProcessStatsConfig resolveProcessFds.
-	             * @member {boolean} resolveProcessFds
-	             * @memberof perfetto.protos.ProcessStatsConfig
-	             * @instance
-	             */
-	            ProcessStatsConfig.prototype.resolveProcessFds = false;
-
-	            /**
 	             * ProcessStatsConfig scanSmapsRollup.
 	             * @member {boolean} scanSmapsRollup
 	             * @memberof perfetto.protos.ProcessStatsConfig
@@ -44183,6 +45248,22 @@ function requireProtos$1 () {
 	             * @instance
 	             */
 	            ProcessStatsConfig.prototype.recordProcessRuntime = false;
+
+	            /**
+	             * ProcessStatsConfig recordProcessDmabufRss.
+	             * @member {boolean} recordProcessDmabufRss
+	             * @memberof perfetto.protos.ProcessStatsConfig
+	             * @instance
+	             */
+	            ProcessStatsConfig.prototype.recordProcessDmabufRss = false;
+
+	            /**
+	             * ProcessStatsConfig resolveProcessFds.
+	             * @member {boolean} resolveProcessFds
+	             * @memberof perfetto.protos.ProcessStatsConfig
+	             * @instance
+	             */
+	            ProcessStatsConfig.prototype.resolveProcessFds = false;
 
 	            /**
 	             * Creates a new ProcessStatsConfig instance using the specified properties.
@@ -44228,6 +45309,8 @@ function requireProtos$1 () {
 	                    w.uint32(88).bool(m.recordProcessAge);
 	                if (m.recordProcessRuntime != null && Object.hasOwnProperty.call(m, "recordProcessRuntime"))
 	                    w.uint32(96).bool(m.recordProcessRuntime);
+	                if (m.recordProcessDmabufRss != null && Object.hasOwnProperty.call(m, "recordProcessDmabufRss"))
+	                    w.uint32(104).bool(m.recordProcessDmabufRss);
 	                return w;
 	            };
 
@@ -44276,10 +45359,6 @@ function requireProtos$1 () {
 	                            m.procStatsCacheTtlMs = r.uint32();
 	                            break;
 	                        }
-	                    case 9: {
-	                            m.resolveProcessFds = r.bool();
-	                            break;
-	                        }
 	                    case 10: {
 	                            m.scanSmapsRollup = r.bool();
 	                            break;
@@ -44290,6 +45369,14 @@ function requireProtos$1 () {
 	                        }
 	                    case 12: {
 	                            m.recordProcessRuntime = r.bool();
+	                            break;
+	                        }
+	                    case 13: {
+	                            m.recordProcessDmabufRss = r.bool();
+	                            break;
+	                        }
+	                    case 9: {
+	                            m.resolveProcessFds = r.bool();
 	                            break;
 	                        }
 	                    default:
@@ -44350,9 +45437,6 @@ function requireProtos$1 () {
 	                if (d.procStatsCacheTtlMs != null) {
 	                    m.procStatsCacheTtlMs = d.procStatsCacheTtlMs >>> 0;
 	                }
-	                if (d.resolveProcessFds != null) {
-	                    m.resolveProcessFds = Boolean(d.resolveProcessFds);
-	                }
 	                if (d.scanSmapsRollup != null) {
 	                    m.scanSmapsRollup = Boolean(d.scanSmapsRollup);
 	                }
@@ -44361,6 +45445,12 @@ function requireProtos$1 () {
 	                }
 	                if (d.recordProcessRuntime != null) {
 	                    m.recordProcessRuntime = Boolean(d.recordProcessRuntime);
+	                }
+	                if (d.recordProcessDmabufRss != null) {
+	                    m.recordProcessDmabufRss = Boolean(d.recordProcessDmabufRss);
+	                }
+	                if (d.resolveProcessFds != null) {
+	                    m.resolveProcessFds = Boolean(d.resolveProcessFds);
 	                }
 	                return m;
 	            };
@@ -44390,6 +45480,7 @@ function requireProtos$1 () {
 	                    d.scanSmapsRollup = false;
 	                    d.recordProcessAge = false;
 	                    d.recordProcessRuntime = false;
+	                    d.recordProcessDmabufRss = false;
 	                }
 	                if (m.quirks && m.quirks.length) {
 	                    d.quirks = [];
@@ -44420,6 +45511,9 @@ function requireProtos$1 () {
 	                }
 	                if (m.recordProcessRuntime != null && m.hasOwnProperty("recordProcessRuntime")) {
 	                    d.recordProcessRuntime = m.recordProcessRuntime;
+	                }
+	                if (m.recordProcessDmabufRss != null && m.hasOwnProperty("recordProcessDmabufRss")) {
+	                    d.recordProcessDmabufRss = m.recordProcessDmabufRss;
 	                }
 	                return d;
 	            };
@@ -54104,6 +55198,7 @@ function requireProtos$1 () {
 	                 * @property {number|null} [pid] SetPeerIdentity pid
 	                 * @property {number|null} [uid] SetPeerIdentity uid
 	                 * @property {string|null} [machineIdHint] SetPeerIdentity machineIdHint
+	                 * @property {string|null} [machineName] SetPeerIdentity machineName
 	                 */
 
 	                /**
@@ -54146,6 +55241,14 @@ function requireProtos$1 () {
 	                SetPeerIdentity.prototype.machineIdHint = "";
 
 	                /**
+	                 * SetPeerIdentity machineName.
+	                 * @member {string} machineName
+	                 * @memberof perfetto.protos.IPCFrame.SetPeerIdentity
+	                 * @instance
+	                 */
+	                SetPeerIdentity.prototype.machineName = "";
+
+	                /**
 	                 * Creates a new SetPeerIdentity instance using the specified properties.
 	                 * @function create
 	                 * @memberof perfetto.protos.IPCFrame.SetPeerIdentity
@@ -54175,6 +55278,8 @@ function requireProtos$1 () {
 	                        w.uint32(16).int32(m.uid);
 	                    if (m.machineIdHint != null && Object.hasOwnProperty.call(m, "machineIdHint"))
 	                        w.uint32(26).string(m.machineIdHint);
+	                    if (m.machineName != null && Object.hasOwnProperty.call(m, "machineName"))
+	                        w.uint32(34).string(m.machineName);
 	                    return w;
 	                };
 
@@ -54208,6 +55313,10 @@ function requireProtos$1 () {
 	                                m.machineIdHint = r.string();
 	                                break;
 	                            }
+	                        case 4: {
+	                                m.machineName = r.string();
+	                                break;
+	                            }
 	                        default:
 	                            r.skipType(t & 7);
 	                            break;
@@ -54237,6 +55346,9 @@ function requireProtos$1 () {
 	                    if (d.machineIdHint != null) {
 	                        m.machineIdHint = String(d.machineIdHint);
 	                    }
+	                    if (d.machineName != null) {
+	                        m.machineName = String(d.machineName);
+	                    }
 	                    return m;
 	                };
 
@@ -54257,6 +55369,7 @@ function requireProtos$1 () {
 	                        d.pid = 0;
 	                        d.uid = 0;
 	                        d.machineIdHint = "";
+	                        d.machineName = "";
 	                    }
 	                    if (m.pid != null && m.hasOwnProperty("pid")) {
 	                        d.pid = m.pid;
@@ -54266,6 +55379,9 @@ function requireProtos$1 () {
 	                    }
 	                    if (m.machineIdHint != null && m.hasOwnProperty("machineIdHint")) {
 	                        d.machineIdHint = m.machineIdHint;
+	                    }
+	                    if (m.machineName != null && m.hasOwnProperty("machineName")) {
+	                        d.machineName = m.machineName;
 	                    }
 	                    return d;
 	                };
@@ -55233,6 +56349,7 @@ function requireProtos$1 () {
 	             * @memberof perfetto.protos
 	             * @interface IPerfettoSqlStructuredQuery
 	             * @property {string|null} [id] PerfettoSqlStructuredQuery id
+	             * @property {Array.<string>|null} [referencedModules] PerfettoSqlStructuredQuery referencedModules
 	             * @property {perfetto.protos.PerfettoSqlStructuredQuery.ITable|null} [table] PerfettoSqlStructuredQuery table
 	             * @property {perfetto.protos.PerfettoSqlStructuredQuery.ISql|null} [sql] PerfettoSqlStructuredQuery sql
 	             * @property {perfetto.protos.PerfettoSqlStructuredQuery.ISimpleSlices|null} [simpleSlices] PerfettoSqlStructuredQuery simpleSlices
@@ -55253,6 +56370,7 @@ function requireProtos$1 () {
 	             * @param {perfetto.protos.IPerfettoSqlStructuredQuery=} [p] Properties to set
 	             */
 	            function PerfettoSqlStructuredQuery(p) {
+	                this.referencedModules = [];
 	                this.filters = [];
 	                this.selectColumns = [];
 	                if (p)
@@ -55268,6 +56386,14 @@ function requireProtos$1 () {
 	             * @instance
 	             */
 	            PerfettoSqlStructuredQuery.prototype.id = "";
+
+	            /**
+	             * PerfettoSqlStructuredQuery referencedModules.
+	             * @member {Array.<string>} referencedModules
+	             * @memberof perfetto.protos.PerfettoSqlStructuredQuery
+	             * @instance
+	             */
+	            PerfettoSqlStructuredQuery.prototype.referencedModules = $util.emptyArray;
 
 	            /**
 	             * PerfettoSqlStructuredQuery table.
@@ -55403,6 +56529,10 @@ function requireProtos$1 () {
 	                    for (var i = 0; i < m.selectColumns.length; ++i)
 	                        $root.perfetto.protos.PerfettoSqlStructuredQuery.SelectColumn.encode(m.selectColumns[i], w.uint32(82).fork()).ldelim();
 	                }
+	                if (m.referencedModules != null && m.referencedModules.length) {
+	                    for (var i = 0; i < m.referencedModules.length; ++i)
+	                        w.uint32(90).string(m.referencedModules[i]);
+	                }
 	                return w;
 	            };
 
@@ -55426,6 +56556,12 @@ function requireProtos$1 () {
 	                    switch (t >>> 3) {
 	                    case 1: {
 	                            m.id = r.string();
+	                            break;
+	                        }
+	                    case 11: {
+	                            if (!(m.referencedModules && m.referencedModules.length))
+	                                m.referencedModules = [];
+	                            m.referencedModules.push(r.string());
 	                            break;
 	                        }
 	                    case 2: {
@@ -55490,6 +56626,14 @@ function requireProtos$1 () {
 	                var m = new $root.perfetto.protos.PerfettoSqlStructuredQuery();
 	                if (d.id != null) {
 	                    m.id = String(d.id);
+	                }
+	                if (d.referencedModules) {
+	                    if (!Array.isArray(d.referencedModules))
+	                        throw TypeError(".perfetto.protos.PerfettoSqlStructuredQuery.referencedModules: array expected");
+	                    m.referencedModules = [];
+	                    for (var i = 0; i < d.referencedModules.length; ++i) {
+	                        m.referencedModules[i] = String(d.referencedModules[i]);
+	                    }
 	                }
 	                if (d.table != null) {
 	                    if (typeof d.table !== "object")
@@ -55563,6 +56707,7 @@ function requireProtos$1 () {
 	                if (o.arrays || o.defaults) {
 	                    d.filters = [];
 	                    d.selectColumns = [];
+	                    d.referencedModules = [];
 	                }
 	                if (o.defaults) {
 	                    d.id = "";
@@ -55616,6 +56761,12 @@ function requireProtos$1 () {
 	                        d.selectColumns[j] = $root.perfetto.protos.PerfettoSqlStructuredQuery.SelectColumn.toObject(m.selectColumns[j], o);
 	                    }
 	                }
+	                if (m.referencedModules && m.referencedModules.length) {
+	                    d.referencedModules = [];
+	                    for (var j = 0; j < m.referencedModules.length; ++j) {
+	                        d.referencedModules[j] = m.referencedModules[j];
+	                    }
+	                }
 	                return d;
 	            };
 
@@ -55652,8 +56803,8 @@ function requireProtos$1 () {
 	                 * @memberof perfetto.protos.PerfettoSqlStructuredQuery
 	                 * @interface ITable
 	                 * @property {string|null} [tableName] Table tableName
-	                 * @property {string|null} [moduleName] Table moduleName
 	                 * @property {Array.<string>|null} [columnNames] Table columnNames
+	                 * @property {string|null} [moduleName] Table moduleName
 	                 */
 
 	                /**
@@ -55681,20 +56832,20 @@ function requireProtos$1 () {
 	                Table.prototype.tableName = "";
 
 	                /**
-	                 * Table moduleName.
-	                 * @member {string} moduleName
-	                 * @memberof perfetto.protos.PerfettoSqlStructuredQuery.Table
-	                 * @instance
-	                 */
-	                Table.prototype.moduleName = "";
-
-	                /**
 	                 * Table columnNames.
 	                 * @member {Array.<string>} columnNames
 	                 * @memberof perfetto.protos.PerfettoSqlStructuredQuery.Table
 	                 * @instance
 	                 */
 	                Table.prototype.columnNames = $util.emptyArray;
+
+	                /**
+	                 * Table moduleName.
+	                 * @member {string} moduleName
+	                 * @memberof perfetto.protos.PerfettoSqlStructuredQuery.Table
+	                 * @instance
+	                 */
+	                Table.prototype.moduleName = "";
 
 	                /**
 	                 * Creates a new Table instance using the specified properties.
@@ -55753,14 +56904,14 @@ function requireProtos$1 () {
 	                                m.tableName = r.string();
 	                                break;
 	                            }
-	                        case 2: {
-	                                m.moduleName = r.string();
-	                                break;
-	                            }
 	                        case 3: {
 	                                if (!(m.columnNames && m.columnNames.length))
 	                                    m.columnNames = [];
 	                                m.columnNames.push(r.string());
+	                                break;
+	                            }
+	                        case 2: {
+	                                m.moduleName = r.string();
 	                                break;
 	                            }
 	                        default:
@@ -55786,9 +56937,6 @@ function requireProtos$1 () {
 	                    if (d.tableName != null) {
 	                        m.tableName = String(d.tableName);
 	                    }
-	                    if (d.moduleName != null) {
-	                        m.moduleName = String(d.moduleName);
-	                    }
 	                    if (d.columnNames) {
 	                        if (!Array.isArray(d.columnNames))
 	                            throw TypeError(".perfetto.protos.PerfettoSqlStructuredQuery.Table.columnNames: array expected");
@@ -55796,6 +56944,9 @@ function requireProtos$1 () {
 	                        for (var i = 0; i < d.columnNames.length; ++i) {
 	                            m.columnNames[i] = String(d.columnNames[i]);
 	                        }
+	                    }
+	                    if (d.moduleName != null) {
+	                        m.moduleName = String(d.moduleName);
 	                    }
 	                    return m;
 	                };
@@ -56098,6 +57249,7 @@ function requireProtos$1 () {
 	                 * @interface ISql
 	                 * @property {string|null} [sql] Sql sql
 	                 * @property {Array.<string>|null} [columnNames] Sql columnNames
+	                 * @property {Array.<perfetto.protos.PerfettoSqlStructuredQuery.Sql.IDependency>|null} [dependencies] Sql dependencies
 	                 * @property {string|null} [preamble] Sql preamble
 	                 */
 
@@ -56111,6 +57263,7 @@ function requireProtos$1 () {
 	                 */
 	                function Sql(p) {
 	                    this.columnNames = [];
+	                    this.dependencies = [];
 	                    if (p)
 	                        for (var ks = Object.keys(p), i = 0; i < ks.length; ++i)
 	                            if (p[ks[i]] != null)
@@ -56132,6 +57285,14 @@ function requireProtos$1 () {
 	                 * @instance
 	                 */
 	                Sql.prototype.columnNames = $util.emptyArray;
+
+	                /**
+	                 * Sql dependencies.
+	                 * @member {Array.<perfetto.protos.PerfettoSqlStructuredQuery.Sql.IDependency>} dependencies
+	                 * @memberof perfetto.protos.PerfettoSqlStructuredQuery.Sql
+	                 * @instance
+	                 */
+	                Sql.prototype.dependencies = $util.emptyArray;
 
 	                /**
 	                 * Sql preamble.
@@ -56173,6 +57334,10 @@ function requireProtos$1 () {
 	                    }
 	                    if (m.preamble != null && Object.hasOwnProperty.call(m, "preamble"))
 	                        w.uint32(26).string(m.preamble);
+	                    if (m.dependencies != null && m.dependencies.length) {
+	                        for (var i = 0; i < m.dependencies.length; ++i)
+	                            $root.perfetto.protos.PerfettoSqlStructuredQuery.Sql.Dependency.encode(m.dependencies[i], w.uint32(34).fork()).ldelim();
+	                    }
 	                    return w;
 	                };
 
@@ -56202,6 +57367,12 @@ function requireProtos$1 () {
 	                                if (!(m.columnNames && m.columnNames.length))
 	                                    m.columnNames = [];
 	                                m.columnNames.push(r.string());
+	                                break;
+	                            }
+	                        case 4: {
+	                                if (!(m.dependencies && m.dependencies.length))
+	                                    m.dependencies = [];
+	                                m.dependencies.push($root.perfetto.protos.PerfettoSqlStructuredQuery.Sql.Dependency.decode(r, r.uint32()));
 	                                break;
 	                            }
 	                        case 3: {
@@ -56239,6 +57410,16 @@ function requireProtos$1 () {
 	                            m.columnNames[i] = String(d.columnNames[i]);
 	                        }
 	                    }
+	                    if (d.dependencies) {
+	                        if (!Array.isArray(d.dependencies))
+	                            throw TypeError(".perfetto.protos.PerfettoSqlStructuredQuery.Sql.dependencies: array expected");
+	                        m.dependencies = [];
+	                        for (var i = 0; i < d.dependencies.length; ++i) {
+	                            if (typeof d.dependencies[i] !== "object")
+	                                throw TypeError(".perfetto.protos.PerfettoSqlStructuredQuery.Sql.dependencies: object expected");
+	                            m.dependencies[i] = $root.perfetto.protos.PerfettoSqlStructuredQuery.Sql.Dependency.fromObject(d.dependencies[i]);
+	                        }
+	                    }
 	                    if (d.preamble != null) {
 	                        m.preamble = String(d.preamble);
 	                    }
@@ -56260,6 +57441,7 @@ function requireProtos$1 () {
 	                    var d = {};
 	                    if (o.arrays || o.defaults) {
 	                        d.columnNames = [];
+	                        d.dependencies = [];
 	                    }
 	                    if (o.defaults) {
 	                        d.sql = "";
@@ -56276,6 +57458,12 @@ function requireProtos$1 () {
 	                    }
 	                    if (m.preamble != null && m.hasOwnProperty("preamble")) {
 	                        d.preamble = m.preamble;
+	                    }
+	                    if (m.dependencies && m.dependencies.length) {
+	                        d.dependencies = [];
+	                        for (var j = 0; j < m.dependencies.length; ++j) {
+	                            d.dependencies[j] = $root.perfetto.protos.PerfettoSqlStructuredQuery.Sql.Dependency.toObject(m.dependencies[j], o);
+	                        }
 	                    }
 	                    return d;
 	                };
@@ -56305,6 +57493,190 @@ function requireProtos$1 () {
 	                    }
 	                    return typeUrlPrefix + "/perfetto.protos.PerfettoSqlStructuredQuery.Sql";
 	                };
+
+	                Sql.Dependency = (function() {
+
+	                    /**
+	                     * Properties of a Dependency.
+	                     * @memberof perfetto.protos.PerfettoSqlStructuredQuery.Sql
+	                     * @interface IDependency
+	                     * @property {string|null} [alias] Dependency alias
+	                     * @property {perfetto.protos.IPerfettoSqlStructuredQuery|null} [query] Dependency query
+	                     */
+
+	                    /**
+	                     * Constructs a new Dependency.
+	                     * @memberof perfetto.protos.PerfettoSqlStructuredQuery.Sql
+	                     * @classdesc Represents a Dependency.
+	                     * @implements IDependency
+	                     * @constructor
+	                     * @param {perfetto.protos.PerfettoSqlStructuredQuery.Sql.IDependency=} [p] Properties to set
+	                     */
+	                    function Dependency(p) {
+	                        if (p)
+	                            for (var ks = Object.keys(p), i = 0; i < ks.length; ++i)
+	                                if (p[ks[i]] != null)
+	                                    this[ks[i]] = p[ks[i]];
+	                    }
+
+	                    /**
+	                     * Dependency alias.
+	                     * @member {string} alias
+	                     * @memberof perfetto.protos.PerfettoSqlStructuredQuery.Sql.Dependency
+	                     * @instance
+	                     */
+	                    Dependency.prototype.alias = "";
+
+	                    /**
+	                     * Dependency query.
+	                     * @member {perfetto.protos.IPerfettoSqlStructuredQuery|null|undefined} query
+	                     * @memberof perfetto.protos.PerfettoSqlStructuredQuery.Sql.Dependency
+	                     * @instance
+	                     */
+	                    Dependency.prototype.query = null;
+
+	                    /**
+	                     * Creates a new Dependency instance using the specified properties.
+	                     * @function create
+	                     * @memberof perfetto.protos.PerfettoSqlStructuredQuery.Sql.Dependency
+	                     * @static
+	                     * @param {perfetto.protos.PerfettoSqlStructuredQuery.Sql.IDependency=} [properties] Properties to set
+	                     * @returns {perfetto.protos.PerfettoSqlStructuredQuery.Sql.Dependency} Dependency instance
+	                     */
+	                    Dependency.create = function create(properties) {
+	                        return new Dependency(properties);
+	                    };
+
+	                    /**
+	                     * Encodes the specified Dependency message. Does not implicitly {@link perfetto.protos.PerfettoSqlStructuredQuery.Sql.Dependency.verify|verify} messages.
+	                     * @function encode
+	                     * @memberof perfetto.protos.PerfettoSqlStructuredQuery.Sql.Dependency
+	                     * @static
+	                     * @param {perfetto.protos.PerfettoSqlStructuredQuery.Sql.IDependency} m Dependency message or plain object to encode
+	                     * @param {$protobuf.Writer} [w] Writer to encode to
+	                     * @returns {$protobuf.Writer} Writer
+	                     */
+	                    Dependency.encode = function encode(m, w) {
+	                        if (!w)
+	                            w = $Writer.create();
+	                        if (m.alias != null && Object.hasOwnProperty.call(m, "alias"))
+	                            w.uint32(10).string(m.alias);
+	                        if (m.query != null && Object.hasOwnProperty.call(m, "query"))
+	                            $root.perfetto.protos.PerfettoSqlStructuredQuery.encode(m.query, w.uint32(18).fork()).ldelim();
+	                        return w;
+	                    };
+
+	                    /**
+	                     * Decodes a Dependency message from the specified reader or buffer.
+	                     * @function decode
+	                     * @memberof perfetto.protos.PerfettoSqlStructuredQuery.Sql.Dependency
+	                     * @static
+	                     * @param {$protobuf.Reader|Uint8Array} r Reader or buffer to decode from
+	                     * @param {number} [l] Message length if known beforehand
+	                     * @returns {perfetto.protos.PerfettoSqlStructuredQuery.Sql.Dependency} Dependency
+	                     * @throws {Error} If the payload is not a reader or valid buffer
+	                     * @throws {$protobuf.util.ProtocolError} If required fields are missing
+	                     */
+	                    Dependency.decode = function decode(r, l) {
+	                        if (!(r instanceof $Reader))
+	                            r = $Reader.create(r);
+	                        var c = l === undefined ? r.len : r.pos + l, m = new $root.perfetto.protos.PerfettoSqlStructuredQuery.Sql.Dependency();
+	                        while (r.pos < c) {
+	                            var t = r.uint32();
+	                            switch (t >>> 3) {
+	                            case 1: {
+	                                    m.alias = r.string();
+	                                    break;
+	                                }
+	                            case 2: {
+	                                    m.query = $root.perfetto.protos.PerfettoSqlStructuredQuery.decode(r, r.uint32());
+	                                    break;
+	                                }
+	                            default:
+	                                r.skipType(t & 7);
+	                                break;
+	                            }
+	                        }
+	                        return m;
+	                    };
+
+	                    /**
+	                     * Creates a Dependency message from a plain object. Also converts values to their respective internal types.
+	                     * @function fromObject
+	                     * @memberof perfetto.protos.PerfettoSqlStructuredQuery.Sql.Dependency
+	                     * @static
+	                     * @param {Object.<string,*>} d Plain object
+	                     * @returns {perfetto.protos.PerfettoSqlStructuredQuery.Sql.Dependency} Dependency
+	                     */
+	                    Dependency.fromObject = function fromObject(d) {
+	                        if (d instanceof $root.perfetto.protos.PerfettoSqlStructuredQuery.Sql.Dependency)
+	                            return d;
+	                        var m = new $root.perfetto.protos.PerfettoSqlStructuredQuery.Sql.Dependency();
+	                        if (d.alias != null) {
+	                            m.alias = String(d.alias);
+	                        }
+	                        if (d.query != null) {
+	                            if (typeof d.query !== "object")
+	                                throw TypeError(".perfetto.protos.PerfettoSqlStructuredQuery.Sql.Dependency.query: object expected");
+	                            m.query = $root.perfetto.protos.PerfettoSqlStructuredQuery.fromObject(d.query);
+	                        }
+	                        return m;
+	                    };
+
+	                    /**
+	                     * Creates a plain object from a Dependency message. Also converts values to other types if specified.
+	                     * @function toObject
+	                     * @memberof perfetto.protos.PerfettoSqlStructuredQuery.Sql.Dependency
+	                     * @static
+	                     * @param {perfetto.protos.PerfettoSqlStructuredQuery.Sql.Dependency} m Dependency
+	                     * @param {$protobuf.IConversionOptions} [o] Conversion options
+	                     * @returns {Object.<string,*>} Plain object
+	                     */
+	                    Dependency.toObject = function toObject(m, o) {
+	                        if (!o)
+	                            o = {};
+	                        var d = {};
+	                        if (o.defaults) {
+	                            d.alias = "";
+	                            d.query = null;
+	                        }
+	                        if (m.alias != null && m.hasOwnProperty("alias")) {
+	                            d.alias = m.alias;
+	                        }
+	                        if (m.query != null && m.hasOwnProperty("query")) {
+	                            d.query = $root.perfetto.protos.PerfettoSqlStructuredQuery.toObject(m.query, o);
+	                        }
+	                        return d;
+	                    };
+
+	                    /**
+	                     * Converts this Dependency to JSON.
+	                     * @function toJSON
+	                     * @memberof perfetto.protos.PerfettoSqlStructuredQuery.Sql.Dependency
+	                     * @instance
+	                     * @returns {Object.<string,*>} JSON object
+	                     */
+	                    Dependency.prototype.toJSON = function toJSON() {
+	                        return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+	                    };
+
+	                    /**
+	                     * Gets the default type url for Dependency
+	                     * @function getTypeUrl
+	                     * @memberof perfetto.protos.PerfettoSqlStructuredQuery.Sql.Dependency
+	                     * @static
+	                     * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+	                     * @returns {string} The default type url
+	                     */
+	                    Dependency.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+	                        if (typeUrlPrefix === undefined) {
+	                            typeUrlPrefix = "type.googleapis.com";
+	                        }
+	                        return typeUrlPrefix + "/perfetto.protos.PerfettoSqlStructuredQuery.Sql.Dependency";
+	                    };
+
+	                    return Dependency;
+	                })();
 
 	                return Sql;
 	            })();
@@ -57377,8 +58749,9 @@ function requireProtos$1 () {
 	                 * Properties of a SelectColumn.
 	                 * @memberof perfetto.protos.PerfettoSqlStructuredQuery
 	                 * @interface ISelectColumn
-	                 * @property {string|null} [columnName] SelectColumn columnName
+	                 * @property {string|null} [columnNameOrExpression] SelectColumn columnNameOrExpression
 	                 * @property {string|null} [alias] SelectColumn alias
+	                 * @property {string|null} [columnName] SelectColumn columnName
 	                 */
 
 	                /**
@@ -57397,12 +58770,12 @@ function requireProtos$1 () {
 	                }
 
 	                /**
-	                 * SelectColumn columnName.
-	                 * @member {string} columnName
+	                 * SelectColumn columnNameOrExpression.
+	                 * @member {string} columnNameOrExpression
 	                 * @memberof perfetto.protos.PerfettoSqlStructuredQuery.SelectColumn
 	                 * @instance
 	                 */
-	                SelectColumn.prototype.columnName = "";
+	                SelectColumn.prototype.columnNameOrExpression = "";
 
 	                /**
 	                 * SelectColumn alias.
@@ -57411,6 +58784,14 @@ function requireProtos$1 () {
 	                 * @instance
 	                 */
 	                SelectColumn.prototype.alias = "";
+
+	                /**
+	                 * SelectColumn columnName.
+	                 * @member {string} columnName
+	                 * @memberof perfetto.protos.PerfettoSqlStructuredQuery.SelectColumn
+	                 * @instance
+	                 */
+	                SelectColumn.prototype.columnName = "";
 
 	                /**
 	                 * Creates a new SelectColumn instance using the specified properties.
@@ -57440,6 +58821,8 @@ function requireProtos$1 () {
 	                        w.uint32(10).string(m.columnName);
 	                    if (m.alias != null && Object.hasOwnProperty.call(m, "alias"))
 	                        w.uint32(18).string(m.alias);
+	                    if (m.columnNameOrExpression != null && Object.hasOwnProperty.call(m, "columnNameOrExpression"))
+	                        w.uint32(26).string(m.columnNameOrExpression);
 	                    return w;
 	                };
 
@@ -57461,12 +58844,16 @@ function requireProtos$1 () {
 	                    while (r.pos < c) {
 	                        var t = r.uint32();
 	                        switch (t >>> 3) {
-	                        case 1: {
-	                                m.columnName = r.string();
+	                        case 3: {
+	                                m.columnNameOrExpression = r.string();
 	                                break;
 	                            }
 	                        case 2: {
 	                                m.alias = r.string();
+	                                break;
+	                            }
+	                        case 1: {
+	                                m.columnName = r.string();
 	                                break;
 	                            }
 	                        default:
@@ -57489,11 +58876,14 @@ function requireProtos$1 () {
 	                    if (d instanceof $root.perfetto.protos.PerfettoSqlStructuredQuery.SelectColumn)
 	                        return d;
 	                    var m = new $root.perfetto.protos.PerfettoSqlStructuredQuery.SelectColumn();
-	                    if (d.columnName != null) {
-	                        m.columnName = String(d.columnName);
+	                    if (d.columnNameOrExpression != null) {
+	                        m.columnNameOrExpression = String(d.columnNameOrExpression);
 	                    }
 	                    if (d.alias != null) {
 	                        m.alias = String(d.alias);
+	                    }
+	                    if (d.columnName != null) {
+	                        m.columnName = String(d.columnName);
 	                    }
 	                    return m;
 	                };
@@ -57514,12 +58904,16 @@ function requireProtos$1 () {
 	                    if (o.defaults) {
 	                        d.columnName = "";
 	                        d.alias = "";
+	                        d.columnNameOrExpression = "";
 	                    }
 	                    if (m.columnName != null && m.hasOwnProperty("columnName")) {
 	                        d.columnName = m.columnName;
 	                    }
 	                    if (m.alias != null && m.hasOwnProperty("alias")) {
 	                        d.alias = m.alias;
+	                    }
+	                    if (m.columnNameOrExpression != null && m.hasOwnProperty("columnNameOrExpression")) {
+	                        d.columnNameOrExpression = m.columnNameOrExpression;
 	                    }
 	                    return d;
 	                };
@@ -57761,6 +59155,7 @@ function requireProtos$1 () {
 	             * @property {perfetto.protos.IResetTraceProcessorArgs|null} [resetTraceProcessorArgs] TraceProcessorRpc resetTraceProcessorArgs
 	             * @property {perfetto.protos.IRegisterSqlPackageArgs|null} [registerSqlPackageArgs] TraceProcessorRpc registerSqlPackageArgs
 	             * @property {perfetto.protos.IAnalyzeStructuredQueryArgs|null} [analyzeStructuredQueryArgs] TraceProcessorRpc analyzeStructuredQueryArgs
+	             * @property {perfetto.protos.ITraceSummaryArgs|null} [traceSummaryArgs] TraceProcessorRpc traceSummaryArgs
 	             * @property {perfetto.protos.IAppendTraceDataResult|null} [appendResult] TraceProcessorRpc appendResult
 	             * @property {perfetto.protos.IQueryResult|null} [queryResult] TraceProcessorRpc queryResult
 	             * @property {perfetto.protos.IComputeMetricResult|null} [metricResult] TraceProcessorRpc metricResult
@@ -57770,6 +59165,7 @@ function requireProtos$1 () {
 	             * @property {perfetto.protos.IRegisterSqlPackageResult|null} [registerSqlPackageResult] TraceProcessorRpc registerSqlPackageResult
 	             * @property {perfetto.protos.IFinalizeDataResult|null} [finalizeDataResult] TraceProcessorRpc finalizeDataResult
 	             * @property {perfetto.protos.IAnalyzeStructuredQueryResult|null} [analyzeStructuredQueryResult] TraceProcessorRpc analyzeStructuredQueryResult
+	             * @property {perfetto.protos.ITraceSummaryResult|null} [traceSummaryResult] TraceProcessorRpc traceSummaryResult
 	             */
 
 	            /**
@@ -57884,6 +59280,14 @@ function requireProtos$1 () {
 	            TraceProcessorRpc.prototype.analyzeStructuredQueryArgs = null;
 
 	            /**
+	             * TraceProcessorRpc traceSummaryArgs.
+	             * @member {perfetto.protos.ITraceSummaryArgs|null|undefined} traceSummaryArgs
+	             * @memberof perfetto.protos.TraceProcessorRpc
+	             * @instance
+	             */
+	            TraceProcessorRpc.prototype.traceSummaryArgs = null;
+
+	            /**
 	             * TraceProcessorRpc appendResult.
 	             * @member {perfetto.protos.IAppendTraceDataResult|null|undefined} appendResult
 	             * @memberof perfetto.protos.TraceProcessorRpc
@@ -57955,6 +59359,14 @@ function requireProtos$1 () {
 	             */
 	            TraceProcessorRpc.prototype.analyzeStructuredQueryResult = null;
 
+	            /**
+	             * TraceProcessorRpc traceSummaryResult.
+	             * @member {perfetto.protos.ITraceSummaryResult|null|undefined} traceSummaryResult
+	             * @memberof perfetto.protos.TraceProcessorRpc
+	             * @instance
+	             */
+	            TraceProcessorRpc.prototype.traceSummaryResult = null;
+
 	            // OneOf field names bound to virtual getters and setters
 	            var $oneOfFields;
 
@@ -57971,12 +59383,12 @@ function requireProtos$1 () {
 
 	            /**
 	             * TraceProcessorRpc args.
-	             * @member {"appendTraceData"|"queryArgs"|"computeMetricArgs"|"enableMetatraceArgs"|"resetTraceProcessorArgs"|"registerSqlPackageArgs"|"analyzeStructuredQueryArgs"|"appendResult"|"queryResult"|"metricResult"|"metricDescriptors"|"metatrace"|"status"|"registerSqlPackageResult"|"finalizeDataResult"|"analyzeStructuredQueryResult"|undefined} args
+	             * @member {"appendTraceData"|"queryArgs"|"computeMetricArgs"|"enableMetatraceArgs"|"resetTraceProcessorArgs"|"registerSqlPackageArgs"|"analyzeStructuredQueryArgs"|"traceSummaryArgs"|"appendResult"|"queryResult"|"metricResult"|"metricDescriptors"|"metatrace"|"status"|"registerSqlPackageResult"|"finalizeDataResult"|"analyzeStructuredQueryResult"|"traceSummaryResult"|undefined} args
 	             * @memberof perfetto.protos.TraceProcessorRpc
 	             * @instance
 	             */
 	            Object.defineProperty(TraceProcessorRpc.prototype, "args", {
-	                get: $util.oneOfGetter($oneOfFields = ["appendTraceData", "queryArgs", "computeMetricArgs", "enableMetatraceArgs", "resetTraceProcessorArgs", "registerSqlPackageArgs", "analyzeStructuredQueryArgs", "appendResult", "queryResult", "metricResult", "metricDescriptors", "metatrace", "status", "registerSqlPackageResult", "finalizeDataResult", "analyzeStructuredQueryResult"]),
+	                get: $util.oneOfGetter($oneOfFields = ["appendTraceData", "queryArgs", "computeMetricArgs", "enableMetatraceArgs", "resetTraceProcessorArgs", "registerSqlPackageArgs", "analyzeStructuredQueryArgs", "traceSummaryArgs", "appendResult", "queryResult", "metricResult", "metricDescriptors", "metatrace", "status", "registerSqlPackageResult", "finalizeDataResult", "analyzeStructuredQueryResult", "traceSummaryResult"]),
 	                set: $util.oneOfSetter($oneOfFields)
 	            });
 
@@ -58028,6 +59440,8 @@ function requireProtos$1 () {
 	                    $root.perfetto.protos.RegisterSqlPackageArgs.encode(m.registerSqlPackageArgs, w.uint32(866).fork()).ldelim();
 	                if (m.analyzeStructuredQueryArgs != null && Object.hasOwnProperty.call(m, "analyzeStructuredQueryArgs"))
 	                    $root.perfetto.protos.AnalyzeStructuredQueryArgs.encode(m.analyzeStructuredQueryArgs, w.uint32(874).fork()).ldelim();
+	                if (m.traceSummaryArgs != null && Object.hasOwnProperty.call(m, "traceSummaryArgs"))
+	                    $root.perfetto.protos.TraceSummaryArgs.encode(m.traceSummaryArgs, w.uint32(882).fork()).ldelim();
 	                if (m.appendResult != null && Object.hasOwnProperty.call(m, "appendResult"))
 	                    $root.perfetto.protos.AppendTraceDataResult.encode(m.appendResult, w.uint32(1610).fork()).ldelim();
 	                if (m.queryResult != null && Object.hasOwnProperty.call(m, "queryResult"))
@@ -58046,6 +59460,8 @@ function requireProtos$1 () {
 	                    $root.perfetto.protos.FinalizeDataResult.encode(m.finalizeDataResult, w.uint32(1698).fork()).ldelim();
 	                if (m.analyzeStructuredQueryResult != null && Object.hasOwnProperty.call(m, "analyzeStructuredQueryResult"))
 	                    $root.perfetto.protos.AnalyzeStructuredQueryResult.encode(m.analyzeStructuredQueryResult, w.uint32(1706).fork()).ldelim();
+	                if (m.traceSummaryResult != null && Object.hasOwnProperty.call(m, "traceSummaryResult"))
+	                    $root.perfetto.protos.TraceSummaryResult.encode(m.traceSummaryResult, w.uint32(1714).fork()).ldelim();
 	                return w;
 	            };
 
@@ -58115,6 +59531,10 @@ function requireProtos$1 () {
 	                            m.analyzeStructuredQueryArgs = $root.perfetto.protos.AnalyzeStructuredQueryArgs.decode(r, r.uint32());
 	                            break;
 	                        }
+	                    case 110: {
+	                            m.traceSummaryArgs = $root.perfetto.protos.TraceSummaryArgs.decode(r, r.uint32());
+	                            break;
+	                        }
 	                    case 201: {
 	                            m.appendResult = $root.perfetto.protos.AppendTraceDataResult.decode(r, r.uint32());
 	                            break;
@@ -58149,6 +59569,10 @@ function requireProtos$1 () {
 	                        }
 	                    case 213: {
 	                            m.analyzeStructuredQueryResult = $root.perfetto.protos.AnalyzeStructuredQueryResult.decode(r, r.uint32());
+	                            break;
+	                        }
+	                    case 214: {
+	                            m.traceSummaryResult = $root.perfetto.protos.TraceSummaryResult.decode(r, r.uint32());
 	                            break;
 	                        }
 	                    default:
@@ -58243,6 +59667,10 @@ function requireProtos$1 () {
 	                case 14:
 	                    m.request = 14;
 	                    break;
+	                case "TPM_SUMMARIZE_TRACE":
+	                case 15:
+	                    m.request = 15;
+	                    break;
 	                }
 	                switch (d.response) {
 	                default:
@@ -58302,6 +59730,10 @@ function requireProtos$1 () {
 	                case "TPM_ANALYZE_STRUCTURED_QUERY":
 	                case 14:
 	                    m.response = 14;
+	                    break;
+	                case "TPM_SUMMARIZE_TRACE":
+	                case 15:
+	                    m.response = 15;
 	                    break;
 	                }
 	                switch (d.invalidRequest) {
@@ -58363,6 +59795,10 @@ function requireProtos$1 () {
 	                case 14:
 	                    m.invalidRequest = 14;
 	                    break;
+	                case "TPM_SUMMARIZE_TRACE":
+	                case 15:
+	                    m.invalidRequest = 15;
+	                    break;
 	                }
 	                if (d.appendTraceData != null) {
 	                    if (typeof d.appendTraceData === "string")
@@ -58399,6 +59835,11 @@ function requireProtos$1 () {
 	                    if (typeof d.analyzeStructuredQueryArgs !== "object")
 	                        throw TypeError(".perfetto.protos.TraceProcessorRpc.analyzeStructuredQueryArgs: object expected");
 	                    m.analyzeStructuredQueryArgs = $root.perfetto.protos.AnalyzeStructuredQueryArgs.fromObject(d.analyzeStructuredQueryArgs);
+	                }
+	                if (d.traceSummaryArgs != null) {
+	                    if (typeof d.traceSummaryArgs !== "object")
+	                        throw TypeError(".perfetto.protos.TraceProcessorRpc.traceSummaryArgs: object expected");
+	                    m.traceSummaryArgs = $root.perfetto.protos.TraceSummaryArgs.fromObject(d.traceSummaryArgs);
 	                }
 	                if (d.appendResult != null) {
 	                    if (typeof d.appendResult !== "object")
@@ -58444,6 +59885,11 @@ function requireProtos$1 () {
 	                    if (typeof d.analyzeStructuredQueryResult !== "object")
 	                        throw TypeError(".perfetto.protos.TraceProcessorRpc.analyzeStructuredQueryResult: object expected");
 	                    m.analyzeStructuredQueryResult = $root.perfetto.protos.AnalyzeStructuredQueryResult.fromObject(d.analyzeStructuredQueryResult);
+	                }
+	                if (d.traceSummaryResult != null) {
+	                    if (typeof d.traceSummaryResult !== "object")
+	                        throw TypeError(".perfetto.protos.TraceProcessorRpc.traceSummaryResult: object expected");
+	                    m.traceSummaryResult = $root.perfetto.protos.TraceSummaryResult.fromObject(d.traceSummaryResult);
 	                }
 	                return m;
 	            };
@@ -58528,6 +59974,11 @@ function requireProtos$1 () {
 	                    if (o.oneofs)
 	                        d.args = "analyzeStructuredQueryArgs";
 	                }
+	                if (m.traceSummaryArgs != null && m.hasOwnProperty("traceSummaryArgs")) {
+	                    d.traceSummaryArgs = $root.perfetto.protos.TraceSummaryArgs.toObject(m.traceSummaryArgs, o);
+	                    if (o.oneofs)
+	                        d.args = "traceSummaryArgs";
+	                }
 	                if (m.appendResult != null && m.hasOwnProperty("appendResult")) {
 	                    d.appendResult = $root.perfetto.protos.AppendTraceDataResult.toObject(m.appendResult, o);
 	                    if (o.oneofs)
@@ -58572,6 +60023,11 @@ function requireProtos$1 () {
 	                    d.analyzeStructuredQueryResult = $root.perfetto.protos.AnalyzeStructuredQueryResult.toObject(m.analyzeStructuredQueryResult, o);
 	                    if (o.oneofs)
 	                        d.args = "analyzeStructuredQueryResult";
+	                }
+	                if (m.traceSummaryResult != null && m.hasOwnProperty("traceSummaryResult")) {
+	                    d.traceSummaryResult = $root.perfetto.protos.TraceSummaryResult.toObject(m.traceSummaryResult, o);
+	                    if (o.oneofs)
+	                        d.args = "traceSummaryResult";
 	                }
 	                return d;
 	            };
@@ -58619,6 +60075,7 @@ function requireProtos$1 () {
 	             * @property {number} TPM_RESET_TRACE_PROCESSOR=11 TPM_RESET_TRACE_PROCESSOR value
 	             * @property {number} TPM_REGISTER_SQL_PACKAGE=13 TPM_REGISTER_SQL_PACKAGE value
 	             * @property {number} TPM_ANALYZE_STRUCTURED_QUERY=14 TPM_ANALYZE_STRUCTURED_QUERY value
+	             * @property {number} TPM_SUMMARIZE_TRACE=15 TPM_SUMMARIZE_TRACE value
 	             */
 	            TraceProcessorRpc.TraceProcessorMethod = (function() {
 	                var valuesById = {}, values = Object.create(valuesById);
@@ -58635,6 +60092,7 @@ function requireProtos$1 () {
 	                values[valuesById[11] = "TPM_RESET_TRACE_PROCESSOR"] = 11;
 	                values[valuesById[13] = "TPM_REGISTER_SQL_PACKAGE"] = 13;
 	                values[valuesById[14] = "TPM_ANALYZE_STRUCTURED_QUERY"] = 14;
+	                values[valuesById[15] = "TPM_SUMMARIZE_TRACE"] = 15;
 	                return values;
 	            })();
 
@@ -62798,6 +64256,7 @@ function requireProtos$1 () {
 	                 * @property {string|null} [textproto] StructuredQueryResult textproto
 	                 * @property {Array.<string>|null} [modules] StructuredQueryResult modules
 	                 * @property {Array.<string>|null} [preambles] StructuredQueryResult preambles
+	                 * @property {Array.<string>|null} [columns] StructuredQueryResult columns
 	                 */
 
 	                /**
@@ -62811,6 +64270,7 @@ function requireProtos$1 () {
 	                function StructuredQueryResult(p) {
 	                    this.modules = [];
 	                    this.preambles = [];
+	                    this.columns = [];
 	                    if (p)
 	                        for (var ks = Object.keys(p), i = 0; i < ks.length; ++i)
 	                            if (p[ks[i]] != null)
@@ -62850,6 +64310,14 @@ function requireProtos$1 () {
 	                StructuredQueryResult.prototype.preambles = $util.emptyArray;
 
 	                /**
+	                 * StructuredQueryResult columns.
+	                 * @member {Array.<string>} columns
+	                 * @memberof perfetto.protos.AnalyzeStructuredQueryResult.StructuredQueryResult
+	                 * @instance
+	                 */
+	                StructuredQueryResult.prototype.columns = $util.emptyArray;
+
+	                /**
 	                 * Creates a new StructuredQueryResult instance using the specified properties.
 	                 * @function create
 	                 * @memberof perfetto.protos.AnalyzeStructuredQueryResult.StructuredQueryResult
@@ -62885,6 +64353,10 @@ function requireProtos$1 () {
 	                    }
 	                    if (m.textproto != null && Object.hasOwnProperty.call(m, "textproto"))
 	                        w.uint32(34).string(m.textproto);
+	                    if (m.columns != null && m.columns.length) {
+	                        for (var i = 0; i < m.columns.length; ++i)
+	                            w.uint32(42).string(m.columns[i]);
+	                    }
 	                    return w;
 	                };
 
@@ -62924,6 +64396,12 @@ function requireProtos$1 () {
 	                                if (!(m.preambles && m.preambles.length))
 	                                    m.preambles = [];
 	                                m.preambles.push(r.string());
+	                                break;
+	                            }
+	                        case 5: {
+	                                if (!(m.columns && m.columns.length))
+	                                    m.columns = [];
+	                                m.columns.push(r.string());
 	                                break;
 	                            }
 	                        default:
@@ -62968,6 +64446,14 @@ function requireProtos$1 () {
 	                            m.preambles[i] = String(d.preambles[i]);
 	                        }
 	                    }
+	                    if (d.columns) {
+	                        if (!Array.isArray(d.columns))
+	                            throw TypeError(".perfetto.protos.AnalyzeStructuredQueryResult.StructuredQueryResult.columns: array expected");
+	                        m.columns = [];
+	                        for (var i = 0; i < d.columns.length; ++i) {
+	                            m.columns[i] = String(d.columns[i]);
+	                        }
+	                    }
 	                    return m;
 	                };
 
@@ -62987,6 +64473,7 @@ function requireProtos$1 () {
 	                    if (o.arrays || o.defaults) {
 	                        d.modules = [];
 	                        d.preambles = [];
+	                        d.columns = [];
 	                    }
 	                    if (o.defaults) {
 	                        d.sql = "";
@@ -63009,6 +64496,12 @@ function requireProtos$1 () {
 	                    }
 	                    if (m.textproto != null && m.hasOwnProperty("textproto")) {
 	                        d.textproto = m.textproto;
+	                    }
+	                    if (m.columns && m.columns.length) {
+	                        d.columns = [];
+	                        for (var j = 0; j < m.columns.length; ++j) {
+	                            d.columns[j] = m.columns[j];
+	                        }
 	                    }
 	                    return d;
 	                };
@@ -63043,6 +64536,733 @@ function requireProtos$1 () {
 	            })();
 
 	            return AnalyzeStructuredQueryResult;
+	        })();
+
+	        protos.TraceSummaryArgs = (function() {
+
+	            /**
+	             * Properties of a TraceSummaryArgs.
+	             * @memberof perfetto.protos
+	             * @interface ITraceSummaryArgs
+	             * @property {Array.<perfetto.protos.ITraceSummarySpec>|null} [protoSpecs] TraceSummaryArgs protoSpecs
+	             * @property {Array.<string>|null} [textprotoSpecs] TraceSummaryArgs textprotoSpecs
+	             * @property {perfetto.protos.TraceSummaryArgs.IComputationSpec|null} [computationSpec] TraceSummaryArgs computationSpec
+	             * @property {perfetto.protos.TraceSummaryArgs.Format|null} [outputFormat] TraceSummaryArgs outputFormat
+	             */
+
+	            /**
+	             * Constructs a new TraceSummaryArgs.
+	             * @memberof perfetto.protos
+	             * @classdesc Represents a TraceSummaryArgs.
+	             * @implements ITraceSummaryArgs
+	             * @constructor
+	             * @param {perfetto.protos.ITraceSummaryArgs=} [p] Properties to set
+	             */
+	            function TraceSummaryArgs(p) {
+	                this.protoSpecs = [];
+	                this.textprotoSpecs = [];
+	                if (p)
+	                    for (var ks = Object.keys(p), i = 0; i < ks.length; ++i)
+	                        if (p[ks[i]] != null)
+	                            this[ks[i]] = p[ks[i]];
+	            }
+
+	            /**
+	             * TraceSummaryArgs protoSpecs.
+	             * @member {Array.<perfetto.protos.ITraceSummarySpec>} protoSpecs
+	             * @memberof perfetto.protos.TraceSummaryArgs
+	             * @instance
+	             */
+	            TraceSummaryArgs.prototype.protoSpecs = $util.emptyArray;
+
+	            /**
+	             * TraceSummaryArgs textprotoSpecs.
+	             * @member {Array.<string>} textprotoSpecs
+	             * @memberof perfetto.protos.TraceSummaryArgs
+	             * @instance
+	             */
+	            TraceSummaryArgs.prototype.textprotoSpecs = $util.emptyArray;
+
+	            /**
+	             * TraceSummaryArgs computationSpec.
+	             * @member {perfetto.protos.TraceSummaryArgs.IComputationSpec|null|undefined} computationSpec
+	             * @memberof perfetto.protos.TraceSummaryArgs
+	             * @instance
+	             */
+	            TraceSummaryArgs.prototype.computationSpec = null;
+
+	            /**
+	             * TraceSummaryArgs outputFormat.
+	             * @member {perfetto.protos.TraceSummaryArgs.Format} outputFormat
+	             * @memberof perfetto.protos.TraceSummaryArgs
+	             * @instance
+	             */
+	            TraceSummaryArgs.prototype.outputFormat = 0;
+
+	            /**
+	             * Creates a new TraceSummaryArgs instance using the specified properties.
+	             * @function create
+	             * @memberof perfetto.protos.TraceSummaryArgs
+	             * @static
+	             * @param {perfetto.protos.ITraceSummaryArgs=} [properties] Properties to set
+	             * @returns {perfetto.protos.TraceSummaryArgs} TraceSummaryArgs instance
+	             */
+	            TraceSummaryArgs.create = function create(properties) {
+	                return new TraceSummaryArgs(properties);
+	            };
+
+	            /**
+	             * Encodes the specified TraceSummaryArgs message. Does not implicitly {@link perfetto.protos.TraceSummaryArgs.verify|verify} messages.
+	             * @function encode
+	             * @memberof perfetto.protos.TraceSummaryArgs
+	             * @static
+	             * @param {perfetto.protos.ITraceSummaryArgs} m TraceSummaryArgs message or plain object to encode
+	             * @param {$protobuf.Writer} [w] Writer to encode to
+	             * @returns {$protobuf.Writer} Writer
+	             */
+	            TraceSummaryArgs.encode = function encode(m, w) {
+	                if (!w)
+	                    w = $Writer.create();
+	                if (m.protoSpecs != null && m.protoSpecs.length) {
+	                    for (var i = 0; i < m.protoSpecs.length; ++i)
+	                        $root.perfetto.protos.TraceSummarySpec.encode(m.protoSpecs[i], w.uint32(10).fork()).ldelim();
+	                }
+	                if (m.textprotoSpecs != null && m.textprotoSpecs.length) {
+	                    for (var i = 0; i < m.textprotoSpecs.length; ++i)
+	                        w.uint32(18).string(m.textprotoSpecs[i]);
+	                }
+	                if (m.computationSpec != null && Object.hasOwnProperty.call(m, "computationSpec"))
+	                    $root.perfetto.protos.TraceSummaryArgs.ComputationSpec.encode(m.computationSpec, w.uint32(26).fork()).ldelim();
+	                if (m.outputFormat != null && Object.hasOwnProperty.call(m, "outputFormat"))
+	                    w.uint32(32).int32(m.outputFormat);
+	                return w;
+	            };
+
+	            /**
+	             * Decodes a TraceSummaryArgs message from the specified reader or buffer.
+	             * @function decode
+	             * @memberof perfetto.protos.TraceSummaryArgs
+	             * @static
+	             * @param {$protobuf.Reader|Uint8Array} r Reader or buffer to decode from
+	             * @param {number} [l] Message length if known beforehand
+	             * @returns {perfetto.protos.TraceSummaryArgs} TraceSummaryArgs
+	             * @throws {Error} If the payload is not a reader or valid buffer
+	             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+	             */
+	            TraceSummaryArgs.decode = function decode(r, l) {
+	                if (!(r instanceof $Reader))
+	                    r = $Reader.create(r);
+	                var c = l === undefined ? r.len : r.pos + l, m = new $root.perfetto.protos.TraceSummaryArgs();
+	                while (r.pos < c) {
+	                    var t = r.uint32();
+	                    switch (t >>> 3) {
+	                    case 1: {
+	                            if (!(m.protoSpecs && m.protoSpecs.length))
+	                                m.protoSpecs = [];
+	                            m.protoSpecs.push($root.perfetto.protos.TraceSummarySpec.decode(r, r.uint32()));
+	                            break;
+	                        }
+	                    case 2: {
+	                            if (!(m.textprotoSpecs && m.textprotoSpecs.length))
+	                                m.textprotoSpecs = [];
+	                            m.textprotoSpecs.push(r.string());
+	                            break;
+	                        }
+	                    case 3: {
+	                            m.computationSpec = $root.perfetto.protos.TraceSummaryArgs.ComputationSpec.decode(r, r.uint32());
+	                            break;
+	                        }
+	                    case 4: {
+	                            m.outputFormat = r.int32();
+	                            break;
+	                        }
+	                    default:
+	                        r.skipType(t & 7);
+	                        break;
+	                    }
+	                }
+	                return m;
+	            };
+
+	            /**
+	             * Creates a TraceSummaryArgs message from a plain object. Also converts values to their respective internal types.
+	             * @function fromObject
+	             * @memberof perfetto.protos.TraceSummaryArgs
+	             * @static
+	             * @param {Object.<string,*>} d Plain object
+	             * @returns {perfetto.protos.TraceSummaryArgs} TraceSummaryArgs
+	             */
+	            TraceSummaryArgs.fromObject = function fromObject(d) {
+	                if (d instanceof $root.perfetto.protos.TraceSummaryArgs)
+	                    return d;
+	                var m = new $root.perfetto.protos.TraceSummaryArgs();
+	                if (d.protoSpecs) {
+	                    if (!Array.isArray(d.protoSpecs))
+	                        throw TypeError(".perfetto.protos.TraceSummaryArgs.protoSpecs: array expected");
+	                    m.protoSpecs = [];
+	                    for (var i = 0; i < d.protoSpecs.length; ++i) {
+	                        if (typeof d.protoSpecs[i] !== "object")
+	                            throw TypeError(".perfetto.protos.TraceSummaryArgs.protoSpecs: object expected");
+	                        m.protoSpecs[i] = $root.perfetto.protos.TraceSummarySpec.fromObject(d.protoSpecs[i]);
+	                    }
+	                }
+	                if (d.textprotoSpecs) {
+	                    if (!Array.isArray(d.textprotoSpecs))
+	                        throw TypeError(".perfetto.protos.TraceSummaryArgs.textprotoSpecs: array expected");
+	                    m.textprotoSpecs = [];
+	                    for (var i = 0; i < d.textprotoSpecs.length; ++i) {
+	                        m.textprotoSpecs[i] = String(d.textprotoSpecs[i]);
+	                    }
+	                }
+	                if (d.computationSpec != null) {
+	                    if (typeof d.computationSpec !== "object")
+	                        throw TypeError(".perfetto.protos.TraceSummaryArgs.computationSpec: object expected");
+	                    m.computationSpec = $root.perfetto.protos.TraceSummaryArgs.ComputationSpec.fromObject(d.computationSpec);
+	                }
+	                switch (d.outputFormat) {
+	                default:
+	                    if (typeof d.outputFormat === "number") {
+	                        m.outputFormat = d.outputFormat;
+	                        break;
+	                    }
+	                    break;
+	                case "BINARY_PROTOBUF":
+	                case 0:
+	                    m.outputFormat = 0;
+	                    break;
+	                case "TEXTPROTO":
+	                case 1:
+	                    m.outputFormat = 1;
+	                    break;
+	                }
+	                return m;
+	            };
+
+	            /**
+	             * Creates a plain object from a TraceSummaryArgs message. Also converts values to other types if specified.
+	             * @function toObject
+	             * @memberof perfetto.protos.TraceSummaryArgs
+	             * @static
+	             * @param {perfetto.protos.TraceSummaryArgs} m TraceSummaryArgs
+	             * @param {$protobuf.IConversionOptions} [o] Conversion options
+	             * @returns {Object.<string,*>} Plain object
+	             */
+	            TraceSummaryArgs.toObject = function toObject(m, o) {
+	                if (!o)
+	                    o = {};
+	                var d = {};
+	                if (o.arrays || o.defaults) {
+	                    d.protoSpecs = [];
+	                    d.textprotoSpecs = [];
+	                }
+	                if (o.defaults) {
+	                    d.computationSpec = null;
+	                    d.outputFormat = o.enums === String ? "BINARY_PROTOBUF" : 0;
+	                }
+	                if (m.protoSpecs && m.protoSpecs.length) {
+	                    d.protoSpecs = [];
+	                    for (var j = 0; j < m.protoSpecs.length; ++j) {
+	                        d.protoSpecs[j] = $root.perfetto.protos.TraceSummarySpec.toObject(m.protoSpecs[j], o);
+	                    }
+	                }
+	                if (m.textprotoSpecs && m.textprotoSpecs.length) {
+	                    d.textprotoSpecs = [];
+	                    for (var j = 0; j < m.textprotoSpecs.length; ++j) {
+	                        d.textprotoSpecs[j] = m.textprotoSpecs[j];
+	                    }
+	                }
+	                if (m.computationSpec != null && m.hasOwnProperty("computationSpec")) {
+	                    d.computationSpec = $root.perfetto.protos.TraceSummaryArgs.ComputationSpec.toObject(m.computationSpec, o);
+	                }
+	                if (m.outputFormat != null && m.hasOwnProperty("outputFormat")) {
+	                    d.outputFormat = o.enums === String ? $root.perfetto.protos.TraceSummaryArgs.Format[m.outputFormat] === undefined ? m.outputFormat : $root.perfetto.protos.TraceSummaryArgs.Format[m.outputFormat] : m.outputFormat;
+	                }
+	                return d;
+	            };
+
+	            /**
+	             * Converts this TraceSummaryArgs to JSON.
+	             * @function toJSON
+	             * @memberof perfetto.protos.TraceSummaryArgs
+	             * @instance
+	             * @returns {Object.<string,*>} JSON object
+	             */
+	            TraceSummaryArgs.prototype.toJSON = function toJSON() {
+	                return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+	            };
+
+	            /**
+	             * Gets the default type url for TraceSummaryArgs
+	             * @function getTypeUrl
+	             * @memberof perfetto.protos.TraceSummaryArgs
+	             * @static
+	             * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+	             * @returns {string} The default type url
+	             */
+	            TraceSummaryArgs.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+	                if (typeUrlPrefix === undefined) {
+	                    typeUrlPrefix = "type.googleapis.com";
+	                }
+	                return typeUrlPrefix + "/perfetto.protos.TraceSummaryArgs";
+	            };
+
+	            TraceSummaryArgs.ComputationSpec = (function() {
+
+	                /**
+	                 * Properties of a ComputationSpec.
+	                 * @memberof perfetto.protos.TraceSummaryArgs
+	                 * @interface IComputationSpec
+	                 * @property {Array.<string>|null} [metricIds] ComputationSpec metricIds
+	                 * @property {boolean|null} [runAllMetrics] ComputationSpec runAllMetrics
+	                 * @property {string|null} [metadataQueryId] ComputationSpec metadataQueryId
+	                 */
+
+	                /**
+	                 * Constructs a new ComputationSpec.
+	                 * @memberof perfetto.protos.TraceSummaryArgs
+	                 * @classdesc Represents a ComputationSpec.
+	                 * @implements IComputationSpec
+	                 * @constructor
+	                 * @param {perfetto.protos.TraceSummaryArgs.IComputationSpec=} [p] Properties to set
+	                 */
+	                function ComputationSpec(p) {
+	                    this.metricIds = [];
+	                    if (p)
+	                        for (var ks = Object.keys(p), i = 0; i < ks.length; ++i)
+	                            if (p[ks[i]] != null)
+	                                this[ks[i]] = p[ks[i]];
+	                }
+
+	                /**
+	                 * ComputationSpec metricIds.
+	                 * @member {Array.<string>} metricIds
+	                 * @memberof perfetto.protos.TraceSummaryArgs.ComputationSpec
+	                 * @instance
+	                 */
+	                ComputationSpec.prototype.metricIds = $util.emptyArray;
+
+	                /**
+	                 * ComputationSpec runAllMetrics.
+	                 * @member {boolean} runAllMetrics
+	                 * @memberof perfetto.protos.TraceSummaryArgs.ComputationSpec
+	                 * @instance
+	                 */
+	                ComputationSpec.prototype.runAllMetrics = false;
+
+	                /**
+	                 * ComputationSpec metadataQueryId.
+	                 * @member {string} metadataQueryId
+	                 * @memberof perfetto.protos.TraceSummaryArgs.ComputationSpec
+	                 * @instance
+	                 */
+	                ComputationSpec.prototype.metadataQueryId = "";
+
+	                /**
+	                 * Creates a new ComputationSpec instance using the specified properties.
+	                 * @function create
+	                 * @memberof perfetto.protos.TraceSummaryArgs.ComputationSpec
+	                 * @static
+	                 * @param {perfetto.protos.TraceSummaryArgs.IComputationSpec=} [properties] Properties to set
+	                 * @returns {perfetto.protos.TraceSummaryArgs.ComputationSpec} ComputationSpec instance
+	                 */
+	                ComputationSpec.create = function create(properties) {
+	                    return new ComputationSpec(properties);
+	                };
+
+	                /**
+	                 * Encodes the specified ComputationSpec message. Does not implicitly {@link perfetto.protos.TraceSummaryArgs.ComputationSpec.verify|verify} messages.
+	                 * @function encode
+	                 * @memberof perfetto.protos.TraceSummaryArgs.ComputationSpec
+	                 * @static
+	                 * @param {perfetto.protos.TraceSummaryArgs.IComputationSpec} m ComputationSpec message or plain object to encode
+	                 * @param {$protobuf.Writer} [w] Writer to encode to
+	                 * @returns {$protobuf.Writer} Writer
+	                 */
+	                ComputationSpec.encode = function encode(m, w) {
+	                    if (!w)
+	                        w = $Writer.create();
+	                    if (m.metricIds != null && m.metricIds.length) {
+	                        for (var i = 0; i < m.metricIds.length; ++i)
+	                            w.uint32(10).string(m.metricIds[i]);
+	                    }
+	                    if (m.metadataQueryId != null && Object.hasOwnProperty.call(m, "metadataQueryId"))
+	                        w.uint32(18).string(m.metadataQueryId);
+	                    if (m.runAllMetrics != null && Object.hasOwnProperty.call(m, "runAllMetrics"))
+	                        w.uint32(24).bool(m.runAllMetrics);
+	                    return w;
+	                };
+
+	                /**
+	                 * Decodes a ComputationSpec message from the specified reader or buffer.
+	                 * @function decode
+	                 * @memberof perfetto.protos.TraceSummaryArgs.ComputationSpec
+	                 * @static
+	                 * @param {$protobuf.Reader|Uint8Array} r Reader or buffer to decode from
+	                 * @param {number} [l] Message length if known beforehand
+	                 * @returns {perfetto.protos.TraceSummaryArgs.ComputationSpec} ComputationSpec
+	                 * @throws {Error} If the payload is not a reader or valid buffer
+	                 * @throws {$protobuf.util.ProtocolError} If required fields are missing
+	                 */
+	                ComputationSpec.decode = function decode(r, l) {
+	                    if (!(r instanceof $Reader))
+	                        r = $Reader.create(r);
+	                    var c = l === undefined ? r.len : r.pos + l, m = new $root.perfetto.protos.TraceSummaryArgs.ComputationSpec();
+	                    while (r.pos < c) {
+	                        var t = r.uint32();
+	                        switch (t >>> 3) {
+	                        case 1: {
+	                                if (!(m.metricIds && m.metricIds.length))
+	                                    m.metricIds = [];
+	                                m.metricIds.push(r.string());
+	                                break;
+	                            }
+	                        case 3: {
+	                                m.runAllMetrics = r.bool();
+	                                break;
+	                            }
+	                        case 2: {
+	                                m.metadataQueryId = r.string();
+	                                break;
+	                            }
+	                        default:
+	                            r.skipType(t & 7);
+	                            break;
+	                        }
+	                    }
+	                    return m;
+	                };
+
+	                /**
+	                 * Creates a ComputationSpec message from a plain object. Also converts values to their respective internal types.
+	                 * @function fromObject
+	                 * @memberof perfetto.protos.TraceSummaryArgs.ComputationSpec
+	                 * @static
+	                 * @param {Object.<string,*>} d Plain object
+	                 * @returns {perfetto.protos.TraceSummaryArgs.ComputationSpec} ComputationSpec
+	                 */
+	                ComputationSpec.fromObject = function fromObject(d) {
+	                    if (d instanceof $root.perfetto.protos.TraceSummaryArgs.ComputationSpec)
+	                        return d;
+	                    var m = new $root.perfetto.protos.TraceSummaryArgs.ComputationSpec();
+	                    if (d.metricIds) {
+	                        if (!Array.isArray(d.metricIds))
+	                            throw TypeError(".perfetto.protos.TraceSummaryArgs.ComputationSpec.metricIds: array expected");
+	                        m.metricIds = [];
+	                        for (var i = 0; i < d.metricIds.length; ++i) {
+	                            m.metricIds[i] = String(d.metricIds[i]);
+	                        }
+	                    }
+	                    if (d.runAllMetrics != null) {
+	                        m.runAllMetrics = Boolean(d.runAllMetrics);
+	                    }
+	                    if (d.metadataQueryId != null) {
+	                        m.metadataQueryId = String(d.metadataQueryId);
+	                    }
+	                    return m;
+	                };
+
+	                /**
+	                 * Creates a plain object from a ComputationSpec message. Also converts values to other types if specified.
+	                 * @function toObject
+	                 * @memberof perfetto.protos.TraceSummaryArgs.ComputationSpec
+	                 * @static
+	                 * @param {perfetto.protos.TraceSummaryArgs.ComputationSpec} m ComputationSpec
+	                 * @param {$protobuf.IConversionOptions} [o] Conversion options
+	                 * @returns {Object.<string,*>} Plain object
+	                 */
+	                ComputationSpec.toObject = function toObject(m, o) {
+	                    if (!o)
+	                        o = {};
+	                    var d = {};
+	                    if (o.arrays || o.defaults) {
+	                        d.metricIds = [];
+	                    }
+	                    if (o.defaults) {
+	                        d.metadataQueryId = "";
+	                        d.runAllMetrics = false;
+	                    }
+	                    if (m.metricIds && m.metricIds.length) {
+	                        d.metricIds = [];
+	                        for (var j = 0; j < m.metricIds.length; ++j) {
+	                            d.metricIds[j] = m.metricIds[j];
+	                        }
+	                    }
+	                    if (m.metadataQueryId != null && m.hasOwnProperty("metadataQueryId")) {
+	                        d.metadataQueryId = m.metadataQueryId;
+	                    }
+	                    if (m.runAllMetrics != null && m.hasOwnProperty("runAllMetrics")) {
+	                        d.runAllMetrics = m.runAllMetrics;
+	                    }
+	                    return d;
+	                };
+
+	                /**
+	                 * Converts this ComputationSpec to JSON.
+	                 * @function toJSON
+	                 * @memberof perfetto.protos.TraceSummaryArgs.ComputationSpec
+	                 * @instance
+	                 * @returns {Object.<string,*>} JSON object
+	                 */
+	                ComputationSpec.prototype.toJSON = function toJSON() {
+	                    return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+	                };
+
+	                /**
+	                 * Gets the default type url for ComputationSpec
+	                 * @function getTypeUrl
+	                 * @memberof perfetto.protos.TraceSummaryArgs.ComputationSpec
+	                 * @static
+	                 * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+	                 * @returns {string} The default type url
+	                 */
+	                ComputationSpec.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+	                    if (typeUrlPrefix === undefined) {
+	                        typeUrlPrefix = "type.googleapis.com";
+	                    }
+	                    return typeUrlPrefix + "/perfetto.protos.TraceSummaryArgs.ComputationSpec";
+	                };
+
+	                return ComputationSpec;
+	            })();
+
+	            /**
+	             * Format enum.
+	             * @name perfetto.protos.TraceSummaryArgs.Format
+	             * @enum {number}
+	             * @property {number} BINARY_PROTOBUF=0 BINARY_PROTOBUF value
+	             * @property {number} TEXTPROTO=1 TEXTPROTO value
+	             */
+	            TraceSummaryArgs.Format = (function() {
+	                var valuesById = {}, values = Object.create(valuesById);
+	                values[valuesById[0] = "BINARY_PROTOBUF"] = 0;
+	                values[valuesById[1] = "TEXTPROTO"] = 1;
+	                return values;
+	            })();
+
+	            return TraceSummaryArgs;
+	        })();
+
+	        protos.TraceSummaryResult = (function() {
+
+	            /**
+	             * Properties of a TraceSummaryResult.
+	             * @memberof perfetto.protos
+	             * @interface ITraceSummaryResult
+	             * @property {Uint8Array|null} [protoSummary] TraceSummaryResult protoSummary
+	             * @property {string|null} [textprotoSummary] TraceSummaryResult textprotoSummary
+	             * @property {string|null} [error] TraceSummaryResult error
+	             */
+
+	            /**
+	             * Constructs a new TraceSummaryResult.
+	             * @memberof perfetto.protos
+	             * @classdesc Represents a TraceSummaryResult.
+	             * @implements ITraceSummaryResult
+	             * @constructor
+	             * @param {perfetto.protos.ITraceSummaryResult=} [p] Properties to set
+	             */
+	            function TraceSummaryResult(p) {
+	                if (p)
+	                    for (var ks = Object.keys(p), i = 0; i < ks.length; ++i)
+	                        if (p[ks[i]] != null)
+	                            this[ks[i]] = p[ks[i]];
+	            }
+
+	            /**
+	             * TraceSummaryResult protoSummary.
+	             * @member {Uint8Array|null|undefined} protoSummary
+	             * @memberof perfetto.protos.TraceSummaryResult
+	             * @instance
+	             */
+	            TraceSummaryResult.prototype.protoSummary = null;
+
+	            /**
+	             * TraceSummaryResult textprotoSummary.
+	             * @member {string|null|undefined} textprotoSummary
+	             * @memberof perfetto.protos.TraceSummaryResult
+	             * @instance
+	             */
+	            TraceSummaryResult.prototype.textprotoSummary = null;
+
+	            /**
+	             * TraceSummaryResult error.
+	             * @member {string} error
+	             * @memberof perfetto.protos.TraceSummaryResult
+	             * @instance
+	             */
+	            TraceSummaryResult.prototype.error = "";
+
+	            // OneOf field names bound to virtual getters and setters
+	            var $oneOfFields;
+
+	            /**
+	             * TraceSummaryResult summary.
+	             * @member {"protoSummary"|"textprotoSummary"|undefined} summary
+	             * @memberof perfetto.protos.TraceSummaryResult
+	             * @instance
+	             */
+	            Object.defineProperty(TraceSummaryResult.prototype, "summary", {
+	                get: $util.oneOfGetter($oneOfFields = ["protoSummary", "textprotoSummary"]),
+	                set: $util.oneOfSetter($oneOfFields)
+	            });
+
+	            /**
+	             * Creates a new TraceSummaryResult instance using the specified properties.
+	             * @function create
+	             * @memberof perfetto.protos.TraceSummaryResult
+	             * @static
+	             * @param {perfetto.protos.ITraceSummaryResult=} [properties] Properties to set
+	             * @returns {perfetto.protos.TraceSummaryResult} TraceSummaryResult instance
+	             */
+	            TraceSummaryResult.create = function create(properties) {
+	                return new TraceSummaryResult(properties);
+	            };
+
+	            /**
+	             * Encodes the specified TraceSummaryResult message. Does not implicitly {@link perfetto.protos.TraceSummaryResult.verify|verify} messages.
+	             * @function encode
+	             * @memberof perfetto.protos.TraceSummaryResult
+	             * @static
+	             * @param {perfetto.protos.ITraceSummaryResult} m TraceSummaryResult message or plain object to encode
+	             * @param {$protobuf.Writer} [w] Writer to encode to
+	             * @returns {$protobuf.Writer} Writer
+	             */
+	            TraceSummaryResult.encode = function encode(m, w) {
+	                if (!w)
+	                    w = $Writer.create();
+	                if (m.protoSummary != null && Object.hasOwnProperty.call(m, "protoSummary"))
+	                    w.uint32(10).bytes(m.protoSummary);
+	                if (m.textprotoSummary != null && Object.hasOwnProperty.call(m, "textprotoSummary"))
+	                    w.uint32(18).string(m.textprotoSummary);
+	                if (m.error != null && Object.hasOwnProperty.call(m, "error"))
+	                    w.uint32(26).string(m.error);
+	                return w;
+	            };
+
+	            /**
+	             * Decodes a TraceSummaryResult message from the specified reader or buffer.
+	             * @function decode
+	             * @memberof perfetto.protos.TraceSummaryResult
+	             * @static
+	             * @param {$protobuf.Reader|Uint8Array} r Reader or buffer to decode from
+	             * @param {number} [l] Message length if known beforehand
+	             * @returns {perfetto.protos.TraceSummaryResult} TraceSummaryResult
+	             * @throws {Error} If the payload is not a reader or valid buffer
+	             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+	             */
+	            TraceSummaryResult.decode = function decode(r, l) {
+	                if (!(r instanceof $Reader))
+	                    r = $Reader.create(r);
+	                var c = l === undefined ? r.len : r.pos + l, m = new $root.perfetto.protos.TraceSummaryResult();
+	                while (r.pos < c) {
+	                    var t = r.uint32();
+	                    switch (t >>> 3) {
+	                    case 1: {
+	                            m.protoSummary = r.bytes();
+	                            break;
+	                        }
+	                    case 2: {
+	                            m.textprotoSummary = r.string();
+	                            break;
+	                        }
+	                    case 3: {
+	                            m.error = r.string();
+	                            break;
+	                        }
+	                    default:
+	                        r.skipType(t & 7);
+	                        break;
+	                    }
+	                }
+	                return m;
+	            };
+
+	            /**
+	             * Creates a TraceSummaryResult message from a plain object. Also converts values to their respective internal types.
+	             * @function fromObject
+	             * @memberof perfetto.protos.TraceSummaryResult
+	             * @static
+	             * @param {Object.<string,*>} d Plain object
+	             * @returns {perfetto.protos.TraceSummaryResult} TraceSummaryResult
+	             */
+	            TraceSummaryResult.fromObject = function fromObject(d) {
+	                if (d instanceof $root.perfetto.protos.TraceSummaryResult)
+	                    return d;
+	                var m = new $root.perfetto.protos.TraceSummaryResult();
+	                if (d.protoSummary != null) {
+	                    if (typeof d.protoSummary === "string")
+	                        $util.base64.decode(d.protoSummary, m.protoSummary = $util.newBuffer($util.base64.length(d.protoSummary)), 0);
+	                    else if (d.protoSummary.length >= 0)
+	                        m.protoSummary = d.protoSummary;
+	                }
+	                if (d.textprotoSummary != null) {
+	                    m.textprotoSummary = String(d.textprotoSummary);
+	                }
+	                if (d.error != null) {
+	                    m.error = String(d.error);
+	                }
+	                return m;
+	            };
+
+	            /**
+	             * Creates a plain object from a TraceSummaryResult message. Also converts values to other types if specified.
+	             * @function toObject
+	             * @memberof perfetto.protos.TraceSummaryResult
+	             * @static
+	             * @param {perfetto.protos.TraceSummaryResult} m TraceSummaryResult
+	             * @param {$protobuf.IConversionOptions} [o] Conversion options
+	             * @returns {Object.<string,*>} Plain object
+	             */
+	            TraceSummaryResult.toObject = function toObject(m, o) {
+	                if (!o)
+	                    o = {};
+	                var d = {};
+	                if (o.defaults) {
+	                    d.error = "";
+	                }
+	                if (m.protoSummary != null && m.hasOwnProperty("protoSummary")) {
+	                    d.protoSummary = o.bytes === String ? $util.base64.encode(m.protoSummary, 0, m.protoSummary.length) : o.bytes === Array ? Array.prototype.slice.call(m.protoSummary) : m.protoSummary;
+	                    if (o.oneofs)
+	                        d.summary = "protoSummary";
+	                }
+	                if (m.textprotoSummary != null && m.hasOwnProperty("textprotoSummary")) {
+	                    d.textprotoSummary = m.textprotoSummary;
+	                    if (o.oneofs)
+	                        d.summary = "textprotoSummary";
+	                }
+	                if (m.error != null && m.hasOwnProperty("error")) {
+	                    d.error = m.error;
+	                }
+	                return d;
+	            };
+
+	            /**
+	             * Converts this TraceSummaryResult to JSON.
+	             * @function toJSON
+	             * @memberof perfetto.protos.TraceSummaryResult
+	             * @instance
+	             * @returns {Object.<string,*>} JSON object
+	             */
+	            TraceSummaryResult.prototype.toJSON = function toJSON() {
+	                return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+	            };
+
+	            /**
+	             * Gets the default type url for TraceSummaryResult
+	             * @function getTypeUrl
+	             * @memberof perfetto.protos.TraceSummaryResult
+	             * @static
+	             * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+	             * @returns {string} The default type url
+	             */
+	            TraceSummaryResult.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+	                if (typeUrlPrefix === undefined) {
+	                    typeUrlPrefix = "type.googleapis.com";
+	                }
+	                return typeUrlPrefix + "/perfetto.protos.TraceSummaryResult";
+	            };
+
+	            return TraceSummaryResult;
 	        })();
 
 	        protos.FileDescriptorSet = (function() {
@@ -66206,6 +68426,3466 @@ function requireProtos$1 () {
 	            values[valuesById[0] = "NONE"] = 0;
 	            values[valuesById[31] = "ALL"] = 31;
 	            return values;
+	        })();
+
+	        protos.TraceSummarySpec = (function() {
+
+	            /**
+	             * Properties of a TraceSummarySpec.
+	             * @memberof perfetto.protos
+	             * @interface ITraceSummarySpec
+	             * @property {Array.<perfetto.protos.ITraceMetricV2Spec>|null} [metricSpec] TraceSummarySpec metricSpec
+	             * @property {Array.<perfetto.protos.IPerfettoSqlStructuredQuery>|null} [query] TraceSummarySpec query
+	             * @property {Array.<perfetto.protos.ITraceMetricV2TemplateSpec>|null} [metricTemplateSpec] TraceSummarySpec metricTemplateSpec
+	             */
+
+	            /**
+	             * Constructs a new TraceSummarySpec.
+	             * @memberof perfetto.protos
+	             * @classdesc Represents a TraceSummarySpec.
+	             * @implements ITraceSummarySpec
+	             * @constructor
+	             * @param {perfetto.protos.ITraceSummarySpec=} [p] Properties to set
+	             */
+	            function TraceSummarySpec(p) {
+	                this.metricSpec = [];
+	                this.query = [];
+	                this.metricTemplateSpec = [];
+	                if (p)
+	                    for (var ks = Object.keys(p), i = 0; i < ks.length; ++i)
+	                        if (p[ks[i]] != null)
+	                            this[ks[i]] = p[ks[i]];
+	            }
+
+	            /**
+	             * TraceSummarySpec metricSpec.
+	             * @member {Array.<perfetto.protos.ITraceMetricV2Spec>} metricSpec
+	             * @memberof perfetto.protos.TraceSummarySpec
+	             * @instance
+	             */
+	            TraceSummarySpec.prototype.metricSpec = $util.emptyArray;
+
+	            /**
+	             * TraceSummarySpec query.
+	             * @member {Array.<perfetto.protos.IPerfettoSqlStructuredQuery>} query
+	             * @memberof perfetto.protos.TraceSummarySpec
+	             * @instance
+	             */
+	            TraceSummarySpec.prototype.query = $util.emptyArray;
+
+	            /**
+	             * TraceSummarySpec metricTemplateSpec.
+	             * @member {Array.<perfetto.protos.ITraceMetricV2TemplateSpec>} metricTemplateSpec
+	             * @memberof perfetto.protos.TraceSummarySpec
+	             * @instance
+	             */
+	            TraceSummarySpec.prototype.metricTemplateSpec = $util.emptyArray;
+
+	            /**
+	             * Creates a new TraceSummarySpec instance using the specified properties.
+	             * @function create
+	             * @memberof perfetto.protos.TraceSummarySpec
+	             * @static
+	             * @param {perfetto.protos.ITraceSummarySpec=} [properties] Properties to set
+	             * @returns {perfetto.protos.TraceSummarySpec} TraceSummarySpec instance
+	             */
+	            TraceSummarySpec.create = function create(properties) {
+	                return new TraceSummarySpec(properties);
+	            };
+
+	            /**
+	             * Encodes the specified TraceSummarySpec message. Does not implicitly {@link perfetto.protos.TraceSummarySpec.verify|verify} messages.
+	             * @function encode
+	             * @memberof perfetto.protos.TraceSummarySpec
+	             * @static
+	             * @param {perfetto.protos.ITraceSummarySpec} m TraceSummarySpec message or plain object to encode
+	             * @param {$protobuf.Writer} [w] Writer to encode to
+	             * @returns {$protobuf.Writer} Writer
+	             */
+	            TraceSummarySpec.encode = function encode(m, w) {
+	                if (!w)
+	                    w = $Writer.create();
+	                if (m.metricSpec != null && m.metricSpec.length) {
+	                    for (var i = 0; i < m.metricSpec.length; ++i)
+	                        $root.perfetto.protos.TraceMetricV2Spec.encode(m.metricSpec[i], w.uint32(10).fork()).ldelim();
+	                }
+	                if (m.query != null && m.query.length) {
+	                    for (var i = 0; i < m.query.length; ++i)
+	                        $root.perfetto.protos.PerfettoSqlStructuredQuery.encode(m.query[i], w.uint32(18).fork()).ldelim();
+	                }
+	                if (m.metricTemplateSpec != null && m.metricTemplateSpec.length) {
+	                    for (var i = 0; i < m.metricTemplateSpec.length; ++i)
+	                        $root.perfetto.protos.TraceMetricV2TemplateSpec.encode(m.metricTemplateSpec[i], w.uint32(26).fork()).ldelim();
+	                }
+	                return w;
+	            };
+
+	            /**
+	             * Decodes a TraceSummarySpec message from the specified reader or buffer.
+	             * @function decode
+	             * @memberof perfetto.protos.TraceSummarySpec
+	             * @static
+	             * @param {$protobuf.Reader|Uint8Array} r Reader or buffer to decode from
+	             * @param {number} [l] Message length if known beforehand
+	             * @returns {perfetto.protos.TraceSummarySpec} TraceSummarySpec
+	             * @throws {Error} If the payload is not a reader or valid buffer
+	             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+	             */
+	            TraceSummarySpec.decode = function decode(r, l) {
+	                if (!(r instanceof $Reader))
+	                    r = $Reader.create(r);
+	                var c = l === undefined ? r.len : r.pos + l, m = new $root.perfetto.protos.TraceSummarySpec();
+	                while (r.pos < c) {
+	                    var t = r.uint32();
+	                    switch (t >>> 3) {
+	                    case 1: {
+	                            if (!(m.metricSpec && m.metricSpec.length))
+	                                m.metricSpec = [];
+	                            m.metricSpec.push($root.perfetto.protos.TraceMetricV2Spec.decode(r, r.uint32()));
+	                            break;
+	                        }
+	                    case 2: {
+	                            if (!(m.query && m.query.length))
+	                                m.query = [];
+	                            m.query.push($root.perfetto.protos.PerfettoSqlStructuredQuery.decode(r, r.uint32()));
+	                            break;
+	                        }
+	                    case 3: {
+	                            if (!(m.metricTemplateSpec && m.metricTemplateSpec.length))
+	                                m.metricTemplateSpec = [];
+	                            m.metricTemplateSpec.push($root.perfetto.protos.TraceMetricV2TemplateSpec.decode(r, r.uint32()));
+	                            break;
+	                        }
+	                    default:
+	                        r.skipType(t & 7);
+	                        break;
+	                    }
+	                }
+	                return m;
+	            };
+
+	            /**
+	             * Creates a TraceSummarySpec message from a plain object. Also converts values to their respective internal types.
+	             * @function fromObject
+	             * @memberof perfetto.protos.TraceSummarySpec
+	             * @static
+	             * @param {Object.<string,*>} d Plain object
+	             * @returns {perfetto.protos.TraceSummarySpec} TraceSummarySpec
+	             */
+	            TraceSummarySpec.fromObject = function fromObject(d) {
+	                if (d instanceof $root.perfetto.protos.TraceSummarySpec)
+	                    return d;
+	                var m = new $root.perfetto.protos.TraceSummarySpec();
+	                if (d.metricSpec) {
+	                    if (!Array.isArray(d.metricSpec))
+	                        throw TypeError(".perfetto.protos.TraceSummarySpec.metricSpec: array expected");
+	                    m.metricSpec = [];
+	                    for (var i = 0; i < d.metricSpec.length; ++i) {
+	                        if (typeof d.metricSpec[i] !== "object")
+	                            throw TypeError(".perfetto.protos.TraceSummarySpec.metricSpec: object expected");
+	                        m.metricSpec[i] = $root.perfetto.protos.TraceMetricV2Spec.fromObject(d.metricSpec[i]);
+	                    }
+	                }
+	                if (d.query) {
+	                    if (!Array.isArray(d.query))
+	                        throw TypeError(".perfetto.protos.TraceSummarySpec.query: array expected");
+	                    m.query = [];
+	                    for (var i = 0; i < d.query.length; ++i) {
+	                        if (typeof d.query[i] !== "object")
+	                            throw TypeError(".perfetto.protos.TraceSummarySpec.query: object expected");
+	                        m.query[i] = $root.perfetto.protos.PerfettoSqlStructuredQuery.fromObject(d.query[i]);
+	                    }
+	                }
+	                if (d.metricTemplateSpec) {
+	                    if (!Array.isArray(d.metricTemplateSpec))
+	                        throw TypeError(".perfetto.protos.TraceSummarySpec.metricTemplateSpec: array expected");
+	                    m.metricTemplateSpec = [];
+	                    for (var i = 0; i < d.metricTemplateSpec.length; ++i) {
+	                        if (typeof d.metricTemplateSpec[i] !== "object")
+	                            throw TypeError(".perfetto.protos.TraceSummarySpec.metricTemplateSpec: object expected");
+	                        m.metricTemplateSpec[i] = $root.perfetto.protos.TraceMetricV2TemplateSpec.fromObject(d.metricTemplateSpec[i]);
+	                    }
+	                }
+	                return m;
+	            };
+
+	            /**
+	             * Creates a plain object from a TraceSummarySpec message. Also converts values to other types if specified.
+	             * @function toObject
+	             * @memberof perfetto.protos.TraceSummarySpec
+	             * @static
+	             * @param {perfetto.protos.TraceSummarySpec} m TraceSummarySpec
+	             * @param {$protobuf.IConversionOptions} [o] Conversion options
+	             * @returns {Object.<string,*>} Plain object
+	             */
+	            TraceSummarySpec.toObject = function toObject(m, o) {
+	                if (!o)
+	                    o = {};
+	                var d = {};
+	                if (o.arrays || o.defaults) {
+	                    d.metricSpec = [];
+	                    d.query = [];
+	                    d.metricTemplateSpec = [];
+	                }
+	                if (m.metricSpec && m.metricSpec.length) {
+	                    d.metricSpec = [];
+	                    for (var j = 0; j < m.metricSpec.length; ++j) {
+	                        d.metricSpec[j] = $root.perfetto.protos.TraceMetricV2Spec.toObject(m.metricSpec[j], o);
+	                    }
+	                }
+	                if (m.query && m.query.length) {
+	                    d.query = [];
+	                    for (var j = 0; j < m.query.length; ++j) {
+	                        d.query[j] = $root.perfetto.protos.PerfettoSqlStructuredQuery.toObject(m.query[j], o);
+	                    }
+	                }
+	                if (m.metricTemplateSpec && m.metricTemplateSpec.length) {
+	                    d.metricTemplateSpec = [];
+	                    for (var j = 0; j < m.metricTemplateSpec.length; ++j) {
+	                        d.metricTemplateSpec[j] = $root.perfetto.protos.TraceMetricV2TemplateSpec.toObject(m.metricTemplateSpec[j], o);
+	                    }
+	                }
+	                return d;
+	            };
+
+	            /**
+	             * Converts this TraceSummarySpec to JSON.
+	             * @function toJSON
+	             * @memberof perfetto.protos.TraceSummarySpec
+	             * @instance
+	             * @returns {Object.<string,*>} JSON object
+	             */
+	            TraceSummarySpec.prototype.toJSON = function toJSON() {
+	                return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+	            };
+
+	            /**
+	             * Gets the default type url for TraceSummarySpec
+	             * @function getTypeUrl
+	             * @memberof perfetto.protos.TraceSummarySpec
+	             * @static
+	             * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+	             * @returns {string} The default type url
+	             */
+	            TraceSummarySpec.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+	                if (typeUrlPrefix === undefined) {
+	                    typeUrlPrefix = "type.googleapis.com";
+	                }
+	                return typeUrlPrefix + "/perfetto.protos.TraceSummarySpec";
+	            };
+
+	            return TraceSummarySpec;
+	        })();
+
+	        protos.TraceSummary = (function() {
+
+	            /**
+	             * Properties of a TraceSummary.
+	             * @memberof perfetto.protos
+	             * @interface ITraceSummary
+	             * @property {Array.<perfetto.protos.ITraceMetricV2Bundle>|null} [metricBundles] TraceSummary metricBundles
+	             * @property {Array.<perfetto.protos.TraceSummary.IMetadata>|null} [metadata] TraceSummary metadata
+	             */
+
+	            /**
+	             * Constructs a new TraceSummary.
+	             * @memberof perfetto.protos
+	             * @classdesc Represents a TraceSummary.
+	             * @implements ITraceSummary
+	             * @constructor
+	             * @param {perfetto.protos.ITraceSummary=} [p] Properties to set
+	             */
+	            function TraceSummary(p) {
+	                this.metricBundles = [];
+	                this.metadata = [];
+	                if (p)
+	                    for (var ks = Object.keys(p), i = 0; i < ks.length; ++i)
+	                        if (p[ks[i]] != null)
+	                            this[ks[i]] = p[ks[i]];
+	            }
+
+	            /**
+	             * TraceSummary metricBundles.
+	             * @member {Array.<perfetto.protos.ITraceMetricV2Bundle>} metricBundles
+	             * @memberof perfetto.protos.TraceSummary
+	             * @instance
+	             */
+	            TraceSummary.prototype.metricBundles = $util.emptyArray;
+
+	            /**
+	             * TraceSummary metadata.
+	             * @member {Array.<perfetto.protos.TraceSummary.IMetadata>} metadata
+	             * @memberof perfetto.protos.TraceSummary
+	             * @instance
+	             */
+	            TraceSummary.prototype.metadata = $util.emptyArray;
+
+	            /**
+	             * Creates a new TraceSummary instance using the specified properties.
+	             * @function create
+	             * @memberof perfetto.protos.TraceSummary
+	             * @static
+	             * @param {perfetto.protos.ITraceSummary=} [properties] Properties to set
+	             * @returns {perfetto.protos.TraceSummary} TraceSummary instance
+	             */
+	            TraceSummary.create = function create(properties) {
+	                return new TraceSummary(properties);
+	            };
+
+	            /**
+	             * Encodes the specified TraceSummary message. Does not implicitly {@link perfetto.protos.TraceSummary.verify|verify} messages.
+	             * @function encode
+	             * @memberof perfetto.protos.TraceSummary
+	             * @static
+	             * @param {perfetto.protos.ITraceSummary} m TraceSummary message or plain object to encode
+	             * @param {$protobuf.Writer} [w] Writer to encode to
+	             * @returns {$protobuf.Writer} Writer
+	             */
+	            TraceSummary.encode = function encode(m, w) {
+	                if (!w)
+	                    w = $Writer.create();
+	                if (m.metadata != null && m.metadata.length) {
+	                    for (var i = 0; i < m.metadata.length; ++i)
+	                        $root.perfetto.protos.TraceSummary.Metadata.encode(m.metadata[i], w.uint32(18).fork()).ldelim();
+	                }
+	                if (m.metricBundles != null && m.metricBundles.length) {
+	                    for (var i = 0; i < m.metricBundles.length; ++i)
+	                        $root.perfetto.protos.TraceMetricV2Bundle.encode(m.metricBundles[i], w.uint32(26).fork()).ldelim();
+	                }
+	                return w;
+	            };
+
+	            /**
+	             * Decodes a TraceSummary message from the specified reader or buffer.
+	             * @function decode
+	             * @memberof perfetto.protos.TraceSummary
+	             * @static
+	             * @param {$protobuf.Reader|Uint8Array} r Reader or buffer to decode from
+	             * @param {number} [l] Message length if known beforehand
+	             * @returns {perfetto.protos.TraceSummary} TraceSummary
+	             * @throws {Error} If the payload is not a reader or valid buffer
+	             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+	             */
+	            TraceSummary.decode = function decode(r, l) {
+	                if (!(r instanceof $Reader))
+	                    r = $Reader.create(r);
+	                var c = l === undefined ? r.len : r.pos + l, m = new $root.perfetto.protos.TraceSummary();
+	                while (r.pos < c) {
+	                    var t = r.uint32();
+	                    switch (t >>> 3) {
+	                    case 3: {
+	                            if (!(m.metricBundles && m.metricBundles.length))
+	                                m.metricBundles = [];
+	                            m.metricBundles.push($root.perfetto.protos.TraceMetricV2Bundle.decode(r, r.uint32()));
+	                            break;
+	                        }
+	                    case 2: {
+	                            if (!(m.metadata && m.metadata.length))
+	                                m.metadata = [];
+	                            m.metadata.push($root.perfetto.protos.TraceSummary.Metadata.decode(r, r.uint32()));
+	                            break;
+	                        }
+	                    default:
+	                        r.skipType(t & 7);
+	                        break;
+	                    }
+	                }
+	                return m;
+	            };
+
+	            /**
+	             * Creates a TraceSummary message from a plain object. Also converts values to their respective internal types.
+	             * @function fromObject
+	             * @memberof perfetto.protos.TraceSummary
+	             * @static
+	             * @param {Object.<string,*>} d Plain object
+	             * @returns {perfetto.protos.TraceSummary} TraceSummary
+	             */
+	            TraceSummary.fromObject = function fromObject(d) {
+	                if (d instanceof $root.perfetto.protos.TraceSummary)
+	                    return d;
+	                var m = new $root.perfetto.protos.TraceSummary();
+	                if (d.metricBundles) {
+	                    if (!Array.isArray(d.metricBundles))
+	                        throw TypeError(".perfetto.protos.TraceSummary.metricBundles: array expected");
+	                    m.metricBundles = [];
+	                    for (var i = 0; i < d.metricBundles.length; ++i) {
+	                        if (typeof d.metricBundles[i] !== "object")
+	                            throw TypeError(".perfetto.protos.TraceSummary.metricBundles: object expected");
+	                        m.metricBundles[i] = $root.perfetto.protos.TraceMetricV2Bundle.fromObject(d.metricBundles[i]);
+	                    }
+	                }
+	                if (d.metadata) {
+	                    if (!Array.isArray(d.metadata))
+	                        throw TypeError(".perfetto.protos.TraceSummary.metadata: array expected");
+	                    m.metadata = [];
+	                    for (var i = 0; i < d.metadata.length; ++i) {
+	                        if (typeof d.metadata[i] !== "object")
+	                            throw TypeError(".perfetto.protos.TraceSummary.metadata: object expected");
+	                        m.metadata[i] = $root.perfetto.protos.TraceSummary.Metadata.fromObject(d.metadata[i]);
+	                    }
+	                }
+	                return m;
+	            };
+
+	            /**
+	             * Creates a plain object from a TraceSummary message. Also converts values to other types if specified.
+	             * @function toObject
+	             * @memberof perfetto.protos.TraceSummary
+	             * @static
+	             * @param {perfetto.protos.TraceSummary} m TraceSummary
+	             * @param {$protobuf.IConversionOptions} [o] Conversion options
+	             * @returns {Object.<string,*>} Plain object
+	             */
+	            TraceSummary.toObject = function toObject(m, o) {
+	                if (!o)
+	                    o = {};
+	                var d = {};
+	                if (o.arrays || o.defaults) {
+	                    d.metadata = [];
+	                    d.metricBundles = [];
+	                }
+	                if (m.metadata && m.metadata.length) {
+	                    d.metadata = [];
+	                    for (var j = 0; j < m.metadata.length; ++j) {
+	                        d.metadata[j] = $root.perfetto.protos.TraceSummary.Metadata.toObject(m.metadata[j], o);
+	                    }
+	                }
+	                if (m.metricBundles && m.metricBundles.length) {
+	                    d.metricBundles = [];
+	                    for (var j = 0; j < m.metricBundles.length; ++j) {
+	                        d.metricBundles[j] = $root.perfetto.protos.TraceMetricV2Bundle.toObject(m.metricBundles[j], o);
+	                    }
+	                }
+	                return d;
+	            };
+
+	            /**
+	             * Converts this TraceSummary to JSON.
+	             * @function toJSON
+	             * @memberof perfetto.protos.TraceSummary
+	             * @instance
+	             * @returns {Object.<string,*>} JSON object
+	             */
+	            TraceSummary.prototype.toJSON = function toJSON() {
+	                return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+	            };
+
+	            /**
+	             * Gets the default type url for TraceSummary
+	             * @function getTypeUrl
+	             * @memberof perfetto.protos.TraceSummary
+	             * @static
+	             * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+	             * @returns {string} The default type url
+	             */
+	            TraceSummary.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+	                if (typeUrlPrefix === undefined) {
+	                    typeUrlPrefix = "type.googleapis.com";
+	                }
+	                return typeUrlPrefix + "/perfetto.protos.TraceSummary";
+	            };
+
+	            TraceSummary.Metadata = (function() {
+
+	                /**
+	                 * Properties of a Metadata.
+	                 * @memberof perfetto.protos.TraceSummary
+	                 * @interface IMetadata
+	                 * @property {string|null} [key] Metadata key
+	                 * @property {string|null} [value] Metadata value
+	                 */
+
+	                /**
+	                 * Constructs a new Metadata.
+	                 * @memberof perfetto.protos.TraceSummary
+	                 * @classdesc Represents a Metadata.
+	                 * @implements IMetadata
+	                 * @constructor
+	                 * @param {perfetto.protos.TraceSummary.IMetadata=} [p] Properties to set
+	                 */
+	                function Metadata(p) {
+	                    if (p)
+	                        for (var ks = Object.keys(p), i = 0; i < ks.length; ++i)
+	                            if (p[ks[i]] != null)
+	                                this[ks[i]] = p[ks[i]];
+	                }
+
+	                /**
+	                 * Metadata key.
+	                 * @member {string} key
+	                 * @memberof perfetto.protos.TraceSummary.Metadata
+	                 * @instance
+	                 */
+	                Metadata.prototype.key = "";
+
+	                /**
+	                 * Metadata value.
+	                 * @member {string} value
+	                 * @memberof perfetto.protos.TraceSummary.Metadata
+	                 * @instance
+	                 */
+	                Metadata.prototype.value = "";
+
+	                /**
+	                 * Creates a new Metadata instance using the specified properties.
+	                 * @function create
+	                 * @memberof perfetto.protos.TraceSummary.Metadata
+	                 * @static
+	                 * @param {perfetto.protos.TraceSummary.IMetadata=} [properties] Properties to set
+	                 * @returns {perfetto.protos.TraceSummary.Metadata} Metadata instance
+	                 */
+	                Metadata.create = function create(properties) {
+	                    return new Metadata(properties);
+	                };
+
+	                /**
+	                 * Encodes the specified Metadata message. Does not implicitly {@link perfetto.protos.TraceSummary.Metadata.verify|verify} messages.
+	                 * @function encode
+	                 * @memberof perfetto.protos.TraceSummary.Metadata
+	                 * @static
+	                 * @param {perfetto.protos.TraceSummary.IMetadata} m Metadata message or plain object to encode
+	                 * @param {$protobuf.Writer} [w] Writer to encode to
+	                 * @returns {$protobuf.Writer} Writer
+	                 */
+	                Metadata.encode = function encode(m, w) {
+	                    if (!w)
+	                        w = $Writer.create();
+	                    if (m.key != null && Object.hasOwnProperty.call(m, "key"))
+	                        w.uint32(10).string(m.key);
+	                    if (m.value != null && Object.hasOwnProperty.call(m, "value"))
+	                        w.uint32(18).string(m.value);
+	                    return w;
+	                };
+
+	                /**
+	                 * Decodes a Metadata message from the specified reader or buffer.
+	                 * @function decode
+	                 * @memberof perfetto.protos.TraceSummary.Metadata
+	                 * @static
+	                 * @param {$protobuf.Reader|Uint8Array} r Reader or buffer to decode from
+	                 * @param {number} [l] Message length if known beforehand
+	                 * @returns {perfetto.protos.TraceSummary.Metadata} Metadata
+	                 * @throws {Error} If the payload is not a reader or valid buffer
+	                 * @throws {$protobuf.util.ProtocolError} If required fields are missing
+	                 */
+	                Metadata.decode = function decode(r, l) {
+	                    if (!(r instanceof $Reader))
+	                        r = $Reader.create(r);
+	                    var c = l === undefined ? r.len : r.pos + l, m = new $root.perfetto.protos.TraceSummary.Metadata();
+	                    while (r.pos < c) {
+	                        var t = r.uint32();
+	                        switch (t >>> 3) {
+	                        case 1: {
+	                                m.key = r.string();
+	                                break;
+	                            }
+	                        case 2: {
+	                                m.value = r.string();
+	                                break;
+	                            }
+	                        default:
+	                            r.skipType(t & 7);
+	                            break;
+	                        }
+	                    }
+	                    return m;
+	                };
+
+	                /**
+	                 * Creates a Metadata message from a plain object. Also converts values to their respective internal types.
+	                 * @function fromObject
+	                 * @memberof perfetto.protos.TraceSummary.Metadata
+	                 * @static
+	                 * @param {Object.<string,*>} d Plain object
+	                 * @returns {perfetto.protos.TraceSummary.Metadata} Metadata
+	                 */
+	                Metadata.fromObject = function fromObject(d) {
+	                    if (d instanceof $root.perfetto.protos.TraceSummary.Metadata)
+	                        return d;
+	                    var m = new $root.perfetto.protos.TraceSummary.Metadata();
+	                    if (d.key != null) {
+	                        m.key = String(d.key);
+	                    }
+	                    if (d.value != null) {
+	                        m.value = String(d.value);
+	                    }
+	                    return m;
+	                };
+
+	                /**
+	                 * Creates a plain object from a Metadata message. Also converts values to other types if specified.
+	                 * @function toObject
+	                 * @memberof perfetto.protos.TraceSummary.Metadata
+	                 * @static
+	                 * @param {perfetto.protos.TraceSummary.Metadata} m Metadata
+	                 * @param {$protobuf.IConversionOptions} [o] Conversion options
+	                 * @returns {Object.<string,*>} Plain object
+	                 */
+	                Metadata.toObject = function toObject(m, o) {
+	                    if (!o)
+	                        o = {};
+	                    var d = {};
+	                    if (o.defaults) {
+	                        d.key = "";
+	                        d.value = "";
+	                    }
+	                    if (m.key != null && m.hasOwnProperty("key")) {
+	                        d.key = m.key;
+	                    }
+	                    if (m.value != null && m.hasOwnProperty("value")) {
+	                        d.value = m.value;
+	                    }
+	                    return d;
+	                };
+
+	                /**
+	                 * Converts this Metadata to JSON.
+	                 * @function toJSON
+	                 * @memberof perfetto.protos.TraceSummary.Metadata
+	                 * @instance
+	                 * @returns {Object.<string,*>} JSON object
+	                 */
+	                Metadata.prototype.toJSON = function toJSON() {
+	                    return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+	                };
+
+	                /**
+	                 * Gets the default type url for Metadata
+	                 * @function getTypeUrl
+	                 * @memberof perfetto.protos.TraceSummary.Metadata
+	                 * @static
+	                 * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+	                 * @returns {string} The default type url
+	                 */
+	                Metadata.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+	                    if (typeUrlPrefix === undefined) {
+	                        typeUrlPrefix = "type.googleapis.com";
+	                    }
+	                    return typeUrlPrefix + "/perfetto.protos.TraceSummary.Metadata";
+	                };
+
+	                return Metadata;
+	            })();
+
+	            return TraceSummary;
+	        })();
+
+	        protos.TraceMetricV2Spec = (function() {
+
+	            /**
+	             * Properties of a TraceMetricV2Spec.
+	             * @memberof perfetto.protos
+	             * @interface ITraceMetricV2Spec
+	             * @property {string|null} [id] TraceMetricV2Spec id
+	             * @property {Array.<perfetto.protos.TraceMetricV2Spec.IDimensionSpec>|null} [dimensionsSpecs] TraceMetricV2Spec dimensionsSpecs
+	             * @property {Array.<string>|null} [dimensions] TraceMetricV2Spec dimensions
+	             * @property {string|null} [value] TraceMetricV2Spec value
+	             * @property {perfetto.protos.IPerfettoSqlStructuredQuery|null} [query] TraceMetricV2Spec query
+	             * @property {perfetto.protos.TraceMetricV2Spec.DimensionUniqueness|null} [dimensionUniqueness] TraceMetricV2Spec dimensionUniqueness
+	             * @property {string|null} [bundleId] TraceMetricV2Spec bundleId
+	             * @property {perfetto.protos.TraceMetricV2Spec.MetricUnit|null} [unit] TraceMetricV2Spec unit
+	             * @property {string|null} [customUnit] TraceMetricV2Spec customUnit
+	             * @property {perfetto.protos.TraceMetricV2Spec.MetricPolarity|null} [polarity] TraceMetricV2Spec polarity
+	             */
+
+	            /**
+	             * Constructs a new TraceMetricV2Spec.
+	             * @memberof perfetto.protos
+	             * @classdesc Represents a TraceMetricV2Spec.
+	             * @implements ITraceMetricV2Spec
+	             * @constructor
+	             * @param {perfetto.protos.ITraceMetricV2Spec=} [p] Properties to set
+	             */
+	            function TraceMetricV2Spec(p) {
+	                this.dimensionsSpecs = [];
+	                this.dimensions = [];
+	                if (p)
+	                    for (var ks = Object.keys(p), i = 0; i < ks.length; ++i)
+	                        if (p[ks[i]] != null)
+	                            this[ks[i]] = p[ks[i]];
+	            }
+
+	            /**
+	             * TraceMetricV2Spec id.
+	             * @member {string} id
+	             * @memberof perfetto.protos.TraceMetricV2Spec
+	             * @instance
+	             */
+	            TraceMetricV2Spec.prototype.id = "";
+
+	            /**
+	             * TraceMetricV2Spec dimensionsSpecs.
+	             * @member {Array.<perfetto.protos.TraceMetricV2Spec.IDimensionSpec>} dimensionsSpecs
+	             * @memberof perfetto.protos.TraceMetricV2Spec
+	             * @instance
+	             */
+	            TraceMetricV2Spec.prototype.dimensionsSpecs = $util.emptyArray;
+
+	            /**
+	             * TraceMetricV2Spec dimensions.
+	             * @member {Array.<string>} dimensions
+	             * @memberof perfetto.protos.TraceMetricV2Spec
+	             * @instance
+	             */
+	            TraceMetricV2Spec.prototype.dimensions = $util.emptyArray;
+
+	            /**
+	             * TraceMetricV2Spec value.
+	             * @member {string} value
+	             * @memberof perfetto.protos.TraceMetricV2Spec
+	             * @instance
+	             */
+	            TraceMetricV2Spec.prototype.value = "";
+
+	            /**
+	             * TraceMetricV2Spec query.
+	             * @member {perfetto.protos.IPerfettoSqlStructuredQuery|null|undefined} query
+	             * @memberof perfetto.protos.TraceMetricV2Spec
+	             * @instance
+	             */
+	            TraceMetricV2Spec.prototype.query = null;
+
+	            /**
+	             * TraceMetricV2Spec dimensionUniqueness.
+	             * @member {perfetto.protos.TraceMetricV2Spec.DimensionUniqueness} dimensionUniqueness
+	             * @memberof perfetto.protos.TraceMetricV2Spec
+	             * @instance
+	             */
+	            TraceMetricV2Spec.prototype.dimensionUniqueness = 0;
+
+	            /**
+	             * TraceMetricV2Spec bundleId.
+	             * @member {string} bundleId
+	             * @memberof perfetto.protos.TraceMetricV2Spec
+	             * @instance
+	             */
+	            TraceMetricV2Spec.prototype.bundleId = "";
+
+	            /**
+	             * TraceMetricV2Spec unit.
+	             * @member {perfetto.protos.TraceMetricV2Spec.MetricUnit|null|undefined} unit
+	             * @memberof perfetto.protos.TraceMetricV2Spec
+	             * @instance
+	             */
+	            TraceMetricV2Spec.prototype.unit = null;
+
+	            /**
+	             * TraceMetricV2Spec customUnit.
+	             * @member {string|null|undefined} customUnit
+	             * @memberof perfetto.protos.TraceMetricV2Spec
+	             * @instance
+	             */
+	            TraceMetricV2Spec.prototype.customUnit = null;
+
+	            /**
+	             * TraceMetricV2Spec polarity.
+	             * @member {perfetto.protos.TraceMetricV2Spec.MetricPolarity} polarity
+	             * @memberof perfetto.protos.TraceMetricV2Spec
+	             * @instance
+	             */
+	            TraceMetricV2Spec.prototype.polarity = 0;
+
+	            // OneOf field names bound to virtual getters and setters
+	            var $oneOfFields;
+
+	            /**
+	             * TraceMetricV2Spec unitOneof.
+	             * @member {"unit"|"customUnit"|undefined} unitOneof
+	             * @memberof perfetto.protos.TraceMetricV2Spec
+	             * @instance
+	             */
+	            Object.defineProperty(TraceMetricV2Spec.prototype, "unitOneof", {
+	                get: $util.oneOfGetter($oneOfFields = ["unit", "customUnit"]),
+	                set: $util.oneOfSetter($oneOfFields)
+	            });
+
+	            /**
+	             * Creates a new TraceMetricV2Spec instance using the specified properties.
+	             * @function create
+	             * @memberof perfetto.protos.TraceMetricV2Spec
+	             * @static
+	             * @param {perfetto.protos.ITraceMetricV2Spec=} [properties] Properties to set
+	             * @returns {perfetto.protos.TraceMetricV2Spec} TraceMetricV2Spec instance
+	             */
+	            TraceMetricV2Spec.create = function create(properties) {
+	                return new TraceMetricV2Spec(properties);
+	            };
+
+	            /**
+	             * Encodes the specified TraceMetricV2Spec message. Does not implicitly {@link perfetto.protos.TraceMetricV2Spec.verify|verify} messages.
+	             * @function encode
+	             * @memberof perfetto.protos.TraceMetricV2Spec
+	             * @static
+	             * @param {perfetto.protos.ITraceMetricV2Spec} m TraceMetricV2Spec message or plain object to encode
+	             * @param {$protobuf.Writer} [w] Writer to encode to
+	             * @returns {$protobuf.Writer} Writer
+	             */
+	            TraceMetricV2Spec.encode = function encode(m, w) {
+	                if (!w)
+	                    w = $Writer.create();
+	                if (m.id != null && Object.hasOwnProperty.call(m, "id"))
+	                    w.uint32(10).string(m.id);
+	                if (m.dimensions != null && m.dimensions.length) {
+	                    for (var i = 0; i < m.dimensions.length; ++i)
+	                        w.uint32(18).string(m.dimensions[i]);
+	                }
+	                if (m.value != null && Object.hasOwnProperty.call(m, "value"))
+	                    w.uint32(26).string(m.value);
+	                if (m.query != null && Object.hasOwnProperty.call(m, "query"))
+	                    $root.perfetto.protos.PerfettoSqlStructuredQuery.encode(m.query, w.uint32(34).fork()).ldelim();
+	                if (m.dimensionsSpecs != null && m.dimensionsSpecs.length) {
+	                    for (var i = 0; i < m.dimensionsSpecs.length; ++i)
+	                        $root.perfetto.protos.TraceMetricV2Spec.DimensionSpec.encode(m.dimensionsSpecs[i], w.uint32(42).fork()).ldelim();
+	                }
+	                if (m.dimensionUniqueness != null && Object.hasOwnProperty.call(m, "dimensionUniqueness"))
+	                    w.uint32(48).int32(m.dimensionUniqueness);
+	                if (m.bundleId != null && Object.hasOwnProperty.call(m, "bundleId"))
+	                    w.uint32(58).string(m.bundleId);
+	                if (m.unit != null && Object.hasOwnProperty.call(m, "unit"))
+	                    w.uint32(64).int32(m.unit);
+	                if (m.customUnit != null && Object.hasOwnProperty.call(m, "customUnit"))
+	                    w.uint32(74).string(m.customUnit);
+	                if (m.polarity != null && Object.hasOwnProperty.call(m, "polarity"))
+	                    w.uint32(80).int32(m.polarity);
+	                return w;
+	            };
+
+	            /**
+	             * Decodes a TraceMetricV2Spec message from the specified reader or buffer.
+	             * @function decode
+	             * @memberof perfetto.protos.TraceMetricV2Spec
+	             * @static
+	             * @param {$protobuf.Reader|Uint8Array} r Reader or buffer to decode from
+	             * @param {number} [l] Message length if known beforehand
+	             * @returns {perfetto.protos.TraceMetricV2Spec} TraceMetricV2Spec
+	             * @throws {Error} If the payload is not a reader or valid buffer
+	             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+	             */
+	            TraceMetricV2Spec.decode = function decode(r, l) {
+	                if (!(r instanceof $Reader))
+	                    r = $Reader.create(r);
+	                var c = l === undefined ? r.len : r.pos + l, m = new $root.perfetto.protos.TraceMetricV2Spec();
+	                while (r.pos < c) {
+	                    var t = r.uint32();
+	                    switch (t >>> 3) {
+	                    case 1: {
+	                            m.id = r.string();
+	                            break;
+	                        }
+	                    case 5: {
+	                            if (!(m.dimensionsSpecs && m.dimensionsSpecs.length))
+	                                m.dimensionsSpecs = [];
+	                            m.dimensionsSpecs.push($root.perfetto.protos.TraceMetricV2Spec.DimensionSpec.decode(r, r.uint32()));
+	                            break;
+	                        }
+	                    case 2: {
+	                            if (!(m.dimensions && m.dimensions.length))
+	                                m.dimensions = [];
+	                            m.dimensions.push(r.string());
+	                            break;
+	                        }
+	                    case 3: {
+	                            m.value = r.string();
+	                            break;
+	                        }
+	                    case 4: {
+	                            m.query = $root.perfetto.protos.PerfettoSqlStructuredQuery.decode(r, r.uint32());
+	                            break;
+	                        }
+	                    case 6: {
+	                            m.dimensionUniqueness = r.int32();
+	                            break;
+	                        }
+	                    case 7: {
+	                            m.bundleId = r.string();
+	                            break;
+	                        }
+	                    case 8: {
+	                            m.unit = r.int32();
+	                            break;
+	                        }
+	                    case 9: {
+	                            m.customUnit = r.string();
+	                            break;
+	                        }
+	                    case 10: {
+	                            m.polarity = r.int32();
+	                            break;
+	                        }
+	                    default:
+	                        r.skipType(t & 7);
+	                        break;
+	                    }
+	                }
+	                return m;
+	            };
+
+	            /**
+	             * Creates a TraceMetricV2Spec message from a plain object. Also converts values to their respective internal types.
+	             * @function fromObject
+	             * @memberof perfetto.protos.TraceMetricV2Spec
+	             * @static
+	             * @param {Object.<string,*>} d Plain object
+	             * @returns {perfetto.protos.TraceMetricV2Spec} TraceMetricV2Spec
+	             */
+	            TraceMetricV2Spec.fromObject = function fromObject(d) {
+	                if (d instanceof $root.perfetto.protos.TraceMetricV2Spec)
+	                    return d;
+	                var m = new $root.perfetto.protos.TraceMetricV2Spec();
+	                if (d.id != null) {
+	                    m.id = String(d.id);
+	                }
+	                if (d.dimensionsSpecs) {
+	                    if (!Array.isArray(d.dimensionsSpecs))
+	                        throw TypeError(".perfetto.protos.TraceMetricV2Spec.dimensionsSpecs: array expected");
+	                    m.dimensionsSpecs = [];
+	                    for (var i = 0; i < d.dimensionsSpecs.length; ++i) {
+	                        if (typeof d.dimensionsSpecs[i] !== "object")
+	                            throw TypeError(".perfetto.protos.TraceMetricV2Spec.dimensionsSpecs: object expected");
+	                        m.dimensionsSpecs[i] = $root.perfetto.protos.TraceMetricV2Spec.DimensionSpec.fromObject(d.dimensionsSpecs[i]);
+	                    }
+	                }
+	                if (d.dimensions) {
+	                    if (!Array.isArray(d.dimensions))
+	                        throw TypeError(".perfetto.protos.TraceMetricV2Spec.dimensions: array expected");
+	                    m.dimensions = [];
+	                    for (var i = 0; i < d.dimensions.length; ++i) {
+	                        m.dimensions[i] = String(d.dimensions[i]);
+	                    }
+	                }
+	                if (d.value != null) {
+	                    m.value = String(d.value);
+	                }
+	                if (d.query != null) {
+	                    if (typeof d.query !== "object")
+	                        throw TypeError(".perfetto.protos.TraceMetricV2Spec.query: object expected");
+	                    m.query = $root.perfetto.protos.PerfettoSqlStructuredQuery.fromObject(d.query);
+	                }
+	                switch (d.dimensionUniqueness) {
+	                default:
+	                    if (typeof d.dimensionUniqueness === "number") {
+	                        m.dimensionUniqueness = d.dimensionUniqueness;
+	                        break;
+	                    }
+	                    break;
+	                case "DIMENSION_UNIQUENESS_UNSPECIFIED":
+	                case 0:
+	                    m.dimensionUniqueness = 0;
+	                    break;
+	                case "NOT_UNIQUE":
+	                case 1:
+	                    m.dimensionUniqueness = 1;
+	                    break;
+	                case "UNIQUE":
+	                case 2:
+	                    m.dimensionUniqueness = 2;
+	                    break;
+	                }
+	                if (d.bundleId != null) {
+	                    m.bundleId = String(d.bundleId);
+	                }
+	                switch (d.unit) {
+	                default:
+	                    if (typeof d.unit === "number") {
+	                        m.unit = d.unit;
+	                        break;
+	                    }
+	                    break;
+	                case "METRIC_UNIT_UNSPECIFIED":
+	                case 0:
+	                    m.unit = 0;
+	                    break;
+	                case "COUNT":
+	                case 1:
+	                    m.unit = 1;
+	                    break;
+	                case "TIME_NANOS":
+	                case 2:
+	                    m.unit = 2;
+	                    break;
+	                case "TIME_MICROS":
+	                case 3:
+	                    m.unit = 3;
+	                    break;
+	                case "TIME_MILLIS":
+	                case 4:
+	                    m.unit = 4;
+	                    break;
+	                case "TIME_SECONDS":
+	                case 5:
+	                    m.unit = 5;
+	                    break;
+	                case "TIME_HOURS":
+	                case 6:
+	                    m.unit = 6;
+	                    break;
+	                case "TIME_DAYS":
+	                case 7:
+	                    m.unit = 7;
+	                    break;
+	                case "BYTES":
+	                case 8:
+	                    m.unit = 8;
+	                    break;
+	                case "KILOBYTES":
+	                case 9:
+	                    m.unit = 9;
+	                    break;
+	                case "MEGABYTES":
+	                case 10:
+	                    m.unit = 10;
+	                    break;
+	                case "SECONDS_PER_HOUR":
+	                case 11:
+	                    m.unit = 11;
+	                    break;
+	                case "BOUNDED_PERCENTAGE":
+	                case 12:
+	                    m.unit = 12;
+	                    break;
+	                case "PERCENTAGE":
+	                case 13:
+	                    m.unit = 13;
+	                    break;
+	                case "MINUTES_PER_DAY":
+	                case 14:
+	                    m.unit = 14;
+	                    break;
+	                case "MILLI_AMPS":
+	                case 15:
+	                    m.unit = 15;
+	                    break;
+	                case "PERCENT_PER_HOUR":
+	                case 16:
+	                    m.unit = 16;
+	                    break;
+	                case "MILLI_AMP_HOURS":
+	                case 17:
+	                    m.unit = 17;
+	                    break;
+	                case "PERCENT_PER_HOUR_LEGACY":
+	                case 18:
+	                    m.unit = 18;
+	                    break;
+	                case "MILLI_WATTS":
+	                case 19:
+	                    m.unit = 19;
+	                    break;
+	                case "COUNT_PER_SECOND":
+	                case 20:
+	                    m.unit = 20;
+	                    break;
+	                case "KILOBYTES_PER_HOUR":
+	                case 21:
+	                    m.unit = 21;
+	                    break;
+	                case "MILLI_WATT_HOURS":
+	                case 22:
+	                    m.unit = 22;
+	                    break;
+	                case "COUNT_PER_HOUR":
+	                case 23:
+	                    m.unit = 23;
+	                    break;
+	                case "COUNT_DELTA_PER_HOUR":
+	                case 24:
+	                    m.unit = 24;
+	                    break;
+	                case "BYTES_DELTA_PER_HOUR":
+	                case 25:
+	                    m.unit = 25;
+	                    break;
+	                case "CORRELATION_COEFFICIENT":
+	                case 26:
+	                    m.unit = 26;
+	                    break;
+	                case "MILLI_VOLTS":
+	                case 27:
+	                    m.unit = 27;
+	                    break;
+	                }
+	                if (d.customUnit != null) {
+	                    m.customUnit = String(d.customUnit);
+	                }
+	                switch (d.polarity) {
+	                default:
+	                    if (typeof d.polarity === "number") {
+	                        m.polarity = d.polarity;
+	                        break;
+	                    }
+	                    break;
+	                case "POLARITY_UNSPECIFIED":
+	                case 0:
+	                    m.polarity = 0;
+	                    break;
+	                case "HIGHER_IS_BETTER":
+	                case 1:
+	                    m.polarity = 1;
+	                    break;
+	                case "LOWER_IS_BETTER":
+	                case 2:
+	                    m.polarity = 2;
+	                    break;
+	                case "NOT_APPLICABLE":
+	                case 3:
+	                    m.polarity = 3;
+	                    break;
+	                }
+	                return m;
+	            };
+
+	            /**
+	             * Creates a plain object from a TraceMetricV2Spec message. Also converts values to other types if specified.
+	             * @function toObject
+	             * @memberof perfetto.protos.TraceMetricV2Spec
+	             * @static
+	             * @param {perfetto.protos.TraceMetricV2Spec} m TraceMetricV2Spec
+	             * @param {$protobuf.IConversionOptions} [o] Conversion options
+	             * @returns {Object.<string,*>} Plain object
+	             */
+	            TraceMetricV2Spec.toObject = function toObject(m, o) {
+	                if (!o)
+	                    o = {};
+	                var d = {};
+	                if (o.arrays || o.defaults) {
+	                    d.dimensions = [];
+	                    d.dimensionsSpecs = [];
+	                }
+	                if (o.defaults) {
+	                    d.id = "";
+	                    d.value = "";
+	                    d.query = null;
+	                    d.dimensionUniqueness = o.enums === String ? "DIMENSION_UNIQUENESS_UNSPECIFIED" : 0;
+	                    d.bundleId = "";
+	                    d.polarity = o.enums === String ? "POLARITY_UNSPECIFIED" : 0;
+	                }
+	                if (m.id != null && m.hasOwnProperty("id")) {
+	                    d.id = m.id;
+	                }
+	                if (m.dimensions && m.dimensions.length) {
+	                    d.dimensions = [];
+	                    for (var j = 0; j < m.dimensions.length; ++j) {
+	                        d.dimensions[j] = m.dimensions[j];
+	                    }
+	                }
+	                if (m.value != null && m.hasOwnProperty("value")) {
+	                    d.value = m.value;
+	                }
+	                if (m.query != null && m.hasOwnProperty("query")) {
+	                    d.query = $root.perfetto.protos.PerfettoSqlStructuredQuery.toObject(m.query, o);
+	                }
+	                if (m.dimensionsSpecs && m.dimensionsSpecs.length) {
+	                    d.dimensionsSpecs = [];
+	                    for (var j = 0; j < m.dimensionsSpecs.length; ++j) {
+	                        d.dimensionsSpecs[j] = $root.perfetto.protos.TraceMetricV2Spec.DimensionSpec.toObject(m.dimensionsSpecs[j], o);
+	                    }
+	                }
+	                if (m.dimensionUniqueness != null && m.hasOwnProperty("dimensionUniqueness")) {
+	                    d.dimensionUniqueness = o.enums === String ? $root.perfetto.protos.TraceMetricV2Spec.DimensionUniqueness[m.dimensionUniqueness] === undefined ? m.dimensionUniqueness : $root.perfetto.protos.TraceMetricV2Spec.DimensionUniqueness[m.dimensionUniqueness] : m.dimensionUniqueness;
+	                }
+	                if (m.bundleId != null && m.hasOwnProperty("bundleId")) {
+	                    d.bundleId = m.bundleId;
+	                }
+	                if (m.unit != null && m.hasOwnProperty("unit")) {
+	                    d.unit = o.enums === String ? $root.perfetto.protos.TraceMetricV2Spec.MetricUnit[m.unit] === undefined ? m.unit : $root.perfetto.protos.TraceMetricV2Spec.MetricUnit[m.unit] : m.unit;
+	                    if (o.oneofs)
+	                        d.unitOneof = "unit";
+	                }
+	                if (m.customUnit != null && m.hasOwnProperty("customUnit")) {
+	                    d.customUnit = m.customUnit;
+	                    if (o.oneofs)
+	                        d.unitOneof = "customUnit";
+	                }
+	                if (m.polarity != null && m.hasOwnProperty("polarity")) {
+	                    d.polarity = o.enums === String ? $root.perfetto.protos.TraceMetricV2Spec.MetricPolarity[m.polarity] === undefined ? m.polarity : $root.perfetto.protos.TraceMetricV2Spec.MetricPolarity[m.polarity] : m.polarity;
+	                }
+	                return d;
+	            };
+
+	            /**
+	             * Converts this TraceMetricV2Spec to JSON.
+	             * @function toJSON
+	             * @memberof perfetto.protos.TraceMetricV2Spec
+	             * @instance
+	             * @returns {Object.<string,*>} JSON object
+	             */
+	            TraceMetricV2Spec.prototype.toJSON = function toJSON() {
+	                return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+	            };
+
+	            /**
+	             * Gets the default type url for TraceMetricV2Spec
+	             * @function getTypeUrl
+	             * @memberof perfetto.protos.TraceMetricV2Spec
+	             * @static
+	             * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+	             * @returns {string} The default type url
+	             */
+	            TraceMetricV2Spec.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+	                if (typeUrlPrefix === undefined) {
+	                    typeUrlPrefix = "type.googleapis.com";
+	                }
+	                return typeUrlPrefix + "/perfetto.protos.TraceMetricV2Spec";
+	            };
+
+	            /**
+	             * DimensionType enum.
+	             * @name perfetto.protos.TraceMetricV2Spec.DimensionType
+	             * @enum {number}
+	             * @property {number} DIMENSION_TYPE_UNSPECIFIED=0 DIMENSION_TYPE_UNSPECIFIED value
+	             * @property {number} STRING=1 STRING value
+	             * @property {number} INT64=2 INT64 value
+	             * @property {number} DOUBLE=3 DOUBLE value
+	             */
+	            TraceMetricV2Spec.DimensionType = (function() {
+	                var valuesById = {}, values = Object.create(valuesById);
+	                values[valuesById[0] = "DIMENSION_TYPE_UNSPECIFIED"] = 0;
+	                values[valuesById[1] = "STRING"] = 1;
+	                values[valuesById[2] = "INT64"] = 2;
+	                values[valuesById[3] = "DOUBLE"] = 3;
+	                return values;
+	            })();
+
+	            TraceMetricV2Spec.DimensionSpec = (function() {
+
+	                /**
+	                 * Properties of a DimensionSpec.
+	                 * @memberof perfetto.protos.TraceMetricV2Spec
+	                 * @interface IDimensionSpec
+	                 * @property {string|null} [name] DimensionSpec name
+	                 * @property {perfetto.protos.TraceMetricV2Spec.DimensionType|null} [type] DimensionSpec type
+	                 */
+
+	                /**
+	                 * Constructs a new DimensionSpec.
+	                 * @memberof perfetto.protos.TraceMetricV2Spec
+	                 * @classdesc Represents a DimensionSpec.
+	                 * @implements IDimensionSpec
+	                 * @constructor
+	                 * @param {perfetto.protos.TraceMetricV2Spec.IDimensionSpec=} [p] Properties to set
+	                 */
+	                function DimensionSpec(p) {
+	                    if (p)
+	                        for (var ks = Object.keys(p), i = 0; i < ks.length; ++i)
+	                            if (p[ks[i]] != null)
+	                                this[ks[i]] = p[ks[i]];
+	                }
+
+	                /**
+	                 * DimensionSpec name.
+	                 * @member {string} name
+	                 * @memberof perfetto.protos.TraceMetricV2Spec.DimensionSpec
+	                 * @instance
+	                 */
+	                DimensionSpec.prototype.name = "";
+
+	                /**
+	                 * DimensionSpec type.
+	                 * @member {perfetto.protos.TraceMetricV2Spec.DimensionType} type
+	                 * @memberof perfetto.protos.TraceMetricV2Spec.DimensionSpec
+	                 * @instance
+	                 */
+	                DimensionSpec.prototype.type = 0;
+
+	                /**
+	                 * Creates a new DimensionSpec instance using the specified properties.
+	                 * @function create
+	                 * @memberof perfetto.protos.TraceMetricV2Spec.DimensionSpec
+	                 * @static
+	                 * @param {perfetto.protos.TraceMetricV2Spec.IDimensionSpec=} [properties] Properties to set
+	                 * @returns {perfetto.protos.TraceMetricV2Spec.DimensionSpec} DimensionSpec instance
+	                 */
+	                DimensionSpec.create = function create(properties) {
+	                    return new DimensionSpec(properties);
+	                };
+
+	                /**
+	                 * Encodes the specified DimensionSpec message. Does not implicitly {@link perfetto.protos.TraceMetricV2Spec.DimensionSpec.verify|verify} messages.
+	                 * @function encode
+	                 * @memberof perfetto.protos.TraceMetricV2Spec.DimensionSpec
+	                 * @static
+	                 * @param {perfetto.protos.TraceMetricV2Spec.IDimensionSpec} m DimensionSpec message or plain object to encode
+	                 * @param {$protobuf.Writer} [w] Writer to encode to
+	                 * @returns {$protobuf.Writer} Writer
+	                 */
+	                DimensionSpec.encode = function encode(m, w) {
+	                    if (!w)
+	                        w = $Writer.create();
+	                    if (m.name != null && Object.hasOwnProperty.call(m, "name"))
+	                        w.uint32(10).string(m.name);
+	                    if (m.type != null && Object.hasOwnProperty.call(m, "type"))
+	                        w.uint32(16).int32(m.type);
+	                    return w;
+	                };
+
+	                /**
+	                 * Decodes a DimensionSpec message from the specified reader or buffer.
+	                 * @function decode
+	                 * @memberof perfetto.protos.TraceMetricV2Spec.DimensionSpec
+	                 * @static
+	                 * @param {$protobuf.Reader|Uint8Array} r Reader or buffer to decode from
+	                 * @param {number} [l] Message length if known beforehand
+	                 * @returns {perfetto.protos.TraceMetricV2Spec.DimensionSpec} DimensionSpec
+	                 * @throws {Error} If the payload is not a reader or valid buffer
+	                 * @throws {$protobuf.util.ProtocolError} If required fields are missing
+	                 */
+	                DimensionSpec.decode = function decode(r, l) {
+	                    if (!(r instanceof $Reader))
+	                        r = $Reader.create(r);
+	                    var c = l === undefined ? r.len : r.pos + l, m = new $root.perfetto.protos.TraceMetricV2Spec.DimensionSpec();
+	                    while (r.pos < c) {
+	                        var t = r.uint32();
+	                        switch (t >>> 3) {
+	                        case 1: {
+	                                m.name = r.string();
+	                                break;
+	                            }
+	                        case 2: {
+	                                m.type = r.int32();
+	                                break;
+	                            }
+	                        default:
+	                            r.skipType(t & 7);
+	                            break;
+	                        }
+	                    }
+	                    return m;
+	                };
+
+	                /**
+	                 * Creates a DimensionSpec message from a plain object. Also converts values to their respective internal types.
+	                 * @function fromObject
+	                 * @memberof perfetto.protos.TraceMetricV2Spec.DimensionSpec
+	                 * @static
+	                 * @param {Object.<string,*>} d Plain object
+	                 * @returns {perfetto.protos.TraceMetricV2Spec.DimensionSpec} DimensionSpec
+	                 */
+	                DimensionSpec.fromObject = function fromObject(d) {
+	                    if (d instanceof $root.perfetto.protos.TraceMetricV2Spec.DimensionSpec)
+	                        return d;
+	                    var m = new $root.perfetto.protos.TraceMetricV2Spec.DimensionSpec();
+	                    if (d.name != null) {
+	                        m.name = String(d.name);
+	                    }
+	                    switch (d.type) {
+	                    default:
+	                        if (typeof d.type === "number") {
+	                            m.type = d.type;
+	                            break;
+	                        }
+	                        break;
+	                    case "DIMENSION_TYPE_UNSPECIFIED":
+	                    case 0:
+	                        m.type = 0;
+	                        break;
+	                    case "STRING":
+	                    case 1:
+	                        m.type = 1;
+	                        break;
+	                    case "INT64":
+	                    case 2:
+	                        m.type = 2;
+	                        break;
+	                    case "DOUBLE":
+	                    case 3:
+	                        m.type = 3;
+	                        break;
+	                    }
+	                    return m;
+	                };
+
+	                /**
+	                 * Creates a plain object from a DimensionSpec message. Also converts values to other types if specified.
+	                 * @function toObject
+	                 * @memberof perfetto.protos.TraceMetricV2Spec.DimensionSpec
+	                 * @static
+	                 * @param {perfetto.protos.TraceMetricV2Spec.DimensionSpec} m DimensionSpec
+	                 * @param {$protobuf.IConversionOptions} [o] Conversion options
+	                 * @returns {Object.<string,*>} Plain object
+	                 */
+	                DimensionSpec.toObject = function toObject(m, o) {
+	                    if (!o)
+	                        o = {};
+	                    var d = {};
+	                    if (o.defaults) {
+	                        d.name = "";
+	                        d.type = o.enums === String ? "DIMENSION_TYPE_UNSPECIFIED" : 0;
+	                    }
+	                    if (m.name != null && m.hasOwnProperty("name")) {
+	                        d.name = m.name;
+	                    }
+	                    if (m.type != null && m.hasOwnProperty("type")) {
+	                        d.type = o.enums === String ? $root.perfetto.protos.TraceMetricV2Spec.DimensionType[m.type] === undefined ? m.type : $root.perfetto.protos.TraceMetricV2Spec.DimensionType[m.type] : m.type;
+	                    }
+	                    return d;
+	                };
+
+	                /**
+	                 * Converts this DimensionSpec to JSON.
+	                 * @function toJSON
+	                 * @memberof perfetto.protos.TraceMetricV2Spec.DimensionSpec
+	                 * @instance
+	                 * @returns {Object.<string,*>} JSON object
+	                 */
+	                DimensionSpec.prototype.toJSON = function toJSON() {
+	                    return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+	                };
+
+	                /**
+	                 * Gets the default type url for DimensionSpec
+	                 * @function getTypeUrl
+	                 * @memberof perfetto.protos.TraceMetricV2Spec.DimensionSpec
+	                 * @static
+	                 * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+	                 * @returns {string} The default type url
+	                 */
+	                DimensionSpec.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+	                    if (typeUrlPrefix === undefined) {
+	                        typeUrlPrefix = "type.googleapis.com";
+	                    }
+	                    return typeUrlPrefix + "/perfetto.protos.TraceMetricV2Spec.DimensionSpec";
+	                };
+
+	                return DimensionSpec;
+	            })();
+
+	            /**
+	             * DimensionUniqueness enum.
+	             * @name perfetto.protos.TraceMetricV2Spec.DimensionUniqueness
+	             * @enum {number}
+	             * @property {number} DIMENSION_UNIQUENESS_UNSPECIFIED=0 DIMENSION_UNIQUENESS_UNSPECIFIED value
+	             * @property {number} NOT_UNIQUE=1 NOT_UNIQUE value
+	             * @property {number} UNIQUE=2 UNIQUE value
+	             */
+	            TraceMetricV2Spec.DimensionUniqueness = (function() {
+	                var valuesById = {}, values = Object.create(valuesById);
+	                values[valuesById[0] = "DIMENSION_UNIQUENESS_UNSPECIFIED"] = 0;
+	                values[valuesById[1] = "NOT_UNIQUE"] = 1;
+	                values[valuesById[2] = "UNIQUE"] = 2;
+	                return values;
+	            })();
+
+	            /**
+	             * MetricUnit enum.
+	             * @name perfetto.protos.TraceMetricV2Spec.MetricUnit
+	             * @enum {number}
+	             * @property {number} METRIC_UNIT_UNSPECIFIED=0 METRIC_UNIT_UNSPECIFIED value
+	             * @property {number} COUNT=1 COUNT value
+	             * @property {number} TIME_NANOS=2 TIME_NANOS value
+	             * @property {number} TIME_MICROS=3 TIME_MICROS value
+	             * @property {number} TIME_MILLIS=4 TIME_MILLIS value
+	             * @property {number} TIME_SECONDS=5 TIME_SECONDS value
+	             * @property {number} TIME_HOURS=6 TIME_HOURS value
+	             * @property {number} TIME_DAYS=7 TIME_DAYS value
+	             * @property {number} BYTES=8 BYTES value
+	             * @property {number} KILOBYTES=9 KILOBYTES value
+	             * @property {number} MEGABYTES=10 MEGABYTES value
+	             * @property {number} SECONDS_PER_HOUR=11 SECONDS_PER_HOUR value
+	             * @property {number} BOUNDED_PERCENTAGE=12 BOUNDED_PERCENTAGE value
+	             * @property {number} PERCENTAGE=13 PERCENTAGE value
+	             * @property {number} MINUTES_PER_DAY=14 MINUTES_PER_DAY value
+	             * @property {number} MILLI_AMPS=15 MILLI_AMPS value
+	             * @property {number} PERCENT_PER_HOUR=16 PERCENT_PER_HOUR value
+	             * @property {number} MILLI_AMP_HOURS=17 MILLI_AMP_HOURS value
+	             * @property {number} PERCENT_PER_HOUR_LEGACY=18 PERCENT_PER_HOUR_LEGACY value
+	             * @property {number} MILLI_WATTS=19 MILLI_WATTS value
+	             * @property {number} COUNT_PER_SECOND=20 COUNT_PER_SECOND value
+	             * @property {number} KILOBYTES_PER_HOUR=21 KILOBYTES_PER_HOUR value
+	             * @property {number} MILLI_WATT_HOURS=22 MILLI_WATT_HOURS value
+	             * @property {number} COUNT_PER_HOUR=23 COUNT_PER_HOUR value
+	             * @property {number} COUNT_DELTA_PER_HOUR=24 COUNT_DELTA_PER_HOUR value
+	             * @property {number} BYTES_DELTA_PER_HOUR=25 BYTES_DELTA_PER_HOUR value
+	             * @property {number} CORRELATION_COEFFICIENT=26 CORRELATION_COEFFICIENT value
+	             * @property {number} MILLI_VOLTS=27 MILLI_VOLTS value
+	             */
+	            TraceMetricV2Spec.MetricUnit = (function() {
+	                var valuesById = {}, values = Object.create(valuesById);
+	                values[valuesById[0] = "METRIC_UNIT_UNSPECIFIED"] = 0;
+	                values[valuesById[1] = "COUNT"] = 1;
+	                values[valuesById[2] = "TIME_NANOS"] = 2;
+	                values[valuesById[3] = "TIME_MICROS"] = 3;
+	                values[valuesById[4] = "TIME_MILLIS"] = 4;
+	                values[valuesById[5] = "TIME_SECONDS"] = 5;
+	                values[valuesById[6] = "TIME_HOURS"] = 6;
+	                values[valuesById[7] = "TIME_DAYS"] = 7;
+	                values[valuesById[8] = "BYTES"] = 8;
+	                values[valuesById[9] = "KILOBYTES"] = 9;
+	                values[valuesById[10] = "MEGABYTES"] = 10;
+	                values[valuesById[11] = "SECONDS_PER_HOUR"] = 11;
+	                values[valuesById[12] = "BOUNDED_PERCENTAGE"] = 12;
+	                values[valuesById[13] = "PERCENTAGE"] = 13;
+	                values[valuesById[14] = "MINUTES_PER_DAY"] = 14;
+	                values[valuesById[15] = "MILLI_AMPS"] = 15;
+	                values[valuesById[16] = "PERCENT_PER_HOUR"] = 16;
+	                values[valuesById[17] = "MILLI_AMP_HOURS"] = 17;
+	                values[valuesById[18] = "PERCENT_PER_HOUR_LEGACY"] = 18;
+	                values[valuesById[19] = "MILLI_WATTS"] = 19;
+	                values[valuesById[20] = "COUNT_PER_SECOND"] = 20;
+	                values[valuesById[21] = "KILOBYTES_PER_HOUR"] = 21;
+	                values[valuesById[22] = "MILLI_WATT_HOURS"] = 22;
+	                values[valuesById[23] = "COUNT_PER_HOUR"] = 23;
+	                values[valuesById[24] = "COUNT_DELTA_PER_HOUR"] = 24;
+	                values[valuesById[25] = "BYTES_DELTA_PER_HOUR"] = 25;
+	                values[valuesById[26] = "CORRELATION_COEFFICIENT"] = 26;
+	                values[valuesById[27] = "MILLI_VOLTS"] = 27;
+	                return values;
+	            })();
+
+	            /**
+	             * MetricPolarity enum.
+	             * @name perfetto.protos.TraceMetricV2Spec.MetricPolarity
+	             * @enum {number}
+	             * @property {number} POLARITY_UNSPECIFIED=0 POLARITY_UNSPECIFIED value
+	             * @property {number} HIGHER_IS_BETTER=1 HIGHER_IS_BETTER value
+	             * @property {number} LOWER_IS_BETTER=2 LOWER_IS_BETTER value
+	             * @property {number} NOT_APPLICABLE=3 NOT_APPLICABLE value
+	             */
+	            TraceMetricV2Spec.MetricPolarity = (function() {
+	                var valuesById = {}, values = Object.create(valuesById);
+	                values[valuesById[0] = "POLARITY_UNSPECIFIED"] = 0;
+	                values[valuesById[1] = "HIGHER_IS_BETTER"] = 1;
+	                values[valuesById[2] = "LOWER_IS_BETTER"] = 2;
+	                values[valuesById[3] = "NOT_APPLICABLE"] = 3;
+	                return values;
+	            })();
+
+	            return TraceMetricV2Spec;
+	        })();
+
+	        protos.TraceMetricV2TemplateSpec = (function() {
+
+	            /**
+	             * Properties of a TraceMetricV2TemplateSpec.
+	             * @memberof perfetto.protos
+	             * @interface ITraceMetricV2TemplateSpec
+	             * @property {string|null} [idPrefix] TraceMetricV2TemplateSpec idPrefix
+	             * @property {Array.<perfetto.protos.TraceMetricV2Spec.IDimensionSpec>|null} [dimensionsSpecs] TraceMetricV2TemplateSpec dimensionsSpecs
+	             * @property {Array.<string>|null} [dimensions] TraceMetricV2TemplateSpec dimensions
+	             * @property {Array.<string>|null} [valueColumns] TraceMetricV2TemplateSpec valueColumns
+	             * @property {Array.<perfetto.protos.TraceMetricV2TemplateSpec.IValueColumnSpec>|null} [valueColumnSpecs] TraceMetricV2TemplateSpec valueColumnSpecs
+	             * @property {perfetto.protos.IPerfettoSqlStructuredQuery|null} [query] TraceMetricV2TemplateSpec query
+	             * @property {perfetto.protos.TraceMetricV2Spec.DimensionUniqueness|null} [dimensionUniqueness] TraceMetricV2TemplateSpec dimensionUniqueness
+	             * @property {boolean|null} [disableAutoBundling] TraceMetricV2TemplateSpec disableAutoBundling
+	             */
+
+	            /**
+	             * Constructs a new TraceMetricV2TemplateSpec.
+	             * @memberof perfetto.protos
+	             * @classdesc Represents a TraceMetricV2TemplateSpec.
+	             * @implements ITraceMetricV2TemplateSpec
+	             * @constructor
+	             * @param {perfetto.protos.ITraceMetricV2TemplateSpec=} [p] Properties to set
+	             */
+	            function TraceMetricV2TemplateSpec(p) {
+	                this.dimensionsSpecs = [];
+	                this.dimensions = [];
+	                this.valueColumns = [];
+	                this.valueColumnSpecs = [];
+	                if (p)
+	                    for (var ks = Object.keys(p), i = 0; i < ks.length; ++i)
+	                        if (p[ks[i]] != null)
+	                            this[ks[i]] = p[ks[i]];
+	            }
+
+	            /**
+	             * TraceMetricV2TemplateSpec idPrefix.
+	             * @member {string} idPrefix
+	             * @memberof perfetto.protos.TraceMetricV2TemplateSpec
+	             * @instance
+	             */
+	            TraceMetricV2TemplateSpec.prototype.idPrefix = "";
+
+	            /**
+	             * TraceMetricV2TemplateSpec dimensionsSpecs.
+	             * @member {Array.<perfetto.protos.TraceMetricV2Spec.IDimensionSpec>} dimensionsSpecs
+	             * @memberof perfetto.protos.TraceMetricV2TemplateSpec
+	             * @instance
+	             */
+	            TraceMetricV2TemplateSpec.prototype.dimensionsSpecs = $util.emptyArray;
+
+	            /**
+	             * TraceMetricV2TemplateSpec dimensions.
+	             * @member {Array.<string>} dimensions
+	             * @memberof perfetto.protos.TraceMetricV2TemplateSpec
+	             * @instance
+	             */
+	            TraceMetricV2TemplateSpec.prototype.dimensions = $util.emptyArray;
+
+	            /**
+	             * TraceMetricV2TemplateSpec valueColumns.
+	             * @member {Array.<string>} valueColumns
+	             * @memberof perfetto.protos.TraceMetricV2TemplateSpec
+	             * @instance
+	             */
+	            TraceMetricV2TemplateSpec.prototype.valueColumns = $util.emptyArray;
+
+	            /**
+	             * TraceMetricV2TemplateSpec valueColumnSpecs.
+	             * @member {Array.<perfetto.protos.TraceMetricV2TemplateSpec.IValueColumnSpec>} valueColumnSpecs
+	             * @memberof perfetto.protos.TraceMetricV2TemplateSpec
+	             * @instance
+	             */
+	            TraceMetricV2TemplateSpec.prototype.valueColumnSpecs = $util.emptyArray;
+
+	            /**
+	             * TraceMetricV2TemplateSpec query.
+	             * @member {perfetto.protos.IPerfettoSqlStructuredQuery|null|undefined} query
+	             * @memberof perfetto.protos.TraceMetricV2TemplateSpec
+	             * @instance
+	             */
+	            TraceMetricV2TemplateSpec.prototype.query = null;
+
+	            /**
+	             * TraceMetricV2TemplateSpec dimensionUniqueness.
+	             * @member {perfetto.protos.TraceMetricV2Spec.DimensionUniqueness} dimensionUniqueness
+	             * @memberof perfetto.protos.TraceMetricV2TemplateSpec
+	             * @instance
+	             */
+	            TraceMetricV2TemplateSpec.prototype.dimensionUniqueness = 0;
+
+	            /**
+	             * TraceMetricV2TemplateSpec disableAutoBundling.
+	             * @member {boolean} disableAutoBundling
+	             * @memberof perfetto.protos.TraceMetricV2TemplateSpec
+	             * @instance
+	             */
+	            TraceMetricV2TemplateSpec.prototype.disableAutoBundling = false;
+
+	            /**
+	             * Creates a new TraceMetricV2TemplateSpec instance using the specified properties.
+	             * @function create
+	             * @memberof perfetto.protos.TraceMetricV2TemplateSpec
+	             * @static
+	             * @param {perfetto.protos.ITraceMetricV2TemplateSpec=} [properties] Properties to set
+	             * @returns {perfetto.protos.TraceMetricV2TemplateSpec} TraceMetricV2TemplateSpec instance
+	             */
+	            TraceMetricV2TemplateSpec.create = function create(properties) {
+	                return new TraceMetricV2TemplateSpec(properties);
+	            };
+
+	            /**
+	             * Encodes the specified TraceMetricV2TemplateSpec message. Does not implicitly {@link perfetto.protos.TraceMetricV2TemplateSpec.verify|verify} messages.
+	             * @function encode
+	             * @memberof perfetto.protos.TraceMetricV2TemplateSpec
+	             * @static
+	             * @param {perfetto.protos.ITraceMetricV2TemplateSpec} m TraceMetricV2TemplateSpec message or plain object to encode
+	             * @param {$protobuf.Writer} [w] Writer to encode to
+	             * @returns {$protobuf.Writer} Writer
+	             */
+	            TraceMetricV2TemplateSpec.encode = function encode(m, w) {
+	                if (!w)
+	                    w = $Writer.create();
+	                if (m.idPrefix != null && Object.hasOwnProperty.call(m, "idPrefix"))
+	                    w.uint32(10).string(m.idPrefix);
+	                if (m.dimensions != null && m.dimensions.length) {
+	                    for (var i = 0; i < m.dimensions.length; ++i)
+	                        w.uint32(18).string(m.dimensions[i]);
+	                }
+	                if (m.valueColumns != null && m.valueColumns.length) {
+	                    for (var i = 0; i < m.valueColumns.length; ++i)
+	                        w.uint32(26).string(m.valueColumns[i]);
+	                }
+	                if (m.query != null && Object.hasOwnProperty.call(m, "query"))
+	                    $root.perfetto.protos.PerfettoSqlStructuredQuery.encode(m.query, w.uint32(34).fork()).ldelim();
+	                if (m.dimensionsSpecs != null && m.dimensionsSpecs.length) {
+	                    for (var i = 0; i < m.dimensionsSpecs.length; ++i)
+	                        $root.perfetto.protos.TraceMetricV2Spec.DimensionSpec.encode(m.dimensionsSpecs[i], w.uint32(42).fork()).ldelim();
+	                }
+	                if (m.dimensionUniqueness != null && Object.hasOwnProperty.call(m, "dimensionUniqueness"))
+	                    w.uint32(48).int32(m.dimensionUniqueness);
+	                if (m.disableAutoBundling != null && Object.hasOwnProperty.call(m, "disableAutoBundling"))
+	                    w.uint32(56).bool(m.disableAutoBundling);
+	                if (m.valueColumnSpecs != null && m.valueColumnSpecs.length) {
+	                    for (var i = 0; i < m.valueColumnSpecs.length; ++i)
+	                        $root.perfetto.protos.TraceMetricV2TemplateSpec.ValueColumnSpec.encode(m.valueColumnSpecs[i], w.uint32(66).fork()).ldelim();
+	                }
+	                return w;
+	            };
+
+	            /**
+	             * Decodes a TraceMetricV2TemplateSpec message from the specified reader or buffer.
+	             * @function decode
+	             * @memberof perfetto.protos.TraceMetricV2TemplateSpec
+	             * @static
+	             * @param {$protobuf.Reader|Uint8Array} r Reader or buffer to decode from
+	             * @param {number} [l] Message length if known beforehand
+	             * @returns {perfetto.protos.TraceMetricV2TemplateSpec} TraceMetricV2TemplateSpec
+	             * @throws {Error} If the payload is not a reader or valid buffer
+	             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+	             */
+	            TraceMetricV2TemplateSpec.decode = function decode(r, l) {
+	                if (!(r instanceof $Reader))
+	                    r = $Reader.create(r);
+	                var c = l === undefined ? r.len : r.pos + l, m = new $root.perfetto.protos.TraceMetricV2TemplateSpec();
+	                while (r.pos < c) {
+	                    var t = r.uint32();
+	                    switch (t >>> 3) {
+	                    case 1: {
+	                            m.idPrefix = r.string();
+	                            break;
+	                        }
+	                    case 5: {
+	                            if (!(m.dimensionsSpecs && m.dimensionsSpecs.length))
+	                                m.dimensionsSpecs = [];
+	                            m.dimensionsSpecs.push($root.perfetto.protos.TraceMetricV2Spec.DimensionSpec.decode(r, r.uint32()));
+	                            break;
+	                        }
+	                    case 2: {
+	                            if (!(m.dimensions && m.dimensions.length))
+	                                m.dimensions = [];
+	                            m.dimensions.push(r.string());
+	                            break;
+	                        }
+	                    case 3: {
+	                            if (!(m.valueColumns && m.valueColumns.length))
+	                                m.valueColumns = [];
+	                            m.valueColumns.push(r.string());
+	                            break;
+	                        }
+	                    case 8: {
+	                            if (!(m.valueColumnSpecs && m.valueColumnSpecs.length))
+	                                m.valueColumnSpecs = [];
+	                            m.valueColumnSpecs.push($root.perfetto.protos.TraceMetricV2TemplateSpec.ValueColumnSpec.decode(r, r.uint32()));
+	                            break;
+	                        }
+	                    case 4: {
+	                            m.query = $root.perfetto.protos.PerfettoSqlStructuredQuery.decode(r, r.uint32());
+	                            break;
+	                        }
+	                    case 6: {
+	                            m.dimensionUniqueness = r.int32();
+	                            break;
+	                        }
+	                    case 7: {
+	                            m.disableAutoBundling = r.bool();
+	                            break;
+	                        }
+	                    default:
+	                        r.skipType(t & 7);
+	                        break;
+	                    }
+	                }
+	                return m;
+	            };
+
+	            /**
+	             * Creates a TraceMetricV2TemplateSpec message from a plain object. Also converts values to their respective internal types.
+	             * @function fromObject
+	             * @memberof perfetto.protos.TraceMetricV2TemplateSpec
+	             * @static
+	             * @param {Object.<string,*>} d Plain object
+	             * @returns {perfetto.protos.TraceMetricV2TemplateSpec} TraceMetricV2TemplateSpec
+	             */
+	            TraceMetricV2TemplateSpec.fromObject = function fromObject(d) {
+	                if (d instanceof $root.perfetto.protos.TraceMetricV2TemplateSpec)
+	                    return d;
+	                var m = new $root.perfetto.protos.TraceMetricV2TemplateSpec();
+	                if (d.idPrefix != null) {
+	                    m.idPrefix = String(d.idPrefix);
+	                }
+	                if (d.dimensionsSpecs) {
+	                    if (!Array.isArray(d.dimensionsSpecs))
+	                        throw TypeError(".perfetto.protos.TraceMetricV2TemplateSpec.dimensionsSpecs: array expected");
+	                    m.dimensionsSpecs = [];
+	                    for (var i = 0; i < d.dimensionsSpecs.length; ++i) {
+	                        if (typeof d.dimensionsSpecs[i] !== "object")
+	                            throw TypeError(".perfetto.protos.TraceMetricV2TemplateSpec.dimensionsSpecs: object expected");
+	                        m.dimensionsSpecs[i] = $root.perfetto.protos.TraceMetricV2Spec.DimensionSpec.fromObject(d.dimensionsSpecs[i]);
+	                    }
+	                }
+	                if (d.dimensions) {
+	                    if (!Array.isArray(d.dimensions))
+	                        throw TypeError(".perfetto.protos.TraceMetricV2TemplateSpec.dimensions: array expected");
+	                    m.dimensions = [];
+	                    for (var i = 0; i < d.dimensions.length; ++i) {
+	                        m.dimensions[i] = String(d.dimensions[i]);
+	                    }
+	                }
+	                if (d.valueColumns) {
+	                    if (!Array.isArray(d.valueColumns))
+	                        throw TypeError(".perfetto.protos.TraceMetricV2TemplateSpec.valueColumns: array expected");
+	                    m.valueColumns = [];
+	                    for (var i = 0; i < d.valueColumns.length; ++i) {
+	                        m.valueColumns[i] = String(d.valueColumns[i]);
+	                    }
+	                }
+	                if (d.valueColumnSpecs) {
+	                    if (!Array.isArray(d.valueColumnSpecs))
+	                        throw TypeError(".perfetto.protos.TraceMetricV2TemplateSpec.valueColumnSpecs: array expected");
+	                    m.valueColumnSpecs = [];
+	                    for (var i = 0; i < d.valueColumnSpecs.length; ++i) {
+	                        if (typeof d.valueColumnSpecs[i] !== "object")
+	                            throw TypeError(".perfetto.protos.TraceMetricV2TemplateSpec.valueColumnSpecs: object expected");
+	                        m.valueColumnSpecs[i] = $root.perfetto.protos.TraceMetricV2TemplateSpec.ValueColumnSpec.fromObject(d.valueColumnSpecs[i]);
+	                    }
+	                }
+	                if (d.query != null) {
+	                    if (typeof d.query !== "object")
+	                        throw TypeError(".perfetto.protos.TraceMetricV2TemplateSpec.query: object expected");
+	                    m.query = $root.perfetto.protos.PerfettoSqlStructuredQuery.fromObject(d.query);
+	                }
+	                switch (d.dimensionUniqueness) {
+	                default:
+	                    if (typeof d.dimensionUniqueness === "number") {
+	                        m.dimensionUniqueness = d.dimensionUniqueness;
+	                        break;
+	                    }
+	                    break;
+	                case "DIMENSION_UNIQUENESS_UNSPECIFIED":
+	                case 0:
+	                    m.dimensionUniqueness = 0;
+	                    break;
+	                case "NOT_UNIQUE":
+	                case 1:
+	                    m.dimensionUniqueness = 1;
+	                    break;
+	                case "UNIQUE":
+	                case 2:
+	                    m.dimensionUniqueness = 2;
+	                    break;
+	                }
+	                if (d.disableAutoBundling != null) {
+	                    m.disableAutoBundling = Boolean(d.disableAutoBundling);
+	                }
+	                return m;
+	            };
+
+	            /**
+	             * Creates a plain object from a TraceMetricV2TemplateSpec message. Also converts values to other types if specified.
+	             * @function toObject
+	             * @memberof perfetto.protos.TraceMetricV2TemplateSpec
+	             * @static
+	             * @param {perfetto.protos.TraceMetricV2TemplateSpec} m TraceMetricV2TemplateSpec
+	             * @param {$protobuf.IConversionOptions} [o] Conversion options
+	             * @returns {Object.<string,*>} Plain object
+	             */
+	            TraceMetricV2TemplateSpec.toObject = function toObject(m, o) {
+	                if (!o)
+	                    o = {};
+	                var d = {};
+	                if (o.arrays || o.defaults) {
+	                    d.dimensions = [];
+	                    d.valueColumns = [];
+	                    d.dimensionsSpecs = [];
+	                    d.valueColumnSpecs = [];
+	                }
+	                if (o.defaults) {
+	                    d.idPrefix = "";
+	                    d.query = null;
+	                    d.dimensionUniqueness = o.enums === String ? "DIMENSION_UNIQUENESS_UNSPECIFIED" : 0;
+	                    d.disableAutoBundling = false;
+	                }
+	                if (m.idPrefix != null && m.hasOwnProperty("idPrefix")) {
+	                    d.idPrefix = m.idPrefix;
+	                }
+	                if (m.dimensions && m.dimensions.length) {
+	                    d.dimensions = [];
+	                    for (var j = 0; j < m.dimensions.length; ++j) {
+	                        d.dimensions[j] = m.dimensions[j];
+	                    }
+	                }
+	                if (m.valueColumns && m.valueColumns.length) {
+	                    d.valueColumns = [];
+	                    for (var j = 0; j < m.valueColumns.length; ++j) {
+	                        d.valueColumns[j] = m.valueColumns[j];
+	                    }
+	                }
+	                if (m.query != null && m.hasOwnProperty("query")) {
+	                    d.query = $root.perfetto.protos.PerfettoSqlStructuredQuery.toObject(m.query, o);
+	                }
+	                if (m.dimensionsSpecs && m.dimensionsSpecs.length) {
+	                    d.dimensionsSpecs = [];
+	                    for (var j = 0; j < m.dimensionsSpecs.length; ++j) {
+	                        d.dimensionsSpecs[j] = $root.perfetto.protos.TraceMetricV2Spec.DimensionSpec.toObject(m.dimensionsSpecs[j], o);
+	                    }
+	                }
+	                if (m.dimensionUniqueness != null && m.hasOwnProperty("dimensionUniqueness")) {
+	                    d.dimensionUniqueness = o.enums === String ? $root.perfetto.protos.TraceMetricV2Spec.DimensionUniqueness[m.dimensionUniqueness] === undefined ? m.dimensionUniqueness : $root.perfetto.protos.TraceMetricV2Spec.DimensionUniqueness[m.dimensionUniqueness] : m.dimensionUniqueness;
+	                }
+	                if (m.disableAutoBundling != null && m.hasOwnProperty("disableAutoBundling")) {
+	                    d.disableAutoBundling = m.disableAutoBundling;
+	                }
+	                if (m.valueColumnSpecs && m.valueColumnSpecs.length) {
+	                    d.valueColumnSpecs = [];
+	                    for (var j = 0; j < m.valueColumnSpecs.length; ++j) {
+	                        d.valueColumnSpecs[j] = $root.perfetto.protos.TraceMetricV2TemplateSpec.ValueColumnSpec.toObject(m.valueColumnSpecs[j], o);
+	                    }
+	                }
+	                return d;
+	            };
+
+	            /**
+	             * Converts this TraceMetricV2TemplateSpec to JSON.
+	             * @function toJSON
+	             * @memberof perfetto.protos.TraceMetricV2TemplateSpec
+	             * @instance
+	             * @returns {Object.<string,*>} JSON object
+	             */
+	            TraceMetricV2TemplateSpec.prototype.toJSON = function toJSON() {
+	                return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+	            };
+
+	            /**
+	             * Gets the default type url for TraceMetricV2TemplateSpec
+	             * @function getTypeUrl
+	             * @memberof perfetto.protos.TraceMetricV2TemplateSpec
+	             * @static
+	             * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+	             * @returns {string} The default type url
+	             */
+	            TraceMetricV2TemplateSpec.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+	                if (typeUrlPrefix === undefined) {
+	                    typeUrlPrefix = "type.googleapis.com";
+	                }
+	                return typeUrlPrefix + "/perfetto.protos.TraceMetricV2TemplateSpec";
+	            };
+
+	            TraceMetricV2TemplateSpec.ValueColumnSpec = (function() {
+
+	                /**
+	                 * Properties of a ValueColumnSpec.
+	                 * @memberof perfetto.protos.TraceMetricV2TemplateSpec
+	                 * @interface IValueColumnSpec
+	                 * @property {string|null} [name] ValueColumnSpec name
+	                 * @property {perfetto.protos.TraceMetricV2Spec.MetricUnit|null} [unit] ValueColumnSpec unit
+	                 * @property {string|null} [customUnit] ValueColumnSpec customUnit
+	                 * @property {perfetto.protos.TraceMetricV2Spec.MetricPolarity|null} [polarity] ValueColumnSpec polarity
+	                 */
+
+	                /**
+	                 * Constructs a new ValueColumnSpec.
+	                 * @memberof perfetto.protos.TraceMetricV2TemplateSpec
+	                 * @classdesc Represents a ValueColumnSpec.
+	                 * @implements IValueColumnSpec
+	                 * @constructor
+	                 * @param {perfetto.protos.TraceMetricV2TemplateSpec.IValueColumnSpec=} [p] Properties to set
+	                 */
+	                function ValueColumnSpec(p) {
+	                    if (p)
+	                        for (var ks = Object.keys(p), i = 0; i < ks.length; ++i)
+	                            if (p[ks[i]] != null)
+	                                this[ks[i]] = p[ks[i]];
+	                }
+
+	                /**
+	                 * ValueColumnSpec name.
+	                 * @member {string} name
+	                 * @memberof perfetto.protos.TraceMetricV2TemplateSpec.ValueColumnSpec
+	                 * @instance
+	                 */
+	                ValueColumnSpec.prototype.name = "";
+
+	                /**
+	                 * ValueColumnSpec unit.
+	                 * @member {perfetto.protos.TraceMetricV2Spec.MetricUnit|null|undefined} unit
+	                 * @memberof perfetto.protos.TraceMetricV2TemplateSpec.ValueColumnSpec
+	                 * @instance
+	                 */
+	                ValueColumnSpec.prototype.unit = null;
+
+	                /**
+	                 * ValueColumnSpec customUnit.
+	                 * @member {string|null|undefined} customUnit
+	                 * @memberof perfetto.protos.TraceMetricV2TemplateSpec.ValueColumnSpec
+	                 * @instance
+	                 */
+	                ValueColumnSpec.prototype.customUnit = null;
+
+	                /**
+	                 * ValueColumnSpec polarity.
+	                 * @member {perfetto.protos.TraceMetricV2Spec.MetricPolarity} polarity
+	                 * @memberof perfetto.protos.TraceMetricV2TemplateSpec.ValueColumnSpec
+	                 * @instance
+	                 */
+	                ValueColumnSpec.prototype.polarity = 0;
+
+	                // OneOf field names bound to virtual getters and setters
+	                var $oneOfFields;
+
+	                /**
+	                 * ValueColumnSpec unitOneof.
+	                 * @member {"unit"|"customUnit"|undefined} unitOneof
+	                 * @memberof perfetto.protos.TraceMetricV2TemplateSpec.ValueColumnSpec
+	                 * @instance
+	                 */
+	                Object.defineProperty(ValueColumnSpec.prototype, "unitOneof", {
+	                    get: $util.oneOfGetter($oneOfFields = ["unit", "customUnit"]),
+	                    set: $util.oneOfSetter($oneOfFields)
+	                });
+
+	                /**
+	                 * Creates a new ValueColumnSpec instance using the specified properties.
+	                 * @function create
+	                 * @memberof perfetto.protos.TraceMetricV2TemplateSpec.ValueColumnSpec
+	                 * @static
+	                 * @param {perfetto.protos.TraceMetricV2TemplateSpec.IValueColumnSpec=} [properties] Properties to set
+	                 * @returns {perfetto.protos.TraceMetricV2TemplateSpec.ValueColumnSpec} ValueColumnSpec instance
+	                 */
+	                ValueColumnSpec.create = function create(properties) {
+	                    return new ValueColumnSpec(properties);
+	                };
+
+	                /**
+	                 * Encodes the specified ValueColumnSpec message. Does not implicitly {@link perfetto.protos.TraceMetricV2TemplateSpec.ValueColumnSpec.verify|verify} messages.
+	                 * @function encode
+	                 * @memberof perfetto.protos.TraceMetricV2TemplateSpec.ValueColumnSpec
+	                 * @static
+	                 * @param {perfetto.protos.TraceMetricV2TemplateSpec.IValueColumnSpec} m ValueColumnSpec message or plain object to encode
+	                 * @param {$protobuf.Writer} [w] Writer to encode to
+	                 * @returns {$protobuf.Writer} Writer
+	                 */
+	                ValueColumnSpec.encode = function encode(m, w) {
+	                    if (!w)
+	                        w = $Writer.create();
+	                    if (m.name != null && Object.hasOwnProperty.call(m, "name"))
+	                        w.uint32(10).string(m.name);
+	                    if (m.unit != null && Object.hasOwnProperty.call(m, "unit"))
+	                        w.uint32(16).int32(m.unit);
+	                    if (m.customUnit != null && Object.hasOwnProperty.call(m, "customUnit"))
+	                        w.uint32(26).string(m.customUnit);
+	                    if (m.polarity != null && Object.hasOwnProperty.call(m, "polarity"))
+	                        w.uint32(32).int32(m.polarity);
+	                    return w;
+	                };
+
+	                /**
+	                 * Decodes a ValueColumnSpec message from the specified reader or buffer.
+	                 * @function decode
+	                 * @memberof perfetto.protos.TraceMetricV2TemplateSpec.ValueColumnSpec
+	                 * @static
+	                 * @param {$protobuf.Reader|Uint8Array} r Reader or buffer to decode from
+	                 * @param {number} [l] Message length if known beforehand
+	                 * @returns {perfetto.protos.TraceMetricV2TemplateSpec.ValueColumnSpec} ValueColumnSpec
+	                 * @throws {Error} If the payload is not a reader or valid buffer
+	                 * @throws {$protobuf.util.ProtocolError} If required fields are missing
+	                 */
+	                ValueColumnSpec.decode = function decode(r, l) {
+	                    if (!(r instanceof $Reader))
+	                        r = $Reader.create(r);
+	                    var c = l === undefined ? r.len : r.pos + l, m = new $root.perfetto.protos.TraceMetricV2TemplateSpec.ValueColumnSpec();
+	                    while (r.pos < c) {
+	                        var t = r.uint32();
+	                        switch (t >>> 3) {
+	                        case 1: {
+	                                m.name = r.string();
+	                                break;
+	                            }
+	                        case 2: {
+	                                m.unit = r.int32();
+	                                break;
+	                            }
+	                        case 3: {
+	                                m.customUnit = r.string();
+	                                break;
+	                            }
+	                        case 4: {
+	                                m.polarity = r.int32();
+	                                break;
+	                            }
+	                        default:
+	                            r.skipType(t & 7);
+	                            break;
+	                        }
+	                    }
+	                    return m;
+	                };
+
+	                /**
+	                 * Creates a ValueColumnSpec message from a plain object. Also converts values to their respective internal types.
+	                 * @function fromObject
+	                 * @memberof perfetto.protos.TraceMetricV2TemplateSpec.ValueColumnSpec
+	                 * @static
+	                 * @param {Object.<string,*>} d Plain object
+	                 * @returns {perfetto.protos.TraceMetricV2TemplateSpec.ValueColumnSpec} ValueColumnSpec
+	                 */
+	                ValueColumnSpec.fromObject = function fromObject(d) {
+	                    if (d instanceof $root.perfetto.protos.TraceMetricV2TemplateSpec.ValueColumnSpec)
+	                        return d;
+	                    var m = new $root.perfetto.protos.TraceMetricV2TemplateSpec.ValueColumnSpec();
+	                    if (d.name != null) {
+	                        m.name = String(d.name);
+	                    }
+	                    switch (d.unit) {
+	                    default:
+	                        if (typeof d.unit === "number") {
+	                            m.unit = d.unit;
+	                            break;
+	                        }
+	                        break;
+	                    case "METRIC_UNIT_UNSPECIFIED":
+	                    case 0:
+	                        m.unit = 0;
+	                        break;
+	                    case "COUNT":
+	                    case 1:
+	                        m.unit = 1;
+	                        break;
+	                    case "TIME_NANOS":
+	                    case 2:
+	                        m.unit = 2;
+	                        break;
+	                    case "TIME_MICROS":
+	                    case 3:
+	                        m.unit = 3;
+	                        break;
+	                    case "TIME_MILLIS":
+	                    case 4:
+	                        m.unit = 4;
+	                        break;
+	                    case "TIME_SECONDS":
+	                    case 5:
+	                        m.unit = 5;
+	                        break;
+	                    case "TIME_HOURS":
+	                    case 6:
+	                        m.unit = 6;
+	                        break;
+	                    case "TIME_DAYS":
+	                    case 7:
+	                        m.unit = 7;
+	                        break;
+	                    case "BYTES":
+	                    case 8:
+	                        m.unit = 8;
+	                        break;
+	                    case "KILOBYTES":
+	                    case 9:
+	                        m.unit = 9;
+	                        break;
+	                    case "MEGABYTES":
+	                    case 10:
+	                        m.unit = 10;
+	                        break;
+	                    case "SECONDS_PER_HOUR":
+	                    case 11:
+	                        m.unit = 11;
+	                        break;
+	                    case "BOUNDED_PERCENTAGE":
+	                    case 12:
+	                        m.unit = 12;
+	                        break;
+	                    case "PERCENTAGE":
+	                    case 13:
+	                        m.unit = 13;
+	                        break;
+	                    case "MINUTES_PER_DAY":
+	                    case 14:
+	                        m.unit = 14;
+	                        break;
+	                    case "MILLI_AMPS":
+	                    case 15:
+	                        m.unit = 15;
+	                        break;
+	                    case "PERCENT_PER_HOUR":
+	                    case 16:
+	                        m.unit = 16;
+	                        break;
+	                    case "MILLI_AMP_HOURS":
+	                    case 17:
+	                        m.unit = 17;
+	                        break;
+	                    case "PERCENT_PER_HOUR_LEGACY":
+	                    case 18:
+	                        m.unit = 18;
+	                        break;
+	                    case "MILLI_WATTS":
+	                    case 19:
+	                        m.unit = 19;
+	                        break;
+	                    case "COUNT_PER_SECOND":
+	                    case 20:
+	                        m.unit = 20;
+	                        break;
+	                    case "KILOBYTES_PER_HOUR":
+	                    case 21:
+	                        m.unit = 21;
+	                        break;
+	                    case "MILLI_WATT_HOURS":
+	                    case 22:
+	                        m.unit = 22;
+	                        break;
+	                    case "COUNT_PER_HOUR":
+	                    case 23:
+	                        m.unit = 23;
+	                        break;
+	                    case "COUNT_DELTA_PER_HOUR":
+	                    case 24:
+	                        m.unit = 24;
+	                        break;
+	                    case "BYTES_DELTA_PER_HOUR":
+	                    case 25:
+	                        m.unit = 25;
+	                        break;
+	                    case "CORRELATION_COEFFICIENT":
+	                    case 26:
+	                        m.unit = 26;
+	                        break;
+	                    case "MILLI_VOLTS":
+	                    case 27:
+	                        m.unit = 27;
+	                        break;
+	                    }
+	                    if (d.customUnit != null) {
+	                        m.customUnit = String(d.customUnit);
+	                    }
+	                    switch (d.polarity) {
+	                    default:
+	                        if (typeof d.polarity === "number") {
+	                            m.polarity = d.polarity;
+	                            break;
+	                        }
+	                        break;
+	                    case "POLARITY_UNSPECIFIED":
+	                    case 0:
+	                        m.polarity = 0;
+	                        break;
+	                    case "HIGHER_IS_BETTER":
+	                    case 1:
+	                        m.polarity = 1;
+	                        break;
+	                    case "LOWER_IS_BETTER":
+	                    case 2:
+	                        m.polarity = 2;
+	                        break;
+	                    case "NOT_APPLICABLE":
+	                    case 3:
+	                        m.polarity = 3;
+	                        break;
+	                    }
+	                    return m;
+	                };
+
+	                /**
+	                 * Creates a plain object from a ValueColumnSpec message. Also converts values to other types if specified.
+	                 * @function toObject
+	                 * @memberof perfetto.protos.TraceMetricV2TemplateSpec.ValueColumnSpec
+	                 * @static
+	                 * @param {perfetto.protos.TraceMetricV2TemplateSpec.ValueColumnSpec} m ValueColumnSpec
+	                 * @param {$protobuf.IConversionOptions} [o] Conversion options
+	                 * @returns {Object.<string,*>} Plain object
+	                 */
+	                ValueColumnSpec.toObject = function toObject(m, o) {
+	                    if (!o)
+	                        o = {};
+	                    var d = {};
+	                    if (o.defaults) {
+	                        d.name = "";
+	                        d.polarity = o.enums === String ? "POLARITY_UNSPECIFIED" : 0;
+	                    }
+	                    if (m.name != null && m.hasOwnProperty("name")) {
+	                        d.name = m.name;
+	                    }
+	                    if (m.unit != null && m.hasOwnProperty("unit")) {
+	                        d.unit = o.enums === String ? $root.perfetto.protos.TraceMetricV2Spec.MetricUnit[m.unit] === undefined ? m.unit : $root.perfetto.protos.TraceMetricV2Spec.MetricUnit[m.unit] : m.unit;
+	                        if (o.oneofs)
+	                            d.unitOneof = "unit";
+	                    }
+	                    if (m.customUnit != null && m.hasOwnProperty("customUnit")) {
+	                        d.customUnit = m.customUnit;
+	                        if (o.oneofs)
+	                            d.unitOneof = "customUnit";
+	                    }
+	                    if (m.polarity != null && m.hasOwnProperty("polarity")) {
+	                        d.polarity = o.enums === String ? $root.perfetto.protos.TraceMetricV2Spec.MetricPolarity[m.polarity] === undefined ? m.polarity : $root.perfetto.protos.TraceMetricV2Spec.MetricPolarity[m.polarity] : m.polarity;
+	                    }
+	                    return d;
+	                };
+
+	                /**
+	                 * Converts this ValueColumnSpec to JSON.
+	                 * @function toJSON
+	                 * @memberof perfetto.protos.TraceMetricV2TemplateSpec.ValueColumnSpec
+	                 * @instance
+	                 * @returns {Object.<string,*>} JSON object
+	                 */
+	                ValueColumnSpec.prototype.toJSON = function toJSON() {
+	                    return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+	                };
+
+	                /**
+	                 * Gets the default type url for ValueColumnSpec
+	                 * @function getTypeUrl
+	                 * @memberof perfetto.protos.TraceMetricV2TemplateSpec.ValueColumnSpec
+	                 * @static
+	                 * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+	                 * @returns {string} The default type url
+	                 */
+	                ValueColumnSpec.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+	                    if (typeUrlPrefix === undefined) {
+	                        typeUrlPrefix = "type.googleapis.com";
+	                    }
+	                    return typeUrlPrefix + "/perfetto.protos.TraceMetricV2TemplateSpec.ValueColumnSpec";
+	                };
+
+	                return ValueColumnSpec;
+	            })();
+
+	            return TraceMetricV2TemplateSpec;
+	        })();
+
+	        protos.TraceMetricV2Bundle = (function() {
+
+	            /**
+	             * Properties of a TraceMetricV2Bundle.
+	             * @memberof perfetto.protos
+	             * @interface ITraceMetricV2Bundle
+	             * @property {string|null} [bundleId] TraceMetricV2Bundle bundleId
+	             * @property {Array.<perfetto.protos.TraceMetricV2Bundle.IRow>|null} [row] TraceMetricV2Bundle row
+	             * @property {Array.<perfetto.protos.ITraceMetricV2Spec>|null} [specs] TraceMetricV2Bundle specs
+	             */
+
+	            /**
+	             * Constructs a new TraceMetricV2Bundle.
+	             * @memberof perfetto.protos
+	             * @classdesc Represents a TraceMetricV2Bundle.
+	             * @implements ITraceMetricV2Bundle
+	             * @constructor
+	             * @param {perfetto.protos.ITraceMetricV2Bundle=} [p] Properties to set
+	             */
+	            function TraceMetricV2Bundle(p) {
+	                this.row = [];
+	                this.specs = [];
+	                if (p)
+	                    for (var ks = Object.keys(p), i = 0; i < ks.length; ++i)
+	                        if (p[ks[i]] != null)
+	                            this[ks[i]] = p[ks[i]];
+	            }
+
+	            /**
+	             * TraceMetricV2Bundle bundleId.
+	             * @member {string} bundleId
+	             * @memberof perfetto.protos.TraceMetricV2Bundle
+	             * @instance
+	             */
+	            TraceMetricV2Bundle.prototype.bundleId = "";
+
+	            /**
+	             * TraceMetricV2Bundle row.
+	             * @member {Array.<perfetto.protos.TraceMetricV2Bundle.IRow>} row
+	             * @memberof perfetto.protos.TraceMetricV2Bundle
+	             * @instance
+	             */
+	            TraceMetricV2Bundle.prototype.row = $util.emptyArray;
+
+	            /**
+	             * TraceMetricV2Bundle specs.
+	             * @member {Array.<perfetto.protos.ITraceMetricV2Spec>} specs
+	             * @memberof perfetto.protos.TraceMetricV2Bundle
+	             * @instance
+	             */
+	            TraceMetricV2Bundle.prototype.specs = $util.emptyArray;
+
+	            /**
+	             * Creates a new TraceMetricV2Bundle instance using the specified properties.
+	             * @function create
+	             * @memberof perfetto.protos.TraceMetricV2Bundle
+	             * @static
+	             * @param {perfetto.protos.ITraceMetricV2Bundle=} [properties] Properties to set
+	             * @returns {perfetto.protos.TraceMetricV2Bundle} TraceMetricV2Bundle instance
+	             */
+	            TraceMetricV2Bundle.create = function create(properties) {
+	                return new TraceMetricV2Bundle(properties);
+	            };
+
+	            /**
+	             * Encodes the specified TraceMetricV2Bundle message. Does not implicitly {@link perfetto.protos.TraceMetricV2Bundle.verify|verify} messages.
+	             * @function encode
+	             * @memberof perfetto.protos.TraceMetricV2Bundle
+	             * @static
+	             * @param {perfetto.protos.ITraceMetricV2Bundle} m TraceMetricV2Bundle message or plain object to encode
+	             * @param {$protobuf.Writer} [w] Writer to encode to
+	             * @returns {$protobuf.Writer} Writer
+	             */
+	            TraceMetricV2Bundle.encode = function encode(m, w) {
+	                if (!w)
+	                    w = $Writer.create();
+	                if (m.bundleId != null && Object.hasOwnProperty.call(m, "bundleId"))
+	                    w.uint32(10).string(m.bundleId);
+	                if (m.row != null && m.row.length) {
+	                    for (var i = 0; i < m.row.length; ++i)
+	                        $root.perfetto.protos.TraceMetricV2Bundle.Row.encode(m.row[i], w.uint32(18).fork()).ldelim();
+	                }
+	                if (m.specs != null && m.specs.length) {
+	                    for (var i = 0; i < m.specs.length; ++i)
+	                        $root.perfetto.protos.TraceMetricV2Spec.encode(m.specs[i], w.uint32(26).fork()).ldelim();
+	                }
+	                return w;
+	            };
+
+	            /**
+	             * Decodes a TraceMetricV2Bundle message from the specified reader or buffer.
+	             * @function decode
+	             * @memberof perfetto.protos.TraceMetricV2Bundle
+	             * @static
+	             * @param {$protobuf.Reader|Uint8Array} r Reader or buffer to decode from
+	             * @param {number} [l] Message length if known beforehand
+	             * @returns {perfetto.protos.TraceMetricV2Bundle} TraceMetricV2Bundle
+	             * @throws {Error} If the payload is not a reader or valid buffer
+	             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+	             */
+	            TraceMetricV2Bundle.decode = function decode(r, l) {
+	                if (!(r instanceof $Reader))
+	                    r = $Reader.create(r);
+	                var c = l === undefined ? r.len : r.pos + l, m = new $root.perfetto.protos.TraceMetricV2Bundle();
+	                while (r.pos < c) {
+	                    var t = r.uint32();
+	                    switch (t >>> 3) {
+	                    case 1: {
+	                            m.bundleId = r.string();
+	                            break;
+	                        }
+	                    case 2: {
+	                            if (!(m.row && m.row.length))
+	                                m.row = [];
+	                            m.row.push($root.perfetto.protos.TraceMetricV2Bundle.Row.decode(r, r.uint32()));
+	                            break;
+	                        }
+	                    case 3: {
+	                            if (!(m.specs && m.specs.length))
+	                                m.specs = [];
+	                            m.specs.push($root.perfetto.protos.TraceMetricV2Spec.decode(r, r.uint32()));
+	                            break;
+	                        }
+	                    default:
+	                        r.skipType(t & 7);
+	                        break;
+	                    }
+	                }
+	                return m;
+	            };
+
+	            /**
+	             * Creates a TraceMetricV2Bundle message from a plain object. Also converts values to their respective internal types.
+	             * @function fromObject
+	             * @memberof perfetto.protos.TraceMetricV2Bundle
+	             * @static
+	             * @param {Object.<string,*>} d Plain object
+	             * @returns {perfetto.protos.TraceMetricV2Bundle} TraceMetricV2Bundle
+	             */
+	            TraceMetricV2Bundle.fromObject = function fromObject(d) {
+	                if (d instanceof $root.perfetto.protos.TraceMetricV2Bundle)
+	                    return d;
+	                var m = new $root.perfetto.protos.TraceMetricV2Bundle();
+	                if (d.bundleId != null) {
+	                    m.bundleId = String(d.bundleId);
+	                }
+	                if (d.row) {
+	                    if (!Array.isArray(d.row))
+	                        throw TypeError(".perfetto.protos.TraceMetricV2Bundle.row: array expected");
+	                    m.row = [];
+	                    for (var i = 0; i < d.row.length; ++i) {
+	                        if (typeof d.row[i] !== "object")
+	                            throw TypeError(".perfetto.protos.TraceMetricV2Bundle.row: object expected");
+	                        m.row[i] = $root.perfetto.protos.TraceMetricV2Bundle.Row.fromObject(d.row[i]);
+	                    }
+	                }
+	                if (d.specs) {
+	                    if (!Array.isArray(d.specs))
+	                        throw TypeError(".perfetto.protos.TraceMetricV2Bundle.specs: array expected");
+	                    m.specs = [];
+	                    for (var i = 0; i < d.specs.length; ++i) {
+	                        if (typeof d.specs[i] !== "object")
+	                            throw TypeError(".perfetto.protos.TraceMetricV2Bundle.specs: object expected");
+	                        m.specs[i] = $root.perfetto.protos.TraceMetricV2Spec.fromObject(d.specs[i]);
+	                    }
+	                }
+	                return m;
+	            };
+
+	            /**
+	             * Creates a plain object from a TraceMetricV2Bundle message. Also converts values to other types if specified.
+	             * @function toObject
+	             * @memberof perfetto.protos.TraceMetricV2Bundle
+	             * @static
+	             * @param {perfetto.protos.TraceMetricV2Bundle} m TraceMetricV2Bundle
+	             * @param {$protobuf.IConversionOptions} [o] Conversion options
+	             * @returns {Object.<string,*>} Plain object
+	             */
+	            TraceMetricV2Bundle.toObject = function toObject(m, o) {
+	                if (!o)
+	                    o = {};
+	                var d = {};
+	                if (o.arrays || o.defaults) {
+	                    d.row = [];
+	                    d.specs = [];
+	                }
+	                if (o.defaults) {
+	                    d.bundleId = "";
+	                }
+	                if (m.bundleId != null && m.hasOwnProperty("bundleId")) {
+	                    d.bundleId = m.bundleId;
+	                }
+	                if (m.row && m.row.length) {
+	                    d.row = [];
+	                    for (var j = 0; j < m.row.length; ++j) {
+	                        d.row[j] = $root.perfetto.protos.TraceMetricV2Bundle.Row.toObject(m.row[j], o);
+	                    }
+	                }
+	                if (m.specs && m.specs.length) {
+	                    d.specs = [];
+	                    for (var j = 0; j < m.specs.length; ++j) {
+	                        d.specs[j] = $root.perfetto.protos.TraceMetricV2Spec.toObject(m.specs[j], o);
+	                    }
+	                }
+	                return d;
+	            };
+
+	            /**
+	             * Converts this TraceMetricV2Bundle to JSON.
+	             * @function toJSON
+	             * @memberof perfetto.protos.TraceMetricV2Bundle
+	             * @instance
+	             * @returns {Object.<string,*>} JSON object
+	             */
+	            TraceMetricV2Bundle.prototype.toJSON = function toJSON() {
+	                return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+	            };
+
+	            /**
+	             * Gets the default type url for TraceMetricV2Bundle
+	             * @function getTypeUrl
+	             * @memberof perfetto.protos.TraceMetricV2Bundle
+	             * @static
+	             * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+	             * @returns {string} The default type url
+	             */
+	            TraceMetricV2Bundle.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+	                if (typeUrlPrefix === undefined) {
+	                    typeUrlPrefix = "type.googleapis.com";
+	                }
+	                return typeUrlPrefix + "/perfetto.protos.TraceMetricV2Bundle";
+	            };
+
+	            TraceMetricV2Bundle.Row = (function() {
+
+	                /**
+	                 * Properties of a Row.
+	                 * @memberof perfetto.protos.TraceMetricV2Bundle
+	                 * @interface IRow
+	                 * @property {Array.<perfetto.protos.TraceMetricV2Bundle.Row.IValue>|null} [values] Row values
+	                 * @property {Array.<perfetto.protos.TraceMetricV2Bundle.Row.IDimension>|null} [dimension] Row dimension
+	                 */
+
+	                /**
+	                 * Constructs a new Row.
+	                 * @memberof perfetto.protos.TraceMetricV2Bundle
+	                 * @classdesc Represents a Row.
+	                 * @implements IRow
+	                 * @constructor
+	                 * @param {perfetto.protos.TraceMetricV2Bundle.IRow=} [p] Properties to set
+	                 */
+	                function Row(p) {
+	                    this.values = [];
+	                    this.dimension = [];
+	                    if (p)
+	                        for (var ks = Object.keys(p), i = 0; i < ks.length; ++i)
+	                            if (p[ks[i]] != null)
+	                                this[ks[i]] = p[ks[i]];
+	                }
+
+	                /**
+	                 * Row values.
+	                 * @member {Array.<perfetto.protos.TraceMetricV2Bundle.Row.IValue>} values
+	                 * @memberof perfetto.protos.TraceMetricV2Bundle.Row
+	                 * @instance
+	                 */
+	                Row.prototype.values = $util.emptyArray;
+
+	                /**
+	                 * Row dimension.
+	                 * @member {Array.<perfetto.protos.TraceMetricV2Bundle.Row.IDimension>} dimension
+	                 * @memberof perfetto.protos.TraceMetricV2Bundle.Row
+	                 * @instance
+	                 */
+	                Row.prototype.dimension = $util.emptyArray;
+
+	                /**
+	                 * Creates a new Row instance using the specified properties.
+	                 * @function create
+	                 * @memberof perfetto.protos.TraceMetricV2Bundle.Row
+	                 * @static
+	                 * @param {perfetto.protos.TraceMetricV2Bundle.IRow=} [properties] Properties to set
+	                 * @returns {perfetto.protos.TraceMetricV2Bundle.Row} Row instance
+	                 */
+	                Row.create = function create(properties) {
+	                    return new Row(properties);
+	                };
+
+	                /**
+	                 * Encodes the specified Row message. Does not implicitly {@link perfetto.protos.TraceMetricV2Bundle.Row.verify|verify} messages.
+	                 * @function encode
+	                 * @memberof perfetto.protos.TraceMetricV2Bundle.Row
+	                 * @static
+	                 * @param {perfetto.protos.TraceMetricV2Bundle.IRow} m Row message or plain object to encode
+	                 * @param {$protobuf.Writer} [w] Writer to encode to
+	                 * @returns {$protobuf.Writer} Writer
+	                 */
+	                Row.encode = function encode(m, w) {
+	                    if (!w)
+	                        w = $Writer.create();
+	                    if (m.values != null && m.values.length) {
+	                        for (var i = 0; i < m.values.length; ++i)
+	                            $root.perfetto.protos.TraceMetricV2Bundle.Row.Value.encode(m.values[i], w.uint32(10).fork()).ldelim();
+	                    }
+	                    if (m.dimension != null && m.dimension.length) {
+	                        for (var i = 0; i < m.dimension.length; ++i)
+	                            $root.perfetto.protos.TraceMetricV2Bundle.Row.Dimension.encode(m.dimension[i], w.uint32(18).fork()).ldelim();
+	                    }
+	                    return w;
+	                };
+
+	                /**
+	                 * Decodes a Row message from the specified reader or buffer.
+	                 * @function decode
+	                 * @memberof perfetto.protos.TraceMetricV2Bundle.Row
+	                 * @static
+	                 * @param {$protobuf.Reader|Uint8Array} r Reader or buffer to decode from
+	                 * @param {number} [l] Message length if known beforehand
+	                 * @returns {perfetto.protos.TraceMetricV2Bundle.Row} Row
+	                 * @throws {Error} If the payload is not a reader or valid buffer
+	                 * @throws {$protobuf.util.ProtocolError} If required fields are missing
+	                 */
+	                Row.decode = function decode(r, l) {
+	                    if (!(r instanceof $Reader))
+	                        r = $Reader.create(r);
+	                    var c = l === undefined ? r.len : r.pos + l, m = new $root.perfetto.protos.TraceMetricV2Bundle.Row();
+	                    while (r.pos < c) {
+	                        var t = r.uint32();
+	                        switch (t >>> 3) {
+	                        case 1: {
+	                                if (!(m.values && m.values.length))
+	                                    m.values = [];
+	                                m.values.push($root.perfetto.protos.TraceMetricV2Bundle.Row.Value.decode(r, r.uint32()));
+	                                break;
+	                            }
+	                        case 2: {
+	                                if (!(m.dimension && m.dimension.length))
+	                                    m.dimension = [];
+	                                m.dimension.push($root.perfetto.protos.TraceMetricV2Bundle.Row.Dimension.decode(r, r.uint32()));
+	                                break;
+	                            }
+	                        default:
+	                            r.skipType(t & 7);
+	                            break;
+	                        }
+	                    }
+	                    return m;
+	                };
+
+	                /**
+	                 * Creates a Row message from a plain object. Also converts values to their respective internal types.
+	                 * @function fromObject
+	                 * @memberof perfetto.protos.TraceMetricV2Bundle.Row
+	                 * @static
+	                 * @param {Object.<string,*>} d Plain object
+	                 * @returns {perfetto.protos.TraceMetricV2Bundle.Row} Row
+	                 */
+	                Row.fromObject = function fromObject(d) {
+	                    if (d instanceof $root.perfetto.protos.TraceMetricV2Bundle.Row)
+	                        return d;
+	                    var m = new $root.perfetto.protos.TraceMetricV2Bundle.Row();
+	                    if (d.values) {
+	                        if (!Array.isArray(d.values))
+	                            throw TypeError(".perfetto.protos.TraceMetricV2Bundle.Row.values: array expected");
+	                        m.values = [];
+	                        for (var i = 0; i < d.values.length; ++i) {
+	                            if (typeof d.values[i] !== "object")
+	                                throw TypeError(".perfetto.protos.TraceMetricV2Bundle.Row.values: object expected");
+	                            m.values[i] = $root.perfetto.protos.TraceMetricV2Bundle.Row.Value.fromObject(d.values[i]);
+	                        }
+	                    }
+	                    if (d.dimension) {
+	                        if (!Array.isArray(d.dimension))
+	                            throw TypeError(".perfetto.protos.TraceMetricV2Bundle.Row.dimension: array expected");
+	                        m.dimension = [];
+	                        for (var i = 0; i < d.dimension.length; ++i) {
+	                            if (typeof d.dimension[i] !== "object")
+	                                throw TypeError(".perfetto.protos.TraceMetricV2Bundle.Row.dimension: object expected");
+	                            m.dimension[i] = $root.perfetto.protos.TraceMetricV2Bundle.Row.Dimension.fromObject(d.dimension[i]);
+	                        }
+	                    }
+	                    return m;
+	                };
+
+	                /**
+	                 * Creates a plain object from a Row message. Also converts values to other types if specified.
+	                 * @function toObject
+	                 * @memberof perfetto.protos.TraceMetricV2Bundle.Row
+	                 * @static
+	                 * @param {perfetto.protos.TraceMetricV2Bundle.Row} m Row
+	                 * @param {$protobuf.IConversionOptions} [o] Conversion options
+	                 * @returns {Object.<string,*>} Plain object
+	                 */
+	                Row.toObject = function toObject(m, o) {
+	                    if (!o)
+	                        o = {};
+	                    var d = {};
+	                    if (o.arrays || o.defaults) {
+	                        d.values = [];
+	                        d.dimension = [];
+	                    }
+	                    if (m.values && m.values.length) {
+	                        d.values = [];
+	                        for (var j = 0; j < m.values.length; ++j) {
+	                            d.values[j] = $root.perfetto.protos.TraceMetricV2Bundle.Row.Value.toObject(m.values[j], o);
+	                        }
+	                    }
+	                    if (m.dimension && m.dimension.length) {
+	                        d.dimension = [];
+	                        for (var j = 0; j < m.dimension.length; ++j) {
+	                            d.dimension[j] = $root.perfetto.protos.TraceMetricV2Bundle.Row.Dimension.toObject(m.dimension[j], o);
+	                        }
+	                    }
+	                    return d;
+	                };
+
+	                /**
+	                 * Converts this Row to JSON.
+	                 * @function toJSON
+	                 * @memberof perfetto.protos.TraceMetricV2Bundle.Row
+	                 * @instance
+	                 * @returns {Object.<string,*>} JSON object
+	                 */
+	                Row.prototype.toJSON = function toJSON() {
+	                    return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+	                };
+
+	                /**
+	                 * Gets the default type url for Row
+	                 * @function getTypeUrl
+	                 * @memberof perfetto.protos.TraceMetricV2Bundle.Row
+	                 * @static
+	                 * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+	                 * @returns {string} The default type url
+	                 */
+	                Row.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+	                    if (typeUrlPrefix === undefined) {
+	                        typeUrlPrefix = "type.googleapis.com";
+	                    }
+	                    return typeUrlPrefix + "/perfetto.protos.TraceMetricV2Bundle.Row";
+	                };
+
+	                Row.Value = (function() {
+
+	                    /**
+	                     * Properties of a Value.
+	                     * @memberof perfetto.protos.TraceMetricV2Bundle.Row
+	                     * @interface IValue
+	                     * @property {perfetto.protos.TraceMetricV2Bundle.Row.Value.INull|null} [nullValue] Value nullValue
+	                     * @property {number|null} [doubleValue] Value doubleValue
+	                     */
+
+	                    /**
+	                     * Constructs a new Value.
+	                     * @memberof perfetto.protos.TraceMetricV2Bundle.Row
+	                     * @classdesc Represents a Value.
+	                     * @implements IValue
+	                     * @constructor
+	                     * @param {perfetto.protos.TraceMetricV2Bundle.Row.IValue=} [p] Properties to set
+	                     */
+	                    function Value(p) {
+	                        if (p)
+	                            for (var ks = Object.keys(p), i = 0; i < ks.length; ++i)
+	                                if (p[ks[i]] != null)
+	                                    this[ks[i]] = p[ks[i]];
+	                    }
+
+	                    /**
+	                     * Value nullValue.
+	                     * @member {perfetto.protos.TraceMetricV2Bundle.Row.Value.INull|null|undefined} nullValue
+	                     * @memberof perfetto.protos.TraceMetricV2Bundle.Row.Value
+	                     * @instance
+	                     */
+	                    Value.prototype.nullValue = null;
+
+	                    /**
+	                     * Value doubleValue.
+	                     * @member {number|null|undefined} doubleValue
+	                     * @memberof perfetto.protos.TraceMetricV2Bundle.Row.Value
+	                     * @instance
+	                     */
+	                    Value.prototype.doubleValue = null;
+
+	                    // OneOf field names bound to virtual getters and setters
+	                    var $oneOfFields;
+
+	                    /**
+	                     * Value valueOneof.
+	                     * @member {"nullValue"|"doubleValue"|undefined} valueOneof
+	                     * @memberof perfetto.protos.TraceMetricV2Bundle.Row.Value
+	                     * @instance
+	                     */
+	                    Object.defineProperty(Value.prototype, "valueOneof", {
+	                        get: $util.oneOfGetter($oneOfFields = ["nullValue", "doubleValue"]),
+	                        set: $util.oneOfSetter($oneOfFields)
+	                    });
+
+	                    /**
+	                     * Creates a new Value instance using the specified properties.
+	                     * @function create
+	                     * @memberof perfetto.protos.TraceMetricV2Bundle.Row.Value
+	                     * @static
+	                     * @param {perfetto.protos.TraceMetricV2Bundle.Row.IValue=} [properties] Properties to set
+	                     * @returns {perfetto.protos.TraceMetricV2Bundle.Row.Value} Value instance
+	                     */
+	                    Value.create = function create(properties) {
+	                        return new Value(properties);
+	                    };
+
+	                    /**
+	                     * Encodes the specified Value message. Does not implicitly {@link perfetto.protos.TraceMetricV2Bundle.Row.Value.verify|verify} messages.
+	                     * @function encode
+	                     * @memberof perfetto.protos.TraceMetricV2Bundle.Row.Value
+	                     * @static
+	                     * @param {perfetto.protos.TraceMetricV2Bundle.Row.IValue} m Value message or plain object to encode
+	                     * @param {$protobuf.Writer} [w] Writer to encode to
+	                     * @returns {$protobuf.Writer} Writer
+	                     */
+	                    Value.encode = function encode(m, w) {
+	                        if (!w)
+	                            w = $Writer.create();
+	                        if (m.nullValue != null && Object.hasOwnProperty.call(m, "nullValue"))
+	                            $root.perfetto.protos.TraceMetricV2Bundle.Row.Value.Null.encode(m.nullValue, w.uint32(10).fork()).ldelim();
+	                        if (m.doubleValue != null && Object.hasOwnProperty.call(m, "doubleValue"))
+	                            w.uint32(17).double(m.doubleValue);
+	                        return w;
+	                    };
+
+	                    /**
+	                     * Decodes a Value message from the specified reader or buffer.
+	                     * @function decode
+	                     * @memberof perfetto.protos.TraceMetricV2Bundle.Row.Value
+	                     * @static
+	                     * @param {$protobuf.Reader|Uint8Array} r Reader or buffer to decode from
+	                     * @param {number} [l] Message length if known beforehand
+	                     * @returns {perfetto.protos.TraceMetricV2Bundle.Row.Value} Value
+	                     * @throws {Error} If the payload is not a reader or valid buffer
+	                     * @throws {$protobuf.util.ProtocolError} If required fields are missing
+	                     */
+	                    Value.decode = function decode(r, l) {
+	                        if (!(r instanceof $Reader))
+	                            r = $Reader.create(r);
+	                        var c = l === undefined ? r.len : r.pos + l, m = new $root.perfetto.protos.TraceMetricV2Bundle.Row.Value();
+	                        while (r.pos < c) {
+	                            var t = r.uint32();
+	                            switch (t >>> 3) {
+	                            case 1: {
+	                                    m.nullValue = $root.perfetto.protos.TraceMetricV2Bundle.Row.Value.Null.decode(r, r.uint32());
+	                                    break;
+	                                }
+	                            case 2: {
+	                                    m.doubleValue = r.double();
+	                                    break;
+	                                }
+	                            default:
+	                                r.skipType(t & 7);
+	                                break;
+	                            }
+	                        }
+	                        return m;
+	                    };
+
+	                    /**
+	                     * Creates a Value message from a plain object. Also converts values to their respective internal types.
+	                     * @function fromObject
+	                     * @memberof perfetto.protos.TraceMetricV2Bundle.Row.Value
+	                     * @static
+	                     * @param {Object.<string,*>} d Plain object
+	                     * @returns {perfetto.protos.TraceMetricV2Bundle.Row.Value} Value
+	                     */
+	                    Value.fromObject = function fromObject(d) {
+	                        if (d instanceof $root.perfetto.protos.TraceMetricV2Bundle.Row.Value)
+	                            return d;
+	                        var m = new $root.perfetto.protos.TraceMetricV2Bundle.Row.Value();
+	                        if (d.nullValue != null) {
+	                            if (typeof d.nullValue !== "object")
+	                                throw TypeError(".perfetto.protos.TraceMetricV2Bundle.Row.Value.nullValue: object expected");
+	                            m.nullValue = $root.perfetto.protos.TraceMetricV2Bundle.Row.Value.Null.fromObject(d.nullValue);
+	                        }
+	                        if (d.doubleValue != null) {
+	                            m.doubleValue = Number(d.doubleValue);
+	                        }
+	                        return m;
+	                    };
+
+	                    /**
+	                     * Creates a plain object from a Value message. Also converts values to other types if specified.
+	                     * @function toObject
+	                     * @memberof perfetto.protos.TraceMetricV2Bundle.Row.Value
+	                     * @static
+	                     * @param {perfetto.protos.TraceMetricV2Bundle.Row.Value} m Value
+	                     * @param {$protobuf.IConversionOptions} [o] Conversion options
+	                     * @returns {Object.<string,*>} Plain object
+	                     */
+	                    Value.toObject = function toObject(m, o) {
+	                        if (!o)
+	                            o = {};
+	                        var d = {};
+	                        if (m.nullValue != null && m.hasOwnProperty("nullValue")) {
+	                            d.nullValue = $root.perfetto.protos.TraceMetricV2Bundle.Row.Value.Null.toObject(m.nullValue, o);
+	                            if (o.oneofs)
+	                                d.valueOneof = "nullValue";
+	                        }
+	                        if (m.doubleValue != null && m.hasOwnProperty("doubleValue")) {
+	                            d.doubleValue = o.json && !isFinite(m.doubleValue) ? String(m.doubleValue) : m.doubleValue;
+	                            if (o.oneofs)
+	                                d.valueOneof = "doubleValue";
+	                        }
+	                        return d;
+	                    };
+
+	                    /**
+	                     * Converts this Value to JSON.
+	                     * @function toJSON
+	                     * @memberof perfetto.protos.TraceMetricV2Bundle.Row.Value
+	                     * @instance
+	                     * @returns {Object.<string,*>} JSON object
+	                     */
+	                    Value.prototype.toJSON = function toJSON() {
+	                        return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+	                    };
+
+	                    /**
+	                     * Gets the default type url for Value
+	                     * @function getTypeUrl
+	                     * @memberof perfetto.protos.TraceMetricV2Bundle.Row.Value
+	                     * @static
+	                     * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+	                     * @returns {string} The default type url
+	                     */
+	                    Value.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+	                        if (typeUrlPrefix === undefined) {
+	                            typeUrlPrefix = "type.googleapis.com";
+	                        }
+	                        return typeUrlPrefix + "/perfetto.protos.TraceMetricV2Bundle.Row.Value";
+	                    };
+
+	                    Value.Null = (function() {
+
+	                        /**
+	                         * Properties of a Null.
+	                         * @memberof perfetto.protos.TraceMetricV2Bundle.Row.Value
+	                         * @interface INull
+	                         */
+
+	                        /**
+	                         * Constructs a new Null.
+	                         * @memberof perfetto.protos.TraceMetricV2Bundle.Row.Value
+	                         * @classdesc Represents a Null.
+	                         * @implements INull
+	                         * @constructor
+	                         * @param {perfetto.protos.TraceMetricV2Bundle.Row.Value.INull=} [p] Properties to set
+	                         */
+	                        function Null(p) {
+	                            if (p)
+	                                for (var ks = Object.keys(p), i = 0; i < ks.length; ++i)
+	                                    if (p[ks[i]] != null)
+	                                        this[ks[i]] = p[ks[i]];
+	                        }
+
+	                        /**
+	                         * Creates a new Null instance using the specified properties.
+	                         * @function create
+	                         * @memberof perfetto.protos.TraceMetricV2Bundle.Row.Value.Null
+	                         * @static
+	                         * @param {perfetto.protos.TraceMetricV2Bundle.Row.Value.INull=} [properties] Properties to set
+	                         * @returns {perfetto.protos.TraceMetricV2Bundle.Row.Value.Null} Null instance
+	                         */
+	                        Null.create = function create(properties) {
+	                            return new Null(properties);
+	                        };
+
+	                        /**
+	                         * Encodes the specified Null message. Does not implicitly {@link perfetto.protos.TraceMetricV2Bundle.Row.Value.Null.verify|verify} messages.
+	                         * @function encode
+	                         * @memberof perfetto.protos.TraceMetricV2Bundle.Row.Value.Null
+	                         * @static
+	                         * @param {perfetto.protos.TraceMetricV2Bundle.Row.Value.INull} m Null message or plain object to encode
+	                         * @param {$protobuf.Writer} [w] Writer to encode to
+	                         * @returns {$protobuf.Writer} Writer
+	                         */
+	                        Null.encode = function encode(m, w) {
+	                            if (!w)
+	                                w = $Writer.create();
+	                            return w;
+	                        };
+
+	                        /**
+	                         * Decodes a Null message from the specified reader or buffer.
+	                         * @function decode
+	                         * @memberof perfetto.protos.TraceMetricV2Bundle.Row.Value.Null
+	                         * @static
+	                         * @param {$protobuf.Reader|Uint8Array} r Reader or buffer to decode from
+	                         * @param {number} [l] Message length if known beforehand
+	                         * @returns {perfetto.protos.TraceMetricV2Bundle.Row.Value.Null} Null
+	                         * @throws {Error} If the payload is not a reader or valid buffer
+	                         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+	                         */
+	                        Null.decode = function decode(r, l) {
+	                            if (!(r instanceof $Reader))
+	                                r = $Reader.create(r);
+	                            var c = l === undefined ? r.len : r.pos + l, m = new $root.perfetto.protos.TraceMetricV2Bundle.Row.Value.Null();
+	                            while (r.pos < c) {
+	                                var t = r.uint32();
+	                                switch (t >>> 3) {
+	                                default:
+	                                    r.skipType(t & 7);
+	                                    break;
+	                                }
+	                            }
+	                            return m;
+	                        };
+
+	                        /**
+	                         * Creates a Null message from a plain object. Also converts values to their respective internal types.
+	                         * @function fromObject
+	                         * @memberof perfetto.protos.TraceMetricV2Bundle.Row.Value.Null
+	                         * @static
+	                         * @param {Object.<string,*>} d Plain object
+	                         * @returns {perfetto.protos.TraceMetricV2Bundle.Row.Value.Null} Null
+	                         */
+	                        Null.fromObject = function fromObject(d) {
+	                            if (d instanceof $root.perfetto.protos.TraceMetricV2Bundle.Row.Value.Null)
+	                                return d;
+	                            return new $root.perfetto.protos.TraceMetricV2Bundle.Row.Value.Null();
+	                        };
+
+	                        /**
+	                         * Creates a plain object from a Null message. Also converts values to other types if specified.
+	                         * @function toObject
+	                         * @memberof perfetto.protos.TraceMetricV2Bundle.Row.Value.Null
+	                         * @static
+	                         * @param {perfetto.protos.TraceMetricV2Bundle.Row.Value.Null} m Null
+	                         * @param {$protobuf.IConversionOptions} [o] Conversion options
+	                         * @returns {Object.<string,*>} Plain object
+	                         */
+	                        Null.toObject = function toObject() {
+	                            return {};
+	                        };
+
+	                        /**
+	                         * Converts this Null to JSON.
+	                         * @function toJSON
+	                         * @memberof perfetto.protos.TraceMetricV2Bundle.Row.Value.Null
+	                         * @instance
+	                         * @returns {Object.<string,*>} JSON object
+	                         */
+	                        Null.prototype.toJSON = function toJSON() {
+	                            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+	                        };
+
+	                        /**
+	                         * Gets the default type url for Null
+	                         * @function getTypeUrl
+	                         * @memberof perfetto.protos.TraceMetricV2Bundle.Row.Value.Null
+	                         * @static
+	                         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+	                         * @returns {string} The default type url
+	                         */
+	                        Null.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+	                            if (typeUrlPrefix === undefined) {
+	                                typeUrlPrefix = "type.googleapis.com";
+	                            }
+	                            return typeUrlPrefix + "/perfetto.protos.TraceMetricV2Bundle.Row.Value.Null";
+	                        };
+
+	                        return Null;
+	                    })();
+
+	                    return Value;
+	                })();
+
+	                Row.Dimension = (function() {
+
+	                    /**
+	                     * Properties of a Dimension.
+	                     * @memberof perfetto.protos.TraceMetricV2Bundle.Row
+	                     * @interface IDimension
+	                     * @property {string|null} [stringValue] Dimension stringValue
+	                     * @property {number|null} [int64Value] Dimension int64Value
+	                     * @property {number|null} [doubleValue] Dimension doubleValue
+	                     * @property {perfetto.protos.TraceMetricV2Bundle.Row.Dimension.INull|null} [nullValue] Dimension nullValue
+	                     */
+
+	                    /**
+	                     * Constructs a new Dimension.
+	                     * @memberof perfetto.protos.TraceMetricV2Bundle.Row
+	                     * @classdesc Represents a Dimension.
+	                     * @implements IDimension
+	                     * @constructor
+	                     * @param {perfetto.protos.TraceMetricV2Bundle.Row.IDimension=} [p] Properties to set
+	                     */
+	                    function Dimension(p) {
+	                        if (p)
+	                            for (var ks = Object.keys(p), i = 0; i < ks.length; ++i)
+	                                if (p[ks[i]] != null)
+	                                    this[ks[i]] = p[ks[i]];
+	                    }
+
+	                    /**
+	                     * Dimension stringValue.
+	                     * @member {string|null|undefined} stringValue
+	                     * @memberof perfetto.protos.TraceMetricV2Bundle.Row.Dimension
+	                     * @instance
+	                     */
+	                    Dimension.prototype.stringValue = null;
+
+	                    /**
+	                     * Dimension int64Value.
+	                     * @member {number|null|undefined} int64Value
+	                     * @memberof perfetto.protos.TraceMetricV2Bundle.Row.Dimension
+	                     * @instance
+	                     */
+	                    Dimension.prototype.int64Value = null;
+
+	                    /**
+	                     * Dimension doubleValue.
+	                     * @member {number|null|undefined} doubleValue
+	                     * @memberof perfetto.protos.TraceMetricV2Bundle.Row.Dimension
+	                     * @instance
+	                     */
+	                    Dimension.prototype.doubleValue = null;
+
+	                    /**
+	                     * Dimension nullValue.
+	                     * @member {perfetto.protos.TraceMetricV2Bundle.Row.Dimension.INull|null|undefined} nullValue
+	                     * @memberof perfetto.protos.TraceMetricV2Bundle.Row.Dimension
+	                     * @instance
+	                     */
+	                    Dimension.prototype.nullValue = null;
+
+	                    // OneOf field names bound to virtual getters and setters
+	                    var $oneOfFields;
+
+	                    /**
+	                     * Dimension valueOneof.
+	                     * @member {"stringValue"|"int64Value"|"doubleValue"|"nullValue"|undefined} valueOneof
+	                     * @memberof perfetto.protos.TraceMetricV2Bundle.Row.Dimension
+	                     * @instance
+	                     */
+	                    Object.defineProperty(Dimension.prototype, "valueOneof", {
+	                        get: $util.oneOfGetter($oneOfFields = ["stringValue", "int64Value", "doubleValue", "nullValue"]),
+	                        set: $util.oneOfSetter($oneOfFields)
+	                    });
+
+	                    /**
+	                     * Creates a new Dimension instance using the specified properties.
+	                     * @function create
+	                     * @memberof perfetto.protos.TraceMetricV2Bundle.Row.Dimension
+	                     * @static
+	                     * @param {perfetto.protos.TraceMetricV2Bundle.Row.IDimension=} [properties] Properties to set
+	                     * @returns {perfetto.protos.TraceMetricV2Bundle.Row.Dimension} Dimension instance
+	                     */
+	                    Dimension.create = function create(properties) {
+	                        return new Dimension(properties);
+	                    };
+
+	                    /**
+	                     * Encodes the specified Dimension message. Does not implicitly {@link perfetto.protos.TraceMetricV2Bundle.Row.Dimension.verify|verify} messages.
+	                     * @function encode
+	                     * @memberof perfetto.protos.TraceMetricV2Bundle.Row.Dimension
+	                     * @static
+	                     * @param {perfetto.protos.TraceMetricV2Bundle.Row.IDimension} m Dimension message or plain object to encode
+	                     * @param {$protobuf.Writer} [w] Writer to encode to
+	                     * @returns {$protobuf.Writer} Writer
+	                     */
+	                    Dimension.encode = function encode(m, w) {
+	                        if (!w)
+	                            w = $Writer.create();
+	                        if (m.stringValue != null && Object.hasOwnProperty.call(m, "stringValue"))
+	                            w.uint32(10).string(m.stringValue);
+	                        if (m.int64Value != null && Object.hasOwnProperty.call(m, "int64Value"))
+	                            w.uint32(16).int64(m.int64Value);
+	                        if (m.doubleValue != null && Object.hasOwnProperty.call(m, "doubleValue"))
+	                            w.uint32(25).double(m.doubleValue);
+	                        if (m.nullValue != null && Object.hasOwnProperty.call(m, "nullValue"))
+	                            $root.perfetto.protos.TraceMetricV2Bundle.Row.Dimension.Null.encode(m.nullValue, w.uint32(34).fork()).ldelim();
+	                        return w;
+	                    };
+
+	                    /**
+	                     * Decodes a Dimension message from the specified reader or buffer.
+	                     * @function decode
+	                     * @memberof perfetto.protos.TraceMetricV2Bundle.Row.Dimension
+	                     * @static
+	                     * @param {$protobuf.Reader|Uint8Array} r Reader or buffer to decode from
+	                     * @param {number} [l] Message length if known beforehand
+	                     * @returns {perfetto.protos.TraceMetricV2Bundle.Row.Dimension} Dimension
+	                     * @throws {Error} If the payload is not a reader or valid buffer
+	                     * @throws {$protobuf.util.ProtocolError} If required fields are missing
+	                     */
+	                    Dimension.decode = function decode(r, l) {
+	                        if (!(r instanceof $Reader))
+	                            r = $Reader.create(r);
+	                        var c = l === undefined ? r.len : r.pos + l, m = new $root.perfetto.protos.TraceMetricV2Bundle.Row.Dimension();
+	                        while (r.pos < c) {
+	                            var t = r.uint32();
+	                            switch (t >>> 3) {
+	                            case 1: {
+	                                    m.stringValue = r.string();
+	                                    break;
+	                                }
+	                            case 2: {
+	                                    m.int64Value = r.int64();
+	                                    break;
+	                                }
+	                            case 3: {
+	                                    m.doubleValue = r.double();
+	                                    break;
+	                                }
+	                            case 4: {
+	                                    m.nullValue = $root.perfetto.protos.TraceMetricV2Bundle.Row.Dimension.Null.decode(r, r.uint32());
+	                                    break;
+	                                }
+	                            default:
+	                                r.skipType(t & 7);
+	                                break;
+	                            }
+	                        }
+	                        return m;
+	                    };
+
+	                    /**
+	                     * Creates a Dimension message from a plain object. Also converts values to their respective internal types.
+	                     * @function fromObject
+	                     * @memberof perfetto.protos.TraceMetricV2Bundle.Row.Dimension
+	                     * @static
+	                     * @param {Object.<string,*>} d Plain object
+	                     * @returns {perfetto.protos.TraceMetricV2Bundle.Row.Dimension} Dimension
+	                     */
+	                    Dimension.fromObject = function fromObject(d) {
+	                        if (d instanceof $root.perfetto.protos.TraceMetricV2Bundle.Row.Dimension)
+	                            return d;
+	                        var m = new $root.perfetto.protos.TraceMetricV2Bundle.Row.Dimension();
+	                        if (d.stringValue != null) {
+	                            m.stringValue = String(d.stringValue);
+	                        }
+	                        if (d.int64Value != null) {
+	                            if ($util.Long)
+	                                (m.int64Value = $util.Long.fromValue(d.int64Value)).unsigned = false;
+	                            else if (typeof d.int64Value === "string")
+	                                m.int64Value = parseInt(d.int64Value, 10);
+	                            else if (typeof d.int64Value === "number")
+	                                m.int64Value = d.int64Value;
+	                            else if (typeof d.int64Value === "object")
+	                                m.int64Value = new $util.LongBits(d.int64Value.low >>> 0, d.int64Value.high >>> 0).toNumber();
+	                        }
+	                        if (d.doubleValue != null) {
+	                            m.doubleValue = Number(d.doubleValue);
+	                        }
+	                        if (d.nullValue != null) {
+	                            if (typeof d.nullValue !== "object")
+	                                throw TypeError(".perfetto.protos.TraceMetricV2Bundle.Row.Dimension.nullValue: object expected");
+	                            m.nullValue = $root.perfetto.protos.TraceMetricV2Bundle.Row.Dimension.Null.fromObject(d.nullValue);
+	                        }
+	                        return m;
+	                    };
+
+	                    /**
+	                     * Creates a plain object from a Dimension message. Also converts values to other types if specified.
+	                     * @function toObject
+	                     * @memberof perfetto.protos.TraceMetricV2Bundle.Row.Dimension
+	                     * @static
+	                     * @param {perfetto.protos.TraceMetricV2Bundle.Row.Dimension} m Dimension
+	                     * @param {$protobuf.IConversionOptions} [o] Conversion options
+	                     * @returns {Object.<string,*>} Plain object
+	                     */
+	                    Dimension.toObject = function toObject(m, o) {
+	                        if (!o)
+	                            o = {};
+	                        var d = {};
+	                        if (m.stringValue != null && m.hasOwnProperty("stringValue")) {
+	                            d.stringValue = m.stringValue;
+	                            if (o.oneofs)
+	                                d.valueOneof = "stringValue";
+	                        }
+	                        if (m.int64Value != null && m.hasOwnProperty("int64Value")) {
+	                            if (typeof m.int64Value === "number")
+	                                d.int64Value = o.longs === String ? String(m.int64Value) : m.int64Value;
+	                            else
+	                                d.int64Value = o.longs === String ? $util.Long.prototype.toString.call(m.int64Value) : o.longs === Number ? new $util.LongBits(m.int64Value.low >>> 0, m.int64Value.high >>> 0).toNumber() : m.int64Value;
+	                            if (o.oneofs)
+	                                d.valueOneof = "int64Value";
+	                        }
+	                        if (m.doubleValue != null && m.hasOwnProperty("doubleValue")) {
+	                            d.doubleValue = o.json && !isFinite(m.doubleValue) ? String(m.doubleValue) : m.doubleValue;
+	                            if (o.oneofs)
+	                                d.valueOneof = "doubleValue";
+	                        }
+	                        if (m.nullValue != null && m.hasOwnProperty("nullValue")) {
+	                            d.nullValue = $root.perfetto.protos.TraceMetricV2Bundle.Row.Dimension.Null.toObject(m.nullValue, o);
+	                            if (o.oneofs)
+	                                d.valueOneof = "nullValue";
+	                        }
+	                        return d;
+	                    };
+
+	                    /**
+	                     * Converts this Dimension to JSON.
+	                     * @function toJSON
+	                     * @memberof perfetto.protos.TraceMetricV2Bundle.Row.Dimension
+	                     * @instance
+	                     * @returns {Object.<string,*>} JSON object
+	                     */
+	                    Dimension.prototype.toJSON = function toJSON() {
+	                        return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+	                    };
+
+	                    /**
+	                     * Gets the default type url for Dimension
+	                     * @function getTypeUrl
+	                     * @memberof perfetto.protos.TraceMetricV2Bundle.Row.Dimension
+	                     * @static
+	                     * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+	                     * @returns {string} The default type url
+	                     */
+	                    Dimension.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+	                        if (typeUrlPrefix === undefined) {
+	                            typeUrlPrefix = "type.googleapis.com";
+	                        }
+	                        return typeUrlPrefix + "/perfetto.protos.TraceMetricV2Bundle.Row.Dimension";
+	                    };
+
+	                    Dimension.Null = (function() {
+
+	                        /**
+	                         * Properties of a Null.
+	                         * @memberof perfetto.protos.TraceMetricV2Bundle.Row.Dimension
+	                         * @interface INull
+	                         */
+
+	                        /**
+	                         * Constructs a new Null.
+	                         * @memberof perfetto.protos.TraceMetricV2Bundle.Row.Dimension
+	                         * @classdesc Represents a Null.
+	                         * @implements INull
+	                         * @constructor
+	                         * @param {perfetto.protos.TraceMetricV2Bundle.Row.Dimension.INull=} [p] Properties to set
+	                         */
+	                        function Null(p) {
+	                            if (p)
+	                                for (var ks = Object.keys(p), i = 0; i < ks.length; ++i)
+	                                    if (p[ks[i]] != null)
+	                                        this[ks[i]] = p[ks[i]];
+	                        }
+
+	                        /**
+	                         * Creates a new Null instance using the specified properties.
+	                         * @function create
+	                         * @memberof perfetto.protos.TraceMetricV2Bundle.Row.Dimension.Null
+	                         * @static
+	                         * @param {perfetto.protos.TraceMetricV2Bundle.Row.Dimension.INull=} [properties] Properties to set
+	                         * @returns {perfetto.protos.TraceMetricV2Bundle.Row.Dimension.Null} Null instance
+	                         */
+	                        Null.create = function create(properties) {
+	                            return new Null(properties);
+	                        };
+
+	                        /**
+	                         * Encodes the specified Null message. Does not implicitly {@link perfetto.protos.TraceMetricV2Bundle.Row.Dimension.Null.verify|verify} messages.
+	                         * @function encode
+	                         * @memberof perfetto.protos.TraceMetricV2Bundle.Row.Dimension.Null
+	                         * @static
+	                         * @param {perfetto.protos.TraceMetricV2Bundle.Row.Dimension.INull} m Null message or plain object to encode
+	                         * @param {$protobuf.Writer} [w] Writer to encode to
+	                         * @returns {$protobuf.Writer} Writer
+	                         */
+	                        Null.encode = function encode(m, w) {
+	                            if (!w)
+	                                w = $Writer.create();
+	                            return w;
+	                        };
+
+	                        /**
+	                         * Decodes a Null message from the specified reader or buffer.
+	                         * @function decode
+	                         * @memberof perfetto.protos.TraceMetricV2Bundle.Row.Dimension.Null
+	                         * @static
+	                         * @param {$protobuf.Reader|Uint8Array} r Reader or buffer to decode from
+	                         * @param {number} [l] Message length if known beforehand
+	                         * @returns {perfetto.protos.TraceMetricV2Bundle.Row.Dimension.Null} Null
+	                         * @throws {Error} If the payload is not a reader or valid buffer
+	                         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+	                         */
+	                        Null.decode = function decode(r, l) {
+	                            if (!(r instanceof $Reader))
+	                                r = $Reader.create(r);
+	                            var c = l === undefined ? r.len : r.pos + l, m = new $root.perfetto.protos.TraceMetricV2Bundle.Row.Dimension.Null();
+	                            while (r.pos < c) {
+	                                var t = r.uint32();
+	                                switch (t >>> 3) {
+	                                default:
+	                                    r.skipType(t & 7);
+	                                    break;
+	                                }
+	                            }
+	                            return m;
+	                        };
+
+	                        /**
+	                         * Creates a Null message from a plain object. Also converts values to their respective internal types.
+	                         * @function fromObject
+	                         * @memberof perfetto.protos.TraceMetricV2Bundle.Row.Dimension.Null
+	                         * @static
+	                         * @param {Object.<string,*>} d Plain object
+	                         * @returns {perfetto.protos.TraceMetricV2Bundle.Row.Dimension.Null} Null
+	                         */
+	                        Null.fromObject = function fromObject(d) {
+	                            if (d instanceof $root.perfetto.protos.TraceMetricV2Bundle.Row.Dimension.Null)
+	                                return d;
+	                            return new $root.perfetto.protos.TraceMetricV2Bundle.Row.Dimension.Null();
+	                        };
+
+	                        /**
+	                         * Creates a plain object from a Null message. Also converts values to other types if specified.
+	                         * @function toObject
+	                         * @memberof perfetto.protos.TraceMetricV2Bundle.Row.Dimension.Null
+	                         * @static
+	                         * @param {perfetto.protos.TraceMetricV2Bundle.Row.Dimension.Null} m Null
+	                         * @param {$protobuf.IConversionOptions} [o] Conversion options
+	                         * @returns {Object.<string,*>} Plain object
+	                         */
+	                        Null.toObject = function toObject() {
+	                            return {};
+	                        };
+
+	                        /**
+	                         * Converts this Null to JSON.
+	                         * @function toJSON
+	                         * @memberof perfetto.protos.TraceMetricV2Bundle.Row.Dimension.Null
+	                         * @instance
+	                         * @returns {Object.<string,*>} JSON object
+	                         */
+	                        Null.prototype.toJSON = function toJSON() {
+	                            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+	                        };
+
+	                        /**
+	                         * Gets the default type url for Null
+	                         * @function getTypeUrl
+	                         * @memberof perfetto.protos.TraceMetricV2Bundle.Row.Dimension.Null
+	                         * @static
+	                         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+	                         * @returns {string} The default type url
+	                         */
+	                        Null.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+	                            if (typeUrlPrefix === undefined) {
+	                                typeUrlPrefix = "type.googleapis.com";
+	                            }
+	                            return typeUrlPrefix + "/perfetto.protos.TraceMetricV2Bundle.Row.Dimension.Null";
+	                        };
+
+	                        return Null;
+	                    })();
+
+	                    return Dimension;
+	                })();
+
+	                return Row;
+	            })();
+
+	            return TraceMetricV2Bundle;
 	        })();
 
 	        return protos;

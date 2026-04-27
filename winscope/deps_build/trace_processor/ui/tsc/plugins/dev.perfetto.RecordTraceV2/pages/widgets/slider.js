@@ -18,6 +18,7 @@ const tslib_1 = require("tslib");
 const mithril_1 = tslib_1.__importDefault(require("mithril"));
 const logging_1 = require("../../../../base/logging");
 const utils_1 = require("../../../../base/utils");
+const icon_1 = require("../../../../widgets/icon");
 class Slider {
     attrs;
     _value;
@@ -97,7 +98,7 @@ class Slider {
                 },
             };
         }
-        return (0, mithril_1.default)('.slider' + (attrs.cssClass ?? ''), (0, mithril_1.default)('header', attrs.title), description ? (0, mithril_1.default)('header.descr', attrs.description) : '', attrs.icon !== undefined ? (0, mithril_1.default)('i.material-icons', attrs.icon) : [], (0, mithril_1.default)(`input[id="${id}"][type=range][min=0][max=${maxIdx}][value=${idx}]`, {
+        return (0, mithril_1.default)('.slider' + (attrs.cssClass ?? ''), (0, mithril_1.default)('header', attrs.title), description ? (0, mithril_1.default)('header.descr', attrs.description) : '', attrs.icon !== undefined && (0, mithril_1.default)(icon_1.Icon, { icon: attrs.icon }), (0, mithril_1.default)(`input[id="${id}"][type=range][min=0][max=${maxIdx}][value=${idx}]`, {
             disabled,
             oninput: (e) => {
                 this.onSliderChange(+e.target.value);

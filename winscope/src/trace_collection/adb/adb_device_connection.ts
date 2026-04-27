@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-import {UserNotifier} from 'common/user_notifier';
-import {ProxyTracingWarnings} from 'messaging/user_warnings';
 import {ConnectionState} from 'trace_collection/connection_state';
 import {TraceTarget} from 'trace_collection/trace_target';
 import {UiTraceTarget} from 'trace_collection/ui/ui_trace_target';
@@ -35,6 +33,7 @@ export abstract class AdbDeviceConnection {
   protected model = '';
   protected displays: string[] = [];
   protected multiDisplayScreenRecording = false;
+  protected protologGroups: string[] = [];
 
   constructor(
     readonly id: string,
@@ -53,6 +52,10 @@ export abstract class AdbDeviceConnection {
     return this.displays;
   }
 
+  getProtologGroups(): string[] {
+    return this.protologGroups;
+  }
+
   getFormattedName(): string {
     let status = '';
     if (this.state === AdbDeviceState.OFFLINE) {
@@ -68,16 +71,7 @@ export abstract class AdbDeviceConnection {
 
   async checkRoot(): Promise<boolean> {
     const root = await this.runShellCommand('su root id -u');
-    const isRoot = Number(root) === 0;
-    if (!isRoot) {
-      UserNotifier.add(
-        new ProxyTracingWarnings([
-          'Unable to acquire root privileges on the device - ' +
-            `check the output of 'adb -s ${this.id} shell su root id'`,
-        ]),
-      ).notify();
-    }
-    return isRoot;
+    return root === '0';
   }
 
   async updateAvailableTraces() {
@@ -94,25 +88,29 @@ export abstract class AdbDeviceConnection {
   async updateProperties(resp: object) {
     this.updatePropertiesFromResponse(resp);
     await this.updateDisplaysInformation();
+    await this.updateProtologGroups();
   }
 
   async findFiles(path: string, matchers: string[]): Promise<string[]> {
+    const errors = ['No such file', 'Permission denied'];
     if (matchers.length === 0) {
       matchers.push('');
     }
+    const isRoot = await this.checkRoot();
     for (const matcher of matchers) {
-      let matchingFiles: string;
+      let findCmd = `find ${path}`;
       if (matcher.length > 0) {
-        matchingFiles = await this.runShellCommand(
-          `su root find ${path} -name ${matcher}`,
-        );
-      } else {
-        matchingFiles = await this.runShellCommand(`su root find ${path}`);
+        findCmd += ` -name ${matcher}`;
       }
+      if (isRoot) {
+        findCmd = 'su root ' + findCmd;
+      }
+      const matchingFiles = await this.runShellCommand(findCmd);
       const files = matchingFiles
         .split('\n')
         .filter(
-          (file) => !file.includes('No such file') && file.trim().length > 0,
+          (maybeFile) =>
+            !errors.includes(maybeFile) && maybeFile.trim().length > 0,
         );
       if (files.length > 0) {
         return files;
@@ -145,38 +143,62 @@ export abstract class AdbDeviceConnection {
       screenRecordVersion >=
       AdbDeviceConnection.MULTI_DISPLAY_SCREENRECORD_VERSION;
 
-    if (this.state === AdbDeviceState.AVAILABLE) {
-      const output = await this.runShellCommand(
-        'su root dumpsys SurfaceFlinger --display-id',
-      );
-      if (!output.includes('Display')) {
-        this.displays = [];
-      } else {
-        this.displays = output
-          .trim()
-          .split('\n')
-          .map((display) => {
-            const parts = display.split(' ').slice(1);
-            const displayNameStartIndex = parts.findIndex((part) =>
-              part.includes('displayName'),
-            );
-            if (displayNameStartIndex !== -1) {
-              const displayName = parts
-                .slice(displayNameStartIndex)
-                .join(' ')
-                .slice(12);
-              if (displayName.length > 2) {
-                return [displayName]
-                  .concat(parts.slice(0, displayNameStartIndex))
-                  .join(' ');
-              }
-            }
-            return parts.join(' ');
-          });
-      }
-    } else {
+    if (this.state !== AdbDeviceState.AVAILABLE) {
       this.displays = [];
+      return;
     }
+    const output = await this.runShellCommand(
+      'dumpsys SurfaceFlinger --display-id',
+    );
+    if (!output.includes('Display')) {
+      this.displays = [];
+    } else {
+      this.displays = output
+        .trim()
+        .split('\n')
+        .map((display) => {
+          const parts = display.split(' ').slice(1);
+          const displayNameStartIndex = parts.findIndex((part) =>
+            part.includes('displayName'),
+          );
+          if (displayNameStartIndex !== -1) {
+            const displayName = parts
+              .slice(displayNameStartIndex)
+              .join(' ')
+              .slice(12);
+            if (displayName.length > 2) {
+              return [displayName]
+                .concat(parts.slice(0, displayNameStartIndex))
+                .join(' ');
+            }
+          }
+          return parts.join(' ');
+        });
+    }
+  }
+
+  private async updateProtologGroups() {
+    if (this.state !== AdbDeviceState.AVAILABLE) {
+      this.protologGroups = [];
+      return;
+    }
+    const groups = (
+      await this.runShellCommand('cmd protolog_configuration groups list')
+    ).trim();
+
+    if (!groups.startsWith('ProtoLog groups registered with service')) {
+      this.protologGroups = [];
+      return;
+    }
+    // output format:
+    // ProtoLog groups registered with service:
+    // - GROUP_1
+    // ...
+    // - GROUP_N
+    this.protologGroups = groups
+      .split('\n')
+      .slice(1)
+      .map((group) => group.slice(2));
   }
 
   private async isWaylandAvailable(): Promise<boolean> {

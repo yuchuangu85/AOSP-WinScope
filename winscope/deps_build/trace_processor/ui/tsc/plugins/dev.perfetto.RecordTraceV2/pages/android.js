@@ -151,6 +151,8 @@ function netTracing() {
             tc.addDataSource('android.network_packets').networkPacketTraceConfig = {
                 pollMs: settings.pollMs.value,
             };
+            // Allows mapping packet uids to package names.
+            tc.addDataSource('android.packages_list');
         },
     };
 }

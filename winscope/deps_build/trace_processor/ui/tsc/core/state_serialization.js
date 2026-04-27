@@ -20,6 +20,7 @@ exports.deserializeAppStatePhase2 = deserializeAppStatePhase2;
 exports.JsonSerialize = JsonSerialize;
 const state_serialization_schema_1 = require("./state_serialization_schema");
 const time_1 = require("../base/time");
+const result_1 = require("../base/result");
 // When it comes to serialization & permalinks there are two different use cases
 // 1. Uploading the current trace in a Cloud Storage (GCS) file AND serializing
 //    the app state into a different GCS JSON file. This is what happens when
@@ -118,18 +119,15 @@ function parseAppState(jsonDecodedObj) {
     const parseRes = state_serialization_schema_1.APP_STATE_SCHEMA.safeParse(jsonDecodedObj);
     if (parseRes.success) {
         if (parseRes.data.version == state_serialization_schema_1.SERIALIZED_STATE_VERSION) {
-            return { success: true, data: parseRes.data };
+            return (0, result_1.okResult)(parseRes.data);
         }
         else {
-            return {
-                success: false,
-                error: `SERIALIZED_STATE_VERSION mismatch ` +
-                    `(actual: ${parseRes.data.version}, ` +
-                    `expected: ${state_serialization_schema_1.SERIALIZED_STATE_VERSION})`,
-            };
+            return (0, result_1.errResult)(`SERIALIZED_STATE_VERSION mismatch ` +
+                `(actual: ${parseRes.data.version}, ` +
+                `expected: ${state_serialization_schema_1.SERIALIZED_STATE_VERSION})`);
         }
     }
-    return { success: false, error: parseRes.error.toString() };
+    return (0, result_1.errResult)(parseRes.error.toString());
 }
 /**
  * This function gets invoked after the trace is loaded, but before plugins,

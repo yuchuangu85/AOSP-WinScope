@@ -40,20 +40,22 @@ class default_1 {
         for (const it = pResult.iter({ upid: query_result_1.NUM }); it.valid(); it.next()) {
             const upid = it.upid;
             const uri = makeUriForProc(upid);
-            const title = `Process Callstacks`;
             ctx.tracks.registerTrack({
                 uri,
-                title,
                 tags: {
                     kind: track_kinds_1.INSTRUMENTS_SAMPLES_PROFILE_TRACK_KIND,
                     upid,
                 },
-                track: (0, instruments_samples_profile_track_1.createProcessInstrumentsSamplesProfileTrack)(ctx, uri, upid),
+                renderer: (0, instruments_samples_profile_track_1.createProcessInstrumentsSamplesProfileTrack)(ctx, uri, upid),
             });
             const group = ctx.plugins
                 .getPlugin(dev_perfetto_ProcessThreadGroups_1.default)
                 .getGroupForProcess(upid);
-            const track = new workspace_1.TrackNode({ uri, title, sortOrder: -40 });
+            const track = new workspace_1.TrackNode({
+                uri,
+                name: 'Process Callstacks',
+                sortOrder: -40,
+            });
             group?.addChildInOrder(track);
         }
         const tResult = await ctx.engine.query(`
@@ -73,24 +75,23 @@ class default_1 {
             upid: query_result_1.NUM_NULL,
         }); it.valid(); it.next()) {
             const { threadName, utid, tid, upid } = it;
-            const title = threadName === null
+            const name = threadName === null
                 ? `Thread Callstacks ${tid}`
                 : `${threadName} Callstacks ${tid}`;
             const uri = `${(0, utils_1.getThreadUriPrefix)(upid, utid)}_instruments_samples_profile`;
             ctx.tracks.registerTrack({
                 uri,
-                title,
                 tags: {
                     kind: track_kinds_1.INSTRUMENTS_SAMPLES_PROFILE_TRACK_KIND,
                     utid,
                     upid: upid ?? undefined,
                 },
-                track: (0, instruments_samples_profile_track_1.createThreadInstrumentsSamplesProfileTrack)(ctx, uri, utid),
+                renderer: (0, instruments_samples_profile_track_1.createThreadInstrumentsSamplesProfileTrack)(ctx, uri, utid),
             });
             const group = ctx.plugins
                 .getPlugin(dev_perfetto_ProcessThreadGroups_1.default)
                 .getGroupForThread(utid);
-            const track = new workspace_1.TrackNode({ uri, title, sortOrder: -50 });
+            const track = new workspace_1.TrackNode({ uri, name, sortOrder: -50 });
             group?.addChildInOrder(track);
         }
         ctx.onTraceReady.addListener(async () => {

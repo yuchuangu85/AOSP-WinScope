@@ -23,6 +23,6 @@ exports.CRITICAL_PATH_LITE_CMD = exports.CRITICAL_PATH_CMD = void 0;
 // plugin surface (e.g. the ability to customize context menus).
 // These constants exist just to make the dependency evident at code
 // search time, rather than copy-pasting the string in two places.
-exports.CRITICAL_PATH_CMD = 'perfetto.CriticalPath';
-exports.CRITICAL_PATH_LITE_CMD = 'perfetto.CriticalPathLite';
+exports.CRITICAL_PATH_CMD = 'dev.perfetto.CriticalPath';
+exports.CRITICAL_PATH_LITE_CMD = 'dev.perfetto.CriticalPathLite';
 //# sourceMappingURL=exposed_commands.js.map

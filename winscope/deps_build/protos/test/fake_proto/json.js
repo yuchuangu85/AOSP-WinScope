@@ -8,6 +8,7 @@ const $root = ($protobuf.roots.test_fake_proto || ($protobuf.roots.test_fake_pro
       test: {
         nested: {
           RootMessage: {
+            edition: "proto2",
             fields: {
               entry: {
                 type: "Entry",
@@ -16,12 +17,14 @@ const $root = ($protobuf.roots.test_fake_proto || ($protobuf.roots.test_fake_pro
             }
           },
           Enum0: {
+            edition: "proto2",
             values: {
               ENUM0_VALUE_ZERO: 0,
               ENUM0_VALUE_ONE: 1
             }
           },
           Entry: {
+            edition: "proto2",
             fields: {
               enum0: {
                 type: "Enum0",
@@ -34,10 +37,7 @@ const $root = ($protobuf.roots.test_fake_proto || ($protobuf.roots.test_fake_pro
               array: {
                 rule: "repeated",
                 type: "int32",
-                id: 3,
-                options: {
-                  packed: false
-                }
+                id: 3
               },
               number_32bit: {
                 type: "int32",

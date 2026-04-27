@@ -40,6 +40,7 @@ class KeyguardPerDisplayProto;
 class KeyguardServiceDelegateProto;
 class PinnedTaskControllerProto;
 class RectProto;
+class RemoteInsetsControlTargetProto;
 class RootWindowContainerProto;
 class ScreenRotationAnimationProto;
 class SurfaceAnimatorProto;
@@ -1807,6 +1808,81 @@ class IdentifierProto : public ::protozero::Message {
   }
 };
 
+class RemoteInsetsControlTargetProto_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/3, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
+ public:
+  RemoteInsetsControlTargetProto_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
+  explicit RemoteInsetsControlTargetProto_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
+  explicit RemoteInsetsControlTargetProto_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
+  bool has_identifier() const { return at<1>().valid(); }
+  ::protozero::ConstBytes identifier() const { return at<1>().as_bytes(); }
+  bool has_requested_visible_types() const { return at<2>().valid(); }
+  int32_t requested_visible_types() const { return at<2>().as_int32(); }
+  bool has_animating_types() const { return at<3>().valid(); }
+  int32_t animating_types() const { return at<3>().as_int32(); }
+};
+
+class RemoteInsetsControlTargetProto : public ::protozero::Message {
+ public:
+  using Decoder = RemoteInsetsControlTargetProto_Decoder;
+  enum : int32_t {
+    kIdentifierFieldNumber = 1,
+    kRequestedVisibleTypesFieldNumber = 2,
+    kAnimatingTypesFieldNumber = 3,
+  };
+  static constexpr const char* GetName() { return ".perfetto.protos.RemoteInsetsControlTargetProto"; }
+
+
+  using FieldMetadata_Identifier =
+    ::protozero::proto_utils::FieldMetadata<
+      1,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      IdentifierProto,
+      RemoteInsetsControlTargetProto>;
+
+  static constexpr FieldMetadata_Identifier kIdentifier{};
+  template <typename T = IdentifierProto> T* set_identifier() {
+    return BeginNestedMessage<T>(1);
+  }
+
+
+  using FieldMetadata_RequestedVisibleTypes =
+    ::protozero::proto_utils::FieldMetadata<
+      2,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kInt32,
+      int32_t,
+      RemoteInsetsControlTargetProto>;
+
+  static constexpr FieldMetadata_RequestedVisibleTypes kRequestedVisibleTypes{};
+  void set_requested_visible_types(int32_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_RequestedVisibleTypes::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kInt32>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_AnimatingTypes =
+    ::protozero::proto_utils::FieldMetadata<
+      3,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kInt32,
+      int32_t,
+      RemoteInsetsControlTargetProto>;
+
+  static constexpr FieldMetadata_AnimatingTypes kAnimatingTypes{};
+  void set_animating_types(int32_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_AnimatingTypes::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kInt32>
+        ::Append(*this, field_id, value);
+  }
+};
+
 class WindowStateProto_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/51, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
  public:
   WindowStateProto_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
@@ -1908,8 +1984,8 @@ class WindowStateProto_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIE
   int32_t requested_visible_types() const { return at<48>().as_int32(); }
   bool has_dim_bounds() const { return at<49>().valid(); }
   ::protozero::ConstBytes dim_bounds() const { return at<49>().as_bytes(); }
-  bool has_prepare_sync_seq_id() const { return at<50>().valid(); }
-  int32_t prepare_sync_seq_id() const { return at<50>().as_int32(); }
+  bool has_buffer_seq_id() const { return at<50>().valid(); }
+  int32_t buffer_seq_id() const { return at<50>().as_int32(); }
   bool has_sync_seq_id() const { return at<51>().valid(); }
   int32_t sync_seq_id() const { return at<51>().as_int32(); }
 };
@@ -1966,7 +2042,7 @@ class WindowStateProto : public ::protozero::Message {
     kMergedLocalInsetsSourcesFieldNumber = 47,
     kRequestedVisibleTypesFieldNumber = 48,
     kDimBoundsFieldNumber = 49,
-    kPrepareSyncSeqIdFieldNumber = 50,
+    kBufferSeqIdFieldNumber = 50,
     kSyncSeqIdFieldNumber = 51,
   };
   static constexpr const char* GetName() { return ".perfetto.protos.WindowStateProto"; }
@@ -2724,7 +2800,7 @@ class WindowStateProto : public ::protozero::Message {
   }
 
 
-  using FieldMetadata_PrepareSyncSeqId =
+  using FieldMetadata_BufferSeqId =
     ::protozero::proto_utils::FieldMetadata<
       50,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
@@ -2732,9 +2808,9 @@ class WindowStateProto : public ::protozero::Message {
       int32_t,
       WindowStateProto>;
 
-  static constexpr FieldMetadata_PrepareSyncSeqId kPrepareSyncSeqId{};
-  void set_prepare_sync_seq_id(int32_t value) {
-    static constexpr uint32_t field_id = FieldMetadata_PrepareSyncSeqId::kFieldId;
+  static constexpr FieldMetadata_BufferSeqId kBufferSeqId{};
+  void set_buffer_seq_id(int32_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_BufferSeqId::kFieldId;
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
@@ -2967,6 +3043,12 @@ class ActivityRecordProto_Decoder : public ::protozero::TypedProtoDecoder</*MAX_
   bool should_enable_user_aspect_ratio_settings() const { return at<45>().as_bool(); }
   bool has_is_user_fullscreen_override_enabled() const { return at<46>().valid(); }
   bool is_user_fullscreen_override_enabled() const { return at<46>().as_bool(); }
+  bool has_request_open_in_browser_education_timestamp() const { return at<47>().valid(); }
+  int64_t request_open_in_browser_education_timestamp() const { return at<47>().as_int64(); }
+  bool has_should_allow_simulate_requested_orientation_for_camera_compat() const { return at<48>().valid(); }
+  bool should_allow_simulate_requested_orientation_for_camera_compat() const { return at<48>().as_bool(); }
+  bool has_safe_region_bounds() const { return at<49>().valid(); }
+  ::protozero::ConstBytes safe_region_bounds() const { return at<49>().as_bytes(); }
 };
 
 class ActivityRecordProto : public ::protozero::Message {
@@ -3017,6 +3099,9 @@ class ActivityRecordProto : public ::protozero::Message {
     kShouldOverrideForceResizeAppFieldNumber = 44,
     kShouldEnableUserAspectRatioSettingsFieldNumber = 45,
     kIsUserFullscreenOverrideEnabledFieldNumber = 46,
+    kRequestOpenInBrowserEducationTimestampFieldNumber = 47,
+    kShouldAllowSimulateRequestedOrientationForCameraCompatFieldNumber = 48,
+    kSafeRegionBoundsFieldNumber = 49,
   };
   static constexpr const char* GetName() { return ".perfetto.protos.ActivityRecordProto"; }
 
@@ -3804,6 +3889,56 @@ class ActivityRecordProto : public ::protozero::Message {
       ::protozero::proto_utils::ProtoSchemaType::kBool>
         ::Append(*this, field_id, value);
   }
+
+  using FieldMetadata_RequestOpenInBrowserEducationTimestamp =
+    ::protozero::proto_utils::FieldMetadata<
+      47,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kInt64,
+      int64_t,
+      ActivityRecordProto>;
+
+  static constexpr FieldMetadata_RequestOpenInBrowserEducationTimestamp kRequestOpenInBrowserEducationTimestamp{};
+  void set_request_open_in_browser_education_timestamp(int64_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_RequestOpenInBrowserEducationTimestamp::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kInt64>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_ShouldAllowSimulateRequestedOrientationForCameraCompat =
+    ::protozero::proto_utils::FieldMetadata<
+      48,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kBool,
+      bool,
+      ActivityRecordProto>;
+
+  static constexpr FieldMetadata_ShouldAllowSimulateRequestedOrientationForCameraCompat kShouldAllowSimulateRequestedOrientationForCameraCompat{};
+  void set_should_allow_simulate_requested_orientation_for_camera_compat(bool value) {
+    static constexpr uint32_t field_id = FieldMetadata_ShouldAllowSimulateRequestedOrientationForCameraCompat::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kBool>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_SafeRegionBounds =
+    ::protozero::proto_utils::FieldMetadata<
+      49,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      RectProto,
+      ActivityRecordProto>;
+
+  static constexpr FieldMetadata_SafeRegionBounds kSafeRegionBounds{};
+  template <typename T = RectProto> T* set_safe_region_bounds() {
+    return BeginNestedMessage<T>(49);
+  }
+
 };
 
 class TaskFragmentProto_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/5, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
@@ -3923,7 +4058,7 @@ class TaskFragmentProto : public ::protozero::Message {
   }
 };
 
-class TaskProto_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/31, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
+class TaskProto_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/32, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
  public:
   TaskProto_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
   explicit TaskProto_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
@@ -3988,6 +4123,8 @@ class TaskProto_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*
   bool has_child_pip_activity() const { return at<30>().as_bool(); }
   bool has_task_fragment() const { return at<31>().valid(); }
   ::protozero::ConstBytes task_fragment() const { return at<31>().as_bytes(); }
+  bool has_task_name() const { return at<32>().valid(); }
+  ::protozero::ConstChars task_name() const { return at<32>().as_string(); }
 };
 
 class TaskProto : public ::protozero::Message {
@@ -4024,6 +4161,7 @@ class TaskProto : public ::protozero::Message {
     kAffinityFieldNumber = 29,
     kHasChildPipActivityFieldNumber = 30,
     kTaskFragmentFieldNumber = 31,
+    kTaskNameFieldNumber = 32,
   };
   static constexpr const char* GetName() { return ".perfetto.protos.TaskProto"; }
 
@@ -4549,6 +4687,30 @@ class TaskProto : public ::protozero::Message {
     return BeginNestedMessage<T>(31);
   }
 
+
+  using FieldMetadata_TaskName =
+    ::protozero::proto_utils::FieldMetadata<
+      32,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kString,
+      std::string,
+      TaskProto>;
+
+  static constexpr FieldMetadata_TaskName kTaskName{};
+  void set_task_name(const char* data, size_t size) {
+    AppendBytes(FieldMetadata_TaskName::kFieldId, data, size);
+  }
+  void set_task_name(::protozero::ConstChars chars) {
+    AppendBytes(FieldMetadata_TaskName::kFieldId, chars.data, chars.size);
+  }
+  void set_task_name(std::string value) {
+    static constexpr uint32_t field_id = FieldMetadata_TaskName::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kString>
+        ::Append(*this, field_id, value);
+  }
 };
 
 class PinnedTaskControllerProto_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/2, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
@@ -5106,7 +5268,7 @@ class DisplayAreaProto : public ::protozero::Message {
   }
 };
 
-class DisplayContentProto_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/43, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
+class DisplayContentProto_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/44, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
  public:
   DisplayContentProto_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
   explicit DisplayContentProto_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
@@ -5195,6 +5357,8 @@ class DisplayContentProto_Decoder : public ::protozero::TypedProtoDecoder</*MAX_
   ::protozero::ConstBytes input_method_control_target_identifier() const { return at<42>().as_bytes(); }
   bool has_current_focus_identifier() const { return at<43>().valid(); }
   ::protozero::ConstBytes current_focus_identifier() const { return at<43>().as_bytes(); }
+  bool has_remote_insets_control_target() const { return at<44>().valid(); }
+  ::protozero::ConstBytes remote_insets_control_target() const { return at<44>().as_bytes(); }
 };
 
 class DisplayContentProto : public ::protozero::Message {
@@ -5243,6 +5407,7 @@ class DisplayContentProto : public ::protozero::Message {
     kInputMethodInputTargetIdentifierFieldNumber = 41,
     kInputMethodControlTargetIdentifierFieldNumber = 42,
     kCurrentFocusIdentifierFieldNumber = 43,
+    kRemoteInsetsControlTargetFieldNumber = 44,
   };
   static constexpr const char* GetName() { return ".perfetto.protos.DisplayContentProto"; }
 
@@ -5896,6 +6061,20 @@ class DisplayContentProto : public ::protozero::Message {
   static constexpr FieldMetadata_CurrentFocusIdentifier kCurrentFocusIdentifier{};
   template <typename T = IdentifierProto> T* set_current_focus_identifier() {
     return BeginNestedMessage<T>(43);
+  }
+
+
+  using FieldMetadata_RemoteInsetsControlTarget =
+    ::protozero::proto_utils::FieldMetadata<
+      44,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      RemoteInsetsControlTargetProto,
+      DisplayContentProto>;
+
+  static constexpr FieldMetadata_RemoteInsetsControlTarget kRemoteInsetsControlTarget{};
+  template <typename T = RemoteInsetsControlTargetProto> T* set_remote_insets_control_target() {
+    return BeginNestedMessage<T>(44);
   }
 
 };

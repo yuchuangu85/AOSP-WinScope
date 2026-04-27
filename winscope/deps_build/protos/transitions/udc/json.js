@@ -17,9 +17,9 @@ const $root = ($protobuf.roots.transitions_udc || ($protobuf.roots.transitions_u
                     },
                     nested: {
                       TransitionTraceProto: {
+                        edition: "proto2",
                         fields: {
                           magicNumber: {
-                            rule: "required",
                             type: "fixed64",
                             id: 1
                           },
@@ -44,9 +44,9 @@ const $root = ($protobuf.roots.transitions_udc || ($protobuf.roots.transitions_u
                         }
                       },
                       Transition: {
+                        edition: "proto2",
                         fields: {
                           id: {
-                            rule: "required",
                             type: "int32",
                             id: 1
                           },
@@ -94,6 +94,7 @@ const $root = ($protobuf.roots.transitions_udc || ($protobuf.roots.transitions_u
                         }
                       },
                       Target: {
+                        edition: "proto2",
                         fields: {
                           mode: {
                             type: "int32",
@@ -127,9 +128,9 @@ const $root = ($protobuf.roots.transitions_udc || ($protobuf.roots.transitions_u
                 },
                 nested: {
                   WmShellTransitionTraceProto: {
+                    edition: "proto2",
                     fields: {
                       magicNumber: {
-                        rule: "required",
                         type: "fixed64",
                         id: 1
                       },
@@ -159,9 +160,9 @@ const $root = ($protobuf.roots.transitions_udc || ($protobuf.roots.transitions_u
                     }
                   },
                   Transition: {
+                    edition: "proto2",
                     fields: {
                       id: {
-                        rule: "required",
                         type: "int32",
                         id: 1
                       },
@@ -192,14 +193,13 @@ const $root = ($protobuf.roots.transitions_udc || ($protobuf.roots.transitions_u
                     }
                   },
                   HandlerMapping: {
+                    edition: "proto2",
                     fields: {
                       id: {
-                        rule: "required",
                         type: "int32",
                         id: 1
                       },
                       name: {
-                        rule: "required",
                         type: "string",
                         id: 2
                       }

@@ -15,12 +15,11 @@ exports.addEphemeralTab = addEphemeralTab;
 // See the License for the specific language governing permissions and
 // limitations under the License.
 const uuid_1 = require("../../base/uuid");
-const app_impl_1 = require("../../core/app_impl");
-// TODO(primiano): this method should take a Trace parameter (or probably
-// shouldn't exist at all in favour of some helper in the Trace object).
-function addEphemeralTab(uriPrefix, tab) {
+// TODO(primiano): this method probably shouldn't exist at all in favour
+// of some helper in the Trace object).
+function addEphemeralTab(trace, uriPrefix, tab) {
     const uri = `${uriPrefix}#${(0, uuid_1.uuidv4)()}`;
-    const tabManager = app_impl_1.AppImpl.instance.trace?.tabs;
+    const tabManager = trace.tabs;
     if (tabManager === undefined)
         return;
     tabManager.registerTab({

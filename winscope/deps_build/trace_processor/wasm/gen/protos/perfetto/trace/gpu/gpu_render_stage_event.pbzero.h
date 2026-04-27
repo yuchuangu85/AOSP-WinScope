@@ -330,6 +330,8 @@ class GpuRenderStageEvent_Decoder : public ::protozero::TypedProtoDecoder</*MAX_
   ::protozero::RepeatedFieldIterator<::protozero::ConstBytes> extra_data() const { return GetRepeated<::protozero::ConstBytes>(6); }
   bool has_render_pass_handle() const { return at<9>().valid(); }
   uint64_t render_pass_handle() const { return at<9>().as_uint64(); }
+  bool has_render_pass_instance_id() const { return at<16>().valid(); }
+  uint64_t render_pass_instance_id() const { return at<16>().as_uint64(); }
   bool has_render_subpass_index_mask() const { return at<15>().valid(); }
   ::protozero::RepeatedFieldIterator<uint64_t> render_subpass_index_mask() const { return GetRepeated<uint64_t>(15); }
   bool has_command_buffer_handle() const { return at<12>().valid(); }
@@ -356,6 +358,7 @@ class GpuRenderStageEvent : public ::protozero::Message {
     kSubmissionIdFieldNumber = 10,
     kExtraDataFieldNumber = 6,
     kRenderPassHandleFieldNumber = 9,
+    kRenderPassInstanceIdFieldNumber = 16,
     kRenderSubpassIndexMaskFieldNumber = 15,
     kCommandBufferHandleFieldNumber = 12,
     kSpecificationsFieldNumber = 7,
@@ -536,6 +539,24 @@ class GpuRenderStageEvent : public ::protozero::Message {
   static constexpr FieldMetadata_RenderPassHandle kRenderPassHandle{};
   void set_render_pass_handle(uint64_t value) {
     static constexpr uint32_t field_id = FieldMetadata_RenderPassHandle::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint64>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_RenderPassInstanceId =
+    ::protozero::proto_utils::FieldMetadata<
+      16,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kUint64,
+      uint64_t,
+      GpuRenderStageEvent>;
+
+  static constexpr FieldMetadata_RenderPassInstanceId kRenderPassInstanceId{};
+  void set_render_pass_instance_id(uint64_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_RenderPassInstanceId::kFieldId;
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<

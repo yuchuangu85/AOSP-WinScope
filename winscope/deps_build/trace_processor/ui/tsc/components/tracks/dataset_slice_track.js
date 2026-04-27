@@ -14,40 +14,40 @@
 // limitations under the License.
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DatasetSliceTrack = void 0;
-const logging_1 = require("../../base/logging");
+exports.renderTooltip = renderTooltip;
+const tslib_1 = require("tslib");
+const mithril_1 = tslib_1.__importDefault(require("mithril"));
 const time_1 = require("../../base/time");
 const query_result_1 = require("../../trace_processor/query_result");
 const colorizer_1 = require("../colorizer");
-const layout_1 = require("../sql_utils/layout");
 const time_utils_1 = require("../time_utils");
 const base_slice_track_1 = require("./base_slice_track");
+const utils_1 = require("../../base/utils");
+const array_utils_1 = require("../../base/array_utils");
 const rowSchema = {
     id: query_result_1.NUM,
     ts: query_result_1.LONG,
 };
+function getDataset(attrs) {
+    const dataset = attrs.dataset;
+    return typeof dataset === 'function' ? dataset() : dataset;
+}
 class DatasetSliceTrack extends base_slice_track_1.BaseSliceTrack {
     attrs;
-    sqlSource;
     rootTableName;
     constructor(attrs) {
-        super(attrs.trace, attrs.uri, { ...base_slice_track_1.BASE_ROW, ...attrs.dataset.schema }, attrs.sliceLayout, attrs.initialMaxDepth, attrs.instantStyle?.width);
+        const dataset = getDataset(attrs);
+        super(attrs.trace, attrs.uri, { ...base_slice_track_1.BASE_ROW, ...dataset.schema }, attrs.sliceLayout, attrs.initialMaxDepth, attrs.instantStyle?.width, attrs.forceTsRenderOrder ?? false);
         this.attrs = attrs;
-        const { dataset, queryGenerator } = attrs;
-        // This is the minimum viable implementation that the source dataset must
-        // implement for the track to work properly. Typescript should enforce this
-        // now, but typescript can be worked around, and checking it is cheap.
-        // Better to error out early.
-        (0, logging_1.assertTrue)(this.attrs.dataset.implements(rowSchema));
-        this.sqlSource =
-            queryGenerator?.(dataset) ?? this.generateRenderQuery(dataset);
         this.rootTableName = attrs.rootTableName;
     }
     rowToSlice(row) {
         const slice = this.rowToSliceBase(row);
         const title = this.getTitle(row);
         const color = this.getColor(row, title);
+        const dataset = getDataset(this.attrs);
         // Take a copy of the row, only copying the keys listed in the schema.
-        const cols = Object.keys(this.attrs.dataset.schema);
+        const cols = Object.keys(dataset.schema);
         const clonedRow = Object.fromEntries(Object.entries(row).filter(([key]) => cols.includes(key)));
         return {
             ...slice,
@@ -59,29 +59,30 @@ class DatasetSliceTrack extends base_slice_track_1.BaseSliceTrack {
     }
     // Generate a query to use for generating slices to be rendered
     generateRenderQuery(dataset) {
-        if (dataset.implements({ dur: query_result_1.LONG, depth: query_result_1.NUM })) {
-            // Both depth and dur provided, we can use the dataset as-is.
+        const hasLayer = dataset.implements({ layer: query_result_1.NUM });
+        const hasDepth = dataset.implements({ depth: query_result_1.NUM });
+        const hasDur = dataset.implements({ dur: query_result_1.LONG });
+        const cols = (0, array_utils_1.removeFalsyValues)([
+            // If we have no layer, assume flat layering.
+            !hasLayer && '0 as layer',
+            // If we have dur but no depth, automatically calculate layout.
+            !hasDepth &&
+                hasDur &&
+                `
+          internal_layout(ts, dur) OVER (
+            ORDER BY ts ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+          ) AS depth
+        `,
+            // If we have no dur or depth, use a flat layout.
+            !hasDepth && !hasDur && '0 as depth',
+            // If no dur, assume instant slices.
+            !hasDur && '0 as dur',
+        ]);
+        if (cols.length === 0) {
             return dataset.query();
         }
-        else if (dataset.implements({ depth: query_result_1.NUM })) {
-            // Depth provided but no dur, assume each event is an instant event by
-            // hard coding dur to 0.
-            return `select 0 as dur, * from (${dataset.query()})`;
-        }
-        else if (dataset.implements({ dur: query_result_1.LONG })) {
-            // Dur provided but no depth, automatically calculate the depth using
-            // internal_layout().
-            return (0, layout_1.generateSqlWithInternalLayout)({
-                columns: ['*'],
-                source: dataset.query(),
-                ts: 'ts',
-                dur: 'dur',
-                orderByClause: 'ts',
-            });
-        }
         else {
-            // No depth nor dur provided, use 0 for both.
-            return `select 0 as dur, 0 as depth, * from (${dataset.query()})`;
+            return `select ${cols.join(', ')}, * from (${dataset.query()})`;
         }
     }
     getTitle(row) {
@@ -99,32 +100,13 @@ class DatasetSliceTrack extends base_slice_track_1.BaseSliceTrack {
         return (0, colorizer_1.getColorForSlice)(`${row.id}`);
     }
     getSqlSource() {
-        return this.sqlSource;
-    }
-    getJoinSqlSource() {
-        // This is a little performance optimization. Internally BST joins the
-        // results of the mipmap table query with the sqlSource in order to get the
-        // original ts, dur and id. However this sqlSource can sometimes be a
-        // contrived, slow query, usually to calculate the depth (e.g. something
-        // based on experimental_slice_layout).
-        //
-        // We don't actually need a depth value at this point, so calculating it is
-        // worthless. We only need ts, id, and dur. We don't even need this query to
-        // be correctly filtered, as we are merely joining on this table. We do
-        // however need it to be fast.
-        //
-        // In conclusion, if the dataset source has a dur column present (ts, and id
-        // are mandatory), then we can take a shortcut and just use this much
-        // simpler query to join on.
-        if (this.attrs.dataset.implements({ dur: query_result_1.LONG })) {
-            return this.attrs.dataset.src;
-        }
-        else {
-            return this.sqlSource;
-        }
+        const dataset = typeof this.attrs.dataset === 'function'
+            ? this.attrs.dataset()
+            : this.attrs.dataset;
+        return this.generateRenderQuery(dataset);
     }
     getDataset() {
-        return this.attrs.dataset;
+        return getDataset(this.attrs);
     }
     detailsPanel(sel) {
         if (this.attrs.detailsPanel) {
@@ -142,7 +124,8 @@ class DatasetSliceTrack extends base_slice_track_1.BaseSliceTrack {
         }
     }
     async getSelectionDetails(id) {
-        const { trace, dataset } = this.attrs;
+        const { trace } = this.attrs;
+        const dataset = getDataset(this.attrs);
         const result = await trace.engine.query(`
       SELECT *
       FROM (${dataset.query()})
@@ -169,27 +152,9 @@ class DatasetSliceTrack extends base_slice_track_1.BaseSliceTrack {
     getTrackShellButtons() {
         return this.attrs.shellButtons?.();
     }
-    onSliceOver(args) {
-        const { title, dur, flags } = args.slice;
-        let duration;
-        if (flags & base_slice_track_1.SLICE_FLAGS_INCOMPLETE) {
-            duration = 'Incomplete';
-        }
-        else if (flags & base_slice_track_1.SLICE_FLAGS_INSTANT) {
-            duration = 'Instant';
-        }
-        else {
-            duration = (0, time_utils_1.formatDuration)(this.trace, dur);
-        }
-        if (title) {
-            args.tooltip = [`${title} - [${duration}]`];
-        }
-        else {
-            args.tooltip = [`[${duration}]`];
-        }
-        args.tooltip = this.attrs.tooltip?.(args.slice.row) ?? args.tooltip;
+    renderTooltipForSlice(slice) {
+        return this.attrs.tooltip?.(slice) ?? renderTooltip(this.trace, slice);
     }
-    // Override the drawChevron function.
     drawChevron(ctx, x, y, h) {
         if (this.attrs.instantStyle?.render) {
             this.attrs.instantStyle.render(ctx, {
@@ -205,4 +170,29 @@ class DatasetSliceTrack extends base_slice_track_1.BaseSliceTrack {
     }
 }
 exports.DatasetSliceTrack = DatasetSliceTrack;
+// Most tooltips follow a predictable formula. This function extracts the
+// duration and title from the slice and formats them in a standard way,
+// allowing some optional overrides to be passed.
+function renderTooltip(trace, slice, opts = {}) {
+    const durationFormatted = formatDurationForTooltip(trace, slice);
+    const { title = slice.title, extras } = opts;
+    return [
+        (0, mithril_1.default)('', (0, utils_1.exists)(durationFormatted) && (0, mithril_1.default)('b', durationFormatted), ' ', title),
+        extras,
+        slice.count > 1 && (0, mithril_1.default)('div', `and ${slice.count - 1} other events`),
+    ];
+}
+// Given a slice, format the duration of the slice for a tooltip.
+function formatDurationForTooltip(trace, slice) {
+    const { dur, flags } = slice;
+    if (flags & base_slice_track_1.SLICE_FLAGS_INCOMPLETE) {
+        return '[Incomplete]';
+    }
+    else if (flags & base_slice_track_1.SLICE_FLAGS_INSTANT) {
+        return undefined;
+    }
+    else {
+        return (0, time_utils_1.formatDuration)(trace, dur);
+    }
+}
 //# sourceMappingURL=dataset_slice_track.js.map

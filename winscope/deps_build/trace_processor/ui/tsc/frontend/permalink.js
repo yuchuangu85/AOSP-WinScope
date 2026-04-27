@@ -13,6 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.uploadTraceBlob = uploadTraceBlob;
 exports.createPermalink = createPermalink;
 exports.loadPermalink = loadPermalink;
 const tslib_1 = require("tslib");
@@ -23,7 +24,6 @@ const state_serialization_schema_1 = require("../core/state_serialization_schema
 const zod_1 = require("zod");
 const modal_1 = require("../widgets/modal");
 const app_impl_1 = require("../core/app_impl");
-const copyable_link_1 = require("../widgets/copyable_link");
 // Permalink serialization has two layers:
 // 1. Serialization of the app state (state_serialization.ts):
 //    This is a JSON object that represents the visual app state (pinned tracks,
@@ -44,13 +44,16 @@ const PERMALINK_SCHEMA = zod_1.z.object({
     // 2. We want to still load the traceUrl even if the app state is invalid.
     appState: zod_1.z.any().optional(),
 });
-async function createPermalink(trace) {
-    const hash = await createPermalinkInternal(trace);
-    showPermalinkDialog(hash);
-}
-// Returns the file name, not the full url (i.e. the name of the GCS object).
-async function createPermalinkInternal(trace) {
-    const permalinkData = {};
+/**
+ * Make the trace blob available for sharing. If we have the trace blob locally
+ * it will be uploaded to GCS, but if it was originally loaded from a URL, we
+ * just return that URL.
+ *
+ * @param trace The trace to upload.
+ * @returns The trace URL if the upload was successful, or undefined if the
+ *          trace was already uploaded (i.e. the source type is 'URL').
+ */
+async function uploadTraceBlob(trace) {
     // Check if we need to upload the trace file, before serializing the app
     // state.
     let alreadyUploadedUrl = '';
@@ -74,7 +77,7 @@ async function createPermalinkInternal(trace) {
     // Internally TraceGcsUploader will skip the upload if an object with the
     // same hash exists already.
     if (alreadyUploadedUrl) {
-        permalinkData.traceUrl = alreadyUploadedUrl;
+        return alreadyUploadedUrl;
     }
     else if (dataToUpload !== undefined) {
         updateStatus(`Uploading ${traceName}`);
@@ -83,9 +86,26 @@ async function createPermalinkInternal(trace) {
             onProgress: () => reportUpdateProgress(uploader),
         });
         await uploader.waitForCompletion();
-        permalinkData.traceUrl = uploader.uploadedUrl;
+        return uploader.uploadedUrl;
     }
-    permalinkData.appState = (0, state_serialization_1.serializeAppState)(trace);
+    return undefined;
+}
+/**
+ * Serializes the UI state for a given trace object and uploads it to GCS,
+ * with an optional trace URL.
+ *
+ * @param trace The trace object to serialize and upload.
+ * @param traceUrl The URL of the trace file, if available. If undefined, only
+ * the app state will be uploaded.
+ * @returns The hash of the uploaded file, which can be used to create a
+ * permalink.
+ */
+async function createPermalink(trace, traceUrl) {
+    app_impl_1.AppImpl.instance.analytics.logEvent('Trace Actions', 'Create permalink');
+    const permalinkData = {
+        traceUrl,
+        appState: (0, state_serialization_1.serializeAppState)(trace),
+    };
     // Serialize the permalink with the app state (or recording state) and upload.
     updateStatus(`Creating permalink...`);
     const permalinkJson = (0, state_serialization_1.JsonSerialize)(permalinkData);
@@ -135,8 +155,8 @@ async function loadPermalink(gcsFileName) {
         // This is the most common case where the permalink contains the app state
         // (and optionally a traceUrl, below).
         const parseRes = (0, state_serialization_1.parseAppState)(permalink.appState);
-        if (parseRes.success) {
-            serializedAppState = parseRes.data;
+        if (parseRes.ok) {
+            serializedAppState = parseRes.value;
         }
         else {
             error = parseRes.error;
@@ -153,7 +173,7 @@ async function loadPermalink(gcsFileName) {
                 'when the permalink is generated and then opened using ' +
                 'two different UI versions.'), (0, mithril_1.default)('p', "I'm going to try to open the trace file anyways, but " +
                 'the zoom level, pinned tracks and other UI ' +
-                "state wont't be recovered"), (0, mithril_1.default)('p', 'Error details:'), (0, mithril_1.default)('.modal-logs', error)),
+                "state wont't be recovered"), (0, mithril_1.default)('p', 'Error details:'), (0, mithril_1.default)('.pf-modal-logs', error)),
             buttons: [
                 {
                     text: 'Open only the trace file',
@@ -199,11 +219,5 @@ function reportUpdateProgress(uploader) {
 }
 function updateStatus(msg) {
     app_impl_1.AppImpl.instance.omnibox.showStatusMessage(msg);
-}
-function showPermalinkDialog(hash) {
-    (0, modal_1.showModal)({
-        title: 'Permalink',
-        content: (0, mithril_1.default)(copyable_link_1.CopyableLink, { url: `${self.location.origin}/#!/?s=${hash}` }),
-    });
 }
 //# sourceMappingURL=permalink.js.map

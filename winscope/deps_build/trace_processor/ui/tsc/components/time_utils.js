@@ -29,6 +29,7 @@ function formatDuration(trace, dur) {
         case timeline_1.TimestampFormat.UTC:
         case timeline_1.TimestampFormat.TraceTz:
         case timeline_1.TimestampFormat.Timecode:
+        case timeline_1.TimestampFormat.CustomTimezone:
             return renderFormattedDuration(trace, dur);
         case timeline_1.TimestampFormat.TraceNs:
             return dur.toString();

@@ -16,10 +16,30 @@ namespace perfetto {
 namespace protos {
 namespace pbzero {
 class PerfettoSqlStructuredQuery;
-class TraceMetricV2_MetricRow;
-class TraceMetricV2_MetricRow_Dimension;
-class TraceMetricV2_MetricRow_Dimension_Null;
+class TraceMetricV2Bundle_Row;
+class TraceMetricV2Bundle_Row_Dimension;
+class TraceMetricV2Bundle_Row_Dimension_Null;
+class TraceMetricV2Bundle_Row_Value;
+class TraceMetricV2Bundle_Row_Value_Null;
 class TraceMetricV2Spec;
+class TraceMetricV2Spec_DimensionSpec;
+class TraceMetricV2TemplateSpec_ValueColumnSpec;
+namespace perfetto_pbzero_enum_TraceMetricV2Spec {
+enum DimensionType : int32_t;
+}  // namespace perfetto_pbzero_enum_TraceMetricV2Spec
+using TraceMetricV2Spec_DimensionType = perfetto_pbzero_enum_TraceMetricV2Spec::DimensionType;
+namespace perfetto_pbzero_enum_TraceMetricV2Spec {
+enum DimensionUniqueness : int32_t;
+}  // namespace perfetto_pbzero_enum_TraceMetricV2Spec
+using TraceMetricV2Spec_DimensionUniqueness = perfetto_pbzero_enum_TraceMetricV2Spec::DimensionUniqueness;
+namespace perfetto_pbzero_enum_TraceMetricV2Spec {
+enum MetricPolarity : int32_t;
+}  // namespace perfetto_pbzero_enum_TraceMetricV2Spec
+using TraceMetricV2Spec_MetricPolarity = perfetto_pbzero_enum_TraceMetricV2Spec::MetricPolarity;
+namespace perfetto_pbzero_enum_TraceMetricV2Spec {
+enum MetricUnit : int32_t;
+}  // namespace perfetto_pbzero_enum_TraceMetricV2Spec
+using TraceMetricV2Spec_MetricUnit = perfetto_pbzero_enum_TraceMetricV2Spec::MetricUnit;
 } // Namespace pbzero.
 } // Namespace protos.
 } // Namespace perfetto.
@@ -28,117 +48,365 @@ namespace perfetto {
 namespace protos {
 namespace pbzero {
 
-class TraceMetricV2_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/2, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
+namespace perfetto_pbzero_enum_TraceMetricV2Spec {
+enum DimensionType : int32_t {
+  DIMENSION_TYPE_UNSPECIFIED = 0,
+  STRING = 1,
+  INT64 = 2,
+  DOUBLE = 3,
+};
+} // namespace perfetto_pbzero_enum_TraceMetricV2Spec
+using TraceMetricV2Spec_DimensionType = perfetto_pbzero_enum_TraceMetricV2Spec::DimensionType;
+
+
+constexpr TraceMetricV2Spec_DimensionType TraceMetricV2Spec_DimensionType_MIN = TraceMetricV2Spec_DimensionType::DIMENSION_TYPE_UNSPECIFIED;
+constexpr TraceMetricV2Spec_DimensionType TraceMetricV2Spec_DimensionType_MAX = TraceMetricV2Spec_DimensionType::DOUBLE;
+
+
+PERFETTO_PROTOZERO_CONSTEXPR14_OR_INLINE
+const char* TraceMetricV2Spec_DimensionType_Name(::perfetto::protos::pbzero::TraceMetricV2Spec_DimensionType value) {
+  switch (value) {
+  case ::perfetto::protos::pbzero::TraceMetricV2Spec_DimensionType::DIMENSION_TYPE_UNSPECIFIED:
+    return "DIMENSION_TYPE_UNSPECIFIED";
+
+  case ::perfetto::protos::pbzero::TraceMetricV2Spec_DimensionType::STRING:
+    return "STRING";
+
+  case ::perfetto::protos::pbzero::TraceMetricV2Spec_DimensionType::INT64:
+    return "INT64";
+
+  case ::perfetto::protos::pbzero::TraceMetricV2Spec_DimensionType::DOUBLE:
+    return "DOUBLE";
+  }
+  return "PBZERO_UNKNOWN_ENUM_VALUE";
+}
+
+namespace perfetto_pbzero_enum_TraceMetricV2Spec {
+enum DimensionUniqueness : int32_t {
+  DIMENSION_UNIQUENESS_UNSPECIFIED = 0,
+  NOT_UNIQUE = 1,
+  UNIQUE = 2,
+};
+} // namespace perfetto_pbzero_enum_TraceMetricV2Spec
+using TraceMetricV2Spec_DimensionUniqueness = perfetto_pbzero_enum_TraceMetricV2Spec::DimensionUniqueness;
+
+
+constexpr TraceMetricV2Spec_DimensionUniqueness TraceMetricV2Spec_DimensionUniqueness_MIN = TraceMetricV2Spec_DimensionUniqueness::DIMENSION_UNIQUENESS_UNSPECIFIED;
+constexpr TraceMetricV2Spec_DimensionUniqueness TraceMetricV2Spec_DimensionUniqueness_MAX = TraceMetricV2Spec_DimensionUniqueness::UNIQUE;
+
+
+PERFETTO_PROTOZERO_CONSTEXPR14_OR_INLINE
+const char* TraceMetricV2Spec_DimensionUniqueness_Name(::perfetto::protos::pbzero::TraceMetricV2Spec_DimensionUniqueness value) {
+  switch (value) {
+  case ::perfetto::protos::pbzero::TraceMetricV2Spec_DimensionUniqueness::DIMENSION_UNIQUENESS_UNSPECIFIED:
+    return "DIMENSION_UNIQUENESS_UNSPECIFIED";
+
+  case ::perfetto::protos::pbzero::TraceMetricV2Spec_DimensionUniqueness::NOT_UNIQUE:
+    return "NOT_UNIQUE";
+
+  case ::perfetto::protos::pbzero::TraceMetricV2Spec_DimensionUniqueness::UNIQUE:
+    return "UNIQUE";
+  }
+  return "PBZERO_UNKNOWN_ENUM_VALUE";
+}
+
+namespace perfetto_pbzero_enum_TraceMetricV2Spec {
+enum MetricUnit : int32_t {
+  METRIC_UNIT_UNSPECIFIED = 0,
+  COUNT = 1,
+  TIME_NANOS = 2,
+  TIME_MICROS = 3,
+  TIME_MILLIS = 4,
+  TIME_SECONDS = 5,
+  TIME_HOURS = 6,
+  TIME_DAYS = 7,
+  BYTES = 8,
+  KILOBYTES = 9,
+  MEGABYTES = 10,
+  SECONDS_PER_HOUR = 11,
+  BOUNDED_PERCENTAGE = 12,
+  PERCENTAGE = 13,
+  MINUTES_PER_DAY = 14,
+  MILLI_AMPS = 15,
+  PERCENT_PER_HOUR = 16,
+  MILLI_AMP_HOURS = 17,
+  PERCENT_PER_HOUR_LEGACY = 18,
+  MILLI_WATTS = 19,
+  COUNT_PER_SECOND = 20,
+  KILOBYTES_PER_HOUR = 21,
+  MILLI_WATT_HOURS = 22,
+  COUNT_PER_HOUR = 23,
+  COUNT_DELTA_PER_HOUR = 24,
+  BYTES_DELTA_PER_HOUR = 25,
+  CORRELATION_COEFFICIENT = 26,
+  MILLI_VOLTS = 27,
+};
+} // namespace perfetto_pbzero_enum_TraceMetricV2Spec
+using TraceMetricV2Spec_MetricUnit = perfetto_pbzero_enum_TraceMetricV2Spec::MetricUnit;
+
+
+constexpr TraceMetricV2Spec_MetricUnit TraceMetricV2Spec_MetricUnit_MIN = TraceMetricV2Spec_MetricUnit::METRIC_UNIT_UNSPECIFIED;
+constexpr TraceMetricV2Spec_MetricUnit TraceMetricV2Spec_MetricUnit_MAX = TraceMetricV2Spec_MetricUnit::MILLI_VOLTS;
+
+
+PERFETTO_PROTOZERO_CONSTEXPR14_OR_INLINE
+const char* TraceMetricV2Spec_MetricUnit_Name(::perfetto::protos::pbzero::TraceMetricV2Spec_MetricUnit value) {
+  switch (value) {
+  case ::perfetto::protos::pbzero::TraceMetricV2Spec_MetricUnit::METRIC_UNIT_UNSPECIFIED:
+    return "METRIC_UNIT_UNSPECIFIED";
+
+  case ::perfetto::protos::pbzero::TraceMetricV2Spec_MetricUnit::COUNT:
+    return "COUNT";
+
+  case ::perfetto::protos::pbzero::TraceMetricV2Spec_MetricUnit::TIME_NANOS:
+    return "TIME_NANOS";
+
+  case ::perfetto::protos::pbzero::TraceMetricV2Spec_MetricUnit::TIME_MICROS:
+    return "TIME_MICROS";
+
+  case ::perfetto::protos::pbzero::TraceMetricV2Spec_MetricUnit::TIME_MILLIS:
+    return "TIME_MILLIS";
+
+  case ::perfetto::protos::pbzero::TraceMetricV2Spec_MetricUnit::TIME_SECONDS:
+    return "TIME_SECONDS";
+
+  case ::perfetto::protos::pbzero::TraceMetricV2Spec_MetricUnit::TIME_HOURS:
+    return "TIME_HOURS";
+
+  case ::perfetto::protos::pbzero::TraceMetricV2Spec_MetricUnit::TIME_DAYS:
+    return "TIME_DAYS";
+
+  case ::perfetto::protos::pbzero::TraceMetricV2Spec_MetricUnit::BYTES:
+    return "BYTES";
+
+  case ::perfetto::protos::pbzero::TraceMetricV2Spec_MetricUnit::KILOBYTES:
+    return "KILOBYTES";
+
+  case ::perfetto::protos::pbzero::TraceMetricV2Spec_MetricUnit::MEGABYTES:
+    return "MEGABYTES";
+
+  case ::perfetto::protos::pbzero::TraceMetricV2Spec_MetricUnit::SECONDS_PER_HOUR:
+    return "SECONDS_PER_HOUR";
+
+  case ::perfetto::protos::pbzero::TraceMetricV2Spec_MetricUnit::BOUNDED_PERCENTAGE:
+    return "BOUNDED_PERCENTAGE";
+
+  case ::perfetto::protos::pbzero::TraceMetricV2Spec_MetricUnit::PERCENTAGE:
+    return "PERCENTAGE";
+
+  case ::perfetto::protos::pbzero::TraceMetricV2Spec_MetricUnit::MINUTES_PER_DAY:
+    return "MINUTES_PER_DAY";
+
+  case ::perfetto::protos::pbzero::TraceMetricV2Spec_MetricUnit::MILLI_AMPS:
+    return "MILLI_AMPS";
+
+  case ::perfetto::protos::pbzero::TraceMetricV2Spec_MetricUnit::PERCENT_PER_HOUR:
+    return "PERCENT_PER_HOUR";
+
+  case ::perfetto::protos::pbzero::TraceMetricV2Spec_MetricUnit::MILLI_AMP_HOURS:
+    return "MILLI_AMP_HOURS";
+
+  case ::perfetto::protos::pbzero::TraceMetricV2Spec_MetricUnit::PERCENT_PER_HOUR_LEGACY:
+    return "PERCENT_PER_HOUR_LEGACY";
+
+  case ::perfetto::protos::pbzero::TraceMetricV2Spec_MetricUnit::MILLI_WATTS:
+    return "MILLI_WATTS";
+
+  case ::perfetto::protos::pbzero::TraceMetricV2Spec_MetricUnit::COUNT_PER_SECOND:
+    return "COUNT_PER_SECOND";
+
+  case ::perfetto::protos::pbzero::TraceMetricV2Spec_MetricUnit::KILOBYTES_PER_HOUR:
+    return "KILOBYTES_PER_HOUR";
+
+  case ::perfetto::protos::pbzero::TraceMetricV2Spec_MetricUnit::MILLI_WATT_HOURS:
+    return "MILLI_WATT_HOURS";
+
+  case ::perfetto::protos::pbzero::TraceMetricV2Spec_MetricUnit::COUNT_PER_HOUR:
+    return "COUNT_PER_HOUR";
+
+  case ::perfetto::protos::pbzero::TraceMetricV2Spec_MetricUnit::COUNT_DELTA_PER_HOUR:
+    return "COUNT_DELTA_PER_HOUR";
+
+  case ::perfetto::protos::pbzero::TraceMetricV2Spec_MetricUnit::BYTES_DELTA_PER_HOUR:
+    return "BYTES_DELTA_PER_HOUR";
+
+  case ::perfetto::protos::pbzero::TraceMetricV2Spec_MetricUnit::CORRELATION_COEFFICIENT:
+    return "CORRELATION_COEFFICIENT";
+
+  case ::perfetto::protos::pbzero::TraceMetricV2Spec_MetricUnit::MILLI_VOLTS:
+    return "MILLI_VOLTS";
+  }
+  return "PBZERO_UNKNOWN_ENUM_VALUE";
+}
+
+namespace perfetto_pbzero_enum_TraceMetricV2Spec {
+enum MetricPolarity : int32_t {
+  POLARITY_UNSPECIFIED = 0,
+  HIGHER_IS_BETTER = 1,
+  LOWER_IS_BETTER = 2,
+  NOT_APPLICABLE = 3,
+};
+} // namespace perfetto_pbzero_enum_TraceMetricV2Spec
+using TraceMetricV2Spec_MetricPolarity = perfetto_pbzero_enum_TraceMetricV2Spec::MetricPolarity;
+
+
+constexpr TraceMetricV2Spec_MetricPolarity TraceMetricV2Spec_MetricPolarity_MIN = TraceMetricV2Spec_MetricPolarity::POLARITY_UNSPECIFIED;
+constexpr TraceMetricV2Spec_MetricPolarity TraceMetricV2Spec_MetricPolarity_MAX = TraceMetricV2Spec_MetricPolarity::NOT_APPLICABLE;
+
+
+PERFETTO_PROTOZERO_CONSTEXPR14_OR_INLINE
+const char* TraceMetricV2Spec_MetricPolarity_Name(::perfetto::protos::pbzero::TraceMetricV2Spec_MetricPolarity value) {
+  switch (value) {
+  case ::perfetto::protos::pbzero::TraceMetricV2Spec_MetricPolarity::POLARITY_UNSPECIFIED:
+    return "POLARITY_UNSPECIFIED";
+
+  case ::perfetto::protos::pbzero::TraceMetricV2Spec_MetricPolarity::HIGHER_IS_BETTER:
+    return "HIGHER_IS_BETTER";
+
+  case ::perfetto::protos::pbzero::TraceMetricV2Spec_MetricPolarity::LOWER_IS_BETTER:
+    return "LOWER_IS_BETTER";
+
+  case ::perfetto::protos::pbzero::TraceMetricV2Spec_MetricPolarity::NOT_APPLICABLE:
+    return "NOT_APPLICABLE";
+  }
+  return "PBZERO_UNKNOWN_ENUM_VALUE";
+}
+
+class TraceMetricV2Bundle_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/3, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
  public:
-  TraceMetricV2_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
-  explicit TraceMetricV2_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
-  explicit TraceMetricV2_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
-  bool has_row() const { return at<1>().valid(); }
-  ::protozero::RepeatedFieldIterator<::protozero::ConstBytes> row() const { return GetRepeated<::protozero::ConstBytes>(1); }
-  bool has_spec() const { return at<2>().valid(); }
-  ::protozero::ConstBytes spec() const { return at<2>().as_bytes(); }
+  TraceMetricV2Bundle_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
+  explicit TraceMetricV2Bundle_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
+  explicit TraceMetricV2Bundle_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
+  bool has_bundle_id() const { return at<1>().valid(); }
+  ::protozero::ConstChars bundle_id() const { return at<1>().as_string(); }
+  bool has_row() const { return at<2>().valid(); }
+  ::protozero::RepeatedFieldIterator<::protozero::ConstBytes> row() const { return GetRepeated<::protozero::ConstBytes>(2); }
+  bool has_specs() const { return at<3>().valid(); }
+  ::protozero::RepeatedFieldIterator<::protozero::ConstBytes> specs() const { return GetRepeated<::protozero::ConstBytes>(3); }
 };
 
-class TraceMetricV2 : public ::protozero::Message {
+class TraceMetricV2Bundle : public ::protozero::Message {
  public:
-  using Decoder = TraceMetricV2_Decoder;
+  using Decoder = TraceMetricV2Bundle_Decoder;
   enum : int32_t {
-    kRowFieldNumber = 1,
-    kSpecFieldNumber = 2,
+    kBundleIdFieldNumber = 1,
+    kRowFieldNumber = 2,
+    kSpecsFieldNumber = 3,
   };
-  static constexpr const char* GetName() { return ".perfetto.protos.TraceMetricV2"; }
+  static constexpr const char* GetName() { return ".perfetto.protos.TraceMetricV2Bundle"; }
 
-  using MetricRow = ::perfetto::protos::pbzero::TraceMetricV2_MetricRow;
+  using Row = ::perfetto::protos::pbzero::TraceMetricV2Bundle_Row;
+
+  using FieldMetadata_BundleId =
+    ::protozero::proto_utils::FieldMetadata<
+      1,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kString,
+      std::string,
+      TraceMetricV2Bundle>;
+
+  static constexpr FieldMetadata_BundleId kBundleId{};
+  void set_bundle_id(const char* data, size_t size) {
+    AppendBytes(FieldMetadata_BundleId::kFieldId, data, size);
+  }
+  void set_bundle_id(::protozero::ConstChars chars) {
+    AppendBytes(FieldMetadata_BundleId::kFieldId, chars.data, chars.size);
+  }
+  void set_bundle_id(std::string value) {
+    static constexpr uint32_t field_id = FieldMetadata_BundleId::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kString>
+        ::Append(*this, field_id, value);
+  }
 
   using FieldMetadata_Row =
     ::protozero::proto_utils::FieldMetadata<
-      1,
+      2,
       ::protozero::proto_utils::RepetitionType::kRepeatedNotPacked,
       ::protozero::proto_utils::ProtoSchemaType::kMessage,
-      TraceMetricV2_MetricRow,
-      TraceMetricV2>;
+      TraceMetricV2Bundle_Row,
+      TraceMetricV2Bundle>;
 
   static constexpr FieldMetadata_Row kRow{};
-  template <typename T = TraceMetricV2_MetricRow> T* add_row() {
-    return BeginNestedMessage<T>(1);
+  template <typename T = TraceMetricV2Bundle_Row> T* add_row() {
+    return BeginNestedMessage<T>(2);
   }
 
 
-  using FieldMetadata_Spec =
+  using FieldMetadata_Specs =
     ::protozero::proto_utils::FieldMetadata<
-      2,
-      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      3,
+      ::protozero::proto_utils::RepetitionType::kRepeatedNotPacked,
       ::protozero::proto_utils::ProtoSchemaType::kMessage,
       TraceMetricV2Spec,
-      TraceMetricV2>;
+      TraceMetricV2Bundle>;
 
-  static constexpr FieldMetadata_Spec kSpec{};
-  template <typename T = TraceMetricV2Spec> T* set_spec() {
-    return BeginNestedMessage<T>(2);
+  static constexpr FieldMetadata_Specs kSpecs{};
+  template <typename T = TraceMetricV2Spec> T* add_specs() {
+    return BeginNestedMessage<T>(3);
   }
 
 };
 
-class TraceMetricV2_MetricRow_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/2, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
+class TraceMetricV2Bundle_Row_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/2, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
  public:
-  TraceMetricV2_MetricRow_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
-  explicit TraceMetricV2_MetricRow_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
-  explicit TraceMetricV2_MetricRow_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
-  bool has_value() const { return at<1>().valid(); }
-  double value() const { return at<1>().as_double(); }
+  TraceMetricV2Bundle_Row_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
+  explicit TraceMetricV2Bundle_Row_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
+  explicit TraceMetricV2Bundle_Row_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
+  bool has_values() const { return at<1>().valid(); }
+  ::protozero::RepeatedFieldIterator<::protozero::ConstBytes> values() const { return GetRepeated<::protozero::ConstBytes>(1); }
   bool has_dimension() const { return at<2>().valid(); }
   ::protozero::RepeatedFieldIterator<::protozero::ConstBytes> dimension() const { return GetRepeated<::protozero::ConstBytes>(2); }
 };
 
-class TraceMetricV2_MetricRow : public ::protozero::Message {
+class TraceMetricV2Bundle_Row : public ::protozero::Message {
  public:
-  using Decoder = TraceMetricV2_MetricRow_Decoder;
+  using Decoder = TraceMetricV2Bundle_Row_Decoder;
   enum : int32_t {
-    kValueFieldNumber = 1,
+    kValuesFieldNumber = 1,
     kDimensionFieldNumber = 2,
   };
-  static constexpr const char* GetName() { return ".perfetto.protos.TraceMetricV2.MetricRow"; }
+  static constexpr const char* GetName() { return ".perfetto.protos.TraceMetricV2Bundle.Row"; }
 
-  using Dimension = ::perfetto::protos::pbzero::TraceMetricV2_MetricRow_Dimension;
+  using Value = ::perfetto::protos::pbzero::TraceMetricV2Bundle_Row_Value;
+  using Dimension = ::perfetto::protos::pbzero::TraceMetricV2Bundle_Row_Dimension;
 
-  using FieldMetadata_Value =
+  using FieldMetadata_Values =
     ::protozero::proto_utils::FieldMetadata<
       1,
-      ::protozero::proto_utils::RepetitionType::kNotRepeated,
-      ::protozero::proto_utils::ProtoSchemaType::kDouble,
-      double,
-      TraceMetricV2_MetricRow>;
+      ::protozero::proto_utils::RepetitionType::kRepeatedNotPacked,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      TraceMetricV2Bundle_Row_Value,
+      TraceMetricV2Bundle_Row>;
 
-  static constexpr FieldMetadata_Value kValue{};
-  void set_value(double value) {
-    static constexpr uint32_t field_id = FieldMetadata_Value::kFieldId;
-    // Call the appropriate protozero::Message::Append(field_id, ...)
-    // method based on the type of the field.
-    ::protozero::internal::FieldWriter<
-      ::protozero::proto_utils::ProtoSchemaType::kDouble>
-        ::Append(*this, field_id, value);
+  static constexpr FieldMetadata_Values kValues{};
+  template <typename T = TraceMetricV2Bundle_Row_Value> T* add_values() {
+    return BeginNestedMessage<T>(1);
   }
+
 
   using FieldMetadata_Dimension =
     ::protozero::proto_utils::FieldMetadata<
       2,
       ::protozero::proto_utils::RepetitionType::kRepeatedNotPacked,
       ::protozero::proto_utils::ProtoSchemaType::kMessage,
-      TraceMetricV2_MetricRow_Dimension,
-      TraceMetricV2_MetricRow>;
+      TraceMetricV2Bundle_Row_Dimension,
+      TraceMetricV2Bundle_Row>;
 
   static constexpr FieldMetadata_Dimension kDimension{};
-  template <typename T = TraceMetricV2_MetricRow_Dimension> T* add_dimension() {
+  template <typename T = TraceMetricV2Bundle_Row_Dimension> T* add_dimension() {
     return BeginNestedMessage<T>(2);
   }
 
 };
 
-class TraceMetricV2_MetricRow_Dimension_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/4, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
+class TraceMetricV2Bundle_Row_Dimension_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/4, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
  public:
-  TraceMetricV2_MetricRow_Dimension_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
-  explicit TraceMetricV2_MetricRow_Dimension_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
-  explicit TraceMetricV2_MetricRow_Dimension_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
+  TraceMetricV2Bundle_Row_Dimension_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
+  explicit TraceMetricV2Bundle_Row_Dimension_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
+  explicit TraceMetricV2Bundle_Row_Dimension_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
   bool has_string_value() const { return at<1>().valid(); }
   ::protozero::ConstChars string_value() const { return at<1>().as_string(); }
   bool has_int64_value() const { return at<2>().valid(); }
@@ -149,18 +417,18 @@ class TraceMetricV2_MetricRow_Dimension_Decoder : public ::protozero::TypedProto
   ::protozero::ConstBytes null_value() const { return at<4>().as_bytes(); }
 };
 
-class TraceMetricV2_MetricRow_Dimension : public ::protozero::Message {
+class TraceMetricV2Bundle_Row_Dimension : public ::protozero::Message {
  public:
-  using Decoder = TraceMetricV2_MetricRow_Dimension_Decoder;
+  using Decoder = TraceMetricV2Bundle_Row_Dimension_Decoder;
   enum : int32_t {
     kStringValueFieldNumber = 1,
     kInt64ValueFieldNumber = 2,
     kDoubleValueFieldNumber = 3,
     kNullValueFieldNumber = 4,
   };
-  static constexpr const char* GetName() { return ".perfetto.protos.TraceMetricV2.MetricRow.Dimension"; }
+  static constexpr const char* GetName() { return ".perfetto.protos.TraceMetricV2Bundle.Row.Dimension"; }
 
-  using Null = ::perfetto::protos::pbzero::TraceMetricV2_MetricRow_Dimension_Null;
+  using Null = ::perfetto::protos::pbzero::TraceMetricV2Bundle_Row_Dimension_Null;
 
   using FieldMetadata_StringValue =
     ::protozero::proto_utils::FieldMetadata<
@@ -168,7 +436,7 @@ class TraceMetricV2_MetricRow_Dimension : public ::protozero::Message {
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kString,
       std::string,
-      TraceMetricV2_MetricRow_Dimension>;
+      TraceMetricV2Bundle_Row_Dimension>;
 
   static constexpr FieldMetadata_StringValue kStringValue{};
   void set_string_value(const char* data, size_t size) {
@@ -192,7 +460,7 @@ class TraceMetricV2_MetricRow_Dimension : public ::protozero::Message {
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kInt64,
       int64_t,
-      TraceMetricV2_MetricRow_Dimension>;
+      TraceMetricV2Bundle_Row_Dimension>;
 
   static constexpr FieldMetadata_Int64Value kInt64Value{};
   void set_int64_value(int64_t value) {
@@ -210,7 +478,7 @@ class TraceMetricV2_MetricRow_Dimension : public ::protozero::Message {
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kDouble,
       double,
-      TraceMetricV2_MetricRow_Dimension>;
+      TraceMetricV2Bundle_Row_Dimension>;
 
   static constexpr FieldMetadata_DoubleValue kDoubleValue{};
   void set_double_value(double value) {
@@ -227,43 +495,427 @@ class TraceMetricV2_MetricRow_Dimension : public ::protozero::Message {
       4,
       ::protozero::proto_utils::RepetitionType::kNotRepeated,
       ::protozero::proto_utils::ProtoSchemaType::kMessage,
-      TraceMetricV2_MetricRow_Dimension_Null,
-      TraceMetricV2_MetricRow_Dimension>;
+      TraceMetricV2Bundle_Row_Dimension_Null,
+      TraceMetricV2Bundle_Row_Dimension>;
 
   static constexpr FieldMetadata_NullValue kNullValue{};
-  template <typename T = TraceMetricV2_MetricRow_Dimension_Null> T* set_null_value() {
+  template <typename T = TraceMetricV2Bundle_Row_Dimension_Null> T* set_null_value() {
     return BeginNestedMessage<T>(4);
   }
 
 };
 
-class TraceMetricV2_MetricRow_Dimension_Null_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/0, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
+class TraceMetricV2Bundle_Row_Dimension_Null_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/0, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
  public:
-  TraceMetricV2_MetricRow_Dimension_Null_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
-  explicit TraceMetricV2_MetricRow_Dimension_Null_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
-  explicit TraceMetricV2_MetricRow_Dimension_Null_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
+  TraceMetricV2Bundle_Row_Dimension_Null_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
+  explicit TraceMetricV2Bundle_Row_Dimension_Null_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
+  explicit TraceMetricV2Bundle_Row_Dimension_Null_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
 };
 
-class TraceMetricV2_MetricRow_Dimension_Null : public ::protozero::Message {
+class TraceMetricV2Bundle_Row_Dimension_Null : public ::protozero::Message {
  public:
-  using Decoder = TraceMetricV2_MetricRow_Dimension_Null_Decoder;
-  static constexpr const char* GetName() { return ".perfetto.protos.TraceMetricV2.MetricRow.Dimension.Null"; }
+  using Decoder = TraceMetricV2Bundle_Row_Dimension_Null_Decoder;
+  static constexpr const char* GetName() { return ".perfetto.protos.TraceMetricV2Bundle.Row.Dimension.Null"; }
 
 };
 
-class TraceMetricV2Spec_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/4, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
+class TraceMetricV2Bundle_Row_Value_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/2, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
+ public:
+  TraceMetricV2Bundle_Row_Value_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
+  explicit TraceMetricV2Bundle_Row_Value_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
+  explicit TraceMetricV2Bundle_Row_Value_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
+  bool has_null_value() const { return at<1>().valid(); }
+  ::protozero::ConstBytes null_value() const { return at<1>().as_bytes(); }
+  bool has_double_value() const { return at<2>().valid(); }
+  double double_value() const { return at<2>().as_double(); }
+};
+
+class TraceMetricV2Bundle_Row_Value : public ::protozero::Message {
+ public:
+  using Decoder = TraceMetricV2Bundle_Row_Value_Decoder;
+  enum : int32_t {
+    kNullValueFieldNumber = 1,
+    kDoubleValueFieldNumber = 2,
+  };
+  static constexpr const char* GetName() { return ".perfetto.protos.TraceMetricV2Bundle.Row.Value"; }
+
+  using Null = ::perfetto::protos::pbzero::TraceMetricV2Bundle_Row_Value_Null;
+
+  using FieldMetadata_NullValue =
+    ::protozero::proto_utils::FieldMetadata<
+      1,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      TraceMetricV2Bundle_Row_Value_Null,
+      TraceMetricV2Bundle_Row_Value>;
+
+  static constexpr FieldMetadata_NullValue kNullValue{};
+  template <typename T = TraceMetricV2Bundle_Row_Value_Null> T* set_null_value() {
+    return BeginNestedMessage<T>(1);
+  }
+
+
+  using FieldMetadata_DoubleValue =
+    ::protozero::proto_utils::FieldMetadata<
+      2,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kDouble,
+      double,
+      TraceMetricV2Bundle_Row_Value>;
+
+  static constexpr FieldMetadata_DoubleValue kDoubleValue{};
+  void set_double_value(double value) {
+    static constexpr uint32_t field_id = FieldMetadata_DoubleValue::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kDouble>
+        ::Append(*this, field_id, value);
+  }
+};
+
+class TraceMetricV2Bundle_Row_Value_Null_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/0, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
+ public:
+  TraceMetricV2Bundle_Row_Value_Null_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
+  explicit TraceMetricV2Bundle_Row_Value_Null_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
+  explicit TraceMetricV2Bundle_Row_Value_Null_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
+};
+
+class TraceMetricV2Bundle_Row_Value_Null : public ::protozero::Message {
+ public:
+  using Decoder = TraceMetricV2Bundle_Row_Value_Null_Decoder;
+  static constexpr const char* GetName() { return ".perfetto.protos.TraceMetricV2Bundle.Row.Value.Null"; }
+
+};
+
+class TraceMetricV2TemplateSpec_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/8, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
+ public:
+  TraceMetricV2TemplateSpec_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
+  explicit TraceMetricV2TemplateSpec_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
+  explicit TraceMetricV2TemplateSpec_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
+  bool has_id_prefix() const { return at<1>().valid(); }
+  ::protozero::ConstChars id_prefix() const { return at<1>().as_string(); }
+  bool has_dimensions_specs() const { return at<5>().valid(); }
+  ::protozero::RepeatedFieldIterator<::protozero::ConstBytes> dimensions_specs() const { return GetRepeated<::protozero::ConstBytes>(5); }
+  bool has_dimensions() const { return at<2>().valid(); }
+  ::protozero::RepeatedFieldIterator<::protozero::ConstChars> dimensions() const { return GetRepeated<::protozero::ConstChars>(2); }
+  bool has_value_columns() const { return at<3>().valid(); }
+  ::protozero::RepeatedFieldIterator<::protozero::ConstChars> value_columns() const { return GetRepeated<::protozero::ConstChars>(3); }
+  bool has_value_column_specs() const { return at<8>().valid(); }
+  ::protozero::RepeatedFieldIterator<::protozero::ConstBytes> value_column_specs() const { return GetRepeated<::protozero::ConstBytes>(8); }
+  bool has_query() const { return at<4>().valid(); }
+  ::protozero::ConstBytes query() const { return at<4>().as_bytes(); }
+  bool has_dimension_uniqueness() const { return at<6>().valid(); }
+  int32_t dimension_uniqueness() const { return at<6>().as_int32(); }
+  bool has_disable_auto_bundling() const { return at<7>().valid(); }
+  bool disable_auto_bundling() const { return at<7>().as_bool(); }
+};
+
+class TraceMetricV2TemplateSpec : public ::protozero::Message {
+ public:
+  using Decoder = TraceMetricV2TemplateSpec_Decoder;
+  enum : int32_t {
+    kIdPrefixFieldNumber = 1,
+    kDimensionsSpecsFieldNumber = 5,
+    kDimensionsFieldNumber = 2,
+    kValueColumnsFieldNumber = 3,
+    kValueColumnSpecsFieldNumber = 8,
+    kQueryFieldNumber = 4,
+    kDimensionUniquenessFieldNumber = 6,
+    kDisableAutoBundlingFieldNumber = 7,
+  };
+  static constexpr const char* GetName() { return ".perfetto.protos.TraceMetricV2TemplateSpec"; }
+
+  using ValueColumnSpec = ::perfetto::protos::pbzero::TraceMetricV2TemplateSpec_ValueColumnSpec;
+
+  using FieldMetadata_IdPrefix =
+    ::protozero::proto_utils::FieldMetadata<
+      1,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kString,
+      std::string,
+      TraceMetricV2TemplateSpec>;
+
+  static constexpr FieldMetadata_IdPrefix kIdPrefix{};
+  void set_id_prefix(const char* data, size_t size) {
+    AppendBytes(FieldMetadata_IdPrefix::kFieldId, data, size);
+  }
+  void set_id_prefix(::protozero::ConstChars chars) {
+    AppendBytes(FieldMetadata_IdPrefix::kFieldId, chars.data, chars.size);
+  }
+  void set_id_prefix(std::string value) {
+    static constexpr uint32_t field_id = FieldMetadata_IdPrefix::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kString>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_DimensionsSpecs =
+    ::protozero::proto_utils::FieldMetadata<
+      5,
+      ::protozero::proto_utils::RepetitionType::kRepeatedNotPacked,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      TraceMetricV2Spec_DimensionSpec,
+      TraceMetricV2TemplateSpec>;
+
+  static constexpr FieldMetadata_DimensionsSpecs kDimensionsSpecs{};
+  template <typename T = TraceMetricV2Spec_DimensionSpec> T* add_dimensions_specs() {
+    return BeginNestedMessage<T>(5);
+  }
+
+
+  using FieldMetadata_Dimensions =
+    ::protozero::proto_utils::FieldMetadata<
+      2,
+      ::protozero::proto_utils::RepetitionType::kRepeatedNotPacked,
+      ::protozero::proto_utils::ProtoSchemaType::kString,
+      std::string,
+      TraceMetricV2TemplateSpec>;
+
+  static constexpr FieldMetadata_Dimensions kDimensions{};
+  void add_dimensions(const char* data, size_t size) {
+    AppendBytes(FieldMetadata_Dimensions::kFieldId, data, size);
+  }
+  void add_dimensions(::protozero::ConstChars chars) {
+    AppendBytes(FieldMetadata_Dimensions::kFieldId, chars.data, chars.size);
+  }
+  void add_dimensions(std::string value) {
+    static constexpr uint32_t field_id = FieldMetadata_Dimensions::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kString>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_ValueColumns =
+    ::protozero::proto_utils::FieldMetadata<
+      3,
+      ::protozero::proto_utils::RepetitionType::kRepeatedNotPacked,
+      ::protozero::proto_utils::ProtoSchemaType::kString,
+      std::string,
+      TraceMetricV2TemplateSpec>;
+
+  static constexpr FieldMetadata_ValueColumns kValueColumns{};
+  void add_value_columns(const char* data, size_t size) {
+    AppendBytes(FieldMetadata_ValueColumns::kFieldId, data, size);
+  }
+  void add_value_columns(::protozero::ConstChars chars) {
+    AppendBytes(FieldMetadata_ValueColumns::kFieldId, chars.data, chars.size);
+  }
+  void add_value_columns(std::string value) {
+    static constexpr uint32_t field_id = FieldMetadata_ValueColumns::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kString>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_ValueColumnSpecs =
+    ::protozero::proto_utils::FieldMetadata<
+      8,
+      ::protozero::proto_utils::RepetitionType::kRepeatedNotPacked,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      TraceMetricV2TemplateSpec_ValueColumnSpec,
+      TraceMetricV2TemplateSpec>;
+
+  static constexpr FieldMetadata_ValueColumnSpecs kValueColumnSpecs{};
+  template <typename T = TraceMetricV2TemplateSpec_ValueColumnSpec> T* add_value_column_specs() {
+    return BeginNestedMessage<T>(8);
+  }
+
+
+  using FieldMetadata_Query =
+    ::protozero::proto_utils::FieldMetadata<
+      4,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      PerfettoSqlStructuredQuery,
+      TraceMetricV2TemplateSpec>;
+
+  static constexpr FieldMetadata_Query kQuery{};
+  template <typename T = PerfettoSqlStructuredQuery> T* set_query() {
+    return BeginNestedMessage<T>(4);
+  }
+
+
+  using FieldMetadata_DimensionUniqueness =
+    ::protozero::proto_utils::FieldMetadata<
+      6,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kEnum,
+      TraceMetricV2Spec_DimensionUniqueness,
+      TraceMetricV2TemplateSpec>;
+
+  static constexpr FieldMetadata_DimensionUniqueness kDimensionUniqueness{};
+  void set_dimension_uniqueness(TraceMetricV2Spec_DimensionUniqueness value) {
+    static constexpr uint32_t field_id = FieldMetadata_DimensionUniqueness::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kEnum>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_DisableAutoBundling =
+    ::protozero::proto_utils::FieldMetadata<
+      7,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kBool,
+      bool,
+      TraceMetricV2TemplateSpec>;
+
+  static constexpr FieldMetadata_DisableAutoBundling kDisableAutoBundling{};
+  void set_disable_auto_bundling(bool value) {
+    static constexpr uint32_t field_id = FieldMetadata_DisableAutoBundling::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kBool>
+        ::Append(*this, field_id, value);
+  }
+};
+
+class TraceMetricV2TemplateSpec_ValueColumnSpec_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/4, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
+ public:
+  TraceMetricV2TemplateSpec_ValueColumnSpec_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
+  explicit TraceMetricV2TemplateSpec_ValueColumnSpec_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
+  explicit TraceMetricV2TemplateSpec_ValueColumnSpec_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
+  bool has_name() const { return at<1>().valid(); }
+  ::protozero::ConstChars name() const { return at<1>().as_string(); }
+  bool has_unit() const { return at<2>().valid(); }
+  int32_t unit() const { return at<2>().as_int32(); }
+  bool has_custom_unit() const { return at<3>().valid(); }
+  ::protozero::ConstChars custom_unit() const { return at<3>().as_string(); }
+  bool has_polarity() const { return at<4>().valid(); }
+  int32_t polarity() const { return at<4>().as_int32(); }
+};
+
+class TraceMetricV2TemplateSpec_ValueColumnSpec : public ::protozero::Message {
+ public:
+  using Decoder = TraceMetricV2TemplateSpec_ValueColumnSpec_Decoder;
+  enum : int32_t {
+    kNameFieldNumber = 1,
+    kUnitFieldNumber = 2,
+    kCustomUnitFieldNumber = 3,
+    kPolarityFieldNumber = 4,
+  };
+  static constexpr const char* GetName() { return ".perfetto.protos.TraceMetricV2TemplateSpec.ValueColumnSpec"; }
+
+
+  using FieldMetadata_Name =
+    ::protozero::proto_utils::FieldMetadata<
+      1,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kString,
+      std::string,
+      TraceMetricV2TemplateSpec_ValueColumnSpec>;
+
+  static constexpr FieldMetadata_Name kName{};
+  void set_name(const char* data, size_t size) {
+    AppendBytes(FieldMetadata_Name::kFieldId, data, size);
+  }
+  void set_name(::protozero::ConstChars chars) {
+    AppendBytes(FieldMetadata_Name::kFieldId, chars.data, chars.size);
+  }
+  void set_name(std::string value) {
+    static constexpr uint32_t field_id = FieldMetadata_Name::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kString>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_Unit =
+    ::protozero::proto_utils::FieldMetadata<
+      2,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kEnum,
+      TraceMetricV2Spec_MetricUnit,
+      TraceMetricV2TemplateSpec_ValueColumnSpec>;
+
+  static constexpr FieldMetadata_Unit kUnit{};
+  void set_unit(TraceMetricV2Spec_MetricUnit value) {
+    static constexpr uint32_t field_id = FieldMetadata_Unit::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kEnum>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_CustomUnit =
+    ::protozero::proto_utils::FieldMetadata<
+      3,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kString,
+      std::string,
+      TraceMetricV2TemplateSpec_ValueColumnSpec>;
+
+  static constexpr FieldMetadata_CustomUnit kCustomUnit{};
+  void set_custom_unit(const char* data, size_t size) {
+    AppendBytes(FieldMetadata_CustomUnit::kFieldId, data, size);
+  }
+  void set_custom_unit(::protozero::ConstChars chars) {
+    AppendBytes(FieldMetadata_CustomUnit::kFieldId, chars.data, chars.size);
+  }
+  void set_custom_unit(std::string value) {
+    static constexpr uint32_t field_id = FieldMetadata_CustomUnit::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kString>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_Polarity =
+    ::protozero::proto_utils::FieldMetadata<
+      4,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kEnum,
+      TraceMetricV2Spec_MetricPolarity,
+      TraceMetricV2TemplateSpec_ValueColumnSpec>;
+
+  static constexpr FieldMetadata_Polarity kPolarity{};
+  void set_polarity(TraceMetricV2Spec_MetricPolarity value) {
+    static constexpr uint32_t field_id = FieldMetadata_Polarity::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kEnum>
+        ::Append(*this, field_id, value);
+  }
+};
+
+class TraceMetricV2Spec_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/10, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
  public:
   TraceMetricV2Spec_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
   explicit TraceMetricV2Spec_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
   explicit TraceMetricV2Spec_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
   bool has_id() const { return at<1>().valid(); }
   ::protozero::ConstChars id() const { return at<1>().as_string(); }
+  bool has_dimensions_specs() const { return at<5>().valid(); }
+  ::protozero::RepeatedFieldIterator<::protozero::ConstBytes> dimensions_specs() const { return GetRepeated<::protozero::ConstBytes>(5); }
   bool has_dimensions() const { return at<2>().valid(); }
   ::protozero::RepeatedFieldIterator<::protozero::ConstChars> dimensions() const { return GetRepeated<::protozero::ConstChars>(2); }
   bool has_value() const { return at<3>().valid(); }
   ::protozero::ConstChars value() const { return at<3>().as_string(); }
   bool has_query() const { return at<4>().valid(); }
   ::protozero::ConstBytes query() const { return at<4>().as_bytes(); }
+  bool has_dimension_uniqueness() const { return at<6>().valid(); }
+  int32_t dimension_uniqueness() const { return at<6>().as_int32(); }
+  bool has_bundle_id() const { return at<7>().valid(); }
+  ::protozero::ConstChars bundle_id() const { return at<7>().as_string(); }
+  bool has_unit() const { return at<8>().valid(); }
+  int32_t unit() const { return at<8>().as_int32(); }
+  bool has_custom_unit() const { return at<9>().valid(); }
+  ::protozero::ConstChars custom_unit() const { return at<9>().as_string(); }
+  bool has_polarity() const { return at<10>().valid(); }
+  int32_t polarity() const { return at<10>().as_int32(); }
 };
 
 class TraceMetricV2Spec : public ::protozero::Message {
@@ -271,12 +923,78 @@ class TraceMetricV2Spec : public ::protozero::Message {
   using Decoder = TraceMetricV2Spec_Decoder;
   enum : int32_t {
     kIdFieldNumber = 1,
+    kDimensionsSpecsFieldNumber = 5,
     kDimensionsFieldNumber = 2,
     kValueFieldNumber = 3,
     kQueryFieldNumber = 4,
+    kDimensionUniquenessFieldNumber = 6,
+    kBundleIdFieldNumber = 7,
+    kUnitFieldNumber = 8,
+    kCustomUnitFieldNumber = 9,
+    kPolarityFieldNumber = 10,
   };
   static constexpr const char* GetName() { return ".perfetto.protos.TraceMetricV2Spec"; }
 
+  using DimensionSpec = ::perfetto::protos::pbzero::TraceMetricV2Spec_DimensionSpec;
+
+  using DimensionType = ::perfetto::protos::pbzero::TraceMetricV2Spec_DimensionType;
+  static inline const char* DimensionType_Name(DimensionType value) {
+    return ::perfetto::protos::pbzero::TraceMetricV2Spec_DimensionType_Name(value);
+  }
+
+  using DimensionUniqueness = ::perfetto::protos::pbzero::TraceMetricV2Spec_DimensionUniqueness;
+  static inline const char* DimensionUniqueness_Name(DimensionUniqueness value) {
+    return ::perfetto::protos::pbzero::TraceMetricV2Spec_DimensionUniqueness_Name(value);
+  }
+
+  using MetricUnit = ::perfetto::protos::pbzero::TraceMetricV2Spec_MetricUnit;
+  static inline const char* MetricUnit_Name(MetricUnit value) {
+    return ::perfetto::protos::pbzero::TraceMetricV2Spec_MetricUnit_Name(value);
+  }
+
+  using MetricPolarity = ::perfetto::protos::pbzero::TraceMetricV2Spec_MetricPolarity;
+  static inline const char* MetricPolarity_Name(MetricPolarity value) {
+    return ::perfetto::protos::pbzero::TraceMetricV2Spec_MetricPolarity_Name(value);
+  }
+  static inline const DimensionType DIMENSION_TYPE_UNSPECIFIED = DimensionType::DIMENSION_TYPE_UNSPECIFIED;
+  static inline const DimensionType STRING = DimensionType::STRING;
+  static inline const DimensionType INT64 = DimensionType::INT64;
+  static inline const DimensionType DOUBLE = DimensionType::DOUBLE;
+  static inline const DimensionUniqueness DIMENSION_UNIQUENESS_UNSPECIFIED = DimensionUniqueness::DIMENSION_UNIQUENESS_UNSPECIFIED;
+  static inline const DimensionUniqueness NOT_UNIQUE = DimensionUniqueness::NOT_UNIQUE;
+  static inline const DimensionUniqueness UNIQUE = DimensionUniqueness::UNIQUE;
+  static inline const MetricUnit METRIC_UNIT_UNSPECIFIED = MetricUnit::METRIC_UNIT_UNSPECIFIED;
+  static inline const MetricUnit COUNT = MetricUnit::COUNT;
+  static inline const MetricUnit TIME_NANOS = MetricUnit::TIME_NANOS;
+  static inline const MetricUnit TIME_MICROS = MetricUnit::TIME_MICROS;
+  static inline const MetricUnit TIME_MILLIS = MetricUnit::TIME_MILLIS;
+  static inline const MetricUnit TIME_SECONDS = MetricUnit::TIME_SECONDS;
+  static inline const MetricUnit TIME_HOURS = MetricUnit::TIME_HOURS;
+  static inline const MetricUnit TIME_DAYS = MetricUnit::TIME_DAYS;
+  static inline const MetricUnit BYTES = MetricUnit::BYTES;
+  static inline const MetricUnit KILOBYTES = MetricUnit::KILOBYTES;
+  static inline const MetricUnit MEGABYTES = MetricUnit::MEGABYTES;
+  static inline const MetricUnit SECONDS_PER_HOUR = MetricUnit::SECONDS_PER_HOUR;
+  static inline const MetricUnit BOUNDED_PERCENTAGE = MetricUnit::BOUNDED_PERCENTAGE;
+  static inline const MetricUnit PERCENTAGE = MetricUnit::PERCENTAGE;
+  static inline const MetricUnit MINUTES_PER_DAY = MetricUnit::MINUTES_PER_DAY;
+  static inline const MetricUnit MILLI_AMPS = MetricUnit::MILLI_AMPS;
+  static inline const MetricUnit PERCENT_PER_HOUR = MetricUnit::PERCENT_PER_HOUR;
+  static inline const MetricUnit MILLI_AMP_HOURS = MetricUnit::MILLI_AMP_HOURS;
+  static inline const MetricUnit PERCENT_PER_HOUR_LEGACY = MetricUnit::PERCENT_PER_HOUR_LEGACY;
+  static inline const MetricUnit MILLI_WATTS = MetricUnit::MILLI_WATTS;
+  static inline const MetricUnit COUNT_PER_SECOND = MetricUnit::COUNT_PER_SECOND;
+  static inline const MetricUnit KILOBYTES_PER_HOUR = MetricUnit::KILOBYTES_PER_HOUR;
+  static inline const MetricUnit MILLI_WATT_HOURS = MetricUnit::MILLI_WATT_HOURS;
+  static inline const MetricUnit COUNT_PER_HOUR = MetricUnit::COUNT_PER_HOUR;
+  static inline const MetricUnit COUNT_DELTA_PER_HOUR = MetricUnit::COUNT_DELTA_PER_HOUR;
+  static inline const MetricUnit BYTES_DELTA_PER_HOUR = MetricUnit::BYTES_DELTA_PER_HOUR;
+  static inline const MetricUnit CORRELATION_COEFFICIENT = MetricUnit::CORRELATION_COEFFICIENT;
+  static inline const MetricUnit MILLI_VOLTS = MetricUnit::MILLI_VOLTS;
+  static inline const MetricPolarity POLARITY_UNSPECIFIED = MetricPolarity::POLARITY_UNSPECIFIED;
+  static inline const MetricPolarity HIGHER_IS_BETTER = MetricPolarity::HIGHER_IS_BETTER;
+  static inline const MetricPolarity LOWER_IS_BETTER = MetricPolarity::LOWER_IS_BETTER;
+  static inline const MetricPolarity NOT_APPLICABLE = MetricPolarity::NOT_APPLICABLE;
 
   using FieldMetadata_Id =
     ::protozero::proto_utils::FieldMetadata<
@@ -301,6 +1019,20 @@ class TraceMetricV2Spec : public ::protozero::Message {
       ::protozero::proto_utils::ProtoSchemaType::kString>
         ::Append(*this, field_id, value);
   }
+
+  using FieldMetadata_DimensionsSpecs =
+    ::protozero::proto_utils::FieldMetadata<
+      5,
+      ::protozero::proto_utils::RepetitionType::kRepeatedNotPacked,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      TraceMetricV2Spec_DimensionSpec,
+      TraceMetricV2Spec>;
+
+  static constexpr FieldMetadata_DimensionsSpecs kDimensionsSpecs{};
+  template <typename T = TraceMetricV2Spec_DimensionSpec> T* add_dimensions_specs() {
+    return BeginNestedMessage<T>(5);
+  }
+
 
   using FieldMetadata_Dimensions =
     ::protozero::proto_utils::FieldMetadata<
@@ -363,6 +1095,172 @@ class TraceMetricV2Spec : public ::protozero::Message {
     return BeginNestedMessage<T>(4);
   }
 
+
+  using FieldMetadata_DimensionUniqueness =
+    ::protozero::proto_utils::FieldMetadata<
+      6,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kEnum,
+      TraceMetricV2Spec_DimensionUniqueness,
+      TraceMetricV2Spec>;
+
+  static constexpr FieldMetadata_DimensionUniqueness kDimensionUniqueness{};
+  void set_dimension_uniqueness(TraceMetricV2Spec_DimensionUniqueness value) {
+    static constexpr uint32_t field_id = FieldMetadata_DimensionUniqueness::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kEnum>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_BundleId =
+    ::protozero::proto_utils::FieldMetadata<
+      7,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kString,
+      std::string,
+      TraceMetricV2Spec>;
+
+  static constexpr FieldMetadata_BundleId kBundleId{};
+  void set_bundle_id(const char* data, size_t size) {
+    AppendBytes(FieldMetadata_BundleId::kFieldId, data, size);
+  }
+  void set_bundle_id(::protozero::ConstChars chars) {
+    AppendBytes(FieldMetadata_BundleId::kFieldId, chars.data, chars.size);
+  }
+  void set_bundle_id(std::string value) {
+    static constexpr uint32_t field_id = FieldMetadata_BundleId::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kString>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_Unit =
+    ::protozero::proto_utils::FieldMetadata<
+      8,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kEnum,
+      TraceMetricV2Spec_MetricUnit,
+      TraceMetricV2Spec>;
+
+  static constexpr FieldMetadata_Unit kUnit{};
+  void set_unit(TraceMetricV2Spec_MetricUnit value) {
+    static constexpr uint32_t field_id = FieldMetadata_Unit::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kEnum>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_CustomUnit =
+    ::protozero::proto_utils::FieldMetadata<
+      9,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kString,
+      std::string,
+      TraceMetricV2Spec>;
+
+  static constexpr FieldMetadata_CustomUnit kCustomUnit{};
+  void set_custom_unit(const char* data, size_t size) {
+    AppendBytes(FieldMetadata_CustomUnit::kFieldId, data, size);
+  }
+  void set_custom_unit(::protozero::ConstChars chars) {
+    AppendBytes(FieldMetadata_CustomUnit::kFieldId, chars.data, chars.size);
+  }
+  void set_custom_unit(std::string value) {
+    static constexpr uint32_t field_id = FieldMetadata_CustomUnit::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kString>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_Polarity =
+    ::protozero::proto_utils::FieldMetadata<
+      10,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kEnum,
+      TraceMetricV2Spec_MetricPolarity,
+      TraceMetricV2Spec>;
+
+  static constexpr FieldMetadata_Polarity kPolarity{};
+  void set_polarity(TraceMetricV2Spec_MetricPolarity value) {
+    static constexpr uint32_t field_id = FieldMetadata_Polarity::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kEnum>
+        ::Append(*this, field_id, value);
+  }
+};
+
+class TraceMetricV2Spec_DimensionSpec_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/2, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
+ public:
+  TraceMetricV2Spec_DimensionSpec_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
+  explicit TraceMetricV2Spec_DimensionSpec_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
+  explicit TraceMetricV2Spec_DimensionSpec_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
+  bool has_name() const { return at<1>().valid(); }
+  ::protozero::ConstChars name() const { return at<1>().as_string(); }
+  bool has_type() const { return at<2>().valid(); }
+  int32_t type() const { return at<2>().as_int32(); }
+};
+
+class TraceMetricV2Spec_DimensionSpec : public ::protozero::Message {
+ public:
+  using Decoder = TraceMetricV2Spec_DimensionSpec_Decoder;
+  enum : int32_t {
+    kNameFieldNumber = 1,
+    kTypeFieldNumber = 2,
+  };
+  static constexpr const char* GetName() { return ".perfetto.protos.TraceMetricV2Spec.DimensionSpec"; }
+
+
+  using FieldMetadata_Name =
+    ::protozero::proto_utils::FieldMetadata<
+      1,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kString,
+      std::string,
+      TraceMetricV2Spec_DimensionSpec>;
+
+  static constexpr FieldMetadata_Name kName{};
+  void set_name(const char* data, size_t size) {
+    AppendBytes(FieldMetadata_Name::kFieldId, data, size);
+  }
+  void set_name(::protozero::ConstChars chars) {
+    AppendBytes(FieldMetadata_Name::kFieldId, chars.data, chars.size);
+  }
+  void set_name(std::string value) {
+    static constexpr uint32_t field_id = FieldMetadata_Name::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kString>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_Type =
+    ::protozero::proto_utils::FieldMetadata<
+      2,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kEnum,
+      TraceMetricV2Spec_DimensionType,
+      TraceMetricV2Spec_DimensionSpec>;
+
+  static constexpr FieldMetadata_Type kType{};
+  void set_type(TraceMetricV2Spec_DimensionType value) {
+    static constexpr uint32_t field_id = FieldMetadata_Type::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kEnum>
+        ::Append(*this, field_id, value);
+  }
 };
 
 } // Namespace.

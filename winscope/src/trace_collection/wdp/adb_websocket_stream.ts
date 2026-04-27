@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {FunctionUtils} from 'common/function_utils';
+import {base64Decode} from 'common/string_helpers';
 import {ErrorListener, WebSocketStream} from './websocket_stream';
 
 interface AdbResponse {
@@ -22,12 +22,13 @@ interface AdbResponse {
     type: string;
     message: string;
   };
+  response?: string; // base64-encoded
 }
 
 export type DataListener = (data: Uint8Array) => void;
 
 export abstract class AdbWebSocketStream extends WebSocketStream {
-  protected onData: DataListener = FunctionUtils.DO_NOTHING;
+  protected onData: DataListener = () => {};
 
   constructor(
     sock: WebSocket,
@@ -41,31 +42,33 @@ export abstract class AdbWebSocketStream extends WebSocketStream {
       this.close();
     };
     sock.onmessage = async (e: MessageEvent) => {
+      let adbResponse: AdbResponse | undefined;
       try {
         if (e.data instanceof ArrayBuffer) {
           this.onData(new Uint8Array(e.data));
         } else if (e.data instanceof Blob) {
           this.onData(new Uint8Array(await e.data.arrayBuffer()));
+        } else if (typeof e.data === 'string') {
+          try {
+            adbResponse = JSON.parse(e.data);
+          } catch (e) {
+            throw new Error('Failed to decode ADB JSON response');
+          }
+          if (adbResponse?.response !== undefined) {
+            this.onData(base64Decode(adbResponse.response));
+          } else {
+            throw new Error('Received empty ADB response');
+          }
         } else {
           throw new Error('Expected message data to be ArrayBuffer or Blob');
         }
       } catch (error) {
         console.debug('WebSocket failed, state: ' + sock.readyState);
-        let adbError: string | undefined;
-        if (typeof e.data === 'string') {
-          try {
-            const data: AdbResponse = JSON.parse(e.data);
-            if (data.error) {
-              adbError = data.error.message;
-            }
-          } catch (e) {
-            // do nothing
-          }
-        }
+        const errMsg = adbResponse?.error?.message;
         this.onError(
           `Could not parse data:\nReceived: ${e.data}` +
             `\nError: ${(error as Error).message}.` +
-            (adbError ? `\nADB Error: ` + adbError : ''),
+            (errMsg ? `\nADB Error: ` + errMsg : ''),
         );
       }
     };

@@ -19,4 +19,12 @@ test('stringifyJsonWithBigints', () => {
     const expected = '{"foo":"bar","baz":"123"}';
     expect((0, json_utils_1.stringifyJsonWithBigints)(obj)).toEqual(expected);
 });
+test('stringifyJsonWithBigints with space', () => {
+    const obj = { foo: 'bar', baz: 123n };
+    const expected = `{
+  "foo": "bar",
+  "baz": "123"
+}`;
+    expect((0, json_utils_1.stringifyJsonWithBigints)(obj, 2)).toEqual(expected);
+});
 //# sourceMappingURL=json_utils_unittest.js.map

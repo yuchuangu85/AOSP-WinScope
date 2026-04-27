@@ -34,7 +34,7 @@ test_1.test.beforeAll(async ({ browser }, _testInfo) => {
     await page.click('button[label="CPU by process"]');
     await pth.waitForIdleAndScreenshot('cpu-by-process.png');
     // Now test sorting.
-    const hdr = page.getByRole('cell', { name: 'Avg Wall duration (ms)' });
+    const hdr = page.getByRole('cell', { name: /^Avg Wall duration.*/ });
     await hdr.click();
     await pth.waitForIdleAndScreenshot('sort-by-wall-duration.png');
     await hdr.click();

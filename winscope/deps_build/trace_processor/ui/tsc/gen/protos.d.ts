@@ -535,6 +535,7 @@ export namespace perfetto {
             cloneTriggerProducerName?: (string|null);
             cloneTriggerTrustedProducerUid?: (number|null);
             cloneTriggerBootTimeNs?: (number|null);
+            cloneTriggerDelayMs?: (number|null);
         }
 
         class CloneSessionRequest implements ICloneSessionRequest {
@@ -547,6 +548,7 @@ export namespace perfetto {
             public cloneTriggerProducerName: string;
             public cloneTriggerTrustedProducerUid: number;
             public cloneTriggerBootTimeNs: number;
+            public cloneTriggerDelayMs: number;
             public selector?: ("sessionId"|"uniqueSessionName");
             public static create(properties?: perfetto.protos.ICloneSessionRequest): perfetto.protos.CloneSessionRequest;
             public static encode(m: perfetto.protos.ICloneSessionRequest, w?: $protobuf.Writer): $protobuf.Writer;
@@ -639,6 +641,7 @@ export namespace perfetto {
                 producerName?: (string|null);
                 producerUid?: (number|null);
                 bootTimeNs?: (number|null);
+                triggerDelayMs?: (number|null);
             }
 
             class CloneTriggerHit implements ICloneTriggerHit {
@@ -648,6 +651,7 @@ export namespace perfetto {
                 public producerName: string;
                 public producerUid: number;
                 public bootTimeNs: number;
+                public triggerDelayMs: number;
                 public static create(properties?: perfetto.protos.ObservableEvents.ICloneTriggerHit): perfetto.protos.ObservableEvents.CloneTriggerHit;
                 public static encode(m: perfetto.protos.ObservableEvents.ICloneTriggerHit, w?: $protobuf.Writer): $protobuf.Writer;
                 public static decode(r: ($protobuf.Reader|Uint8Array), l?: number): perfetto.protos.ObservableEvents.CloneTriggerHit;
@@ -1227,6 +1231,8 @@ export namespace perfetto {
             androidReportConfig?: (perfetto.protos.TraceConfig.IAndroidReportConfig|null);
             cmdTraceStartDelay?: (perfetto.protos.TraceConfig.ICmdTraceStartDelay|null);
             sessionSemaphores?: (perfetto.protos.TraceConfig.ISessionSemaphore[]|null);
+            priorityBoost?: (perfetto.protos.IPriorityBoostConfig|null);
+            exclusivePrio?: (number|null);
         }
 
         class TraceConfig implements ITraceConfig {
@@ -1266,6 +1272,8 @@ export namespace perfetto {
             public androidReportConfig?: (perfetto.protos.TraceConfig.IAndroidReportConfig|null);
             public cmdTraceStartDelay?: (perfetto.protos.TraceConfig.ICmdTraceStartDelay|null);
             public sessionSemaphores: perfetto.protos.TraceConfig.ISessionSemaphore[];
+            public priorityBoost?: (perfetto.protos.IPriorityBoostConfig|null);
+            public exclusivePrio: number;
             public static create(properties?: perfetto.protos.ITraceConfig): perfetto.protos.TraceConfig;
             public static encode(m: perfetto.protos.ITraceConfig, w?: $protobuf.Writer): $protobuf.Writer;
             public static decode(r: ($protobuf.Reader|Uint8Array), l?: number): perfetto.protos.TraceConfig;
@@ -1312,6 +1320,7 @@ export namespace perfetto {
                 config?: (perfetto.protos.IDataSourceConfig|null);
                 producerNameFilter?: (string[]|null);
                 producerNameRegexFilter?: (string[]|null);
+                machineNameFilter?: (string[]|null);
             }
 
             class DataSource implements IDataSource {
@@ -1319,6 +1328,7 @@ export namespace perfetto {
                 public config?: (perfetto.protos.IDataSourceConfig|null);
                 public producerNameFilter: string[];
                 public producerNameRegexFilter: string[];
+                public machineNameFilter: string[];
                 public static create(properties?: perfetto.protos.TraceConfig.IDataSource): perfetto.protos.TraceConfig.DataSource;
                 public static encode(m: perfetto.protos.TraceConfig.IDataSource, w?: $protobuf.Writer): $protobuf.Writer;
                 public static decode(r: ($protobuf.Reader|Uint8Array), l?: number): perfetto.protos.TraceConfig.DataSource;
@@ -1680,6 +1690,8 @@ export namespace perfetto {
             enableExtraGuardrails?: (boolean|null);
             sessionInitiator?: (perfetto.protos.DataSourceConfig.SessionInitiator|null);
             tracingSessionId?: (number|null);
+            bufferExhaustedPolicy?: (perfetto.protos.DataSourceConfig.BufferExhaustedPolicy|null);
+            priorityBoost?: (perfetto.protos.IPriorityBoostConfig|null);
             ftraceConfig?: (perfetto.protos.IFtraceConfig|null);
             inodeFileConfig?: (perfetto.protos.IInodeFileConfig|null);
             processStatsConfig?: (perfetto.protos.IProcessStatsConfig|null);
@@ -1698,6 +1710,7 @@ export namespace perfetto {
             androidSystemPropertyConfig?: (perfetto.protos.IAndroidSystemPropertyConfig|null);
             statsdTracingConfig?: (perfetto.protos.IStatsdTracingConfig|null);
             systemInfoConfig?: (perfetto.protos.ISystemInfoConfig|null);
+            frozenFtraceConfig?: (perfetto.protos.IFrozenFtraceConfig|null);
             chromeConfig?: (perfetto.protos.IChromeConfig|null);
             v8Config?: (perfetto.protos.IV8Config|null);
             interceptorConfig?: (perfetto.protos.IInterceptorConfig|null);
@@ -1715,6 +1728,7 @@ export namespace perfetto {
             gpuRenderstagesConfig?: (perfetto.protos.IGpuRenderStagesConfig|null);
             chromiumHistogramSamples?: (perfetto.protos.IChromiumHistogramSamplesConfig|null);
             appWakelocksConfig?: (perfetto.protos.IAppWakelocksConfig|null);
+            cpuPerUidConfig?: (perfetto.protos.ICpuPerUidConfig|null);
             legacyConfig?: (string|null);
             forTesting?: (perfetto.protos.ITestConfig|null);
         }
@@ -1729,6 +1743,8 @@ export namespace perfetto {
             public enableExtraGuardrails: boolean;
             public sessionInitiator: perfetto.protos.DataSourceConfig.SessionInitiator;
             public tracingSessionId: number;
+            public bufferExhaustedPolicy: perfetto.protos.DataSourceConfig.BufferExhaustedPolicy;
+            public priorityBoost?: (perfetto.protos.IPriorityBoostConfig|null);
             public ftraceConfig?: (perfetto.protos.IFtraceConfig|null);
             public inodeFileConfig?: (perfetto.protos.IInodeFileConfig|null);
             public processStatsConfig?: (perfetto.protos.IProcessStatsConfig|null);
@@ -1747,6 +1763,7 @@ export namespace perfetto {
             public androidSystemPropertyConfig?: (perfetto.protos.IAndroidSystemPropertyConfig|null);
             public statsdTracingConfig?: (perfetto.protos.IStatsdTracingConfig|null);
             public systemInfoConfig?: (perfetto.protos.ISystemInfoConfig|null);
+            public frozenFtraceConfig?: (perfetto.protos.IFrozenFtraceConfig|null);
             public chromeConfig?: (perfetto.protos.IChromeConfig|null);
             public v8Config?: (perfetto.protos.IV8Config|null);
             public interceptorConfig?: (perfetto.protos.IInterceptorConfig|null);
@@ -1764,6 +1781,7 @@ export namespace perfetto {
             public gpuRenderstagesConfig?: (perfetto.protos.IGpuRenderStagesConfig|null);
             public chromiumHistogramSamples?: (perfetto.protos.IChromiumHistogramSamplesConfig|null);
             public appWakelocksConfig?: (perfetto.protos.IAppWakelocksConfig|null);
+            public cpuPerUidConfig?: (perfetto.protos.ICpuPerUidConfig|null);
             public legacyConfig: string;
             public forTesting?: (perfetto.protos.ITestConfig|null);
             public static create(properties?: perfetto.protos.IDataSourceConfig): perfetto.protos.DataSourceConfig;
@@ -1780,6 +1798,13 @@ export namespace perfetto {
             enum SessionInitiator {
                 SESSION_INITIATOR_UNSPECIFIED = 0,
                 SESSION_INITIATOR_TRUSTED_SYSTEM = 1
+            }
+
+            enum BufferExhaustedPolicy {
+                BUFFER_EXHAUSTED_UNSPECIFIED = 0,
+                BUFFER_EXHAUSTED_DROP = 1,
+                BUFFER_EXHAUSTED_STALL_THEN_ABORT = 2,
+                BUFFER_EXHAUSTED_STALL_THEN_DROP = 3
             }
         }
 
@@ -1975,6 +2000,22 @@ export namespace perfetto {
             public static getTypeUrl(typeUrlPrefix?: string): string;
         }
 
+        interface ICpuPerUidConfig {
+            pollMs?: (number|null);
+        }
+
+        class CpuPerUidConfig implements ICpuPerUidConfig {
+            constructor(p?: perfetto.protos.ICpuPerUidConfig);
+            public pollMs: number;
+            public static create(properties?: perfetto.protos.ICpuPerUidConfig): perfetto.protos.CpuPerUidConfig;
+            public static encode(m: perfetto.protos.ICpuPerUidConfig, w?: $protobuf.Writer): $protobuf.Writer;
+            public static decode(r: ($protobuf.Reader|Uint8Array), l?: number): perfetto.protos.CpuPerUidConfig;
+            public static fromObject(d: { [k: string]: any }): perfetto.protos.CpuPerUidConfig;
+            public static toObject(m: perfetto.protos.CpuPerUidConfig, o?: $protobuf.IConversionOptions): { [k: string]: any };
+            public toJSON(): { [k: string]: any };
+            public static getTypeUrl(typeUrlPrefix?: string): string;
+        }
+
         interface IKernelWakelocksConfig {
             pollMs?: (number|null);
         }
@@ -2019,11 +2060,13 @@ export namespace perfetto {
 
         interface IPackagesListConfig {
             packageNameFilter?: (string[]|null);
+            onlyWriteOnCpuUseEveryMs?: (number|null);
         }
 
         class PackagesListConfig implements IPackagesListConfig {
             constructor(p?: perfetto.protos.IPackagesListConfig);
             public packageNameFilter: string[];
+            public onlyWriteOnCpuUseEveryMs: number;
             public static create(properties?: perfetto.protos.IPackagesListConfig): perfetto.protos.PackagesListConfig;
             public static encode(m: perfetto.protos.IPackagesListConfig, w?: $protobuf.Writer): $protobuf.Writer;
             public static decode(r: ($protobuf.Reader|Uint8Array), l?: number): perfetto.protos.PackagesListConfig;
@@ -2226,6 +2269,7 @@ export namespace perfetto {
             convertToLegacyJson?: (boolean|null);
             clientPriority?: (perfetto.protos.ChromeConfig.ClientPriority|null);
             jsonAgentLabelFilter?: (string|null);
+            eventPackageNameFilterEnabled?: (boolean|null);
         }
 
         class ChromeConfig implements IChromeConfig {
@@ -2235,6 +2279,7 @@ export namespace perfetto {
             public convertToLegacyJson: boolean;
             public clientPriority: perfetto.protos.ChromeConfig.ClientPriority;
             public jsonAgentLabelFilter: string;
+            public eventPackageNameFilterEnabled: boolean;
             public static create(properties?: perfetto.protos.IChromeConfig): perfetto.protos.ChromeConfig;
             public static encode(m: perfetto.protos.IChromeConfig, w?: $protobuf.Writer): $protobuf.Writer;
             public static decode(r: ($protobuf.Reader|Uint8Array), l?: number): perfetto.protos.ChromeConfig;
@@ -2273,11 +2318,15 @@ export namespace perfetto {
 
         interface IEtwConfig {
             kernelFlags?: (perfetto.protos.EtwConfig.KernelFlag[]|null);
+            schedulerProviderEvents?: (string[]|null);
+            memoryProviderEvents?: (string[]|null);
         }
 
         class EtwConfig implements IEtwConfig {
             constructor(p?: perfetto.protos.IEtwConfig);
             public kernelFlags: perfetto.protos.EtwConfig.KernelFlag[];
+            public schedulerProviderEvents: string[];
+            public memoryProviderEvents: string[];
             public static create(properties?: perfetto.protos.IEtwConfig): perfetto.protos.EtwConfig;
             public static encode(m: perfetto.protos.IEtwConfig, w?: $protobuf.Writer): $protobuf.Writer;
             public static decode(r: ($protobuf.Reader|Uint8Array), l?: number): perfetto.protos.EtwConfig;
@@ -2313,55 +2362,65 @@ export namespace perfetto {
 
         interface IFtraceConfig {
             ftraceEvents?: (string[]|null);
-            kprobeEvents?: (perfetto.protos.FtraceConfig.IKprobeEvent[]|null);
             atraceCategories?: (string[]|null);
             atraceApps?: (string[]|null);
             atraceCategoriesPreferSdk?: (string[]|null);
+            atraceUserspaceOnly?: (boolean|null);
             bufferSizeKb?: (number|null);
+            bufferSizeLowerBound?: (boolean|null);
             drainPeriodMs?: (number|null);
             drainBufferPercent?: (number|null);
             compactSched?: (perfetto.protos.FtraceConfig.ICompactSchedConfig|null);
             printFilter?: (perfetto.protos.FtraceConfig.IPrintFilter|null);
             symbolizeKsyms?: (boolean|null);
             ksymsMemPolicy?: (perfetto.protos.FtraceConfig.KsymsMemPolicy|null);
-            initializeKsymsSynchronouslyForTesting?: (boolean|null);
             throttleRssStat?: (boolean|null);
+            denserGenericEventEncoding?: (boolean|null);
             disableGenericEvents?: (boolean|null);
             syscallEvents?: (string[]|null);
             enableFunctionGraph?: (boolean|null);
             functionFilters?: (string[]|null);
             functionGraphRoots?: (string[]|null);
+            functionGraphMaxDepth?: (number|null);
+            kprobeEvents?: (perfetto.protos.FtraceConfig.IKprobeEvent[]|null);
             preserveFtraceBuffer?: (boolean|null);
             useMonotonicRawClock?: (boolean|null);
             instanceName?: (string|null);
-            bufferSizeLowerBound?: (boolean|null);
+            debugFtraceAbi?: (boolean|null);
+            tidsToTrace?: (number[]|null);
+            initializeKsymsSynchronouslyForTesting?: (boolean|null);
         }
 
         class FtraceConfig implements IFtraceConfig {
             constructor(p?: perfetto.protos.IFtraceConfig);
             public ftraceEvents: string[];
-            public kprobeEvents: perfetto.protos.FtraceConfig.IKprobeEvent[];
             public atraceCategories: string[];
             public atraceApps: string[];
             public atraceCategoriesPreferSdk: string[];
+            public atraceUserspaceOnly: boolean;
             public bufferSizeKb: number;
+            public bufferSizeLowerBound: boolean;
             public drainPeriodMs: number;
             public drainBufferPercent: number;
             public compactSched?: (perfetto.protos.FtraceConfig.ICompactSchedConfig|null);
             public printFilter?: (perfetto.protos.FtraceConfig.IPrintFilter|null);
             public symbolizeKsyms: boolean;
             public ksymsMemPolicy: perfetto.protos.FtraceConfig.KsymsMemPolicy;
-            public initializeKsymsSynchronouslyForTesting: boolean;
             public throttleRssStat: boolean;
+            public denserGenericEventEncoding: boolean;
             public disableGenericEvents: boolean;
             public syscallEvents: string[];
             public enableFunctionGraph: boolean;
             public functionFilters: string[];
             public functionGraphRoots: string[];
+            public functionGraphMaxDepth: number;
+            public kprobeEvents: perfetto.protos.FtraceConfig.IKprobeEvent[];
             public preserveFtraceBuffer: boolean;
             public useMonotonicRawClock: boolean;
             public instanceName: string;
-            public bufferSizeLowerBound: boolean;
+            public debugFtraceAbi: boolean;
+            public tidsToTrace: number[];
+            public initializeKsymsSynchronouslyForTesting: boolean;
             public static create(properties?: perfetto.protos.IFtraceConfig): perfetto.protos.FtraceConfig;
             public static encode(m: perfetto.protos.IFtraceConfig, w?: $protobuf.Writer): $protobuf.Writer;
             public static decode(r: ($protobuf.Reader|Uint8Array), l?: number): perfetto.protos.FtraceConfig;
@@ -2372,34 +2431,6 @@ export namespace perfetto {
         }
 
         namespace FtraceConfig {
-
-            interface IKprobeEvent {
-                probe?: (string|null);
-                type?: (perfetto.protos.FtraceConfig.KprobeEvent.KprobeType|null);
-            }
-
-            class KprobeEvent implements IKprobeEvent {
-                constructor(p?: perfetto.protos.FtraceConfig.IKprobeEvent);
-                public probe: string;
-                public type: perfetto.protos.FtraceConfig.KprobeEvent.KprobeType;
-                public static create(properties?: perfetto.protos.FtraceConfig.IKprobeEvent): perfetto.protos.FtraceConfig.KprobeEvent;
-                public static encode(m: perfetto.protos.FtraceConfig.IKprobeEvent, w?: $protobuf.Writer): $protobuf.Writer;
-                public static decode(r: ($protobuf.Reader|Uint8Array), l?: number): perfetto.protos.FtraceConfig.KprobeEvent;
-                public static fromObject(d: { [k: string]: any }): perfetto.protos.FtraceConfig.KprobeEvent;
-                public static toObject(m: perfetto.protos.FtraceConfig.KprobeEvent, o?: $protobuf.IConversionOptions): { [k: string]: any };
-                public toJSON(): { [k: string]: any };
-                public static getTypeUrl(typeUrlPrefix?: string): string;
-            }
-
-            namespace KprobeEvent {
-
-                enum KprobeType {
-                    KPROBE_TYPE_UNKNOWN = 0,
-                    KPROBE_TYPE_KPROBE = 1,
-                    KPROBE_TYPE_KRETPROBE = 2,
-                    KPROBE_TYPE_BOTH = 3
-                }
-            }
 
             interface ICompactSchedConfig {
                 enabled?: (boolean|null);
@@ -2483,6 +2514,50 @@ export namespace perfetto {
                 KSYMS_CLEANUP_ON_STOP = 1,
                 KSYMS_RETAIN = 2
             }
+
+            interface IKprobeEvent {
+                probe?: (string|null);
+                type?: (perfetto.protos.FtraceConfig.KprobeEvent.KprobeType|null);
+            }
+
+            class KprobeEvent implements IKprobeEvent {
+                constructor(p?: perfetto.protos.FtraceConfig.IKprobeEvent);
+                public probe: string;
+                public type: perfetto.protos.FtraceConfig.KprobeEvent.KprobeType;
+                public static create(properties?: perfetto.protos.FtraceConfig.IKprobeEvent): perfetto.protos.FtraceConfig.KprobeEvent;
+                public static encode(m: perfetto.protos.FtraceConfig.IKprobeEvent, w?: $protobuf.Writer): $protobuf.Writer;
+                public static decode(r: ($protobuf.Reader|Uint8Array), l?: number): perfetto.protos.FtraceConfig.KprobeEvent;
+                public static fromObject(d: { [k: string]: any }): perfetto.protos.FtraceConfig.KprobeEvent;
+                public static toObject(m: perfetto.protos.FtraceConfig.KprobeEvent, o?: $protobuf.IConversionOptions): { [k: string]: any };
+                public toJSON(): { [k: string]: any };
+                public static getTypeUrl(typeUrlPrefix?: string): string;
+            }
+
+            namespace KprobeEvent {
+
+                enum KprobeType {
+                    KPROBE_TYPE_UNKNOWN = 0,
+                    KPROBE_TYPE_KPROBE = 1,
+                    KPROBE_TYPE_KRETPROBE = 2,
+                    KPROBE_TYPE_BOTH = 3
+                }
+            }
+        }
+
+        interface IFrozenFtraceConfig {
+            instanceName?: (string|null);
+        }
+
+        class FrozenFtraceConfig implements IFrozenFtraceConfig {
+            constructor(p?: perfetto.protos.IFrozenFtraceConfig);
+            public instanceName: string;
+            public static create(properties?: perfetto.protos.IFrozenFtraceConfig): perfetto.protos.FrozenFtraceConfig;
+            public static encode(m: perfetto.protos.IFrozenFtraceConfig, w?: $protobuf.Writer): $protobuf.Writer;
+            public static decode(r: ($protobuf.Reader|Uint8Array), l?: number): perfetto.protos.FrozenFtraceConfig;
+            public static fromObject(d: { [k: string]: any }): perfetto.protos.FrozenFtraceConfig;
+            public static toObject(m: perfetto.protos.FrozenFtraceConfig, o?: $protobuf.IConversionOptions): { [k: string]: any };
+            public toJSON(): { [k: string]: any };
+            public static getTypeUrl(typeUrlPrefix?: string): string;
         }
 
         interface IGpuCounterConfig {
@@ -3871,16 +3946,44 @@ export namespace perfetto {
             ATOM_WIFI_CONFIGURED_NETWORK_INFO = 10198
         }
 
+        interface IPriorityBoostConfig {
+            policy?: (perfetto.protos.PriorityBoostConfig.BoostPolicy|null);
+            priority?: (number|null);
+        }
+
+        class PriorityBoostConfig implements IPriorityBoostConfig {
+            constructor(p?: perfetto.protos.IPriorityBoostConfig);
+            public policy: perfetto.protos.PriorityBoostConfig.BoostPolicy;
+            public priority: number;
+            public static create(properties?: perfetto.protos.IPriorityBoostConfig): perfetto.protos.PriorityBoostConfig;
+            public static encode(m: perfetto.protos.IPriorityBoostConfig, w?: $protobuf.Writer): $protobuf.Writer;
+            public static decode(r: ($protobuf.Reader|Uint8Array), l?: number): perfetto.protos.PriorityBoostConfig;
+            public static fromObject(d: { [k: string]: any }): perfetto.protos.PriorityBoostConfig;
+            public static toObject(m: perfetto.protos.PriorityBoostConfig, o?: $protobuf.IConversionOptions): { [k: string]: any };
+            public toJSON(): { [k: string]: any };
+            public static getTypeUrl(typeUrlPrefix?: string): string;
+        }
+
+        namespace PriorityBoostConfig {
+
+            enum BoostPolicy {
+                POLICY_UNSPECIFIED = 0,
+                POLICY_SCHED_OTHER = 1,
+                POLICY_SCHED_FIFO = 2
+            }
+        }
+
         interface IProcessStatsConfig {
             quirks?: (perfetto.protos.ProcessStatsConfig.Quirks[]|null);
             scanAllProcessesOnStart?: (boolean|null);
             recordThreadNames?: (boolean|null);
             procStatsPollMs?: (number|null);
             procStatsCacheTtlMs?: (number|null);
-            resolveProcessFds?: (boolean|null);
             scanSmapsRollup?: (boolean|null);
             recordProcessAge?: (boolean|null);
             recordProcessRuntime?: (boolean|null);
+            recordProcessDmabufRss?: (boolean|null);
+            resolveProcessFds?: (boolean|null);
         }
 
         class ProcessStatsConfig implements IProcessStatsConfig {
@@ -3890,10 +3993,11 @@ export namespace perfetto {
             public recordThreadNames: boolean;
             public procStatsPollMs: number;
             public procStatsCacheTtlMs: number;
-            public resolveProcessFds: boolean;
             public scanSmapsRollup: boolean;
             public recordProcessAge: boolean;
             public recordProcessRuntime: boolean;
+            public recordProcessDmabufRss: boolean;
+            public resolveProcessFds: boolean;
             public static create(properties?: perfetto.protos.IProcessStatsConfig): perfetto.protos.ProcessStatsConfig;
             public static encode(m: perfetto.protos.IProcessStatsConfig, w?: $protobuf.Writer): $protobuf.Writer;
             public static decode(r: ($protobuf.Reader|Uint8Array), l?: number): perfetto.protos.ProcessStatsConfig;
@@ -4897,6 +5001,7 @@ export namespace perfetto {
                 pid?: (number|null);
                 uid?: (number|null);
                 machineIdHint?: (string|null);
+                machineName?: (string|null);
             }
 
             class SetPeerIdentity implements ISetPeerIdentity {
@@ -4904,6 +5009,7 @@ export namespace perfetto {
                 public pid: number;
                 public uid: number;
                 public machineIdHint: string;
+                public machineName: string;
                 public static create(properties?: perfetto.protos.IPCFrame.ISetPeerIdentity): perfetto.protos.IPCFrame.SetPeerIdentity;
                 public static encode(m: perfetto.protos.IPCFrame.ISetPeerIdentity, w?: $protobuf.Writer): $protobuf.Writer;
                 public static decode(r: ($protobuf.Reader|Uint8Array), l?: number): perfetto.protos.IPCFrame.SetPeerIdentity;
@@ -4998,6 +5104,7 @@ export namespace perfetto {
 
         interface IPerfettoSqlStructuredQuery {
             id?: (string|null);
+            referencedModules?: (string[]|null);
             table?: (perfetto.protos.PerfettoSqlStructuredQuery.ITable|null);
             sql?: (perfetto.protos.PerfettoSqlStructuredQuery.ISql|null);
             simpleSlices?: (perfetto.protos.PerfettoSqlStructuredQuery.ISimpleSlices|null);
@@ -5012,6 +5119,7 @@ export namespace perfetto {
         class PerfettoSqlStructuredQuery implements IPerfettoSqlStructuredQuery {
             constructor(p?: perfetto.protos.IPerfettoSqlStructuredQuery);
             public id: string;
+            public referencedModules: string[];
             public table?: (perfetto.protos.PerfettoSqlStructuredQuery.ITable|null);
             public sql?: (perfetto.protos.PerfettoSqlStructuredQuery.ISql|null);
             public simpleSlices?: (perfetto.protos.PerfettoSqlStructuredQuery.ISimpleSlices|null);
@@ -5035,15 +5143,15 @@ export namespace perfetto {
 
             interface ITable {
                 tableName?: (string|null);
-                moduleName?: (string|null);
                 columnNames?: (string[]|null);
+                moduleName?: (string|null);
             }
 
             class Table implements ITable {
                 constructor(p?: perfetto.protos.PerfettoSqlStructuredQuery.ITable);
                 public tableName: string;
-                public moduleName: string;
                 public columnNames: string[];
+                public moduleName: string;
                 public static create(properties?: perfetto.protos.PerfettoSqlStructuredQuery.ITable): perfetto.protos.PerfettoSqlStructuredQuery.Table;
                 public static encode(m: perfetto.protos.PerfettoSqlStructuredQuery.ITable, w?: $protobuf.Writer): $protobuf.Writer;
                 public static decode(r: ($protobuf.Reader|Uint8Array), l?: number): perfetto.protos.PerfettoSqlStructuredQuery.Table;
@@ -5078,6 +5186,7 @@ export namespace perfetto {
             interface ISql {
                 sql?: (string|null);
                 columnNames?: (string[]|null);
+                dependencies?: (perfetto.protos.PerfettoSqlStructuredQuery.Sql.IDependency[]|null);
                 preamble?: (string|null);
             }
 
@@ -5085,6 +5194,7 @@ export namespace perfetto {
                 constructor(p?: perfetto.protos.PerfettoSqlStructuredQuery.ISql);
                 public sql: string;
                 public columnNames: string[];
+                public dependencies: perfetto.protos.PerfettoSqlStructuredQuery.Sql.IDependency[];
                 public preamble: string;
                 public static create(properties?: perfetto.protos.PerfettoSqlStructuredQuery.ISql): perfetto.protos.PerfettoSqlStructuredQuery.Sql;
                 public static encode(m: perfetto.protos.PerfettoSqlStructuredQuery.ISql, w?: $protobuf.Writer): $protobuf.Writer;
@@ -5093,6 +5203,27 @@ export namespace perfetto {
                 public static toObject(m: perfetto.protos.PerfettoSqlStructuredQuery.Sql, o?: $protobuf.IConversionOptions): { [k: string]: any };
                 public toJSON(): { [k: string]: any };
                 public static getTypeUrl(typeUrlPrefix?: string): string;
+            }
+
+            namespace Sql {
+
+                interface IDependency {
+                    alias?: (string|null);
+                    query?: (perfetto.protos.IPerfettoSqlStructuredQuery|null);
+                }
+
+                class Dependency implements IDependency {
+                    constructor(p?: perfetto.protos.PerfettoSqlStructuredQuery.Sql.IDependency);
+                    public alias: string;
+                    public query?: (perfetto.protos.IPerfettoSqlStructuredQuery|null);
+                    public static create(properties?: perfetto.protos.PerfettoSqlStructuredQuery.Sql.IDependency): perfetto.protos.PerfettoSqlStructuredQuery.Sql.Dependency;
+                    public static encode(m: perfetto.protos.PerfettoSqlStructuredQuery.Sql.IDependency, w?: $protobuf.Writer): $protobuf.Writer;
+                    public static decode(r: ($protobuf.Reader|Uint8Array), l?: number): perfetto.protos.PerfettoSqlStructuredQuery.Sql.Dependency;
+                    public static fromObject(d: { [k: string]: any }): perfetto.protos.PerfettoSqlStructuredQuery.Sql.Dependency;
+                    public static toObject(m: perfetto.protos.PerfettoSqlStructuredQuery.Sql.Dependency, o?: $protobuf.IConversionOptions): { [k: string]: any };
+                    public toJSON(): { [k: string]: any };
+                    public static getTypeUrl(typeUrlPrefix?: string): string;
+                }
             }
 
             interface IIntervalIntersect {
@@ -5209,14 +5340,16 @@ export namespace perfetto {
             }
 
             interface ISelectColumn {
-                columnName?: (string|null);
+                columnNameOrExpression?: (string|null);
                 alias?: (string|null);
+                columnName?: (string|null);
             }
 
             class SelectColumn implements ISelectColumn {
                 constructor(p?: perfetto.protos.PerfettoSqlStructuredQuery.ISelectColumn);
-                public columnName: string;
+                public columnNameOrExpression: string;
                 public alias: string;
+                public columnName: string;
                 public static create(properties?: perfetto.protos.PerfettoSqlStructuredQuery.ISelectColumn): perfetto.protos.PerfettoSqlStructuredQuery.SelectColumn;
                 public static encode(m: perfetto.protos.PerfettoSqlStructuredQuery.ISelectColumn, w?: $protobuf.Writer): $protobuf.Writer;
                 public static decode(r: ($protobuf.Reader|Uint8Array), l?: number): perfetto.protos.PerfettoSqlStructuredQuery.SelectColumn;
@@ -5260,6 +5393,7 @@ export namespace perfetto {
             resetTraceProcessorArgs?: (perfetto.protos.IResetTraceProcessorArgs|null);
             registerSqlPackageArgs?: (perfetto.protos.IRegisterSqlPackageArgs|null);
             analyzeStructuredQueryArgs?: (perfetto.protos.IAnalyzeStructuredQueryArgs|null);
+            traceSummaryArgs?: (perfetto.protos.ITraceSummaryArgs|null);
             appendResult?: (perfetto.protos.IAppendTraceDataResult|null);
             queryResult?: (perfetto.protos.IQueryResult|null);
             metricResult?: (perfetto.protos.IComputeMetricResult|null);
@@ -5269,6 +5403,7 @@ export namespace perfetto {
             registerSqlPackageResult?: (perfetto.protos.IRegisterSqlPackageResult|null);
             finalizeDataResult?: (perfetto.protos.IFinalizeDataResult|null);
             analyzeStructuredQueryResult?: (perfetto.protos.IAnalyzeStructuredQueryResult|null);
+            traceSummaryResult?: (perfetto.protos.ITraceSummaryResult|null);
         }
 
         class TraceProcessorRpc implements ITraceProcessorRpc {
@@ -5285,6 +5420,7 @@ export namespace perfetto {
             public resetTraceProcessorArgs?: (perfetto.protos.IResetTraceProcessorArgs|null);
             public registerSqlPackageArgs?: (perfetto.protos.IRegisterSqlPackageArgs|null);
             public analyzeStructuredQueryArgs?: (perfetto.protos.IAnalyzeStructuredQueryArgs|null);
+            public traceSummaryArgs?: (perfetto.protos.ITraceSummaryArgs|null);
             public appendResult?: (perfetto.protos.IAppendTraceDataResult|null);
             public queryResult?: (perfetto.protos.IQueryResult|null);
             public metricResult?: (perfetto.protos.IComputeMetricResult|null);
@@ -5294,8 +5430,9 @@ export namespace perfetto {
             public registerSqlPackageResult?: (perfetto.protos.IRegisterSqlPackageResult|null);
             public finalizeDataResult?: (perfetto.protos.IFinalizeDataResult|null);
             public analyzeStructuredQueryResult?: (perfetto.protos.IAnalyzeStructuredQueryResult|null);
+            public traceSummaryResult?: (perfetto.protos.ITraceSummaryResult|null);
             public type?: ("request"|"response"|"invalidRequest");
-            public args?: ("appendTraceData"|"queryArgs"|"computeMetricArgs"|"enableMetatraceArgs"|"resetTraceProcessorArgs"|"registerSqlPackageArgs"|"analyzeStructuredQueryArgs"|"appendResult"|"queryResult"|"metricResult"|"metricDescriptors"|"metatrace"|"status"|"registerSqlPackageResult"|"finalizeDataResult"|"analyzeStructuredQueryResult");
+            public args?: ("appendTraceData"|"queryArgs"|"computeMetricArgs"|"enableMetatraceArgs"|"resetTraceProcessorArgs"|"registerSqlPackageArgs"|"analyzeStructuredQueryArgs"|"traceSummaryArgs"|"appendResult"|"queryResult"|"metricResult"|"metricDescriptors"|"metatrace"|"status"|"registerSqlPackageResult"|"finalizeDataResult"|"analyzeStructuredQueryResult"|"traceSummaryResult");
             public static create(properties?: perfetto.protos.ITraceProcessorRpc): perfetto.protos.TraceProcessorRpc;
             public static encode(m: perfetto.protos.ITraceProcessorRpc, w?: $protobuf.Writer): $protobuf.Writer;
             public static decode(r: ($protobuf.Reader|Uint8Array), l?: number): perfetto.protos.TraceProcessorRpc;
@@ -5320,7 +5457,8 @@ export namespace perfetto {
                 TPM_GET_STATUS = 10,
                 TPM_RESET_TRACE_PROCESSOR = 11,
                 TPM_REGISTER_SQL_PACKAGE = 13,
-                TPM_ANALYZE_STRUCTURED_QUERY = 14
+                TPM_ANALYZE_STRUCTURED_QUERY = 14,
+                TPM_SUMMARIZE_TRACE = 15
             }
         }
 
@@ -5743,6 +5881,7 @@ export namespace perfetto {
                 textproto?: (string|null);
                 modules?: (string[]|null);
                 preambles?: (string[]|null);
+                columns?: (string[]|null);
             }
 
             class StructuredQueryResult implements IStructuredQueryResult {
@@ -5751,6 +5890,7 @@ export namespace perfetto {
                 public textproto: string;
                 public modules: string[];
                 public preambles: string[];
+                public columns: string[];
                 public static create(properties?: perfetto.protos.AnalyzeStructuredQueryResult.IStructuredQueryResult): perfetto.protos.AnalyzeStructuredQueryResult.StructuredQueryResult;
                 public static encode(m: perfetto.protos.AnalyzeStructuredQueryResult.IStructuredQueryResult, w?: $protobuf.Writer): $protobuf.Writer;
                 public static decode(r: ($protobuf.Reader|Uint8Array), l?: number): perfetto.protos.AnalyzeStructuredQueryResult.StructuredQueryResult;
@@ -5759,6 +5899,77 @@ export namespace perfetto {
                 public toJSON(): { [k: string]: any };
                 public static getTypeUrl(typeUrlPrefix?: string): string;
             }
+        }
+
+        interface ITraceSummaryArgs {
+            protoSpecs?: (perfetto.protos.ITraceSummarySpec[]|null);
+            textprotoSpecs?: (string[]|null);
+            computationSpec?: (perfetto.protos.TraceSummaryArgs.IComputationSpec|null);
+            outputFormat?: (perfetto.protos.TraceSummaryArgs.Format|null);
+        }
+
+        class TraceSummaryArgs implements ITraceSummaryArgs {
+            constructor(p?: perfetto.protos.ITraceSummaryArgs);
+            public protoSpecs: perfetto.protos.ITraceSummarySpec[];
+            public textprotoSpecs: string[];
+            public computationSpec?: (perfetto.protos.TraceSummaryArgs.IComputationSpec|null);
+            public outputFormat: perfetto.protos.TraceSummaryArgs.Format;
+            public static create(properties?: perfetto.protos.ITraceSummaryArgs): perfetto.protos.TraceSummaryArgs;
+            public static encode(m: perfetto.protos.ITraceSummaryArgs, w?: $protobuf.Writer): $protobuf.Writer;
+            public static decode(r: ($protobuf.Reader|Uint8Array), l?: number): perfetto.protos.TraceSummaryArgs;
+            public static fromObject(d: { [k: string]: any }): perfetto.protos.TraceSummaryArgs;
+            public static toObject(m: perfetto.protos.TraceSummaryArgs, o?: $protobuf.IConversionOptions): { [k: string]: any };
+            public toJSON(): { [k: string]: any };
+            public static getTypeUrl(typeUrlPrefix?: string): string;
+        }
+
+        namespace TraceSummaryArgs {
+
+            interface IComputationSpec {
+                metricIds?: (string[]|null);
+                runAllMetrics?: (boolean|null);
+                metadataQueryId?: (string|null);
+            }
+
+            class ComputationSpec implements IComputationSpec {
+                constructor(p?: perfetto.protos.TraceSummaryArgs.IComputationSpec);
+                public metricIds: string[];
+                public runAllMetrics: boolean;
+                public metadataQueryId: string;
+                public static create(properties?: perfetto.protos.TraceSummaryArgs.IComputationSpec): perfetto.protos.TraceSummaryArgs.ComputationSpec;
+                public static encode(m: perfetto.protos.TraceSummaryArgs.IComputationSpec, w?: $protobuf.Writer): $protobuf.Writer;
+                public static decode(r: ($protobuf.Reader|Uint8Array), l?: number): perfetto.protos.TraceSummaryArgs.ComputationSpec;
+                public static fromObject(d: { [k: string]: any }): perfetto.protos.TraceSummaryArgs.ComputationSpec;
+                public static toObject(m: perfetto.protos.TraceSummaryArgs.ComputationSpec, o?: $protobuf.IConversionOptions): { [k: string]: any };
+                public toJSON(): { [k: string]: any };
+                public static getTypeUrl(typeUrlPrefix?: string): string;
+            }
+
+            enum Format {
+                BINARY_PROTOBUF = 0,
+                TEXTPROTO = 1
+            }
+        }
+
+        interface ITraceSummaryResult {
+            protoSummary?: (Uint8Array|null);
+            textprotoSummary?: (string|null);
+            error?: (string|null);
+        }
+
+        class TraceSummaryResult implements ITraceSummaryResult {
+            constructor(p?: perfetto.protos.ITraceSummaryResult);
+            public protoSummary?: (Uint8Array|null);
+            public textprotoSummary?: (string|null);
+            public error: string;
+            public summary?: ("protoSummary"|"textprotoSummary");
+            public static create(properties?: perfetto.protos.ITraceSummaryResult): perfetto.protos.TraceSummaryResult;
+            public static encode(m: perfetto.protos.ITraceSummaryResult, w?: $protobuf.Writer): $protobuf.Writer;
+            public static decode(r: ($protobuf.Reader|Uint8Array), l?: number): perfetto.protos.TraceSummaryResult;
+            public static fromObject(d: { [k: string]: any }): perfetto.protos.TraceSummaryResult;
+            public static toObject(m: perfetto.protos.TraceSummaryResult, o?: $protobuf.IConversionOptions): { [k: string]: any };
+            public toJSON(): { [k: string]: any };
+            public static getTypeUrl(typeUrlPrefix?: string): string;
         }
 
         interface IFileDescriptorSet {
@@ -6065,6 +6276,348 @@ export namespace perfetto {
             API_TIMELINE = 16,
             NONE = 0,
             ALL = 31
+        }
+
+        interface ITraceSummarySpec {
+            metricSpec?: (perfetto.protos.ITraceMetricV2Spec[]|null);
+            query?: (perfetto.protos.IPerfettoSqlStructuredQuery[]|null);
+            metricTemplateSpec?: (perfetto.protos.ITraceMetricV2TemplateSpec[]|null);
+        }
+
+        class TraceSummarySpec implements ITraceSummarySpec {
+            constructor(p?: perfetto.protos.ITraceSummarySpec);
+            public metricSpec: perfetto.protos.ITraceMetricV2Spec[];
+            public query: perfetto.protos.IPerfettoSqlStructuredQuery[];
+            public metricTemplateSpec: perfetto.protos.ITraceMetricV2TemplateSpec[];
+            public static create(properties?: perfetto.protos.ITraceSummarySpec): perfetto.protos.TraceSummarySpec;
+            public static encode(m: perfetto.protos.ITraceSummarySpec, w?: $protobuf.Writer): $protobuf.Writer;
+            public static decode(r: ($protobuf.Reader|Uint8Array), l?: number): perfetto.protos.TraceSummarySpec;
+            public static fromObject(d: { [k: string]: any }): perfetto.protos.TraceSummarySpec;
+            public static toObject(m: perfetto.protos.TraceSummarySpec, o?: $protobuf.IConversionOptions): { [k: string]: any };
+            public toJSON(): { [k: string]: any };
+            public static getTypeUrl(typeUrlPrefix?: string): string;
+        }
+
+        interface ITraceSummary {
+            metricBundles?: (perfetto.protos.ITraceMetricV2Bundle[]|null);
+            metadata?: (perfetto.protos.TraceSummary.IMetadata[]|null);
+        }
+
+        class TraceSummary implements ITraceSummary {
+            constructor(p?: perfetto.protos.ITraceSummary);
+            public metricBundles: perfetto.protos.ITraceMetricV2Bundle[];
+            public metadata: perfetto.protos.TraceSummary.IMetadata[];
+            public static create(properties?: perfetto.protos.ITraceSummary): perfetto.protos.TraceSummary;
+            public static encode(m: perfetto.protos.ITraceSummary, w?: $protobuf.Writer): $protobuf.Writer;
+            public static decode(r: ($protobuf.Reader|Uint8Array), l?: number): perfetto.protos.TraceSummary;
+            public static fromObject(d: { [k: string]: any }): perfetto.protos.TraceSummary;
+            public static toObject(m: perfetto.protos.TraceSummary, o?: $protobuf.IConversionOptions): { [k: string]: any };
+            public toJSON(): { [k: string]: any };
+            public static getTypeUrl(typeUrlPrefix?: string): string;
+        }
+
+        namespace TraceSummary {
+
+            interface IMetadata {
+                key?: (string|null);
+                value?: (string|null);
+            }
+
+            class Metadata implements IMetadata {
+                constructor(p?: perfetto.protos.TraceSummary.IMetadata);
+                public key: string;
+                public value: string;
+                public static create(properties?: perfetto.protos.TraceSummary.IMetadata): perfetto.protos.TraceSummary.Metadata;
+                public static encode(m: perfetto.protos.TraceSummary.IMetadata, w?: $protobuf.Writer): $protobuf.Writer;
+                public static decode(r: ($protobuf.Reader|Uint8Array), l?: number): perfetto.protos.TraceSummary.Metadata;
+                public static fromObject(d: { [k: string]: any }): perfetto.protos.TraceSummary.Metadata;
+                public static toObject(m: perfetto.protos.TraceSummary.Metadata, o?: $protobuf.IConversionOptions): { [k: string]: any };
+                public toJSON(): { [k: string]: any };
+                public static getTypeUrl(typeUrlPrefix?: string): string;
+            }
+        }
+
+        interface ITraceMetricV2Spec {
+            id?: (string|null);
+            dimensionsSpecs?: (perfetto.protos.TraceMetricV2Spec.IDimensionSpec[]|null);
+            dimensions?: (string[]|null);
+            value?: (string|null);
+            query?: (perfetto.protos.IPerfettoSqlStructuredQuery|null);
+            dimensionUniqueness?: (perfetto.protos.TraceMetricV2Spec.DimensionUniqueness|null);
+            bundleId?: (string|null);
+            unit?: (perfetto.protos.TraceMetricV2Spec.MetricUnit|null);
+            customUnit?: (string|null);
+            polarity?: (perfetto.protos.TraceMetricV2Spec.MetricPolarity|null);
+        }
+
+        class TraceMetricV2Spec implements ITraceMetricV2Spec {
+            constructor(p?: perfetto.protos.ITraceMetricV2Spec);
+            public id: string;
+            public dimensionsSpecs: perfetto.protos.TraceMetricV2Spec.IDimensionSpec[];
+            public dimensions: string[];
+            public value: string;
+            public query?: (perfetto.protos.IPerfettoSqlStructuredQuery|null);
+            public dimensionUniqueness: perfetto.protos.TraceMetricV2Spec.DimensionUniqueness;
+            public bundleId: string;
+            public unit?: (perfetto.protos.TraceMetricV2Spec.MetricUnit|null);
+            public customUnit?: (string|null);
+            public polarity: perfetto.protos.TraceMetricV2Spec.MetricPolarity;
+            public unitOneof?: ("unit"|"customUnit");
+            public static create(properties?: perfetto.protos.ITraceMetricV2Spec): perfetto.protos.TraceMetricV2Spec;
+            public static encode(m: perfetto.protos.ITraceMetricV2Spec, w?: $protobuf.Writer): $protobuf.Writer;
+            public static decode(r: ($protobuf.Reader|Uint8Array), l?: number): perfetto.protos.TraceMetricV2Spec;
+            public static fromObject(d: { [k: string]: any }): perfetto.protos.TraceMetricV2Spec;
+            public static toObject(m: perfetto.protos.TraceMetricV2Spec, o?: $protobuf.IConversionOptions): { [k: string]: any };
+            public toJSON(): { [k: string]: any };
+            public static getTypeUrl(typeUrlPrefix?: string): string;
+        }
+
+        namespace TraceMetricV2Spec {
+
+            enum DimensionType {
+                DIMENSION_TYPE_UNSPECIFIED = 0,
+                STRING = 1,
+                INT64 = 2,
+                DOUBLE = 3
+            }
+
+            interface IDimensionSpec {
+                name?: (string|null);
+                type?: (perfetto.protos.TraceMetricV2Spec.DimensionType|null);
+            }
+
+            class DimensionSpec implements IDimensionSpec {
+                constructor(p?: perfetto.protos.TraceMetricV2Spec.IDimensionSpec);
+                public name: string;
+                public type: perfetto.protos.TraceMetricV2Spec.DimensionType;
+                public static create(properties?: perfetto.protos.TraceMetricV2Spec.IDimensionSpec): perfetto.protos.TraceMetricV2Spec.DimensionSpec;
+                public static encode(m: perfetto.protos.TraceMetricV2Spec.IDimensionSpec, w?: $protobuf.Writer): $protobuf.Writer;
+                public static decode(r: ($protobuf.Reader|Uint8Array), l?: number): perfetto.protos.TraceMetricV2Spec.DimensionSpec;
+                public static fromObject(d: { [k: string]: any }): perfetto.protos.TraceMetricV2Spec.DimensionSpec;
+                public static toObject(m: perfetto.protos.TraceMetricV2Spec.DimensionSpec, o?: $protobuf.IConversionOptions): { [k: string]: any };
+                public toJSON(): { [k: string]: any };
+                public static getTypeUrl(typeUrlPrefix?: string): string;
+            }
+
+            enum DimensionUniqueness {
+                DIMENSION_UNIQUENESS_UNSPECIFIED = 0,
+                NOT_UNIQUE = 1,
+                UNIQUE = 2
+            }
+
+            enum MetricUnit {
+                METRIC_UNIT_UNSPECIFIED = 0,
+                COUNT = 1,
+                TIME_NANOS = 2,
+                TIME_MICROS = 3,
+                TIME_MILLIS = 4,
+                TIME_SECONDS = 5,
+                TIME_HOURS = 6,
+                TIME_DAYS = 7,
+                BYTES = 8,
+                KILOBYTES = 9,
+                MEGABYTES = 10,
+                SECONDS_PER_HOUR = 11,
+                BOUNDED_PERCENTAGE = 12,
+                PERCENTAGE = 13,
+                MINUTES_PER_DAY = 14,
+                MILLI_AMPS = 15,
+                PERCENT_PER_HOUR = 16,
+                MILLI_AMP_HOURS = 17,
+                PERCENT_PER_HOUR_LEGACY = 18,
+                MILLI_WATTS = 19,
+                COUNT_PER_SECOND = 20,
+                KILOBYTES_PER_HOUR = 21,
+                MILLI_WATT_HOURS = 22,
+                COUNT_PER_HOUR = 23,
+                COUNT_DELTA_PER_HOUR = 24,
+                BYTES_DELTA_PER_HOUR = 25,
+                CORRELATION_COEFFICIENT = 26,
+                MILLI_VOLTS = 27
+            }
+
+            enum MetricPolarity {
+                POLARITY_UNSPECIFIED = 0,
+                HIGHER_IS_BETTER = 1,
+                LOWER_IS_BETTER = 2,
+                NOT_APPLICABLE = 3
+            }
+        }
+
+        interface ITraceMetricV2TemplateSpec {
+            idPrefix?: (string|null);
+            dimensionsSpecs?: (perfetto.protos.TraceMetricV2Spec.IDimensionSpec[]|null);
+            dimensions?: (string[]|null);
+            valueColumns?: (string[]|null);
+            valueColumnSpecs?: (perfetto.protos.TraceMetricV2TemplateSpec.IValueColumnSpec[]|null);
+            query?: (perfetto.protos.IPerfettoSqlStructuredQuery|null);
+            dimensionUniqueness?: (perfetto.protos.TraceMetricV2Spec.DimensionUniqueness|null);
+            disableAutoBundling?: (boolean|null);
+        }
+
+        class TraceMetricV2TemplateSpec implements ITraceMetricV2TemplateSpec {
+            constructor(p?: perfetto.protos.ITraceMetricV2TemplateSpec);
+            public idPrefix: string;
+            public dimensionsSpecs: perfetto.protos.TraceMetricV2Spec.IDimensionSpec[];
+            public dimensions: string[];
+            public valueColumns: string[];
+            public valueColumnSpecs: perfetto.protos.TraceMetricV2TemplateSpec.IValueColumnSpec[];
+            public query?: (perfetto.protos.IPerfettoSqlStructuredQuery|null);
+            public dimensionUniqueness: perfetto.protos.TraceMetricV2Spec.DimensionUniqueness;
+            public disableAutoBundling: boolean;
+            public static create(properties?: perfetto.protos.ITraceMetricV2TemplateSpec): perfetto.protos.TraceMetricV2TemplateSpec;
+            public static encode(m: perfetto.protos.ITraceMetricV2TemplateSpec, w?: $protobuf.Writer): $protobuf.Writer;
+            public static decode(r: ($protobuf.Reader|Uint8Array), l?: number): perfetto.protos.TraceMetricV2TemplateSpec;
+            public static fromObject(d: { [k: string]: any }): perfetto.protos.TraceMetricV2TemplateSpec;
+            public static toObject(m: perfetto.protos.TraceMetricV2TemplateSpec, o?: $protobuf.IConversionOptions): { [k: string]: any };
+            public toJSON(): { [k: string]: any };
+            public static getTypeUrl(typeUrlPrefix?: string): string;
+        }
+
+        namespace TraceMetricV2TemplateSpec {
+
+            interface IValueColumnSpec {
+                name?: (string|null);
+                unit?: (perfetto.protos.TraceMetricV2Spec.MetricUnit|null);
+                customUnit?: (string|null);
+                polarity?: (perfetto.protos.TraceMetricV2Spec.MetricPolarity|null);
+            }
+
+            class ValueColumnSpec implements IValueColumnSpec {
+                constructor(p?: perfetto.protos.TraceMetricV2TemplateSpec.IValueColumnSpec);
+                public name: string;
+                public unit?: (perfetto.protos.TraceMetricV2Spec.MetricUnit|null);
+                public customUnit?: (string|null);
+                public polarity: perfetto.protos.TraceMetricV2Spec.MetricPolarity;
+                public unitOneof?: ("unit"|"customUnit");
+                public static create(properties?: perfetto.protos.TraceMetricV2TemplateSpec.IValueColumnSpec): perfetto.protos.TraceMetricV2TemplateSpec.ValueColumnSpec;
+                public static encode(m: perfetto.protos.TraceMetricV2TemplateSpec.IValueColumnSpec, w?: $protobuf.Writer): $protobuf.Writer;
+                public static decode(r: ($protobuf.Reader|Uint8Array), l?: number): perfetto.protos.TraceMetricV2TemplateSpec.ValueColumnSpec;
+                public static fromObject(d: { [k: string]: any }): perfetto.protos.TraceMetricV2TemplateSpec.ValueColumnSpec;
+                public static toObject(m: perfetto.protos.TraceMetricV2TemplateSpec.ValueColumnSpec, o?: $protobuf.IConversionOptions): { [k: string]: any };
+                public toJSON(): { [k: string]: any };
+                public static getTypeUrl(typeUrlPrefix?: string): string;
+            }
+        }
+
+        interface ITraceMetricV2Bundle {
+            bundleId?: (string|null);
+            row?: (perfetto.protos.TraceMetricV2Bundle.IRow[]|null);
+            specs?: (perfetto.protos.ITraceMetricV2Spec[]|null);
+        }
+
+        class TraceMetricV2Bundle implements ITraceMetricV2Bundle {
+            constructor(p?: perfetto.protos.ITraceMetricV2Bundle);
+            public bundleId: string;
+            public row: perfetto.protos.TraceMetricV2Bundle.IRow[];
+            public specs: perfetto.protos.ITraceMetricV2Spec[];
+            public static create(properties?: perfetto.protos.ITraceMetricV2Bundle): perfetto.protos.TraceMetricV2Bundle;
+            public static encode(m: perfetto.protos.ITraceMetricV2Bundle, w?: $protobuf.Writer): $protobuf.Writer;
+            public static decode(r: ($protobuf.Reader|Uint8Array), l?: number): perfetto.protos.TraceMetricV2Bundle;
+            public static fromObject(d: { [k: string]: any }): perfetto.protos.TraceMetricV2Bundle;
+            public static toObject(m: perfetto.protos.TraceMetricV2Bundle, o?: $protobuf.IConversionOptions): { [k: string]: any };
+            public toJSON(): { [k: string]: any };
+            public static getTypeUrl(typeUrlPrefix?: string): string;
+        }
+
+        namespace TraceMetricV2Bundle {
+
+            interface IRow {
+                values?: (perfetto.protos.TraceMetricV2Bundle.Row.IValue[]|null);
+                dimension?: (perfetto.protos.TraceMetricV2Bundle.Row.IDimension[]|null);
+            }
+
+            class Row implements IRow {
+                constructor(p?: perfetto.protos.TraceMetricV2Bundle.IRow);
+                public values: perfetto.protos.TraceMetricV2Bundle.Row.IValue[];
+                public dimension: perfetto.protos.TraceMetricV2Bundle.Row.IDimension[];
+                public static create(properties?: perfetto.protos.TraceMetricV2Bundle.IRow): perfetto.protos.TraceMetricV2Bundle.Row;
+                public static encode(m: perfetto.protos.TraceMetricV2Bundle.IRow, w?: $protobuf.Writer): $protobuf.Writer;
+                public static decode(r: ($protobuf.Reader|Uint8Array), l?: number): perfetto.protos.TraceMetricV2Bundle.Row;
+                public static fromObject(d: { [k: string]: any }): perfetto.protos.TraceMetricV2Bundle.Row;
+                public static toObject(m: perfetto.protos.TraceMetricV2Bundle.Row, o?: $protobuf.IConversionOptions): { [k: string]: any };
+                public toJSON(): { [k: string]: any };
+                public static getTypeUrl(typeUrlPrefix?: string): string;
+            }
+
+            namespace Row {
+
+                interface IValue {
+                    nullValue?: (perfetto.protos.TraceMetricV2Bundle.Row.Value.INull|null);
+                    doubleValue?: (number|null);
+                }
+
+                class Value implements IValue {
+                    constructor(p?: perfetto.protos.TraceMetricV2Bundle.Row.IValue);
+                    public nullValue?: (perfetto.protos.TraceMetricV2Bundle.Row.Value.INull|null);
+                    public doubleValue?: (number|null);
+                    public valueOneof?: ("nullValue"|"doubleValue");
+                    public static create(properties?: perfetto.protos.TraceMetricV2Bundle.Row.IValue): perfetto.protos.TraceMetricV2Bundle.Row.Value;
+                    public static encode(m: perfetto.protos.TraceMetricV2Bundle.Row.IValue, w?: $protobuf.Writer): $protobuf.Writer;
+                    public static decode(r: ($protobuf.Reader|Uint8Array), l?: number): perfetto.protos.TraceMetricV2Bundle.Row.Value;
+                    public static fromObject(d: { [k: string]: any }): perfetto.protos.TraceMetricV2Bundle.Row.Value;
+                    public static toObject(m: perfetto.protos.TraceMetricV2Bundle.Row.Value, o?: $protobuf.IConversionOptions): { [k: string]: any };
+                    public toJSON(): { [k: string]: any };
+                    public static getTypeUrl(typeUrlPrefix?: string): string;
+                }
+
+                namespace Value {
+
+                    interface INull {
+                    }
+
+                    class Null implements INull {
+                        constructor(p?: perfetto.protos.TraceMetricV2Bundle.Row.Value.INull);
+                        public static create(properties?: perfetto.protos.TraceMetricV2Bundle.Row.Value.INull): perfetto.protos.TraceMetricV2Bundle.Row.Value.Null;
+                        public static encode(m: perfetto.protos.TraceMetricV2Bundle.Row.Value.INull, w?: $protobuf.Writer): $protobuf.Writer;
+                        public static decode(r: ($protobuf.Reader|Uint8Array), l?: number): perfetto.protos.TraceMetricV2Bundle.Row.Value.Null;
+                        public static fromObject(d: { [k: string]: any }): perfetto.protos.TraceMetricV2Bundle.Row.Value.Null;
+                        public static toObject(m: perfetto.protos.TraceMetricV2Bundle.Row.Value.Null, o?: $protobuf.IConversionOptions): { [k: string]: any };
+                        public toJSON(): { [k: string]: any };
+                        public static getTypeUrl(typeUrlPrefix?: string): string;
+                    }
+                }
+
+                interface IDimension {
+                    stringValue?: (string|null);
+                    int64Value?: (number|null);
+                    doubleValue?: (number|null);
+                    nullValue?: (perfetto.protos.TraceMetricV2Bundle.Row.Dimension.INull|null);
+                }
+
+                class Dimension implements IDimension {
+                    constructor(p?: perfetto.protos.TraceMetricV2Bundle.Row.IDimension);
+                    public stringValue?: (string|null);
+                    public int64Value?: (number|null);
+                    public doubleValue?: (number|null);
+                    public nullValue?: (perfetto.protos.TraceMetricV2Bundle.Row.Dimension.INull|null);
+                    public valueOneof?: ("stringValue"|"int64Value"|"doubleValue"|"nullValue");
+                    public static create(properties?: perfetto.protos.TraceMetricV2Bundle.Row.IDimension): perfetto.protos.TraceMetricV2Bundle.Row.Dimension;
+                    public static encode(m: perfetto.protos.TraceMetricV2Bundle.Row.IDimension, w?: $protobuf.Writer): $protobuf.Writer;
+                    public static decode(r: ($protobuf.Reader|Uint8Array), l?: number): perfetto.protos.TraceMetricV2Bundle.Row.Dimension;
+                    public static fromObject(d: { [k: string]: any }): perfetto.protos.TraceMetricV2Bundle.Row.Dimension;
+                    public static toObject(m: perfetto.protos.TraceMetricV2Bundle.Row.Dimension, o?: $protobuf.IConversionOptions): { [k: string]: any };
+                    public toJSON(): { [k: string]: any };
+                    public static getTypeUrl(typeUrlPrefix?: string): string;
+                }
+
+                namespace Dimension {
+
+                    interface INull {
+                    }
+
+                    class Null implements INull {
+                        constructor(p?: perfetto.protos.TraceMetricV2Bundle.Row.Dimension.INull);
+                        public static create(properties?: perfetto.protos.TraceMetricV2Bundle.Row.Dimension.INull): perfetto.protos.TraceMetricV2Bundle.Row.Dimension.Null;
+                        public static encode(m: perfetto.protos.TraceMetricV2Bundle.Row.Dimension.INull, w?: $protobuf.Writer): $protobuf.Writer;
+                        public static decode(r: ($protobuf.Reader|Uint8Array), l?: number): perfetto.protos.TraceMetricV2Bundle.Row.Dimension.Null;
+                        public static fromObject(d: { [k: string]: any }): perfetto.protos.TraceMetricV2Bundle.Row.Dimension.Null;
+                        public static toObject(m: perfetto.protos.TraceMetricV2Bundle.Row.Dimension.Null, o?: $protobuf.IConversionOptions): { [k: string]: any };
+                        public toJSON(): { [k: string]: any };
+                        public static getTypeUrl(typeUrlPrefix?: string): string;
+                    }
+                }
+            }
         }
     }
 }

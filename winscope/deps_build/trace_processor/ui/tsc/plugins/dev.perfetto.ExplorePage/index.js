@@ -24,18 +24,18 @@ class default_1 {
     // state/charts for the lifecycle of a single
     // trace.
     state = {
-        mode: explore_page_1.ExplorePageModes.QUERY_BUILDER,
         rootNodes: [],
+        nodeLayouts: new Map(),
     };
     async onTraceLoad(trace) {
         trace.pages.registerPage({
             route: '/explore',
-            page: {
-                view: ({ attrs }) => (0, mithril_1.default)(explore_page_1.ExplorePage, {
-                    ...attrs,
+            render: () => {
+                return (0, mithril_1.default)(explore_page_1.ExplorePage, {
+                    trace,
                     state: this.state,
-                    sqlModulesPlugin: attrs.trace.plugins.getPlugin(dev_perfetto_SqlModules_1.default),
-                }),
+                    sqlModulesPlugin: trace.plugins.getPlugin(dev_perfetto_SqlModules_1.default),
+                });
             },
         });
         trace.sidebar.addMenuItem({

@@ -15,22 +15,27 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.calculateResolution = calculateResolution;
 const bigint_math_1 = require("../../base/bigint_math");
+const result_1 = require("../../base/result");
 /**
  * Work out an appropriate "resolution" for a given time span stretched over a
- * given number of pixels.
- *
- * The returned value will be rounded down to the nearest power of 2, and will
- * always be >= 1.
+ * given number of pixels, rounded down to the nearest power of 2.
  *
  * @param timeSpan The span of time to represent.
  * @param widthPx How many pixels we have to represent the time span.
- * @returns The resultant resolution.
+ * @returns The resultant resolution, or an error if the input parameters are
+ * invalid.
  */
 function calculateResolution(timeSpan, widthPx) {
-    // Work out how much time corresponds to one pixel
-    const timePerPixel = Number(timeSpan.duration) / widthPx;
-    // Round down to the nearest power of 2, noting that the smallest value this
-    // function can return is 1
-    return bigint_math_1.BigintMath.bitFloor(BigInt(Math.floor(timePerPixel)));
+    if (widthPx <= 0) {
+        return (0, result_1.errResult)('Parameter "widthPx" must be greater than 0.');
+    }
+    const dur = timeSpan.duration;
+    if (dur <= 0) {
+        return (0, result_1.errResult)('The duration of the "timeSpan" parameter must be greater than 0.');
+    }
+    // Work out how much time corresponds to one pixel.
+    const timePerPixel = Number(dur) / widthPx;
+    // Convert to a bigint and round down to the nearest power of 2.
+    return (0, result_1.okResult)(bigint_math_1.BigintMath.bitFloor(BigInt(Math.floor(timePerPixel))));
 }
 //# sourceMappingURL=resolution.js.map

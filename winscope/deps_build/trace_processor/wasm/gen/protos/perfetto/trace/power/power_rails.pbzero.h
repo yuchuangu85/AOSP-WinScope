@@ -25,7 +25,7 @@ namespace perfetto {
 namespace protos {
 namespace pbzero {
 
-class PowerRails_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/2, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
+class PowerRails_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/3, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
  public:
   PowerRails_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
   explicit PowerRails_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
@@ -34,6 +34,8 @@ class PowerRails_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=
   ::protozero::RepeatedFieldIterator<::protozero::ConstBytes> rail_descriptor() const { return GetRepeated<::protozero::ConstBytes>(1); }
   bool has_energy_data() const { return at<2>().valid(); }
   ::protozero::RepeatedFieldIterator<::protozero::ConstBytes> energy_data() const { return GetRepeated<::protozero::ConstBytes>(2); }
+  bool has_session_uuid() const { return at<3>().valid(); }
+  uint64_t session_uuid() const { return at<3>().as_uint64(); }
 };
 
 class PowerRails : public ::protozero::Message {
@@ -42,6 +44,7 @@ class PowerRails : public ::protozero::Message {
   enum : int32_t {
     kRailDescriptorFieldNumber = 1,
     kEnergyDataFieldNumber = 2,
+    kSessionUuidFieldNumber = 3,
   };
   static constexpr const char* GetName() { return ".perfetto.protos.PowerRails"; }
 
@@ -75,6 +78,24 @@ class PowerRails : public ::protozero::Message {
     return BeginNestedMessage<T>(2);
   }
 
+
+  using FieldMetadata_SessionUuid =
+    ::protozero::proto_utils::FieldMetadata<
+      3,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kUint64,
+      uint64_t,
+      PowerRails>;
+
+  static constexpr FieldMetadata_SessionUuid kSessionUuid{};
+  void set_session_uuid(uint64_t value) {
+    static constexpr uint32_t field_id = FieldMetadata_SessionUuid::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kUint64>
+        ::Append(*this, field_id, value);
+  }
 };
 
 class PowerRails_EnergyData_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/3, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {

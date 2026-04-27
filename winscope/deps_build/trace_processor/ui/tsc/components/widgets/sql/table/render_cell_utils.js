@@ -26,7 +26,6 @@ const string_utils_1 = require("../../../../base/string_utils");
 const semantic_icons_1 = require("../../../../base/semantic_icons");
 const clipboard_1 = require("../../../../base/clipboard");
 const sql_utils_1 = require("../../../../trace_processor/sql_utils");
-const anchor_1 = require("../../../../widgets/anchor");
 exports.LegacySqlTableFilterOptions = {
     'glob': { op: 'glob', label: 'glob', requiresParam: true },
     'equals to': { op: '=', label: 'equals to', requiresParam: true },
@@ -110,17 +109,23 @@ function getStandardContextMenuItems(value, column, tableManager) {
 }
 function displayValue(value) {
     if (value === null) {
-        return (0, mithril_1.default)('i', 'NULL');
+        return 'null';
     }
     return (0, sql_utils_1.sqlValueToReadableString)(value);
 }
 function renderStandardCell(value, column, tableManager) {
+    const contentWithFormatting = {
+        content: displayValue(value),
+        isNumerical: typeof value === 'number' || typeof value === 'bigint',
+        isNull: value == null,
+    };
     if (tableManager === undefined) {
-        return displayValue(value);
+        return contentWithFormatting;
     }
     const contextMenuItems = getStandardContextMenuItems(value, column, tableManager);
-    return (0, mithril_1.default)(menu_1.PopupMenu, {
-        trigger: (0, mithril_1.default)(anchor_1.Anchor, displayValue(value)),
-    }, ...contextMenuItems);
+    return {
+        ...contentWithFormatting,
+        menu: contextMenuItems,
+    };
 }
 //# sourceMappingURL=render_cell_utils.js.map

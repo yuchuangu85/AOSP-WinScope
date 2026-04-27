@@ -36,6 +36,10 @@ class RegisterSqlPackageResult;
 class ResetTraceProcessorArgs;
 class StatusResult;
 class TraceProcessorRpc;
+class TraceSummaryArgs;
+class TraceSummaryArgs_ComputationSpec;
+class TraceSummaryResult;
+class TraceSummarySpec;
 namespace perfetto_pbzero_enum_ComputeMetricArgs {
 enum ResultFormat : int32_t;
 }  // namespace perfetto_pbzero_enum_ComputeMetricArgs
@@ -57,6 +61,10 @@ namespace perfetto_pbzero_enum_TraceProcessorRpc {
 enum TraceProcessorMethod : int32_t;
 }  // namespace perfetto_pbzero_enum_TraceProcessorRpc
 using TraceProcessorRpc_TraceProcessorMethod = perfetto_pbzero_enum_TraceProcessorRpc::TraceProcessorMethod;
+namespace perfetto_pbzero_enum_TraceSummaryArgs {
+enum Format : int32_t;
+}  // namespace perfetto_pbzero_enum_TraceSummaryArgs
+using TraceSummaryArgs_Format = perfetto_pbzero_enum_TraceSummaryArgs::Format;
 } // Namespace pbzero.
 } // Namespace protos.
 } // Namespace perfetto.
@@ -78,6 +86,31 @@ const char* TraceProcessorApiVersion_Name(::perfetto::protos::pbzero::TraceProce
   switch (value) {
   case ::perfetto::protos::pbzero::TraceProcessorApiVersion::TRACE_PROCESSOR_CURRENT_API_VERSION:
     return "TRACE_PROCESSOR_CURRENT_API_VERSION";
+  }
+  return "PBZERO_UNKNOWN_ENUM_VALUE";
+}
+
+namespace perfetto_pbzero_enum_TraceSummaryArgs {
+enum Format : int32_t {
+  BINARY_PROTOBUF = 0,
+  TEXTPROTO = 1,
+};
+} // namespace perfetto_pbzero_enum_TraceSummaryArgs
+using TraceSummaryArgs_Format = perfetto_pbzero_enum_TraceSummaryArgs::Format;
+
+
+constexpr TraceSummaryArgs_Format TraceSummaryArgs_Format_MIN = TraceSummaryArgs_Format::BINARY_PROTOBUF;
+constexpr TraceSummaryArgs_Format TraceSummaryArgs_Format_MAX = TraceSummaryArgs_Format::TEXTPROTO;
+
+
+PERFETTO_PROTOZERO_CONSTEXPR14_OR_INLINE
+const char* TraceSummaryArgs_Format_Name(::perfetto::protos::pbzero::TraceSummaryArgs_Format value) {
+  switch (value) {
+  case ::perfetto::protos::pbzero::TraceSummaryArgs_Format::BINARY_PROTOBUF:
+    return "BINARY_PROTOBUF";
+
+  case ::perfetto::protos::pbzero::TraceSummaryArgs_Format::TEXTPROTO:
+    return "TEXTPROTO";
   }
   return "PBZERO_UNKNOWN_ENUM_VALUE";
 }
@@ -221,13 +254,14 @@ enum TraceProcessorMethod : int32_t {
   TPM_RESET_TRACE_PROCESSOR = 11,
   TPM_REGISTER_SQL_PACKAGE = 13,
   TPM_ANALYZE_STRUCTURED_QUERY = 14,
+  TPM_SUMMARIZE_TRACE = 15,
 };
 } // namespace perfetto_pbzero_enum_TraceProcessorRpc
 using TraceProcessorRpc_TraceProcessorMethod = perfetto_pbzero_enum_TraceProcessorRpc::TraceProcessorMethod;
 
 
 constexpr TraceProcessorRpc_TraceProcessorMethod TraceProcessorRpc_TraceProcessorMethod_MIN = TraceProcessorRpc_TraceProcessorMethod::TPM_UNSPECIFIED;
-constexpr TraceProcessorRpc_TraceProcessorMethod TraceProcessorRpc_TraceProcessorMethod_MAX = TraceProcessorRpc_TraceProcessorMethod::TPM_ANALYZE_STRUCTURED_QUERY;
+constexpr TraceProcessorRpc_TraceProcessorMethod TraceProcessorRpc_TraceProcessorMethod_MAX = TraceProcessorRpc_TraceProcessorMethod::TPM_SUMMARIZE_TRACE;
 
 
 PERFETTO_PROTOZERO_CONSTEXPR14_OR_INLINE
@@ -271,9 +305,306 @@ const char* TraceProcessorRpc_TraceProcessorMethod_Name(::perfetto::protos::pbze
 
   case ::perfetto::protos::pbzero::TraceProcessorRpc_TraceProcessorMethod::TPM_ANALYZE_STRUCTURED_QUERY:
     return "TPM_ANALYZE_STRUCTURED_QUERY";
+
+  case ::perfetto::protos::pbzero::TraceProcessorRpc_TraceProcessorMethod::TPM_SUMMARIZE_TRACE:
+    return "TPM_SUMMARIZE_TRACE";
   }
   return "PBZERO_UNKNOWN_ENUM_VALUE";
 }
+
+class TraceSummaryResult_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/3, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
+ public:
+  TraceSummaryResult_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
+  explicit TraceSummaryResult_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
+  explicit TraceSummaryResult_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
+  bool has_proto_summary() const { return at<1>().valid(); }
+  ::protozero::ConstBytes proto_summary() const { return at<1>().as_bytes(); }
+  bool has_textproto_summary() const { return at<2>().valid(); }
+  ::protozero::ConstChars textproto_summary() const { return at<2>().as_string(); }
+  bool has_error() const { return at<3>().valid(); }
+  ::protozero::ConstChars error() const { return at<3>().as_string(); }
+};
+
+class TraceSummaryResult : public ::protozero::Message {
+ public:
+  using Decoder = TraceSummaryResult_Decoder;
+  enum : int32_t {
+    kProtoSummaryFieldNumber = 1,
+    kTextprotoSummaryFieldNumber = 2,
+    kErrorFieldNumber = 3,
+  };
+  static constexpr const char* GetName() { return ".perfetto.protos.TraceSummaryResult"; }
+
+
+  using FieldMetadata_ProtoSummary =
+    ::protozero::proto_utils::FieldMetadata<
+      1,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kBytes,
+      std::string,
+      TraceSummaryResult>;
+
+  static constexpr FieldMetadata_ProtoSummary kProtoSummary{};
+  void set_proto_summary(const uint8_t* data, size_t size) {
+    AppendBytes(FieldMetadata_ProtoSummary::kFieldId, data, size);
+  }
+  void set_proto_summary(::protozero::ConstBytes bytes) {
+    AppendBytes(FieldMetadata_ProtoSummary::kFieldId, bytes.data, bytes.size);
+  }
+  void set_proto_summary(std::string value) {
+    static constexpr uint32_t field_id = FieldMetadata_ProtoSummary::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kBytes>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_TextprotoSummary =
+    ::protozero::proto_utils::FieldMetadata<
+      2,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kString,
+      std::string,
+      TraceSummaryResult>;
+
+  static constexpr FieldMetadata_TextprotoSummary kTextprotoSummary{};
+  void set_textproto_summary(const char* data, size_t size) {
+    AppendBytes(FieldMetadata_TextprotoSummary::kFieldId, data, size);
+  }
+  void set_textproto_summary(::protozero::ConstChars chars) {
+    AppendBytes(FieldMetadata_TextprotoSummary::kFieldId, chars.data, chars.size);
+  }
+  void set_textproto_summary(std::string value) {
+    static constexpr uint32_t field_id = FieldMetadata_TextprotoSummary::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kString>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_Error =
+    ::protozero::proto_utils::FieldMetadata<
+      3,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kString,
+      std::string,
+      TraceSummaryResult>;
+
+  static constexpr FieldMetadata_Error kError{};
+  void set_error(const char* data, size_t size) {
+    AppendBytes(FieldMetadata_Error::kFieldId, data, size);
+  }
+  void set_error(::protozero::ConstChars chars) {
+    AppendBytes(FieldMetadata_Error::kFieldId, chars.data, chars.size);
+  }
+  void set_error(std::string value) {
+    static constexpr uint32_t field_id = FieldMetadata_Error::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kString>
+        ::Append(*this, field_id, value);
+  }
+};
+
+class TraceSummaryArgs_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/4, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
+ public:
+  TraceSummaryArgs_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
+  explicit TraceSummaryArgs_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
+  explicit TraceSummaryArgs_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
+  bool has_proto_specs() const { return at<1>().valid(); }
+  ::protozero::RepeatedFieldIterator<::protozero::ConstBytes> proto_specs() const { return GetRepeated<::protozero::ConstBytes>(1); }
+  bool has_textproto_specs() const { return at<2>().valid(); }
+  ::protozero::RepeatedFieldIterator<::protozero::ConstChars> textproto_specs() const { return GetRepeated<::protozero::ConstChars>(2); }
+  bool has_computation_spec() const { return at<3>().valid(); }
+  ::protozero::ConstBytes computation_spec() const { return at<3>().as_bytes(); }
+  bool has_output_format() const { return at<4>().valid(); }
+  int32_t output_format() const { return at<4>().as_int32(); }
+};
+
+class TraceSummaryArgs : public ::protozero::Message {
+ public:
+  using Decoder = TraceSummaryArgs_Decoder;
+  enum : int32_t {
+    kProtoSpecsFieldNumber = 1,
+    kTextprotoSpecsFieldNumber = 2,
+    kComputationSpecFieldNumber = 3,
+    kOutputFormatFieldNumber = 4,
+  };
+  static constexpr const char* GetName() { return ".perfetto.protos.TraceSummaryArgs"; }
+
+  using ComputationSpec = ::perfetto::protos::pbzero::TraceSummaryArgs_ComputationSpec;
+
+  using Format = ::perfetto::protos::pbzero::TraceSummaryArgs_Format;
+  static inline const char* Format_Name(Format value) {
+    return ::perfetto::protos::pbzero::TraceSummaryArgs_Format_Name(value);
+  }
+  static inline const Format BINARY_PROTOBUF = Format::BINARY_PROTOBUF;
+  static inline const Format TEXTPROTO = Format::TEXTPROTO;
+
+  using FieldMetadata_ProtoSpecs =
+    ::protozero::proto_utils::FieldMetadata<
+      1,
+      ::protozero::proto_utils::RepetitionType::kRepeatedNotPacked,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      TraceSummarySpec,
+      TraceSummaryArgs>;
+
+  static constexpr FieldMetadata_ProtoSpecs kProtoSpecs{};
+  template <typename T = TraceSummarySpec> T* add_proto_specs() {
+    return BeginNestedMessage<T>(1);
+  }
+
+
+  using FieldMetadata_TextprotoSpecs =
+    ::protozero::proto_utils::FieldMetadata<
+      2,
+      ::protozero::proto_utils::RepetitionType::kRepeatedNotPacked,
+      ::protozero::proto_utils::ProtoSchemaType::kString,
+      std::string,
+      TraceSummaryArgs>;
+
+  static constexpr FieldMetadata_TextprotoSpecs kTextprotoSpecs{};
+  void add_textproto_specs(const char* data, size_t size) {
+    AppendBytes(FieldMetadata_TextprotoSpecs::kFieldId, data, size);
+  }
+  void add_textproto_specs(::protozero::ConstChars chars) {
+    AppendBytes(FieldMetadata_TextprotoSpecs::kFieldId, chars.data, chars.size);
+  }
+  void add_textproto_specs(std::string value) {
+    static constexpr uint32_t field_id = FieldMetadata_TextprotoSpecs::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kString>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_ComputationSpec =
+    ::protozero::proto_utils::FieldMetadata<
+      3,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      TraceSummaryArgs_ComputationSpec,
+      TraceSummaryArgs>;
+
+  static constexpr FieldMetadata_ComputationSpec kComputationSpec{};
+  template <typename T = TraceSummaryArgs_ComputationSpec> T* set_computation_spec() {
+    return BeginNestedMessage<T>(3);
+  }
+
+
+  using FieldMetadata_OutputFormat =
+    ::protozero::proto_utils::FieldMetadata<
+      4,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kEnum,
+      TraceSummaryArgs_Format,
+      TraceSummaryArgs>;
+
+  static constexpr FieldMetadata_OutputFormat kOutputFormat{};
+  void set_output_format(TraceSummaryArgs_Format value) {
+    static constexpr uint32_t field_id = FieldMetadata_OutputFormat::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kEnum>
+        ::Append(*this, field_id, value);
+  }
+};
+
+class TraceSummaryArgs_ComputationSpec_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/3, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
+ public:
+  TraceSummaryArgs_ComputationSpec_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
+  explicit TraceSummaryArgs_ComputationSpec_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
+  explicit TraceSummaryArgs_ComputationSpec_Decoder(const ::protozero::ConstBytes& raw) : TypedProtoDecoder(raw.data, raw.size) {}
+  bool has_metric_ids() const { return at<1>().valid(); }
+  ::protozero::RepeatedFieldIterator<::protozero::ConstChars> metric_ids() const { return GetRepeated<::protozero::ConstChars>(1); }
+  bool has_run_all_metrics() const { return at<3>().valid(); }
+  bool run_all_metrics() const { return at<3>().as_bool(); }
+  bool has_metadata_query_id() const { return at<2>().valid(); }
+  ::protozero::ConstChars metadata_query_id() const { return at<2>().as_string(); }
+};
+
+class TraceSummaryArgs_ComputationSpec : public ::protozero::Message {
+ public:
+  using Decoder = TraceSummaryArgs_ComputationSpec_Decoder;
+  enum : int32_t {
+    kMetricIdsFieldNumber = 1,
+    kRunAllMetricsFieldNumber = 3,
+    kMetadataQueryIdFieldNumber = 2,
+  };
+  static constexpr const char* GetName() { return ".perfetto.protos.TraceSummaryArgs.ComputationSpec"; }
+
+
+  using FieldMetadata_MetricIds =
+    ::protozero::proto_utils::FieldMetadata<
+      1,
+      ::protozero::proto_utils::RepetitionType::kRepeatedNotPacked,
+      ::protozero::proto_utils::ProtoSchemaType::kString,
+      std::string,
+      TraceSummaryArgs_ComputationSpec>;
+
+  static constexpr FieldMetadata_MetricIds kMetricIds{};
+  void add_metric_ids(const char* data, size_t size) {
+    AppendBytes(FieldMetadata_MetricIds::kFieldId, data, size);
+  }
+  void add_metric_ids(::protozero::ConstChars chars) {
+    AppendBytes(FieldMetadata_MetricIds::kFieldId, chars.data, chars.size);
+  }
+  void add_metric_ids(std::string value) {
+    static constexpr uint32_t field_id = FieldMetadata_MetricIds::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kString>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_RunAllMetrics =
+    ::protozero::proto_utils::FieldMetadata<
+      3,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kBool,
+      bool,
+      TraceSummaryArgs_ComputationSpec>;
+
+  static constexpr FieldMetadata_RunAllMetrics kRunAllMetrics{};
+  void set_run_all_metrics(bool value) {
+    static constexpr uint32_t field_id = FieldMetadata_RunAllMetrics::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kBool>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_MetadataQueryId =
+    ::protozero::proto_utils::FieldMetadata<
+      2,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kString,
+      std::string,
+      TraceSummaryArgs_ComputationSpec>;
+
+  static constexpr FieldMetadata_MetadataQueryId kMetadataQueryId{};
+  void set_metadata_query_id(const char* data, size_t size) {
+    AppendBytes(FieldMetadata_MetadataQueryId::kFieldId, data, size);
+  }
+  void set_metadata_query_id(::protozero::ConstChars chars) {
+    AppendBytes(FieldMetadata_MetadataQueryId::kFieldId, chars.data, chars.size);
+  }
+  void set_metadata_query_id(std::string value) {
+    static constexpr uint32_t field_id = FieldMetadata_MetadataQueryId::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kString>
+        ::Append(*this, field_id, value);
+  }
+};
 
 class AnalyzeStructuredQueryResult_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/2, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
  public:
@@ -336,7 +667,7 @@ class AnalyzeStructuredQueryResult : public ::protozero::Message {
 
 };
 
-class AnalyzeStructuredQueryResult_StructuredQueryResult_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/4, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
+class AnalyzeStructuredQueryResult_StructuredQueryResult_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/5, /*HAS_NONPACKED_REPEATED_FIELDS=*/true> {
  public:
   AnalyzeStructuredQueryResult_StructuredQueryResult_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
   explicit AnalyzeStructuredQueryResult_StructuredQueryResult_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
@@ -349,6 +680,8 @@ class AnalyzeStructuredQueryResult_StructuredQueryResult_Decoder : public ::prot
   ::protozero::RepeatedFieldIterator<::protozero::ConstChars> modules() const { return GetRepeated<::protozero::ConstChars>(2); }
   bool has_preambles() const { return at<3>().valid(); }
   ::protozero::RepeatedFieldIterator<::protozero::ConstChars> preambles() const { return GetRepeated<::protozero::ConstChars>(3); }
+  bool has_columns() const { return at<5>().valid(); }
+  ::protozero::RepeatedFieldIterator<::protozero::ConstChars> columns() const { return GetRepeated<::protozero::ConstChars>(5); }
 };
 
 class AnalyzeStructuredQueryResult_StructuredQueryResult : public ::protozero::Message {
@@ -359,6 +692,7 @@ class AnalyzeStructuredQueryResult_StructuredQueryResult : public ::protozero::M
     kTextprotoFieldNumber = 4,
     kModulesFieldNumber = 2,
     kPreamblesFieldNumber = 3,
+    kColumnsFieldNumber = 5,
   };
   static constexpr const char* GetName() { return ".perfetto.protos.AnalyzeStructuredQueryResult.StructuredQueryResult"; }
 
@@ -452,6 +786,30 @@ class AnalyzeStructuredQueryResult_StructuredQueryResult : public ::protozero::M
   }
   void add_preambles(std::string value) {
     static constexpr uint32_t field_id = FieldMetadata_Preambles::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kString>
+        ::Append(*this, field_id, value);
+  }
+
+  using FieldMetadata_Columns =
+    ::protozero::proto_utils::FieldMetadata<
+      5,
+      ::protozero::proto_utils::RepetitionType::kRepeatedNotPacked,
+      ::protozero::proto_utils::ProtoSchemaType::kString,
+      std::string,
+      AnalyzeStructuredQueryResult_StructuredQueryResult>;
+
+  static constexpr FieldMetadata_Columns kColumns{};
+  void add_columns(const char* data, size_t size) {
+    AppendBytes(FieldMetadata_Columns::kFieldId, data, size);
+  }
+  void add_columns(::protozero::ConstChars chars) {
+    AppendBytes(FieldMetadata_Columns::kFieldId, chars.data, chars.size);
+  }
+  void add_columns(std::string value) {
+    static constexpr uint32_t field_id = FieldMetadata_Columns::kFieldId;
     // Call the appropriate protozero::Message::Append(field_id, ...)
     // method based on the type of the field.
     ::protozero::internal::FieldWriter<
@@ -1807,7 +2165,7 @@ class AppendTraceDataResult : public ::protozero::Message {
   }
 };
 
-class TraceProcessorRpc_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/213, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
+class TraceProcessorRpc_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/214, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
  public:
   TraceProcessorRpc_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
   explicit TraceProcessorRpc_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
@@ -1836,6 +2194,8 @@ class TraceProcessorRpc_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FI
   ::protozero::ConstBytes register_sql_package_args() const { return at<108>().as_bytes(); }
   bool has_analyze_structured_query_args() const { return at<109>().valid(); }
   ::protozero::ConstBytes analyze_structured_query_args() const { return at<109>().as_bytes(); }
+  bool has_trace_summary_args() const { return at<110>().valid(); }
+  ::protozero::ConstBytes trace_summary_args() const { return at<110>().as_bytes(); }
   bool has_append_result() const { return at<201>().valid(); }
   ::protozero::ConstBytes append_result() const { return at<201>().as_bytes(); }
   bool has_query_result() const { return at<203>().valid(); }
@@ -1854,6 +2214,8 @@ class TraceProcessorRpc_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FI
   ::protozero::ConstBytes finalize_data_result() const { return at<212>().as_bytes(); }
   bool has_analyze_structured_query_result() const { return at<213>().valid(); }
   ::protozero::ConstBytes analyze_structured_query_result() const { return at<213>().as_bytes(); }
+  bool has_trace_summary_result() const { return at<214>().valid(); }
+  ::protozero::ConstBytes trace_summary_result() const { return at<214>().as_bytes(); }
 };
 
 class TraceProcessorRpc : public ::protozero::Message {
@@ -1872,6 +2234,7 @@ class TraceProcessorRpc : public ::protozero::Message {
     kResetTraceProcessorArgsFieldNumber = 107,
     kRegisterSqlPackageArgsFieldNumber = 108,
     kAnalyzeStructuredQueryArgsFieldNumber = 109,
+    kTraceSummaryArgsFieldNumber = 110,
     kAppendResultFieldNumber = 201,
     kQueryResultFieldNumber = 203,
     kMetricResultFieldNumber = 205,
@@ -1881,6 +2244,7 @@ class TraceProcessorRpc : public ::protozero::Message {
     kRegisterSqlPackageResultFieldNumber = 211,
     kFinalizeDataResultFieldNumber = 212,
     kAnalyzeStructuredQueryResultFieldNumber = 213,
+    kTraceSummaryResultFieldNumber = 214,
   };
   static constexpr const char* GetName() { return ".perfetto.protos.TraceProcessorRpc"; }
 
@@ -1902,6 +2266,7 @@ class TraceProcessorRpc : public ::protozero::Message {
   static inline const TraceProcessorMethod TPM_RESET_TRACE_PROCESSOR = TraceProcessorMethod::TPM_RESET_TRACE_PROCESSOR;
   static inline const TraceProcessorMethod TPM_REGISTER_SQL_PACKAGE = TraceProcessorMethod::TPM_REGISTER_SQL_PACKAGE;
   static inline const TraceProcessorMethod TPM_ANALYZE_STRUCTURED_QUERY = TraceProcessorMethod::TPM_ANALYZE_STRUCTURED_QUERY;
+  static inline const TraceProcessorMethod TPM_SUMMARIZE_TRACE = TraceProcessorMethod::TPM_SUMMARIZE_TRACE;
 
   using FieldMetadata_Seq =
     ::protozero::proto_utils::FieldMetadata<
@@ -2107,6 +2472,20 @@ class TraceProcessorRpc : public ::protozero::Message {
   }
 
 
+  using FieldMetadata_TraceSummaryArgs =
+    ::protozero::proto_utils::FieldMetadata<
+      110,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      TraceSummaryArgs,
+      TraceProcessorRpc>;
+
+  static constexpr FieldMetadata_TraceSummaryArgs kTraceSummaryArgs{};
+  template <typename T = TraceSummaryArgs> T* set_trace_summary_args() {
+    return BeginNestedMessage<T>(110);
+  }
+
+
   using FieldMetadata_AppendResult =
     ::protozero::proto_utils::FieldMetadata<
       201,
@@ -2230,6 +2609,20 @@ class TraceProcessorRpc : public ::protozero::Message {
   static constexpr FieldMetadata_AnalyzeStructuredQueryResult kAnalyzeStructuredQueryResult{};
   template <typename T = AnalyzeStructuredQueryResult> T* set_analyze_structured_query_result() {
     return BeginNestedMessage<T>(213);
+  }
+
+
+  using FieldMetadata_TraceSummaryResult =
+    ::protozero::proto_utils::FieldMetadata<
+      214,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      TraceSummaryResult,
+      TraceProcessorRpc>;
+
+  static constexpr FieldMetadata_TraceSummaryResult kTraceSummaryResult{};
+  template <typename T = TraceSummaryResult> T* set_trace_summary_result() {
+    return BeginNestedMessage<T>(214);
   }
 
 };

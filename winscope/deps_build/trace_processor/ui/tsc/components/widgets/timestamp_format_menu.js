@@ -18,20 +18,37 @@ const tslib_1 = require("tslib");
 const mithril_1 = tslib_1.__importDefault(require("mithril"));
 const menu_1 = require("../../widgets/menu");
 const timeline_1 = require("../../public/timeline");
+const time_1 = require("../../base/time");
 class TimestampFormatMenuItem {
     view({ attrs }) {
+        const timeline = attrs.trace.timeline;
         function renderMenuItem(value, label) {
             return (0, mithril_1.default)(menu_1.MenuItem, {
                 label,
-                active: value === attrs.trace.timeline.timestampFormat,
+                active: value === timeline.timestampFormat,
                 onclick: () => {
-                    attrs.trace.timeline.timestampFormat = value;
+                    timeline.timestampFormat = value;
                 },
             });
         }
+        const timeZone = (0, time_1.formatTimezone)(attrs.trace.traceInfo.tzOffMin);
+        const TF = timeline_1.TimestampFormat;
         return (0, mithril_1.default)(menu_1.MenuItem, {
             label: 'Time format',
-        }, renderMenuItem(timeline_1.TimestampFormat.Timecode, 'Timecode'), renderMenuItem(timeline_1.TimestampFormat.UTC, 'Realtime (UTC)'), renderMenuItem(timeline_1.TimestampFormat.TraceTz, 'Realtime (Trace TZ)'), renderMenuItem(timeline_1.TimestampFormat.Seconds, 'Seconds'), renderMenuItem(timeline_1.TimestampFormat.Milliseconds, 'Milliseconds'), renderMenuItem(timeline_1.TimestampFormat.Microseconds, 'Microseconds'), renderMenuItem(timeline_1.TimestampFormat.TraceNs, 'Raw'), renderMenuItem(timeline_1.TimestampFormat.TraceNsLocale, 'Raw (with locale-specific formatting)'));
+        }, renderMenuItem(TF.Timecode, 'Timecode'), renderMenuItem(TF.UTC, 'Realtime (UTC)'), renderMenuItem(TF.TraceTz, `Realtime (Trace TZ - ${timeZone})`), renderMenuItem(TF.Seconds, 'Seconds'), renderMenuItem(TF.Milliseconds, 'Milliseconds'), renderMenuItem(TF.Microseconds, 'Microseconds'), renderMenuItem(TF.TraceNs, 'Raw'), renderMenuItem(TF.TraceNsLocale, 'Raw (with locale-specific formatting)'), (0, mithril_1.default)(menu_1.MenuItem, {
+            label: 'Custom',
+            active: TF.CustomTimezone === timeline.timestampFormat,
+        }, Object.keys(time_1.timezoneOffsetMap).map((tz) => {
+            const customTz = timeline.timezoneOverride;
+            return (0, mithril_1.default)(menu_1.MenuItem, {
+                label: tz,
+                active: tz === customTz.get(),
+                onclick: () => {
+                    timeline.timestampFormat = TF.CustomTimezone;
+                    customTz.set(tz);
+                },
+            });
+        })));
     }
 }
 exports.TimestampFormatMenuItem = TimestampFormatMenuItem;

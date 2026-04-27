@@ -20,7 +20,6 @@ const details_shell_1 = require("../../widgets/details_shell");
 const grid_layout_1 = require("../../widgets/grid_layout");
 const section_1 = require("../../widgets/section");
 const details_1 = require("../widgets/sql/details/details");
-var d = details_1.DetailsSchema;
 class ProcessDetailsTab {
     args;
     data;
@@ -33,18 +32,18 @@ class ProcessDetailsTab {
     constructor(args) {
         this.args = args;
         this.data = new details_1.Details(args.trace, 'process', args.upid, {
-            'pid': d.Value('pid'),
-            'Name': d.Value('name'),
-            'Start time': d.Timestamp('start_ts', { skipIfNull: true }),
-            'End time': d.Timestamp('end_ts', { skipIfNull: true }),
-            'Parent process': d.SqlIdRef('process', 'parent_upid', {
+            'pid': details_1.DetailsSchema.Value('pid'),
+            'Name': details_1.DetailsSchema.Value('name'),
+            'Start time': details_1.DetailsSchema.Timestamp('start_ts', { skipIfNull: true }),
+            'End time': details_1.DetailsSchema.Timestamp('end_ts', { skipIfNull: true }),
+            'Parent process': details_1.DetailsSchema.SqlIdRef('process', 'parent_upid', {
                 skipIfNull: true,
             }),
-            'User ID': d.Value('uid', { skipIfNull: true }),
-            'Android app ID': d.Value('android_appid', { skipIfNull: true }),
-            'Command line': d.Value('cmdline', { skipIfNull: true }),
-            'Machine id': d.Value('machine_id', { skipIfNull: true }),
-            'Args': d.ArgSetId('arg_set_id'),
+            'User ID': details_1.DetailsSchema.Value('uid', { skipIfNull: true }),
+            'Android app ID': details_1.DetailsSchema.Value('android_appid', { skipIfNull: true }),
+            'Command line': details_1.DetailsSchema.Value('cmdline', { skipIfNull: true }),
+            'Machine id': details_1.DetailsSchema.Value('machine_id', { skipIfNull: true }),
+            'Args': details_1.DetailsSchema.ArgSetId('arg_set_id'),
         });
     }
     render() {

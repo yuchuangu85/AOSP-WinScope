@@ -21,10 +21,12 @@ const timestamp_1 = require("../../components/widgets/timestamp");
 const details_shell_1 = require("../../widgets/details_shell");
 const flamegraph_1 = require("../../widgets/flamegraph");
 class CpuProfileSampleFlamegraphDetailsPanel {
+    trace;
     ts;
     flamegraph;
     serialization;
     constructor(trace, ts, utid) {
+        this.trace = trace;
         this.ts = ts;
         const metrics = (0, query_flamegraph_1.metricsFromTableOrSubquery)(`
         (
@@ -33,8 +35,7 @@ class CpuProfileSampleFlamegraphDetailsPanel {
             parent_id as parentId,
             name,
             mapping_name,
-            source_file,
-            cast(line_number AS text) as line_number,
+            source_file || ':' || line_number as source_location,
             self_count
           from _callstacks_for_callsites!((
             select p.callsite_id
@@ -50,14 +51,9 @@ class CpuProfileSampleFlamegraphDetailsPanel {
             },
         ], 'include perfetto module callstacks.stack_profile', [{ name: 'mapping_name', displayName: 'Mapping' }], [
             {
-                name: 'source_file',
-                displayName: 'Source File',
-                mergeAggregation: 'ONE_OR_NULL',
-            },
-            {
-                name: 'line_number',
-                displayName: 'Line Number',
-                mergeAggregation: 'ONE_OR_NULL',
+                name: 'source_location',
+                displayName: 'Source Location',
+                mergeAggregation: 'ONE_OR_SUMMARY',
             },
         ]);
         this.serialization = {
@@ -67,11 +63,10 @@ class CpuProfileSampleFlamegraphDetailsPanel {
         this.flamegraph = new query_flamegraph_1.QueryFlamegraph(trace, metrics, this.serialization);
     }
     render() {
-        return (0, mithril_1.default)('.flamegraph-profile', (0, mithril_1.default)(details_shell_1.DetailsShell, {
+        return (0, mithril_1.default)('.pf-flamegraph-profile', (0, mithril_1.default)(details_shell_1.DetailsShell, {
             fillParent: true,
-            title: (0, mithril_1.default)('.title', 'CPU Profile Samples'),
-            description: [],
-            buttons: [(0, mithril_1.default)('div.time', `Timestamp: `, (0, mithril_1.default)(timestamp_1.Timestamp, { ts: this.ts }))],
+            title: 'CPU Profile Samples',
+            buttons: (0, mithril_1.default)('span', 'Timestamp: ', (0, mithril_1.default)(timestamp_1.Timestamp, { trace: this.trace, ts: this.ts })),
         }, this.flamegraph.render()));
     }
 }

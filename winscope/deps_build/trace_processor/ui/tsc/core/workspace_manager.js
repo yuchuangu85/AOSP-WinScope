@@ -16,14 +16,21 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.WorkspaceManagerImpl = void 0;
 const logging_1 = require("../base/logging");
 const workspace_1 = require("../public/workspace");
+const feature_flags_1 = require("./feature_flags");
 const DEFAULT_WORKSPACE_NAME = 'Default Workspace';
+const DEFAULT_WORKSPACE_EDITABLE_FLAG = feature_flags_1.featureFlags.register({
+    id: 'defaultWorkspaceEditable',
+    name: 'Enable Default Workspace Editing',
+    description: 'Allows tracks within the default workspace to be removed and rearranged using drag-and-drop operations.',
+    defaultValue: false,
+});
 class WorkspaceManagerImpl {
     defaultWorkspace = new workspace_1.Workspace();
     _workspaces = [];
     _currentWorkspace;
     constructor() {
         this.defaultWorkspace.title = DEFAULT_WORKSPACE_NAME;
-        this.defaultWorkspace.userEditable = false;
+        this.defaultWorkspace.userEditable = DEFAULT_WORKSPACE_EDITABLE_FLAG.get();
         this._currentWorkspace = this.defaultWorkspace;
     }
     createEmptyWorkspace(title) {

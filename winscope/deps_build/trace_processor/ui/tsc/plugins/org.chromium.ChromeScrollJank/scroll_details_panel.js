@@ -18,7 +18,7 @@ const tslib_1 = require("tslib");
 const mithril_1 = tslib_1.__importDefault(require("mithril"));
 const time_1 = require("../../base/time");
 const utils_1 = require("../../base/utils");
-const table_1 = require("../../widgets/table");
+const grid_1 = require("../../widgets/grid");
 const duration_1 = require("../../components/widgets/duration");
 const timestamp_1 = require("../../components/widgets/timestamp");
 const query_result_1 = require("../../trace_processor/query_result");
@@ -208,23 +208,14 @@ class ScrollDetailsPanel {
     }
     getDelayTable() {
         if (this.orderedJankSlices.length > 0) {
-            const columns = [
-                (0, table_1.widgetColumn)('Cause', (jankSlice) => (0, utils_2.renderSliceRef)({
-                    trace: this.trace,
-                    id: jankSlice.id,
-                    trackUri: utils_2.JANKS_TRACK_URI,
-                    title: jankSlice.cause,
-                })),
-                (0, table_1.widgetColumn)('Duration', (jankSlice) => jankSlice.dur !== undefined
-                    ? (0, mithril_1.default)(duration_1.DurationWidget, { dur: jankSlice.dur })
-                    : 'NULL'),
-                (0, table_1.widgetColumn)('Delayed Vsyncs', (jankSlice) => jankSlice.delayVsync),
-            ];
-            const tableData = new table_1.TableData(this.orderedJankSlices);
-            return (0, mithril_1.default)(table_1.Table, {
-                data: tableData,
-                columns: columns,
-            });
+            return (0, mithril_1.default)(grid_1.Grid, (0, mithril_1.default)(grid_1.GridHeader, (0, mithril_1.default)(grid_1.GridRow, (0, mithril_1.default)(grid_1.GridHeaderCell, 'Cause'), (0, mithril_1.default)(grid_1.GridHeaderCell, 'Duration'), (0, mithril_1.default)(grid_1.GridHeaderCell, 'Delayed Vsyncs'))), (0, mithril_1.default)(grid_1.GridBody, this.orderedJankSlices.map((jankSlice) => (0, mithril_1.default)(grid_1.GridRow, (0, mithril_1.default)(grid_1.GridDataCell, (0, utils_2.renderSliceRef)({
+                trace: this.trace,
+                id: jankSlice.id,
+                trackUri: utils_2.JANKS_TRACK_URI,
+                title: jankSlice.cause,
+            })), (0, mithril_1.default)(grid_1.GridDataCell, jankSlice.dur !== undefined
+                ? (0, mithril_1.default)(duration_1.DurationWidget, { trace: this.trace, dur: jankSlice.dur })
+                : 'NULL'), (0, mithril_1.default)(grid_1.GridDataCell, jankSlice.delayVsync)))));
         }
         else {
             return 'None';
@@ -269,8 +260,8 @@ class ScrollDetailsPanel {
         }
         const details = (0, tree_1.dictToTreeNodes)({
             'Scroll ID': `${this.data.id}`,
-            'Start time': (0, mithril_1.default)(timestamp_1.Timestamp, { ts: this.data.ts }),
-            'Duration': (0, mithril_1.default)(duration_1.DurationWidget, { dur: this.data.dur }),
+            'Start time': (0, mithril_1.default)(timestamp_1.Timestamp, { trace: this.trace, ts: this.data.ts }),
+            'Duration': (0, mithril_1.default)(duration_1.DurationWidget, { trace: this.trace, dur: this.data.dur }),
             'SQL ID': (0, mithril_1.default)(sql_ref_1.SqlRef, { table: 'chrome_scrolls', id: this.id }),
         });
         return (0, mithril_1.default)(details_shell_1.DetailsShell, {

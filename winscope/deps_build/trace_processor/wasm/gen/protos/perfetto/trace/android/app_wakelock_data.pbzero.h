@@ -12,12 +12,19 @@
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/protozero/proto_utils.h"
 
+namespace perfetto {
+namespace protos {
+namespace pbzero {
+class AppWakelockInfo;
+} // Namespace pbzero.
+} // Namespace protos.
+} // Namespace perfetto.
 
 namespace perfetto {
 namespace protos {
 namespace pbzero {
 
-class AppWakelockBundle_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/2, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
+class AppWakelockBundle_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/4, /*HAS_NONPACKED_REPEATED_FIELDS=*/false> {
  public:
   AppWakelockBundle_Decoder(const uint8_t* data, size_t len) : TypedProtoDecoder(data, len) {}
   explicit AppWakelockBundle_Decoder(const std::string& raw) : TypedProtoDecoder(reinterpret_cast<const uint8_t*>(raw.data()), raw.size()) {}
@@ -26,6 +33,10 @@ class AppWakelockBundle_Decoder : public ::protozero::TypedProtoDecoder</*MAX_FI
   ::protozero::PackedRepeatedFieldIterator<::protozero::proto_utils::ProtoWireType::kVarInt, uint32_t> intern_id(bool* parse_error_ptr) const { return GetPackedRepeated<::protozero::proto_utils::ProtoWireType::kVarInt, uint32_t>(1, parse_error_ptr); }
   bool has_encoded_ts() const { return at<2>().valid(); }
   ::protozero::PackedRepeatedFieldIterator<::protozero::proto_utils::ProtoWireType::kVarInt, uint64_t> encoded_ts(bool* parse_error_ptr) const { return GetPackedRepeated<::protozero::proto_utils::ProtoWireType::kVarInt, uint64_t>(2, parse_error_ptr); }
+  bool has_info() const { return at<3>().valid(); }
+  ::protozero::ConstBytes info() const { return at<3>().as_bytes(); }
+  bool has_acquired() const { return at<4>().valid(); }
+  bool acquired() const { return at<4>().as_bool(); }
 };
 
 class AppWakelockBundle : public ::protozero::Message {
@@ -34,6 +45,8 @@ class AppWakelockBundle : public ::protozero::Message {
   enum : int32_t {
     kInternIdFieldNumber = 1,
     kEncodedTsFieldNumber = 2,
+    kInfoFieldNumber = 3,
+    kAcquiredFieldNumber = 4,
   };
   static constexpr const char* GetName() { return ".perfetto.protos.AppWakelockBundle"; }
 
@@ -64,6 +77,38 @@ class AppWakelockBundle : public ::protozero::Message {
   void set_encoded_ts(const ::protozero::PackedVarInt& packed_buffer) {
     AppendBytes(FieldMetadata_EncodedTs::kFieldId, packed_buffer.data(),
                 packed_buffer.size());
+  }
+
+  using FieldMetadata_Info =
+    ::protozero::proto_utils::FieldMetadata<
+      3,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kMessage,
+      AppWakelockInfo,
+      AppWakelockBundle>;
+
+  static constexpr FieldMetadata_Info kInfo{};
+  template <typename T = AppWakelockInfo> T* set_info() {
+    return BeginNestedMessage<T>(3);
+  }
+
+
+  using FieldMetadata_Acquired =
+    ::protozero::proto_utils::FieldMetadata<
+      4,
+      ::protozero::proto_utils::RepetitionType::kNotRepeated,
+      ::protozero::proto_utils::ProtoSchemaType::kBool,
+      bool,
+      AppWakelockBundle>;
+
+  static constexpr FieldMetadata_Acquired kAcquired{};
+  void set_acquired(bool value) {
+    static constexpr uint32_t field_id = FieldMetadata_Acquired::kFieldId;
+    // Call the appropriate protozero::Message::Append(field_id, ...)
+    // method based on the type of the field.
+    ::protozero::internal::FieldWriter<
+      ::protozero::proto_utils::ProtoSchemaType::kBool>
+        ::Append(*this, field_id, value);
   }
 };
 

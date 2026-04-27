@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import {assertDefined} from 'common/assert_utils';
+import {assertDefined} from 'common/assert';
 import {HierarchyTreeBuilder} from 'test/unit/hierarchy_tree_builder';
-import {LayerCompositionType} from 'trace/layer_composition_type';
+import {LayerCompositionType} from 'trace/surface_flinger/layer_composition_type';
 import {
   DUPLICATE_CHIP,
   GPU_CHIP,
@@ -173,12 +173,12 @@ describe('AddChips', () => {
           {
             id: 2,
             name: 'parentNode',
-            properties: {id: 2, zOrderRelativeOf: -1},
+            properties: {layerId: 2, zOrderRelativeOf: -1},
             children: [
               {
                 id: 1,
                 name: 'node',
-                properties: {id: 1, zOrderRelativeOf: 2},
+                properties: {layerId: 1, zOrderRelativeOf: 2},
               },
             ],
           },

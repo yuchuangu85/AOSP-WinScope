@@ -17,12 +17,13 @@ exports.Icon = void 0;
 const tslib_1 = require("tslib");
 const mithril_1 = tslib_1.__importDefault(require("mithril"));
 const classnames_1 = require("../base/classnames");
+const common_1 = require("./common");
 class Icon {
     view({ attrs }) {
-        const { icon, filled, className, ...htmlAttrs } = attrs;
+        const { icon, filled, className, intent = common_1.Intent.None, ...htmlAttrs } = attrs;
         return (0, mithril_1.default)('i.pf-icon', {
             ...htmlAttrs,
-            className: (0, classnames_1.classNames)(className, filled && 'pf-filled'),
+            className: (0, classnames_1.classNames)(className, filled && 'pf-filled', (0, common_1.classForIntent)(intent)),
         }, icon);
     }
 }

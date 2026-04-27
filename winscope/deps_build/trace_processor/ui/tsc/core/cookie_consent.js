@@ -30,7 +30,7 @@ class CookieConsent {
     view() {
         if (!this.showCookieConsent)
             return;
-        return (0, mithril_1.default)('.cookie-consent', (0, mithril_1.default)('.cookie-text', `This site uses cookies from Google to deliver its services and to
+        return (0, mithril_1.default)('.pf-cookie-consent', (0, mithril_1.default)('.cookie-text', `This site uses cookies from Google to deliver its services and to
           analyze traffic.`), (0, mithril_1.default)('.buttons', (0, mithril_1.default)('button', (0, mithril_1.default)('a', {
             href: 'https://policies.google.com/technologies/cookies',
             target: '_blank',
