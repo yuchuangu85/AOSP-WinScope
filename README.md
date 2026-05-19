@@ -43,6 +43,8 @@ adb shell perfetto --txt --config /data/misc/perfetto-traces/perfetto_config.pbt
 npm i -g http-server      # 只需装一次，mac 下如果没有权限，在前面加上 sudo
 cd winscope/dist/prod
 http-server . -p 8000 -o /index.html -c-1
+// 根目录
+http-server winscope/dist/prod -p 8000 -o /index.html -c-1
 ```
 
 Windows PowerShell 也可以执行同样命令：
@@ -50,6 +52,8 @@ Windows PowerShell 也可以执行同样命令：
 ```powershell
 cd winscope\dist\prod
 http-server . -p 8000 -o /index.html -c-1
+// 根目录
+http-server winscope/dist/prod -p 8000 -o /index.html -c-1
 ```
 
 如果遇到旧 hash 的 `js/*.js` 或 `trace_processor_memory64.wasm` 404，先停掉旧服务并强刷/无痕打开；当前离线包已包含无 symlink 的兼容文件。
