@@ -424,13 +424,15 @@ export class UploadTracesComponent
     message: string | undefined,
     progressPercentage: number | undefined,
   ) {
+    const progressMessage = message ? message : 'Loading...';
     if (
+      progressMessage === this.progressMessage &&
       !LoadProgressComponent.canUpdateComponent(this.lastUiProgressUpdateTimeMs)
     ) {
       return;
     }
     this.isLoadingFiles = true;
-    this.progressMessage = message ? message : 'Loading...';
+    this.progressMessage = progressMessage;
     this.progressPercentage = progressPercentage;
     this.lastUiProgressUpdateTimeMs = Date.now();
     this.changeDetectorRef.detectChanges();

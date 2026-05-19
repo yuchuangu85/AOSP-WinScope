@@ -10966,6 +10966,8 @@ function requireWasm_bridge () {
 	wasm_bridge.WasmBridge = WasmBridge;
 	// Checks if the current environment supports Memory64.
 	function hasMemory64Support() {
+	    // WinScope offline package in this repo ships only trace_processor.wasm.
+	    return false;
 	    // Compiled version of WAT program `(module (memory i64 0))` to WASM.
 	    const memory64DetectProgram = new Uint8Array([
 	        0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, 0x05, 0x03, 0x01, 0x04,

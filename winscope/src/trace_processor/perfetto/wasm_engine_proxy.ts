@@ -19,7 +19,7 @@ let bundlePath: string;
 let idleWasmWorker: Worker;
 
 export function initWasm(root: string) {
-  bundlePath = root + 'engine_bundle.js';
+  bundlePath = root + 'engine_bundle.js?offline=wasm32-v2';
   idleWasmWorker = new Worker(bundlePath);
 }
 
@@ -48,9 +48,13 @@ export class WasmEngineProxy extends EngineBase {
     // around. The latency is hidden by the fact that the user usually takes few
     // seconds until they click on "open trace file" and pick a file.
     this.worker = assertExists(idleWasmWorker);
+    this.attachWorkerErrorHandlers(this.worker);
     idleWasmWorker = new Worker(bundlePath);
     this.worker.postMessage(port1, [port1]);
     this.port.onmessage = this.onMessage.bind(this);
+    this.port.onmessageerror = () => {
+      this.failFromWorker('Trace processor worker message error');
+    };
   }
 
   onMessage(m: MessageEvent) {
@@ -63,6 +67,23 @@ export class WasmEngineProxy extends EngineBase {
     // same buffer when encoding messages (which is good, because creating a new
     // TypedArray for each decode operation would be too expensive).
     this.port.postMessage(data);
+  }
+
+  private attachWorkerErrorHandlers(worker: Worker) {
+    worker.onerror = (event) => {
+      this.failFromWorker(`Trace processor worker failed: ${event.message}`);
+    };
+    worker.onmessageerror = () => {
+      this.failFromWorker('Trace processor worker message error');
+    };
+  }
+
+  private failFromWorker(reason: string) {
+    try {
+      this.fail(reason);
+    } catch (error) {
+      console.error(error);
+    }
   }
 
   dispose() {

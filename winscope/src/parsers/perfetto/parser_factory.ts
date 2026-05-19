@@ -57,7 +57,8 @@ export class ParserFactory {
     ParserKeyEvent,
     ParserCujs,
   ];
-  private static readonly CHUNK_SIZE_BYTES = 50 * 1024 * 1024;
+  private static readonly CHUNK_SIZE_BYTES = 8 * 1024 * 1024;
+  private static readonly PARSE_CHUNK_TIMEOUT_MS = 180_000;
   private static readonly NO_ENTRIES_ERROR_REGEX =
     /Perfetto trace has no \w+(\w|\s)* entries/;
 
@@ -66,6 +67,10 @@ export class ParserFactory {
     timestampConverter: ParserTimestampConverter,
     progressListener?: ProgressListener,
   ): Promise<ProcessedFile> {
+    progressListener?.onProgressUpdate(
+      'Initializing trace processor...',
+      undefined,
+    );
     const traceProcessor = await this.initializeTraceProcessor();
     try {
       await this.loadFileInTp(traceFile.file, traceProcessor, progressListener);
@@ -182,9 +187,42 @@ export class ParserFactory {
         'Loading perfetto trace...',
         (chunkStart / file.size) * 100,
       );
-      const chunkEnd = chunkStart + ParserFactory.CHUNK_SIZE_BYTES;
+      const chunkEnd = Math.min(
+        chunkStart + ParserFactory.CHUNK_SIZE_BYTES,
+        file.size,
+      );
       const data = await file.slice(chunkStart, chunkEnd).arrayBuffer();
-      await traceProcessor.parse(new Uint8Array(data));
+      await this.withTimeout(
+        traceProcessor.parse(new Uint8Array(data)),
+        ParserFactory.PARSE_CHUNK_TIMEOUT_MS,
+        `Timed out while loading perfetto trace at ${Math.floor(
+          (chunkStart / file.size) * 100,
+        )}%. Try importing a smaller .perfetto-trace or use a browser with more memory.`,
+      );
+      progressListener?.onProgressUpdate(
+        'Loading perfetto trace...',
+        (chunkEnd / file.size) * 100,
+      );
+    }
+  }
+
+  private async withTimeout<T>(
+    promise: Promise<T>,
+    timeoutMs: number,
+    message: string,
+  ): Promise<T> {
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<T>((_, reject) => {
+          timeout = setTimeout(() => reject(new Error(message)), timeoutMs);
+        }),
+      ]);
+    } finally {
+      if (timeout !== undefined) {
+        clearTimeout(timeout);
+      }
     }
   }
 }

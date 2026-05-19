@@ -388,7 +388,7 @@ export class PropertiesProviderFactory {
       }
     } else if (child.task) {
       nameOverride = child.task.id?.toString();
-      if (child.task.taskName) {
+      if ('taskName' in child.task && child.task.taskName) {
         nameOverride += `(${child.task.taskName})`;
       }
     }

@@ -608,7 +608,25 @@ export abstract class EngineBase implements Engine {
 
   protected fail(reason: string) {
     this._failed = reason;
-    throw new Error(reason);
+    const error = new Error(reason);
+    [
+      this.pendingParses,
+      this.pendingEOFs,
+      this.pendingResetTraceProcessors,
+      this.pendingRestoreTables,
+    ].forEach((pending) => {
+      pending.splice(0).forEach((deferred) => deferred.reject(error));
+    });
+    this.pendingComputeMetrics
+      .splice(0)
+      .forEach((deferred) => deferred.reject(error));
+    this.pendingReadMetatrace?.reject(error);
+    this.pendingRegisterSqlPackage?.reject(error);
+    this.pendingAnalyzeStructuredQueries?.reject(error);
+    this.pendingReadMetatrace = undefined;
+    this.pendingRegisterSqlPackage = undefined;
+    this.pendingAnalyzeStructuredQueries = undefined;
+    throw error;
   }
 
   get failed(): string | undefined {

@@ -121,6 +121,7 @@ export class TracePipeline
         return [];
       }
 
+      progressListener?.onProgressUpdate('Preparing trace files...', undefined);
       const warnings = await this.loadUnzippedFiles(
         unzippedFiles,
         source,

@@ -564,6 +564,7 @@ export class CollectTracesComponent
 
   onProgressUpdate(message: string, progressPercentage: number | undefined) {
     if (
+      message === this.progressMessage &&
       !LoadProgressComponent.canUpdateComponent(this.lastUiProgressUpdateTimeMs)
     ) {
       return;

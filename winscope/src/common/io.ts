@@ -214,7 +214,9 @@ async function isMatchForMagicNumber(
   file: File,
   magicNumber: number[],
 ): Promise<boolean> {
-  const bufferStart = new Uint8Array((await file.arrayBuffer()).slice(0, 2));
+  const bufferStart = new Uint8Array(
+    await file.slice(0, magicNumber.length).arrayBuffer(),
+  );
   return equal(bufferStart, magicNumber);
 }
 
