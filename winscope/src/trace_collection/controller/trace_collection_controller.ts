@@ -133,9 +133,19 @@ export class TraceCollectionController {
     this.listener.onOperationFinished(true);
   }
 
-  async fetchLastSessionData(device: AdbDeviceConnection): Promise<File[]> {
+  async fetchLastSessionData(
+    device: AdbDeviceConnection,
+    notifyIfEmpty = false,
+  ): Promise<File[]> {
     const adbData: File[] = [];
     const paths = await device.findFiles(`${WINSCOPE_BACKUP_DIR}*`, []);
+    if (notifyIfEmpty && paths.length === 0) {
+      UserNotifier.add(
+        new ProxyTracingWarnings([
+          `No files found in ${WINSCOPE_BACKUP_DIR}. Start and stop a trace before fetching the last session.`,
+        ]),
+      ).notify();
+    }
     for (const [index, filepath] of paths.entries()) {
       console.debug(`Fetching file ${filepath} from device`);
       const data = await device.pullFile(filepath);

@@ -37,6 +37,7 @@ export class WinscopeProxyHostConnection extends AdbHostConnection<WinscopeProxy
   private securityToken = '';
   private refreshDevicesWorker: number | undefined;
   private cancelDeviceRequest = false;
+  private requestInFlight = false;
 
   protected override initializeExtraParameters() {
     const urlParams = new URLSearchParams(window.location.search);
@@ -67,13 +68,21 @@ export class WinscopeProxyHostConnection extends AdbHostConnection<WinscopeProxy
   }
 
   override async requestDevices() {
+    if (this.requestInFlight) {
+      return;
+    }
     this.cancelDeviceRequest = false;
-    await getFromProxy(
-      Endpoint.DEVICES,
-      this.makeSecurityTokenHeader(),
-      (resp: HttpResponse) => this.onSuccessParseDevices(resp),
-      (newState, errorText) => this.setState(newState, errorText),
-    );
+    this.requestInFlight = true;
+    try {
+      await getFromProxy(
+        Endpoint.DEVICES,
+        this.makeSecurityTokenHeader(),
+        (resp: HttpResponse) => this.onSuccessParseDevices(resp),
+        (newState, errorText) => this.setState(newState, errorText),
+      );
+    } finally {
+      this.requestInFlight = false;
+    }
   }
 
   private async onSuccessParseDevices(resp: HttpResponse) {
@@ -107,7 +116,7 @@ export class WinscopeProxyHostConnection extends AdbHostConnection<WinscopeProxy
       ) {
         this.refreshDevicesWorker = window.setInterval(
           () => this.requestDevices(),
-          1000,
+          2000,
         );
       }
       this.setState(ConnectionState.IDLE);

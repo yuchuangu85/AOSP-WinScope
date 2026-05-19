@@ -102,6 +102,30 @@ describe('file_utils', () => {
     expect(unzippedFile.size).toBe(377137);
   });
 
+  it('falls back if native gzip decompression fails', async () => {
+    const gzippedFile = await getFixtureFile('archives/WindowManager.pb.gz');
+    const originalDecompressionStream = window.DecompressionStream;
+    const consoleWarnSpy = spyOn(console, 'warn');
+    (
+      window as unknown as {DecompressionStream: typeof DecompressionStream}
+    ).DecompressionStream = jasmine
+      .createSpy()
+      .and.throwError(
+        'missing permission',
+      ) as unknown as typeof DecompressionStream;
+
+    try {
+      const unzippedFile = await decompressGZipFile(gzippedFile);
+      expect(unzippedFile.name).toBe('archives/WindowManager.pb');
+      expect(unzippedFile.size).toBe(377137);
+      expect(consoleWarnSpy).toHaveBeenCalled();
+    } finally {
+      (
+        window as unknown as {DecompressionStream: typeof DecompressionStream}
+      ).DecompressionStream = originalDecompressionStream;
+    }
+  });
+
   it('decompresses gzipped file without gz ext', async () => {
     const gzippedFile = await getFixtureFile(
       'archives/WindowManager.pb.gz',

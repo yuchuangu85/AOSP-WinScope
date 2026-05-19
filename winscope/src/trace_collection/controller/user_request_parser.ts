@@ -440,12 +440,14 @@ export class UserRequestParser {
     const setupCmd = `settings put system show_touches ${val} && settings put system pointer_location ${val}`;
     const stopCmd = `settings put system pointer_location 0 && \
       settings put system show_touches 0 && \
-      pkill -l SIGINT screenrecord >/dev/null 2>&1`;
+      pkill -l SIGINT screenrecord >/dev/null 2>&1 || true`;
 
     return identifiers.map((id, index) => {
       const startArgs = id === 'active' ? '' : ` --display-id ${id}`;
       const startCmd = `
-      screenrecord --bugreport --bit-rate 8M${startArgs} /data/local/tmp/screen_${id}.mp4 & \
+      rm -f /data/local/tmp/screen_${id}.mp4 >/dev/null 2>&1 || \
+      su root rm -f /data/local/tmp/screen_${id}.mp4 >/dev/null 2>&1 || true
+      screenrecord --bugreport --bit-rate 4M${startArgs} /data/local/tmp/screen_${id}.mp4 & \
       echo "ScreenRecorder started."
       `;
 

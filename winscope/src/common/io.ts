@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 import * as jSZip from 'jszip';
+import {gunzipSync} from 'fflate';
 import {equal} from './typed_array';
 
 /**
@@ -170,9 +171,18 @@ export async function unzipFile(
  * @return A Promise that resolves to the decompressed file.
  */
 export async function decompressGZipFile(file: File): Promise<File> {
-  const decompressionStream = new window.DecompressionStream('gzip');
-  const decompressedStream = file.stream().pipeThrough(decompressionStream);
-  const fileBlob = await new Response(decompressedStream).blob();
+  let fileBlob: Blob;
+  try {
+    const decompressionStream = new window.DecompressionStream('gzip');
+    const decompressedStream = file.stream().pipeThrough(decompressionStream);
+    fileBlob = await new Response(decompressedStream).blob();
+  } catch (e) {
+    console.warn(
+      'Browser gzip decompression failed. Falling back to JavaScript decompression.',
+      e,
+    );
+    fileBlob = new Blob([gunzipSync(new Uint8Array(await file.arrayBuffer()))]);
+  }
   const filename =
     getFileExtension(file.name) === 'gz'
       ? removeExtensionFromFilename(file.name)

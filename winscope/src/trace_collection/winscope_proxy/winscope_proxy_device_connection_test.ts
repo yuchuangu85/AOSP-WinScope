@@ -384,6 +384,24 @@ Request body: undefined`,
       listener.onError.calls.reset();
     });
 
+    it('uses response body in fetch error if arraybuffer response text is empty', async () => {
+      const response: HttpResponse = {
+        status: HttpRequestStatus.SUCCESS,
+        type: 'arraybuffer',
+        text: '',
+        body: new TextEncoder().encode('null'),
+        getHeader: getVersionHeader,
+      };
+      await setHttpSpies(response);
+      const data = await connection.pullFile(testFilepath);
+      expect(data).toEqual(Uint8Array.from([]));
+      checkFetchRequested();
+      expect(listener.onError).toHaveBeenCalledOnceWith(
+        'Could not fetch file. Received: null',
+      );
+      listener.onError.calls.reset();
+    });
+
     it('sets connection state if fetching files fails due to unsent response', async () => {
       const response: HttpResponse = {
         status: HttpRequestStatus.UNSENT,

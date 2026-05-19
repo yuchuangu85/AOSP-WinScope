@@ -71,7 +71,7 @@ export abstract class AdbDeviceConnection {
 
   async checkRoot(): Promise<boolean> {
     const root = await this.runShellCommand('su root id -u');
-    return root === '0';
+    return (root ?? '').trim() === '0';
   }
 
   async updateAvailableTraces() {
@@ -92,7 +92,6 @@ export abstract class AdbDeviceConnection {
   }
 
   async findFiles(path: string, matchers: string[]): Promise<string[]> {
-    const errors = ['No such file', 'Permission denied'];
     if (matchers.length === 0) {
       matchers.push('');
     }
@@ -108,15 +107,39 @@ export abstract class AdbDeviceConnection {
       const matchingFiles = await this.runShellCommand(findCmd);
       const files = matchingFiles
         .split('\n')
-        .filter(
-          (maybeFile) =>
-            !errors.includes(maybeFile) && maybeFile.trim().length > 0,
-        );
+        .map((maybeFile) => maybeFile.trim())
+        .filter((maybeFile) => this.isFindFileOutput(maybeFile));
       if (files.length > 0) {
         return files;
       }
     }
     return [];
+  }
+
+  private isFindFileOutput(maybeFile: string): boolean {
+    const trimmed = maybeFile.trim();
+    if (trimmed.length === 0) {
+      return false;
+    }
+
+    const decoded = this.tryDecodeURIComponent(trimmed);
+    const knownErrors = [
+      'Error executing adb command',
+      'No such file',
+      'No such file or directory',
+      'Permission denied',
+    ];
+    return !knownErrors.some(
+      (error) => trimmed.includes(error) || decoded.includes(error),
+    );
+  }
+
+  private tryDecodeURIComponent(value: string): string {
+    try {
+      return decodeURIComponent(value);
+    } catch (e) {
+      return value;
+    }
   }
 
   private async updateDisplaysInformation() {

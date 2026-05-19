@@ -644,12 +644,14 @@ describe('UserRequestParser', () => {
         'settings put system show_touches 0 && settings put system pointer_location 0',
       ],
       `
-      screenrecord --bugreport --bit-rate 8M /data/local/tmp/screen_active.mp4 & \
+      rm -f /data/local/tmp/screen_active.mp4 >/dev/null 2>&1 || \
+      su root rm -f /data/local/tmp/screen_active.mp4 >/dev/null 2>&1 || true
+      screenrecord --bugreport --bit-rate 4M /data/local/tmp/screen_active.mp4 & \
       echo "ScreenRecorder started."
       `,
       'settings put system pointer_location 0 && \
       settings put system show_touches 0 && \
-      pkill -l SIGINT screenrecord >/dev/null 2>&1',
+      pkill -l SIGINT screenrecord >/dev/null 2>&1 || true',
       [
         new AdbFileIdentifier(
           `/data/local/tmp/screen_active.mp4`,
@@ -666,7 +668,9 @@ describe('UserRequestParser', () => {
         'ScreenRecordingd1',
         expectedTargetActive.setupCmds,
         `
-      screenrecord --bugreport --bit-rate 8M --display-id d1 /data/local/tmp/screen_d1.mp4 & \
+      rm -f /data/local/tmp/screen_d1.mp4 >/dev/null 2>&1 || \
+      su root rm -f /data/local/tmp/screen_d1.mp4 >/dev/null 2>&1 || true
+      screenrecord --bugreport --bit-rate 4M --display-id d1 /data/local/tmp/screen_d1.mp4 & \
       echo "ScreenRecorder started."
       `,
         expectedTargetActive.stopCmd,
@@ -729,7 +733,9 @@ describe('UserRequestParser', () => {
         'ScreenRecordingd2',
         [],
         `
-      screenrecord --bugreport --bit-rate 8M --display-id d2 /data/local/tmp/screen_d2.mp4 & \
+      rm -f /data/local/tmp/screen_d2.mp4 >/dev/null 2>&1 || \
+      su root rm -f /data/local/tmp/screen_d2.mp4 >/dev/null 2>&1 || true
+      screenrecord --bugreport --bit-rate 4M --display-id d2 /data/local/tmp/screen_d2.mp4 & \
       echo "ScreenRecorder started."
       `,
         expectedTargetActive.stopCmd,

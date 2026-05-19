@@ -77,7 +77,7 @@ KEEP_ALIVE_INTERVAL_S = 5
 
 # Perfetto's default timeout for getting an ACK from producer processes is 5s
 # We need to be sure that the timeout is longer than that with a good margin.
-COMMAND_TIMEOUT_S = 15
+COMMAND_TIMEOUT_S = 30
 
 
 # CONFIG #
@@ -153,6 +153,24 @@ class BadRequestError(Exception):
   """Invalid client request."""
 
   pass
+
+
+CLIENT_DISCONNECT_WINERRORS = frozenset((10053, 10054))
+CLIENT_DISCONNECT_ERRNOS = frozenset((32, 54, 104))
+
+
+def is_client_disconnect(ex: BaseException) -> bool:
+  """Returns True when the browser/client closed the HTTP socket."""
+  if isinstance(
+      ex, (BrokenPipeError, ConnectionAbortedError, ConnectionResetError)
+  ):
+    return True
+  if not isinstance(ex, OSError):
+    return False
+  return (
+      getattr(ex, "winerror", None) in CLIENT_DISCONNECT_WINERRORS
+      or getattr(ex, "errno", None) in CLIENT_DISCONNECT_ERRNOS
+  )
 
 
 class RequestRouter:
@@ -243,6 +261,9 @@ class RequestRouter:
         # exception handler for request processing. Any unhandled exception
         # indicates an internal server error and should be reported as such
         # to prevent the server from crashing.
+        if is_client_disconnect(ex):
+          log.debug("Client disconnected while processing request: %r", ex)
+          return None
         return self._internal_error(repr(ex))
     self._bad_request("No endpoint specified")
 
@@ -285,7 +306,8 @@ def call_adb(params: str, device: str | None = None):
 class ListDevicesEndpoint(RequestEndpoint):
   """Endpoint to list connected ADB devices."""
 
-  ADB_INFO_RE = re.compile("^([A-Za-z0-9._:\\-]+)\\s+(\\w+)(.*model:(\\w+))?")
+  ADB_INFO_RE = re.compile("^([A-Za-z0-9._:\\-]+)\\s+(\\w+)(.*model:([^\\s]+))?")
+  DEVICE_STATES = frozenset(("device", "unauthorized", "offline"))
 
   def process(self, http_server, path):
     """Processes the request to list connected ADB devices.
@@ -294,17 +316,23 @@ class ListDevicesEndpoint(RequestEndpoint):
       http_server: The HTTP server handler.
       path: The request path components.
     """
-    lines = list(filter(None, (call_adb("devices -l") or "").split(os.linesep)))
-    devices = []
-    for m in [ListDevicesEndpoint.ADB_INFO_RE.match(d) for d in lines[1:]]:
-      if m:
-        authorized = str(m.group(2)) != "unauthorized"
-        device = {
-            "id": m.group(1),
-            "authorized": authorized,
-            "model": m.group(4).replace("_", " ") if m.group(4) else "",
-        }
-        devices.append(device)
+    lines = list(filter(None, (call_adb("devices -l") or "").splitlines()))
+    devices_by_id = {}
+    for line in lines:
+      m = ListDevicesEndpoint.ADB_INFO_RE.match(line)
+      if not m:
+        continue
+      state = str(m.group(2))
+      if state not in ListDevicesEndpoint.DEVICE_STATES:
+        continue
+      device_id = m.group(1)
+      authorized = state != "unauthorized"
+      devices_by_id[device_id] = {
+          "id": device_id,
+          "authorized": authorized,
+          "model": m.group(4).replace("_", " ") if m.group(4) else "",
+      }
+    devices = list(devices_by_id.values())
     j = json.dumps(devices)
     log.info("Detected devices: %s", j)
     http_server.respond(HTTPStatus.OK, j.encode("utf-8"), "text/json")
@@ -455,6 +483,11 @@ class FetchEndpoint(DeviceRequestEndpoint):
 class TraceThread(threading.Thread):
   """A thread to manage and run an ADB shell trace command."""
 
+  NON_FATAL_STDERR_PATTERNS = (
+      "Could not open module param file "
+      "'/sys/module/mali_kbase/parameters/large_page_conf'",
+  )
+
   def __init__(
       self, target_id: str, device_id: str, command: str, status_filename: str
   ):
@@ -585,15 +618,15 @@ class TraceThread(threading.Thread):
     )
     time.sleep(0.2)
     for _ in range(int(COMMAND_TIMEOUT_S / retry_interval)):
-      if (
-          call_adb(f"shell cat {self.status_filename}", device=self._device_id)
-          == "TRACE_OK" + os.linesep
-      ):
+      status = call_adb(
+          f"shell cat {self.status_filename}", device=self._device_id
+      )
+      if status.strip() == "TRACE_OK":
         log.info("Trace %s finished on %s", self.target_id, self._device_id)
         if self.target_id == "PerfettoTrace":
           self._success = True
         else:
-          self._success = not self.err
+          self._success = not self.has_fatal_stderr()
         return
       log.debug(
           "Still waiting for cleanup on %s for %s",
@@ -603,6 +636,21 @@ class TraceThread(threading.Thread):
       time.sleep(retry_interval)
 
     self._command_timed_out = True
+
+  def has_fatal_stderr(self) -> bool:
+    """Returns True when stderr contains messages that should fail the trace."""
+    if not self.err:
+      return False
+    if isinstance(self.err, bytes):
+      stderr = self.err.decode("utf-8", errors="replace")
+    else:
+      stderr = str(self.err)
+
+    lines = [line.strip() for line in stderr.splitlines() if line.strip()]
+    return any(
+        not any(pattern in line for pattern in self.NON_FATAL_STDERR_PATTERNS)
+        for line in lines
+    )
 
   def success(self):
     """Checks if the trace completed successfully.
@@ -851,10 +899,16 @@ class ADBWinscopeProxy(BaseHTTPRequestHandler):
       data: The response body as bytes.
       mime: The MIME type of the response.
     """
-    self.send_response(code)
-    self.send_header("Content-type", mime)
-    self.add_standard_headers()
-    self.wfile.write(data)
+    try:
+      self.send_response(code)
+      self.send_header("Content-type", mime)
+      self.add_standard_headers()
+      self.wfile.write(data)
+    except OSError as ex:
+      if is_client_disconnect(ex):
+        log.debug("Client disconnected before response could be sent: %r", ex)
+        return
+      raise
 
   # pylint: disable=invalid-name
   def do_GET(self):

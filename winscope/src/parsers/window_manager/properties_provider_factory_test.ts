@@ -26,6 +26,12 @@ describe('WmPropertiesProviderFactory', () => {
   });
 
   describe('Task', () => {
+    function makeTaskWithName(
+      task: perfetto.protos.ITaskProto & {taskName: string},
+    ): perfetto.protos.ITaskProto {
+      return task;
+    }
+
     it('applies name override - task id', () => {
       const entry = perfetto.protos.WindowManagerServiceDumpProto.create({
         rootWindowContainer: {
@@ -52,13 +58,13 @@ describe('WmPropertiesProviderFactory', () => {
           windowContainer: {
             children: [
               {
-                task: {
+                task: makeTaskWithName({
                   id: 12345,
                   taskName: 'Test',
                   windowContainer: {
                     identifier: {hashCode: 0x1a1a, title: 'Task'},
                   },
-                },
+                }),
               },
             ],
           },

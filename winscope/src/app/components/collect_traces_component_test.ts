@@ -332,7 +332,7 @@ describe('CollectTracesComponent', () => {
     expect(spy).toHaveBeenCalled();
   });
 
-  it('fetch existing traces button emits files and restarts host if no files found', async () => {
+  it('fetch existing traces button emits files and does not restart host if no files found', async () => {
     const controller = assertDefined(component.controller);
     spyOn(controller, 'fetchLastSessionData').and.returnValue(
       Promise.resolve([]),
@@ -346,7 +346,7 @@ describe('CollectTracesComponent', () => {
       requested: [],
       collected: [],
     });
-    expect(restartSpy).toHaveBeenCalledTimes(1);
+    expect(restartSpy).not.toHaveBeenCalled();
   });
 
   it('fetch existing traces button emits files and does not restart host if files found', async () => {

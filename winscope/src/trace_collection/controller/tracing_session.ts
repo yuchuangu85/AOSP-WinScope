@@ -58,11 +58,14 @@ export class TracingSession {
           `Attempting to move file ${filepath} to ${WINSCOPE_BACKUP_DIR}${file.destName} on device`,
         );
         try {
+          const backupFilepath = `${WINSCOPE_BACKUP_DIR}${file.destName}`;
           const output = await device.runShellCommand(
             maybeRootParam +
               `[ -f ${filepath} ] && ` +
               maybeRootParam +
-              `cp -p ${filepath} ${WINSCOPE_BACKUP_DIR}${file.destName} && ` +
+              `cp -p ${filepath} ${backupFilepath} && ` +
+              maybeRootParam +
+              `chmod a+r ${backupFilepath} && ` +
               maybeRootParam +
               `rm -f ${filepath}`,
           );

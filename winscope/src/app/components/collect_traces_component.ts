@@ -824,15 +824,11 @@ export class CollectTracesComponent
   }
 
   async fetchExistingTraces() {
-    const controller = assertDefined(this.controller);
-    const files = await this.fetchLastSessionData();
+    const files = await this.fetchLastSessionData(true);
     this.filesCollected.emit({
       requested: [],
       collected: files,
     });
-    if (files.length === 0) {
-      await controller.restartConnection();
-    }
   }
 
   onAvailableTracesChange(
@@ -939,11 +935,12 @@ export class CollectTracesComponent
     }
   }
 
-  private async fetchLastSessionData() {
+  private async fetchLastSessionData(notifyIfEmpty = false) {
     await this.setState(ConnectionState.LOADING_DATA);
     const startTimeMs = Date.now();
     const files = await assertDefined(this.controller).fetchLastSessionData(
       assertDefined(this.selectedDevice),
+      notifyIfEmpty,
     );
     if (files.length === 0) {
       Analytics.Proxy.logNoFilesFound();

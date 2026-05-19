@@ -101,16 +101,32 @@ export class WinscopeProxyDeviceConnection extends AdbDeviceConnection {
       const resp = utf8Decode(httpResponse.body);
       const fileToPath = JSON.parse(resp);
       const encodedFileBuffer = fileToPath[filepath];
+      if (encodedFileBuffer === undefined) {
+        throw new Error(`No data returned for ${filepath}`);
+      }
       return Uint8Array.from(window.atob(encodedFileBuffer), (c) =>
         c.charCodeAt(0),
       );
     } catch (error) {
       await this.listener.onError(
-        `Could not fetch file. Received: ${httpResponse.text}`,
+        `Could not fetch file. Received: ${this.getResponseText(httpResponse)}`,
       );
       return Uint8Array.from([]);
     }
   };
+
+  private getResponseText(httpResponse: HttpResponse): string {
+    if (httpResponse.text.length > 0) {
+      return httpResponse.text;
+    }
+    if (typeof httpResponse.body === 'string') {
+      return httpResponse.body;
+    }
+    if (httpResponse.body === undefined || httpResponse.body === null) {
+      return '';
+    }
+    return utf8Decode(httpResponse.body);
+  }
 
   override async startTrace(target: TraceTarget) {
     this.isTracing = true;

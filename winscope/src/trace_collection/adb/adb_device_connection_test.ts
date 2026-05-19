@@ -220,6 +220,34 @@ describe('AdbDeviceConnection', () => {
     expect(await connection.findFiles('filepath', [])).toEqual([]);
   });
 
+  it('handles full find "No such file or directory" error', async () => {
+    runShellCmdSpy
+      .withArgs('find filepath')
+      .and.returnValue("find: 'filepath': No such file or directory");
+    expect(await connection.findFiles('filepath', [])).toEqual([]);
+  });
+
+  it('handles adb command errors returned from proxy find', async () => {
+    setDeviceAsRoot();
+    runShellCmdSpy
+      .withArgs('su root find filepath')
+      .and.returnValue(
+        'Error executing adb command: adb -s 123 shell su root find filepath: ' +
+          "find: 'filepath': No such file or directory",
+      );
+    expect(await connection.findFiles('filepath', [])).toEqual([]);
+  });
+
+  it('handles url-encoded adb command errors returned from proxy find', async () => {
+    setDeviceAsRoot();
+    runShellCmdSpy
+      .withArgs('su root find filepath')
+      .and.returnValue(
+        'Error%20executing%20adb%20command:%20adb%20-s%20123%20shell%20su%20root%20find%20filepath:%20find:%20%27filepath%27:%20No%20such%20file%20or%20directory',
+      );
+    expect(await connection.findFiles('filepath', [])).toEqual([]);
+  });
+
   it('handles "Permission denied" error', async () => {
     runShellCmdSpy
       .withArgs('su root find filepath')
@@ -232,14 +260,29 @@ describe('AdbDeviceConnection', () => {
     expect(await connection.findFiles('filepath', [])).toEqual(['file']);
   });
 
+  it('trims Windows CRLF file paths', async () => {
+    runShellCmdSpy
+      .withArgs('find filepath')
+      .and.returnValue('file1\r\nfile2\r\n');
+    expect(await connection.findFiles('filepath', [])).toEqual([
+      'file1',
+      'file2',
+    ]);
+  });
+
   it('checks root and returns true for "0" output', async () => {
     setDeviceAsRoot();
     expect(await connection.checkRoot()).toBeTrue();
   });
 
-  it('checks root and returns false for non "0" output', async () => {
-    setDeviceAsRoot();
+  it('checks root and returns true for "0" output with whitespace', async () => {
+    runShellCmdSpy.withArgs('su root id -u').and.returnValue('0\n');
     expect(await connection.checkRoot()).toBeTrue();
+  });
+
+  it('checks root and returns false for non "0" output', async () => {
+    runShellCmdSpy.withArgs('su root id -u').and.returnValue('2000');
+    expect(await connection.checkRoot()).toBeFalse();
   });
 
   it('updates protolog groups depending on device state change', async () => {

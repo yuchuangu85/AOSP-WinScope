@@ -108,10 +108,10 @@ describe('TracingSession', () => {
     expect(runShellCmdSpy.calls.allArgs()).toEqual([
       ['su root id -u'],
       [
-        `[ -f file ] && cp -p file ${WINSCOPE_BACKUP_DIR}saved_file_1 && rm -f file`,
+        `[ -f file ] && cp -p file ${WINSCOPE_BACKUP_DIR}saved_file_1 && chmod a+r ${WINSCOPE_BACKUP_DIR}saved_file_1 && rm -f file`,
       ],
       [
-        `[ -f file ] && cp -p file ${WINSCOPE_BACKUP_DIR}saved_file_2 && rm -f file`,
+        `[ -f file ] && cp -p file ${WINSCOPE_BACKUP_DIR}saved_file_2 && chmod a+r ${WINSCOPE_BACKUP_DIR}saved_file_2 && rm -f file`,
       ],
     ]);
   });
@@ -127,10 +127,10 @@ describe('TracingSession', () => {
     expect(runShellCmdSpy.calls.allArgs()).toEqual([
       ['su root id -u'],
       [
-        `su root [ -f file ] && su root cp -p file ${WINSCOPE_BACKUP_DIR}saved_file_1 && su root rm -f file`,
+        `su root [ -f file ] && su root cp -p file ${WINSCOPE_BACKUP_DIR}saved_file_1 && su root chmod a+r ${WINSCOPE_BACKUP_DIR}saved_file_1 && su root rm -f file`,
       ],
       [
-        `su root [ -f file ] && su root cp -p file ${WINSCOPE_BACKUP_DIR}saved_file_2 && su root rm -f file`,
+        `su root [ -f file ] && su root cp -p file ${WINSCOPE_BACKUP_DIR}saved_file_2 && su root chmod a+r ${WINSCOPE_BACKUP_DIR}saved_file_2 && su root rm -f file`,
       ],
     ]);
   });
@@ -139,12 +139,12 @@ describe('TracingSession', () => {
     runShellCmdSpy.and.returnValue(Promise.resolve(''));
     runShellCmdSpy
       .withArgs(
-        `[ -f file ] && cp -p file ${WINSCOPE_BACKUP_DIR}saved_file_1 && rm -f file`,
+        `[ -f file ] && cp -p file ${WINSCOPE_BACKUP_DIR}saved_file_1 && chmod a+r ${WINSCOPE_BACKUP_DIR}saved_file_1 && rm -f file`,
       )
       .and.throwError(new Error());
     runShellCmdSpy
       .withArgs(
-        `[ -f file ] && cp -p file ${WINSCOPE_BACKUP_DIR}saved_file_2 && rm -f file`,
+        `[ -f file ] && cp -p file ${WINSCOPE_BACKUP_DIR}saved_file_2 && chmod a+r ${WINSCOPE_BACKUP_DIR}saved_file_2 && rm -f file`,
       )
       .and.throwError(new Error());
     await expectAsync(session.moveFiles(mockDevice)).toBeResolved();
