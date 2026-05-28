@@ -47,36 +47,35 @@ SESSION_PREFIX = "winscope_session"
 # adb helpers
 # ========================
 
-### 执行等待操作
-# def run(cmd: str, *, check=True):
-#     print(f"$ {cmd}")
-#     try:
-#         return subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).decode()
-#     except subprocess.CalledProcessError as e:
-#         if check:
-#             print(e.output.decode(), file=sys.stderr)
-#             sys.exit(e.returncode)
-#         return e.output.decode()
 
-### 不执行等待操作
-def run(cmd: str, *, check=True):
-    print(f"$ {cmd}")
-    try:
-        # 使用 subprocess.Popen 来非阻塞地执行命令
-        process = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
-        # 立即返回
-        return process
-    except Exception as e:
-        print(f"Error running command: {e}", file=sys.stderr)
-        sys.exit(1)
+def run(cmd: list[str], *, check=True) -> str:
+    """Run a host command synchronously and return stdout.
 
-
-def adb(cmd: str, **kw):
-    return run(f"adb {cmd}", **kw)
+    Using an argument list avoids Windows shell quoting issues, and waiting for
+    completion prevents the script from exiting before adb push/pull has
+    actually produced local trace files.
+    """
+    print("$ " + " ".join(cmd))
+    result = subprocess.run(
+        cmd,
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    if result.stdout:
+        print(result.stdout, end="" if result.stdout.endswith("\n") else "\n")
+    if check and result.returncode != 0:
+        sys.exit(result.returncode)
+    return result.stdout
 
 
-def adb_shell(cmd: str, **kw):
-    return adb(f"shell {cmd}", **kw)
+def adb(*args: str, **kw) -> str:
+    return run(["adb", *args], **kw)
+
+
+def adb_shell(cmd: str, **kw) -> str:
+    return adb("shell", cmd, **kw)
 
 
 # ========================
@@ -84,7 +83,10 @@ def adb_shell(cmd: str, **kw):
 # ========================
 
 def start_perfetto(config_path: str, trace_path: str):
-    adb_shell(f"perfetto --txt --config {config_path} --out {trace_path} &")
+    adb_shell(
+        f"perfetto --txt --config {config_path} --out {trace_path} "
+        ">/dev/null 2>&1 &"
+    )
 
 
 def stop_perfetto():
@@ -92,7 +94,7 @@ def stop_perfetto():
 
 
 def start_screenrecord(video_path: str):
-    adb_shell(f"screenrecord --bugreport {video_path} &")
+    adb_shell(f"screenrecord --bugreport {video_path} >/dev/null 2>&1 &")
 
 
 def stop_screenrecord():
@@ -102,6 +104,7 @@ def stop_screenrecord():
 # ========================
 # metadata
 # ========================
+
 
 def collect_metadata(duration: int, video: bool) -> dict:
     props = {}
@@ -125,11 +128,43 @@ def collect_metadata(duration: int, video: bool) -> dict:
 # main flow
 # ========================
 
+
+def resolve_config_path(config: str) -> Path:
+    config_path = Path(config)
+    if config_path.is_file():
+        return config_path
+
+    # The Windows offline package ships this script under tools/ and renames
+    # winscope.pbtx to perfetto_config.pbtx. Support double-click / no-arg use
+    # from that layout while keeping the repo-root default unchanged.
+    if config == "winscope.pbtx":
+        for fallback in [
+            Path(__file__).with_name("perfetto_config.pbtx"),
+            Path("perfetto_config.pbtx"),
+        ]:
+            if fallback.is_file():
+                return fallback
+
+    print(
+        f"[ERROR] Perfetto config not found: {config_path}",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Final AOSP-aligned Winscope capture tool")
-    parser.add_argument("--config", default="winscope.pbtx", help="Perfetto pbtx config")
-    parser.add_argument("--duration", type=int, default=10, help="Capture duration (seconds)")
-    parser.add_argument("--video", action="store_true", help="Enable screen recording")
+    parser = argparse.ArgumentParser(
+        description="Final AOSP-aligned Winscope capture tool"
+    )
+    parser.add_argument(
+        "--config", default="winscope.pbtx", help="Perfetto pbtx config"
+    )
+    parser.add_argument(
+        "--duration", type=int, default=10, help="Capture duration (seconds)"
+    )
+    parser.add_argument(
+        "--video", action="store_true", help="Enable screen recording"
+    )
     args = parser.parse_args()
 
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -140,22 +175,28 @@ def main():
     device_trace = f"{PERFETTO_DIR}/winscope.perfetto-trace"
     device_video = f"{TMP_DIR}/winscope.mp4"
 
+    config_path = resolve_config_path(args.config)
+
     print("=== [1] push perfetto config ===")
-    adb(f"push {args.config} {PERFETTO_DIR}")
+    adb("push", str(config_path), device_config)
 
     print("=== [2] start perfetto (background) ===")
     start_perfetto(device_config, device_trace)
 
-    # if args.video:
-    print("=== [3] start screenrecord ===")
-    start_screenrecord(device_video)
+    if args.video:
+        print("=== [3] start screenrecord ===")
+        start_screenrecord(device_video)
+    else:
+        print("=== [3] screenrecord disabled ===")
 
     print(f"=== [4] capturing for {args.duration}s ===")
     time.sleep(args.duration)
 
-    # if args.video:
-    print("=== [5] stop screenrecord ===")
-    stop_screenrecord()
+    if args.video:
+        print("=== [5] stop screenrecord ===")
+        stop_screenrecord()
+    else:
+        print("=== [5] screenrecord was disabled ===")
 
     print("=== [6] stop perfetto ===")
     stop_perfetto()
@@ -163,13 +204,15 @@ def main():
     time.sleep(1)
 
     print("=== [7] pull trace ===")
-    adb(f"pull {device_trace} {session_dir / 'trace.perfetto-trace'}")
+    adb("pull", device_trace, str(session_dir / "trace.perfetto-trace"))
 
-    # if args.video:
-    print("=== [8] pull video ===")
-    adb(f"pull {device_video} {session_dir / 'screen.mp4'}")
+    if args.video:
+        print("=== [8] pull video ===")
+        adb("pull", device_video, str(session_dir / "screen.mp4"))
+    else:
+        print("=== [8] video was disabled ===")
 
-    if args.video & args.duration:
+    if args.duration:
         print("=== [9] write metadata ===")
         metadata = collect_metadata(args.duration, args.video)
         with open(session_dir / "metadata.json", "w", encoding="utf-8") as f:

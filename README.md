@@ -58,10 +58,23 @@ http-server winscope/dist/prod -p 8000 -o /index.html -c-1
 
 如果遇到旧 hash 的 `js/*.js` 或 `trace_processor_memory64.wasm` 404，先停掉旧服务并强刷/无痕打开；当前离线包已包含无 symlink 的兼容文件。
 
+Windows 离线包请优先双击 `START_WINScope.bat`。该脚本会启动本地
+`http://127.0.0.1:8000/` 静态服务后再打开 WinScope，避免直接用
+`file://index.html` 时浏览器对 Worker/WASM 本地文件访问的限制导致 trace
+加载不完整。
+
 打开 `http://localhost:8000` 或者 `http://127.0.0.1:8000/`
 
 导入**1.perfetto-trace**文件即可
 
 ## 新增脚本抓取
 
-执行py3_winscope.py即可，视频和文件导入到result中
+执行 `winscope_capture.py` 即可；Windows 离线包内可在 `tools` 目录执行：
+
+```powershell
+python winscope_capture.py --duration 12
+python winscope_capture.py --duration 12 --video
+```
+
+脚本会等待 `adb push/pull` 完成，并自动兼容离线包中的
+`perfetto_config.pbtx`。

@@ -14,12 +14,14 @@
  * limitations under the License.
  */
 import {getFixtureFile} from 'test/unit/io_helpers';
+import * as jSZip from 'jszip';
 import {
   createZipArchive,
   decompressGZipFile,
   DOWNLOAD_FILENAME_REGEX,
   getFileDirectory,
   getFileExtension,
+  normalizeFilePathSeparators,
   removeDirFromFileName,
   removeExtensionFromFilename,
   unzipFile,
@@ -35,6 +37,7 @@ describe('file_utils', () => {
   it('extracts file directories', () => {
     expect(getFileDirectory('test/winscope.zip')).toBe('test');
     expect(getFileDirectory('test/test/winscope.zip')).toBe('test/test');
+    expect(getFileDirectory('test\\test\\winscope.zip')).toBe('test/test');
     expect(getFileDirectory('winscope.zip')).toBeUndefined();
   });
 
@@ -42,6 +45,15 @@ describe('file_utils', () => {
     expect(removeDirFromFileName('test/winscope.zip')).toBe('winscope.zip');
     expect(removeDirFromFileName('test/test/winscope.zip')).toBe(
       'winscope.zip',
+    );
+    expect(removeDirFromFileName('test\\test\\winscope.zip')).toBe(
+      'winscope.zip',
+    );
+  });
+
+  it('normalizes Windows path separators', () => {
+    expect(normalizeFilePathSeparators('test\\test\\winscope.zip')).toBe(
+      'test/test/winscope.zip',
     );
   });
 
@@ -92,6 +104,21 @@ describe('file_utils', () => {
     expect(unzippedFiles.map((f) => f.name)).toEqual([
       'Surface Flinger/SurfaceFlinger.pb',
       'Window Manager/WindowManager.pb',
+    ]);
+  });
+
+  it('normalizes Windows separators when unzipping archive entries', async () => {
+    const zip = new jSZip();
+    zip.file('Surface Flinger\\SurfaceFlinger.pb', new ArrayBuffer(1));
+    zip.file(
+      'FS\\data\\misc\\perfetto-traces\\bugreport\\systrace.pftrace',
+      new ArrayBuffer(1),
+    );
+    const archive = await zip.generateAsync({type: 'blob'});
+    const unzippedFiles = await unzipFile(archive);
+    expect(unzippedFiles.map((f) => f.name)).toEqual([
+      'Surface Flinger/SurfaceFlinger.pb',
+      'FS/data/misc/perfetto-traces/bugreport/systrace.pftrace',
     ]);
   });
 

@@ -1,6 +1,6 @@
 # WinScope Release 打包记录
 
-记录时间：2026-05-19 20:33:00 CST  
+记录时间：2026-05-28 21:05:00 CST
 仓库路径：`/Users/yuchuan.gu/Workspace/MX/AOSP-WinScope`  
 产物名称：`winscope-windows-offline.zip`  
 产物目录：`release/`
@@ -9,7 +9,7 @@
 
 生成一个可在 Windows 上离线使用的 WinScope 包，用户解压后可通过批处理脚本启动：
 
-- `START_WINScope.bat`：启动 ADB proxy，并打开本地 `index.html`。
+- `START_WINScope.bat`：启动 ADB proxy 和本地静态 HTTP 服务，并打开本地 WinScope 页面。
 - `START_PROXY.bat`：仅启动 WinScope ADB proxy。
 - `README_WINDOWS.txt`：Windows 使用说明和常见问题。
 - `tools/`：附带抓取辅助文件。
@@ -19,10 +19,19 @@
 
 问题现象：Windows 下采集后加载提示 `No valid trace files found`，macOS 正常。
 
-根因判断：Windows ADB/子进程输出常见 CRLF (`\r\n`) 换行，前端 `findFiles()` 之前只按 `\n` 分割但返回未 trim 的路径，可能把隐藏 `\r` 带入 `/fetch/...` 文件路径；代理端也有 `os.linesep` 依赖，导致 Windows/macOS 对 adb 输出和 `TRACE_OK` 状态的处理不一致。
+根因判断：
+
+- Windows 包直接用 `file://.../index.html` 启动，浏览器对本地 file origin 下的 Worker/WASM/同步读取限制更严格，容易导致 trace processor 初始化失败，表现为文件加载不完整。
+- Windows/部分压缩工具可能在 zip entry 中写入反斜杠路径，前端过滤 bugreport/zip 内文件时只按 `/` 匹配。
+- `tools/winscope_capture.py` 在 Windows 包内使用的配置文件名是 `perfetto_config.pbtx`，但脚本启动 perfetto 时固定读取设备端 `/data/misc/perfetto-traces/winscope.pbtx`；旧脚本还用非阻塞 `Popen` 执行 `adb push/pull`，可能在文件真正拉取完成前退出。
+- Windows ADB/子进程输出常见 CRLF (`\r\n`) 换行，前端 `findFiles()` 之前只按 `\n` 分割但返回未 trim 的路径，可能把隐藏 `\r` 带入 `/fetch/...` 文件路径；代理端也有 `os.linesep` 依赖，导致 Windows/macOS 对 adb 输出和 `TRACE_OK` 状态的处理不一致。
 
 修复内容：
 
+- `release/winscope-windows-offline.zip`：`START_WINScope.bat` 改为同时启动 `python -m http.server 8000 --bind 127.0.0.1`，并打开 `http://127.0.0.1:8000/index.html?token=...`，不再使用 `file://` 打开前端。
+- `winscope/src/common/io.ts`：统一把 zip entry/文件路径中的 `\` 规范化成 `/`，覆盖目录提取、文件名提取、zip 创建/解压、gzip 解压后的文件名。
+- `winscope/src/common/io_test.ts`：新增 Windows 反斜杠路径与 zip entry 回归测试。
+- `winscope_capture.py`：改为同步等待 `adb push/pull`，使用 argv list 避免 Windows shell quoting 问题；push 配置到脚本实际读取的设备端路径；兼容 Windows 包内 `tools/perfetto_config.pbtx` 默认布局。
 - `winscope/src/trace_collection/adb/adb_device_connection.ts`：对 `find` 输出的每个路径做 `trim()`，避免隐藏 `\r` 污染 device filepath。
 - `winscope/src/trace_collection/adb/adb_device_connection_test.ts`：新增 Windows CRLF 路径测试。
 - `winscope/src/adb/winscope_proxy.py`：`adb devices -l` 改用 `splitlines()`；trace 完成状态改为 `status.strip() == "TRACE_OK"`，不再依赖宿主 OS 换行符。
@@ -30,10 +39,11 @@
 
 验证：
 
+- `python3 -m py_compile winscope_capture.py` 通过。
 - `python3 -m py_compile winscope/src/adb/winscope_proxy.py` 通过。
 - `npm run build:app` 通过，仅有既有 webpack bundle size warning。
 - `zip -T release/winscope-windows-offline.zip` 通过。
-- 包内确认 `winscope_proxy.py` 包含 `splitlines()` 与 `status.strip() == "TRACE_OK"`。
+- 包内确认 `START_WINScope.bat` 打开 `http://127.0.0.1:8000/index.html?token=...`，`tools/winscope_capture.py` 包含同步 `subprocess.run()` 与 `resolve_config_path()`，`winscope_proxy.py` 包含 `splitlines()` 与 `status.strip() == "TRACE_OK"`。
 - Karma 选定测试尝试运行，但本机缺少 `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`，无法启动 `ChromeHeadless`；新增测试已随 `build:app` 完成 TypeScript/webpack 编译。
 
 ## 2. 运行要求
@@ -199,8 +209,8 @@ cat release/winscope-windows-offline.zip.sha256
 test of release/winscope-windows-offline.zip OK
 file_count=91
 js_count=67
-hash_refs=062e760d078d6d886ec2
-3996f55200df52d23adccddec7ea0d6f5f3adbbbc903999c6de8a4b5bf39bd02  winscope-windows-offline.zip
+hash_refs=341675f6141adbb706de
+c7c4534583158d4b4c4e706463748a86ca338ddb6348ede3301ec551620cac04  winscope-windows-offline.zip
 ```
 
 ## 7. 本次 release 产物
@@ -213,7 +223,7 @@ release/winscope-windows-offline.zip.sha256  95B
 sha256：
 
 ```text
-3996f55200df52d23adccddec7ea0d6f5f3adbbbc903999c6de8a4b5bf39bd02  winscope-windows-offline.zip
+c7c4534583158d4b4c4e706463748a86ca338ddb6348ede3301ec551620cac04  winscope-windows-offline.zip
 ```
 
 ## 8. Windows 包说明内容要求
@@ -233,6 +243,6 @@ sha256：
 
 - 不要把 `.DS_Store` 打入 release 包。
 - `tools/` 和 `docs/` 要在 `rsync --delete` 之后再创建，否则会被清理掉。
-- `START_WINScope.bat` 会读取 `%USERPROFILE%\.config\winscope\.token`，并将 token 拼接到本地 file URL。
+- `START_WINScope.bat` 会读取 `%USERPROFILE%\.config\winscope\.token`，并将 token 拼接到本地 HTTP URL。
 - 同一时间建议只运行一个 WinScope proxy，默认端口为 `5544`。
 - 如后续修改 `winscope/src/adb/winscope_proxy.py` 或前端 trace collection 逻辑，需要重新执行 `npm run build:app` 再打包。

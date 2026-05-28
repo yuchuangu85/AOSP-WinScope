@@ -44,6 +44,21 @@ export const DOWNLOAD_FILENAME_REGEX = /^\w+?((|#|-|\.)\w+)+$/;
  */
 export const ILLEGAL_FILENAME_CHARACTERS_REGEX = /[^A-Za-z0-9-#._]/g;
 
+const FILE_PATH_SEPARATOR_REGEX = /\\/g;
+
+/**
+ * Normalizes path separators found in file names.
+ *
+ * Browser uploaded files usually expose only a base name, but files extracted
+ * from ZIP archives keep the archive entry name. Some Windows ZIP tools write
+ * entries with backslashes even though ZIP paths are expected to use forward
+ * slashes. The rest of WinScope matches Android/ZIP paths with '/', so normalize
+ * at the file utility boundary.
+ */
+export function normalizeFilePathSeparators(filename: string): string {
+  return filename.replace(FILE_PATH_SEPARATOR_REGEX, '/');
+}
+
 /**
  * Extracts the file extension from a filename.
  *
@@ -65,6 +80,7 @@ export function getFileExtension(filename: string): string | undefined {
  * @return The file directory, or undefined if there is no directory.
  */
 export function getFileDirectory(filename: string): string | undefined {
+  filename = normalizeFilePathSeparators(filename);
   const lastIndex = filename.lastIndexOf('/');
   if (lastIndex === -1) {
     return undefined;
@@ -79,6 +95,7 @@ export function getFileDirectory(filename: string): string | undefined {
  * @return The filename without the directory.
  */
 export function removeDirFromFileName(name: string): string {
+  name = normalizeFilePathSeparators(name);
   if (name.includes('/')) {
     const startIndex = name.lastIndexOf('/') + 1;
     return name.slice(startIndex);
@@ -119,7 +136,7 @@ export async function createZipArchive(
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
     const blob = await file.arrayBuffer();
-    zip.file(file.name, blob);
+    zip.file(normalizeFilePathSeparators(file.name), blob);
     if (progressCallback) progressCallback((i + 1) / files.length);
   }
   return await zip.generateAsync({type: 'blob'});
@@ -150,7 +167,10 @@ export async function unzipFile(
       continue;
     } else {
       const fileBlob = await file.async('blob');
-      const unzippedFile = new File([fileBlob], filename);
+      const unzippedFile = new File(
+        [fileBlob],
+        normalizeFilePathSeparators(filename),
+      );
       if (await isZipFile(unzippedFile)) {
         unzippedFiles.push(...(await unzipFile(fileBlob)));
       } else {
@@ -185,8 +205,8 @@ export async function decompressGZipFile(file: File): Promise<File> {
   }
   const filename =
     getFileExtension(file.name) === 'gz'
-      ? removeExtensionFromFilename(file.name)
-      : file.name;
+      ? normalizeFilePathSeparators(removeExtensionFromFilename(file.name))
+      : normalizeFilePathSeparators(file.name);
   return new File([fileBlob], filename);
 }
 
