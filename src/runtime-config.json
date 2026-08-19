@@ -1,0 +1,5 @@
+{
+  "schemaVersion": 1,
+  "host": { "kind": "standalone" },
+  "capture": { "provider": "none" }
+}

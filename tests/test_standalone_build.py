@@ -74,6 +74,20 @@ class StandaloneBuildContractTest(unittest.TestCase):
                 (REPOSITORY_ROOT / "deps_build/trace_processor/to_be_served" / name).read_bytes(),
             )
 
+    def test_verified_production_output_is_local_and_file_only_by_default(self):
+        result = subprocess.run(
+            [sys.executable, "scripts/build.py", "verify", "--json"],
+            cwd=REPOSITORY_ROOT,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+        contract = json.loads(result.stdout)["webContract"]
+        self.assertTrue(contract["csp"])
+        self.assertTrue(contract["relativeBaseHref"])
+        self.assertTrue(contract["defaultFileOnly"])
+        self.assertEqual(contract["runtimeConfig"], "runtime-config.json")
+
     def test_output_verification_rejects_matching_tampered_copies(self):
         paths = [
             REPOSITORY_ROOT / "deps_build/trace_processor/to_be_served/engine_bundle.js",

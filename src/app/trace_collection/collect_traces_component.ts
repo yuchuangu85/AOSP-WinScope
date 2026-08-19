@@ -15,7 +15,17 @@
  */
 
 import {CommonModule} from '@angular/common';
-import {ChangeDetectorRef, Component, computed, Inject, input, NgZone, output, signal, ViewEncapsulation,} from '@angular/core';
+import {
+  ChangeDetectorRef,
+  Component,
+  computed,
+  Inject,
+  input,
+  NgZone,
+  output,
+  signal,
+  ViewEncapsulation,
+} from '@angular/core';
 import {MatButtonModule} from '@angular/material/button';
 import {MatCardModule} from '@angular/material/card';
 import {MatDialog} from '@angular/material/dialog';
@@ -29,29 +39,49 @@ import {LoadProgressComponent} from '@app/trace_loading/load_progress_component'
 import {assertDefined, assertTrue, assertUnreachable} from '@common/assert';
 import {Store} from '@common/store/store';
 import {equal} from '@common/typed_array';
+import {globalConfig} from '@compat/global_config';
 import {getLogger} from '@compat/logging';
 import {Analytics} from '@logging/analytics';
 import {ProgressListener} from '@messaging/progress_listener';
 import {WinscopeEvent} from '@messaging/winscope_event';
-import {EmitEvent, WinscopeEventEmitter,} from '@messaging/winscope_event_emitter';
+import {
+  EmitEvent,
+  WinscopeEventEmitter,
+} from '@messaging/winscope_event_emitter';
 import {WinscopeEventListener} from '@messaging/winscope_event_listener';
 import {UserNotifier} from '@services/user_notifier';
+import {getRuntimeConfig} from '@runtime/runtime_config';
 import {AdbConnectionType} from '@trace_collection/adb_connection_type';
-import {AdbDeviceConnection, AdbDeviceState,} from '@trace_collection/adb_device_connection';
+import {
+  AdbDeviceConnection,
+  AdbDeviceState,
+} from '@trace_collection/adb_device_connection';
 import {AdbFiles, RequestedTraceTypes} from '@trace_collection/adb_files';
 import {ConnectionState} from '@trace_collection/connection_state';
 import {ConnectionStateListener} from '@trace_collection/connection_state_listener';
 import {TraceCollectionController} from '@trace_collection/controller/trace_collection_controller';
 import {UiTraceTarget} from '@trace_collection/ui_trace_target';
-import {CheckboxConfiguration, makeDefaultDumpConfigMap, makeDefaultTraceConfigMap, makeProtologGroupOptions, makeScreenRecordingSelectionConfigs, SelectionConfiguration, TraceConfigurationMap, updateConfigsFromStore,} from '@trace_collection/ui/ui_trace_configuration';
+import {
+  CheckboxConfiguration,
+  makeDefaultDumpConfigMap,
+  makeDefaultTraceConfigMap,
+  makeProtologGroupOptions,
+  makeScreenRecordingSelectionConfigs,
+  SelectionConfiguration,
+  TraceConfigurationMap,
+  updateConfigsFromStore,
+} from '@trace_collection/ui/ui_trace_configuration';
 import {UserRequest, UserRequestConfig} from '@trace_collection/user_request';
 import {AppRefreshDumpsRequest} from '@ui/shared/events/app_events';
 import {NoTraceTargetsSelectedEvent} from '@ui/shared/events/misc_events';
 import {makeWarningProxyTraceTimeout} from '@ui/trace_loading/warnings';
 
 import {TraceConfigComponent} from './trace_config_component';
-import {WarningDialogComponent, WarningDialogData, WarningDialogResult,} from './warning_dialog_component';
-import {WdpSetupComponent} from './wdp_setup_component';
+import {
+  WarningDialogComponent,
+  WarningDialogData,
+  WarningDialogResult,
+} from './warning_dialog_component';
 import {WinscopeProxySetupComponent} from './winscope_proxy_setup_component';
 
 /**
@@ -69,7 +99,6 @@ import {WinscopeProxySetupComponent} from './winscope_proxy_setup_component';
     MatTooltipModule,
     MatIconModule,
     WinscopeProxySetupComponent,
-    WdpSetupComponent,
     MatListModule,
     MatTabsModule,
     TraceConfigComponent,
@@ -172,11 +201,17 @@ export class CollectTracesComponent
   ) {}
 
   async ngOnInit() {
-    const adbConnectionType = this.store().get(this.storeKeyAdbConnectionType);
-    if (adbConnectionType !== undefined) {
-      await this.changeHostConnection(adbConnectionType);
-    } else {
-      await this.changeHostConnection(AdbConnectionType.WDP);
+    if (globalConfig.isTestMode()) {
+      const testConnectionType = this.store().get(
+        this.storeKeyAdbConnectionType,
+      );
+      if (testConnectionType !== undefined) {
+        await this.changeHostConnection(testConnectionType);
+      }
+      return;
+    }
+    if (getRuntimeConfig().capture.provider === 'loopback-proxy-v1') {
+      await this.changeHostConnection(AdbConnectionType.WINSCOPE_PROXY);
     }
   }
 
@@ -196,6 +231,10 @@ export class CollectTracesComponent
   }
 
   async onConnectionChange(adbConnectionType: string) {
+    if (getRuntimeConfig().capture.provider !== 'loopback-proxy-v1') {
+      await this.onError('Device capture is unavailable in file-only mode.');
+      return;
+    }
     this.isChangingConnection.set(true);
     this.changeDetectorRef.detectChanges();
     await this.changeHostConnection(adbConnectionType);
@@ -532,13 +571,23 @@ export class CollectTracesComponent
   }
 
   private async changeHostConnection(adbConnectionType: string) {
+    const testConnection =
+      globalConfig.isTestMode() && adbConnectionType === AdbConnectionType.MOCK;
+    if (
+      adbConnectionType !== AdbConnectionType.WINSCOPE_PROXY &&
+      !testConnection
+    ) {
+      await this.onError(
+        'Only the configured same-origin capture provider is supported.',
+      );
+      return;
+    }
     const selectedDevice = this.selectedDevice;
     if (selectedDevice) {
       await this.controller?.onDestroy(selectedDevice);
     }
     this.controller = new TraceCollectionController(adbConnectionType, this);
-    this.connectionTabIndex =
-      adbConnectionType === AdbConnectionType.WINSCOPE_PROXY ? 1 : 0;
+    this.connectionTabIndex = 0;
     this.changeDetectorRef.detectChanges();
     this.store().add(this.storeKeyAdbConnectionType, adbConnectionType);
     await this.controller.restartConnection();

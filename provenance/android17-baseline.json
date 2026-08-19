@@ -63,6 +63,11 @@
         "path": "CONTEXT.md"
       },
       {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "angular.json"
+      },
+      {
         "change": "added",
         "origin": "newly-authored-clean-room",
         "path": "build/dependencies.lock.json"
@@ -253,6 +258,86 @@
         "path": "scripts/verify-baseline.py"
       },
       {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/app/trace_collection/collect_traces_component.ng.html"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/app/trace_collection/collect_traces_component.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/app/trace_collection/collect_traces_component_test.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/common/analytics.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/index.html"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/main_dev.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/main_prod.ts"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "src/runtime-config.json"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "src/runtime/runtime_config.ts"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "src/runtime/runtime_config_test.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/styles/material-theme.scss"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/trace_collection/controller/trace_collection_controller.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/trace_collection/winscope_proxy/utils.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/trace_collection/winscope_proxy/winscope_proxy_device_connection_test.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/trace_collection/winscope_proxy/winscope_proxy_host_connection.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/trace_collection/winscope_proxy/winscope_proxy_host_connection_test.ts"
+      },
+      {
         "change": "added",
         "origin": "newly-authored-clean-room",
         "path": "tests/test_dependency_closure.py"
@@ -266,6 +351,11 @@
         "change": "added",
         "origin": "newly-authored-clean-room",
         "path": "tests/test_verify_baseline.py"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "tsconfig.common.json"
       }
     ],
     "policy": "only-recorded-newly-authored-clean-room-files"
@@ -276,11 +366,7 @@
     "npm": "11.17.0",
     "python": {
       "ci": "3.12",
-      "supported": [
-        "3.11",
-        "3.12",
-        "3.13"
-      ]
+      "supported": ["3.11", "3.12", "3.13"]
     }
   },
   "vendor": {

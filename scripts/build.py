@@ -35,6 +35,22 @@ TRACE_PROCESSOR_ARTIFACTS = (
     "trace_processor.wasm",
     "trace_processor_memory64.wasm",
 )
+RUNTIME_CONFIG_NAME = "runtime-config.json"
+REQUIRED_CSP_DIRECTIVES = (
+    "default-src 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+    "script-src 'self'",
+    "connect-src 'self'",
+)
+FORBIDDEN_WEB_RUNTIME_MARKERS = (
+    "googletagmanager.com",
+    "fonts.googleapis.com",
+    "localhost:5544",
+    "localhost:9167",
+    "ws://localhost",
+)
 
 
 require = dependencies.require
@@ -265,6 +281,7 @@ def verify_outputs(expected_artifacts: dict[str, Any] | None = None) -> dict[str
         require(sha256_file(deployed) == artifacts[name]["sha256"], f"deployed {name} differs from pinned build output")
     web_files = [path for path in WEB_OUTPUT.rglob("*") if path.is_file()]
     require(any(path.name.startswith("main.") and path.suffix == ".js" for path in web_files), "Angular main bundle is missing")
+    web_contract = verify_web_contract(web_files)
     return {
         "ok": True,
         "perfettoRevision": dependencies.PERFETTO_REVISION,
@@ -272,7 +289,44 @@ def verify_outputs(expected_artifacts: dict[str, Any] | None = None) -> dict[str
         "traceProcessorArtifacts": artifacts,
         "protoFiles": sum(path.is_file() for path in PROTO_OUTPUT.rglob("*")),
         "webFiles": len(web_files),
+        "webContract": web_contract,
         "firstTrace": FIRST_TRACE.relative_to(ROOT).as_posix(),
+    }
+
+
+def verify_web_contract(web_files: list[Path]) -> dict[str, Any]:
+    """Validate the stable, relocatable Web distribution boundary."""
+    index = (WEB_OUTPUT / "index.html").read_text(encoding="utf-8")
+    require('<base href="./"' in index, "Web output is not relocatable")
+    require("Content-Security-Policy" in index, "Web output does not declare a CSP")
+    for directive in REQUIRED_CSP_DIRECTIVES:
+        require(directive in index, f"Web CSP is missing {directive}")
+    for marker in FORBIDDEN_WEB_RUNTIME_MARKERS:
+        require(marker not in index, f"Web index contains a forbidden external runtime marker: {marker}")
+
+    runtime_config = WEB_OUTPUT / RUNTIME_CONFIG_NAME
+    require(runtime_config.is_file(), "Web output is missing runtime-config.json")
+    config = json.loads(runtime_config.read_text(encoding="utf-8"))
+    require(config == {
+        "schemaVersion": 1,
+        "host": {"kind": "standalone"},
+        "capture": {"provider": "none"},
+    }, "default runtime configuration must disable capture")
+
+    scanned = 0
+    for path in web_files:
+        if path.suffix not in {".html", ".js", ".css"}:
+            continue
+        contents = path.read_text(encoding="utf-8", errors="replace")
+        for marker in FORBIDDEN_WEB_RUNTIME_MARKERS:
+            require(marker not in contents, f"Web output contains forbidden runtime marker {marker}: {path.name}")
+        scanned += 1
+    return {
+        "csp": True,
+        "defaultFileOnly": True,
+        "relativeBaseHref": True,
+        "runtimeConfig": RUNTIME_CONFIG_NAME,
+        "scannedTextFiles": scanned,
     }
 
 

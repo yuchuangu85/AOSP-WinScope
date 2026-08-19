@@ -25,13 +25,30 @@
             "assets": [
               "src/favicon.ico",
               "src/assets",
-              { "glob": "*", "input": "deps_build/trace_processor/to_be_served/", "output": "/" },
-              { "glob": "winscope_proxy.py", "input": "src/adb/", "output": "/" },
+              { "glob": "runtime-config.json", "input": "src/", "output": "/" },
+              {
+                "glob": "*",
+                "input": "deps_build/trace_processor/to_be_served/",
+                "output": "/"
+              },
+              {
+                "glob": "winscope_proxy.py",
+                "input": "src/adb/",
+                "output": "/"
+              },
               { "glob": "logo_page_tab.svg", "input": "src/", "output": "/" },
               { "glob": "logo_light_mode.svg", "input": "src/", "output": "/" },
               { "glob": "logo_dark_mode.svg", "input": "src/", "output": "/" },
-              { "glob": "cube_partial_shade.svg", "input": "src/app/shared/rects/", "output": "/" },
-              { "glob": "cube_full_shade.svg", "input": "src/app/shared/rects/", "output": "/" },
+              {
+                "glob": "cube_partial_shade.svg",
+                "input": "src/app/shared/rects/",
+                "output": "/"
+              },
+              {
+                "glob": "cube_full_shade.svg",
+                "input": "src/app/shared/rects/",
+                "output": "/"
+              },
               {
                 "glob": "trackpad_right_click.svg",
                 "input": "src/app/shared/shortcuts_panel/",
@@ -99,7 +116,16 @@
                   "with": "src/main_prod.ts"
                 }
               ],
-              "optimization": true,
+              "optimization": {
+                "scripts": true,
+                "styles": {
+                  "minify": true,
+                  "inlineCritical": false
+                },
+                "fonts": {
+                  "inline": false
+                }
+              },
               "outputHashing": "all",
               "sourceMap": false,
               "namedChunks": false,
@@ -158,9 +184,22 @@
             "assets": [
               "src/favicon.ico",
               "src/assets",
-              { "glob": "**/*", "input": "src/test/fixtures", "output": "/src/test/fixtures" },
-              { "glob": "*", "input": "deps_build/trace_processor/to_be_served/", "output": "/" },
-              { "glob": "winscope_proxy.py", "input": "src/adb/", "output": "/" },
+              { "glob": "runtime-config.json", "input": "src/", "output": "/" },
+              {
+                "glob": "**/*",
+                "input": "src/test/fixtures",
+                "output": "/src/test/fixtures"
+              },
+              {
+                "glob": "*",
+                "input": "deps_build/trace_processor/to_be_served/",
+                "output": "/"
+              },
+              {
+                "glob": "winscope_proxy.py",
+                "input": "src/adb/",
+                "output": "/"
+              },
               { "glob": "logo_page_tab.svg", "input": "src/", "output": "/" },
               { "glob": "logo_light_mode.svg", "input": "src/", "output": "/" },
               { "glob": "logo_dark_mode.svg", "input": "src/", "output": "/" },

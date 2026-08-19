@@ -14,14 +14,26 @@
  * limitations under the License.
  */
 
-import {HttpRequest, HttpRequestHeaderType, HttpRequestStatus, HttpResponse,} from '@common/http_request';
+import {
+  HttpRequest,
+  HttpRequestHeaderType,
+  HttpRequestStatus,
+  HttpResponse,
+} from '@common/http_request';
 import {waitToBeCalled} from '@common/spy_utils';
-import {AdbDeviceConnection, AdbDeviceState,} from '@trace_collection/adb_device_connection';
+import {
+  AdbDeviceConnection,
+  AdbDeviceState,
+} from '@trace_collection/adb_device_connection';
 import {ConnectionState} from '@trace_collection/connection_state';
+import {
+  getRuntimeProxyEndpoint,
+  setRuntimeConfigForTest,
+} from '@runtime/runtime_config';
 import {ConnectionStateListener} from '@trace_collection/connection_state_listener';
 
 import {Endpoint} from './endpoint';
-import {VERSION, WINSCOPE_PROXY_URL} from './utils';
+import {VERSION} from './utils';
 import {WinscopeProxyHostConnection} from './winscope_proxy_host_connection';
 
 type HttpRequestGetType = (
@@ -53,6 +65,11 @@ describe('WinscopeProxyHostConnection', () => {
   let postSpy: jasmine.Spy<HttpRequestPostType>;
 
   beforeEach(() => {
+    setRuntimeConfigForTest({
+      schemaVersion: 1,
+      host: {kind: 'standalone'},
+      capture: {provider: 'loopback-proxy-v1', endpoint: './capture/'},
+    });
     connection = new WinscopeProxyHostConnection(listener);
     resetListener();
   });
@@ -66,10 +83,6 @@ describe('WinscopeProxyHostConnection', () => {
   });
 
   describe('initialization:', () => {
-    beforeAll(() => {
-      localStorage.clear();
-    });
-
     beforeEach(async () => {
       const successfulResponse: HttpResponse = {
         status: HttpRequestStatus.SUCCESS,
@@ -81,16 +94,14 @@ describe('WinscopeProxyHostConnection', () => {
       setHttpSpies(successfulResponse);
     });
 
-    afterEach(() => {
-      localStorage.clear();
-      listener.onError.calls.reset();
-    });
+    afterEach(() => listener.onError.calls.reset());
 
-    it('uses stored token on initialization', async () => {
+    it('does not persist a security token between connection instances', async () => {
       connection.setSecurityToken('test_initial_token');
+      expect(localStorage.getItem('adb.proxyKey')).toBeNull();
       connection = new WinscopeProxyHostConnection(listener);
       await connection.requestDevices();
-      checkDevicesRequested('test_initial_token');
+      checkDevicesRequested();
     });
 
     it('sets security token and sends as header', async () => {
@@ -102,7 +113,6 @@ describe('WinscopeProxyHostConnection', () => {
 
     it('does not set empty token', async () => {
       connection.setSecurityToken('test_initial_token');
-      connection = new WinscopeProxyHostConnection(listener);
       resetSpies();
       connection.setSecurityToken('');
       await connection.requestDevices();
@@ -336,7 +346,7 @@ describe('WinscopeProxyHostConnection', () => {
 
   function checkDevicesRequested(header = '') {
     expect(getSpy).toHaveBeenCalledWith(
-      WINSCOPE_PROXY_URL + Endpoint.DEVICES,
+      new URL(Endpoint.DEVICES.slice(1), getRuntimeProxyEndpoint()).toString(),
       [['Winscope-Token', header]],
       undefined,
     );

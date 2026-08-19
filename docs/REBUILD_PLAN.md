@@ -14,31 +14,31 @@ The first stable delivery is `17.0.0`. It preserves public Android 17 WinScope a
 
 ### Product inputs
 
-| Input | Repository/path | Accepted revision |
-|---|---|---|
+| Input    | Repository/path                       | Accepted revision                          |
+| -------- | ------------------------------------- | ------------------------------------------ |
 | WinScope | `platform/development/tools/winscope` | `4dafd114fab3c3d9543a5aff0ad097f479915176` |
-| Perfetto | `platform/external/perfetto` | `ece66975738007dd0978b911d8a2077e49b8f31e` |
+| Perfetto | `platform/external/perfetto`          | `ece66975738007dd0978b911d8a2077e49b8f31e` |
 
 WinScope is acquired through a commit-addressed partial Git clone. The import verifies both the accepted revision and the `tools/winscope` subtree Git tree, then runs `git archive` against that tree object with the upstream commit timestamp as its normalized mtime. Archiving the tree object avoids embedding the downstream vendor commit identity. The canonical tar SHA-256 is recorded, but the nondeterministic compression bytes returned by the Gitiles HTTP archive endpoint are deliberately not treated as a stable integrity anchor. Perfetto acquisition evidence is established independently during its dependency-lock stage.
 
 The Android 17 WinScope baseline evidence is:
 
-| Evidence | Value |
-|---|---|
-| `tools/winscope` subtree Git tree | `36d46569800176ce00f60ef27c7dfcca1e967886` |
-| Perfetto source Git tree | `201a16e409911aa016522a95143af2e5d52a3662` |
-| Upstream commit epoch / canonical tar mtime | `1778818815` |
-| Canonical uncompressed tar SHA-256 | `9ed6c973ae70296f85b47a712f80e65719adacb63f5eaf5956b47ff7147db465` |
-| Git files in the imported subtree | `1086` |
+| Evidence                                    | Value                                                              |
+| ------------------------------------------- | ------------------------------------------------------------------ |
+| `tools/winscope` subtree Git tree           | `36d46569800176ce00f60ef27c7dfcca1e967886`                         |
+| Perfetto source Git tree                    | `201a16e409911aa016522a95143af2e5d52a3662`                         |
+| Upstream commit epoch / canonical tar mtime | `1778818815`                                                       |
+| Canonical uncompressed tar SHA-256          | `9ed6c973ae70296f85b47a712f80e65719adacb63f5eaf5956b47ff7147db465` |
+| Git files in the imported subtree           | `1086`                                                             |
 
 Run `python3 scripts/verify-baseline.py --json` from the repository root to verify the fixed identities, orphan vendor branch and tree, canonical tar, per-file vendor inventory, toolchain declarations, prohibited legacy paths, and the complete current product delta recorded as newly authored clean-room adaptation.
 
 ### Context revisions
 
-| Context | Repository | Accepted revision |
-|---|---|---|
-| Android Framework | `platform/frameworks/base` | `94b4c163b7dfe5ce3607f7bb8456f9573f7de57d` |
-| SystemUI/WMShell | `platform/frameworks/libs/systemui` | `11e04f60f563aed48e4ec080bd7bde06bae1b2f3` |
+| Context           | Repository                          | Accepted revision                          |
+| ----------------- | ----------------------------------- | ------------------------------------------ |
+| Android Framework | `platform/frameworks/base`          | `94b4c163b7dfe5ce3607f7bb8456f9573f7de57d` |
+| SystemUI/WMShell  | `platform/frameworks/libs/systemui` | `11e04f60f563aed48e4ec080bd7bde06bae1b2f3` |
 
 Context revisions are diagnostic metadata. They are not downloaded, copied, or consumed by the build unless a future ADR promotes a proven dependency to a Product Input.
 
@@ -345,3 +345,7 @@ The following are evidence values, not open product decisions, and are filled in
 - CI action commit SHAs and attestation identities.
 
 Any evidence that contradicts an accepted assumption stops the dependent stage and triggers an explicit decision update rather than a silent workaround.
+
+## Stage 4 implementation evidence
+
+The standalone Web build now ships only local assets, declares a restrictive Content Security Policy, and defaults to file-only analysis through `runtime-config.json`. Startup loads that configuration with `no-store`, same-origin credentials, redirect rejection, a 64 KiB bound, and schema validation; invalid input leaves capture disabled. A configured capture path must be a clean `./` relative endpoint and is resolved only at request time. Production no longer embeds Google analytics, remote fonts, the Web Device Proxy, or a fixed capture port; the capture token is memory-only. `python3 scripts/build.py verify --json` checks the built Web tree for the CSP, relative base URL, default runtime configuration, and forbidden remote runtime markers.

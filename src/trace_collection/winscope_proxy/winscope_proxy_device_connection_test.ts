@@ -14,16 +14,31 @@
  * limitations under the License.
  */
 
-import {HttpRequest, HttpRequestHeaderType, HttpRequestStatus, HttpResponse,} from '@common/http_request';
+import {
+  HttpRequest,
+  HttpRequestHeaderType,
+  HttpRequestStatus,
+  HttpResponse,
+} from '@common/http_request';
 import {UserNotifierChecker} from '@services/testing/user_notifier_checker';
-import {AdbDeviceConnectionListener, AdbDeviceState,} from '@trace_collection/adb_device_connection';
+import {
+  AdbDeviceConnectionListener,
+  AdbDeviceState,
+} from '@trace_collection/adb_device_connection';
 import {ConnectionState} from '@trace_collection/connection_state';
+import {
+  getRuntimeProxyEndpoint,
+  setRuntimeConfigForTest,
+} from '@runtime/runtime_config';
 import {TraceTarget} from '@trace_collection/trace_target';
 import {makeWarningProxyTracingErrors} from '@trace_collection/warnings';
 
 import {Endpoint} from './endpoint';
-import {VERSION, WINSCOPE_PROXY_URL} from './utils';
-import {WinscopeProxyDeviceConnection, WinscopeProxyDeviceConnectionResponse,} from './winscope_proxy_device_connection';
+import {VERSION} from './utils';
+import {
+  WinscopeProxyDeviceConnection,
+  WinscopeProxyDeviceConnectionResponse,
+} from './winscope_proxy_device_connection';
 
 type HttpRequestGetType = (
   path: string,
@@ -58,6 +73,11 @@ describe('WinscopeProxyDeviceConnection', () => {
   let postSpy: jasmine.Spy<HttpRequestPostType>;
 
   beforeEach(() => {
+    setRuntimeConfigForTest({
+      schemaVersion: 1,
+      host: {kind: 'standalone'},
+      capture: {provider: 'loopback-proxy-v1', endpoint: './capture/'},
+    });
     connection = new WinscopeProxyDeviceConnection(
       testId,
       listener,
@@ -150,7 +170,10 @@ describe('WinscopeProxyDeviceConnection', () => {
       const output = await connection.runShellCommand('test cmd');
       expect(output).toBe('123');
       expect(postSpy).toHaveBeenCalledOnceWith(
-        WINSCOPE_PROXY_URL + Endpoint.RUN_ADB_CMD + `${testId}/`,
+        new URL(
+          `${Endpoint.RUN_ADB_CMD.slice(1)}${testId}/`,
+          getRuntimeProxyEndpoint(),
+        ).toString(),
         securityHeader,
         {cmd: 'shell test cmd'},
       );
@@ -318,7 +341,10 @@ Request body: undefined`,
     function checkStartTraceRequested() {
       expect(postSpy).toHaveBeenCalledTimes(1);
       expect(postSpy).toHaveBeenCalledWith(
-        WINSCOPE_PROXY_URL + Endpoint.START_TRACE + `${testId}/`,
+        new URL(
+          `${Endpoint.START_TRACE.slice(1)}${testId}/`,
+          getRuntimeProxyEndpoint(),
+        ).toString(),
         securityHeader,
         {
           targetId: targetName,
@@ -337,7 +363,10 @@ Request body: undefined`,
 
     function checkTraceEnded() {
       expect(postSpy).toHaveBeenCalledOnceWith(
-        WINSCOPE_PROXY_URL + Endpoint.END_TRACE + `${testId}/`,
+        new URL(
+          `${Endpoint.END_TRACE.slice(1)}${testId}/`,
+          getRuntimeProxyEndpoint(),
+        ).toString(),
         securityHeader,
         {targetId: targetName},
       );
@@ -412,7 +441,10 @@ Request body: undefined`,
 
     function checkFetchRequested() {
       expect(getSpy).toHaveBeenCalledOnceWith(
-        WINSCOPE_PROXY_URL + Endpoint.FETCH + `${testId}/${testFilepath}`,
+        new URL(
+          `${Endpoint.FETCH.slice(1)}${testId}/${testFilepath}`,
+          getRuntimeProxyEndpoint(),
+        ).toString(),
         securityHeader,
         'arraybuffer',
       );

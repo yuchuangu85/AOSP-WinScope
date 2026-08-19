@@ -14,12 +14,9 @@
  * limitations under the License.
  */
 
-import {globalConfig} from '@compat/global_config';
-
 /**
- * Logs an analytics event.
- *
- * A no-op unless in PROD mode.
+ * Retains the analytics call sites used by upstream UI code while keeping the
+ * standalone distribution strictly local. Events are intentionally discarded.
  *
  * @param eventName The name of the event.
  * @param eventParams The event parameters.
@@ -28,7 +25,6 @@ export function analyticsLogEvent(
   eventName: Gtag.EventNames | (string & {}),
   eventParams?: Gtag.ControlParams | Gtag.EventParams | Gtag.CustomParams,
 ) {
-  if (globalConfig.isProdMode()) {
-    gtag('event', eventName, eventParams);
-  }
+  void eventName;
+  void eventParams;
 }

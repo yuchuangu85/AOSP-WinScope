@@ -31,17 +31,6 @@ limitations under the License.
         (selectedTabChange)="onConnectionChange($event.tab.textLabel)"
         (animationDone)="onConnectionTabAnimationDone()"
       >
-        <mat-tab [disabled]="disableTraceSection()" [label]="AdbConnectionType.WDP">
-          <ng-template mat-tab-label>
-            <span>{{ AdbConnectionType.WDP }} (Recommended)</span>
-          </ng-template>
-          <div class="tabbed-section">
-            @if (!adbIsSuccessful) {
-              <wdp-setup [state]="currState" (retryConnection)="onRetryConnection()"></wdp-setup>
-            }
-            <ng-container [ngTemplateOutlet]="connectionContent"></ng-container>
-          </div>
-        </mat-tab>
         <mat-tab [disabled]="disableTraceSection()" [label]="AdbConnectionType.WINSCOPE_PROXY">
           <div class="tabbed-section">
             @if (!adbIsSuccessful) {
@@ -258,6 +247,10 @@ limitations under the License.
           }
         }
       </ng-template>
+    </mat-card-content>
+  } @else {
+    <mat-card-content class="collect-card-content">
+      Device capture is unavailable in file-only mode.
     </mat-card-content>
   }
 </mat-card>

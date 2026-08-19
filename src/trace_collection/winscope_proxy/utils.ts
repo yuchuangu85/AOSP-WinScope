@@ -15,11 +15,19 @@
  */
 
 import {assertUnreachable} from '@common/assert';
-import {HttpRequest, HttpRequestHeaderType, HttpRequestStatus, HttpResponse,} from '@common/http_request';
-import {AdbResponse, OnRequestSuccessCallback,} from '@trace_collection/adb_host_connection';
+import {
+  HttpRequest,
+  HttpRequestHeaderType,
+  HttpRequestStatus,
+  HttpResponse,
+} from '@common/http_request';
+import {
+  AdbResponse,
+  OnRequestSuccessCallback,
+} from '@trace_collection/adb_host_connection';
 import {ConnectionState} from '@trace_collection/connection_state';
+import {getRuntimeProxyEndpoint} from '@runtime/runtime_config';
 
-export const WINSCOPE_PROXY_URL = 'http://localhost:5544';
 // Keep in sync with VERSION in src/adb/winscope_proxy.py
 export const VERSION = '6.0.2';
 
@@ -44,7 +52,7 @@ export async function getFromProxy(
 }
 
 function makeRequestPath(path: string): string {
-  return WINSCOPE_PROXY_URL + path;
+  return new URL(path.replace(/^\//, ''), getRuntimeProxyEndpoint()).toString();
 }
 
 export async function postToProxy(

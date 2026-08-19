@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import {assertDefined} from '@common/assert';
 import {HttpRequestHeaderType, HttpResponse} from '@common/http_request';
 import {getLogger} from '@compat/logging';
 import {AdbConnectionType} from '@trace_collection/adb_connection_type';
@@ -23,7 +22,10 @@ import {ConnectionState} from '@trace_collection/connection_state';
 
 import {Endpoint} from './endpoint';
 import {getFromProxy} from './utils';
-import {WinscopeProxyDeviceConnection, WinscopeProxyDeviceConnectionResponse,} from './winscope_proxy_device_connection';
+import {
+  WinscopeProxyDeviceConnection,
+  WinscopeProxyDeviceConnectionResponse,
+} from './winscope_proxy_device_connection';
 
 /**
  * A connection to the Winscope Proxy server.
@@ -31,19 +33,13 @@ import {WinscopeProxyDeviceConnection, WinscopeProxyDeviceConnectionResponse,} f
 export class WinscopeProxyHostConnection extends AdbHostConnection<WinscopeProxyDeviceConnection> {
   readonly connectionType = AdbConnectionType.WINSCOPE_PROXY;
 
-  private readonly storeKeySecurityToken = 'adb.proxyKey';
-
   private securityToken = '';
   private refreshDevicesWorker: number | undefined;
   private cancelDeviceRequest = false;
 
   protected override initializeExtraParameters() {
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.has('token')) {
-      this.securityToken = assertDefined(urlParams.get('token'));
-    } else {
-      this.securityToken = this.store.get(this.storeKeySecurityToken) ?? '';
-    }
+    // Session credentials deliberately never enter URLs or browser storage.
+    this.securityToken = '';
   }
 
   protected override destroyHost() {
@@ -53,7 +49,6 @@ export class WinscopeProxyHostConnection extends AdbHostConnection<WinscopeProxy
   override setSecurityToken(token: string) {
     if (token.length > 0) {
       this.securityToken = token;
-      this.store.add(this.storeKeySecurityToken, token);
     }
   }
 
@@ -123,10 +118,6 @@ export class WinscopeProxyHostConnection extends AdbHostConnection<WinscopeProxy
   }
 
   private makeSecurityTokenHeader(): HttpRequestHeaderType {
-    const lastKey = this.store.get(this.storeKeySecurityToken);
-    if (lastKey !== undefined) {
-      this.securityToken = lastKey;
-    }
     return [['Winscope-Token', this.securityToken]];
   }
 }

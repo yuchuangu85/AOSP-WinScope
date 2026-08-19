@@ -26,7 +26,6 @@ import {ConnectionStateListener} from '@trace_collection/connection_state_listen
 import {MockAdbHostConnection} from '@trace_collection/mock/mock_adb_host_connection';
 import {UserRequest} from '@trace_collection/user_request';
 import {makeWarningProxyTracingWarnings} from '@trace_collection/warnings';
-import {WdpHostConnection} from '@trace_collection/wdp/wdp_host_connection';
 import {WinscopeProxyHostConnection} from '@trace_collection/winscope_proxy/winscope_proxy_host_connection';
 
 import {PerfettoSessionModerator} from './perfetto_session_moderator';
@@ -43,9 +42,7 @@ export class TraceCollectionController {
     private listener: ConnectionStateListener & ProgressListener,
     private readonly logger: Logger = getLogger('TraceCollectionController'),
   ) {
-    if (connectionType === AdbConnectionType.WDP) {
-      this.host = new WdpHostConnection(listener);
-    } else if (connectionType === AdbConnectionType.MOCK) {
+    if (connectionType === AdbConnectionType.MOCK) {
       this.host = new MockAdbHostConnection(listener);
     } else {
       this.host = new WinscopeProxyHostConnection(listener);

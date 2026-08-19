@@ -30,24 +30,27 @@ import {MatListModule} from '@angular/material/list';
 import {MatProgressBarModule} from '@angular/material/progress-bar';
 import {MatSelectModule} from '@angular/material/select';
 import {MatSnackBar, MatSnackBarModule} from '@angular/material/snack-bar';
-import {MatTabGroup, MatTabsModule} from '@angular/material/tabs';
-import {BrowserAnimationsModule, NoopAnimationsModule,} from '@angular/platform-browser/animations';
+import {MatTabsModule} from '@angular/material/tabs';
+import {
+  BrowserAnimationsModule,
+  NoopAnimationsModule,
+} from '@angular/platform-browser/animations';
 import {LoadProgressComponent} from '@app/trace_loading/load_progress_component';
 import {assertDefined} from '@common/assert';
-import {waitToBeCalled} from '@common/spy_utils';
 import {InMemoryStorage} from '@common/store/in_memory_storage';
 import {DOMTestHelper} from '@common/testing/dom_test_helpers';
 import {WinscopeEvent} from '@messaging/winscope_event';
 import {UserNotifierChecker} from '@services/testing/user_notifier_checker';
 import {TraceType} from '@trace_api/trace_type';
 import {AdbConnectionType} from '@trace_collection/adb_connection_type';
-import {AdbDeviceConnection, AdbDeviceState,} from '@trace_collection/adb_device_connection';
+import {
+  AdbDeviceConnection,
+  AdbDeviceState,
+} from '@trace_collection/adb_device_connection';
 import {ConnectionState} from '@trace_collection/connection_state';
 import {MockAdbDeviceConnection} from '@trace_collection/mock/mock_adb_device_connection';
 import {UiTraceTarget} from '@trace_collection/ui_trace_target';
 import {makeProtologGroupOptions} from '@trace_collection/ui/ui_trace_configuration';
-import {WdpDeviceConnection} from '@trace_collection/wdp/wdp_device_connection';
-import {WdpHostConnection} from '@trace_collection/wdp/wdp_host_connection';
 import {WinscopeProxyDeviceConnection} from '@trace_collection/winscope_proxy/winscope_proxy_device_connection';
 import {WinscopeProxyHostConnection} from '@trace_collection/winscope_proxy/winscope_proxy_host_connection';
 import {AppRefreshDumpsRequest} from '@ui/shared/events/app_events';
@@ -57,7 +60,6 @@ import {makeWarningProxyTraceTimeout} from '@ui/trace_loading/warnings';
 import {CollectTracesComponent} from './collect_traces_component';
 import {TraceConfigComponent} from './trace_config_component';
 import {WarningDialogComponent} from './warning_dialog_component';
-import {WdpSetupComponent} from './wdp_setup_component';
 import {WinscopeProxySetupComponent} from './winscope_proxy_setup_component';
 
 describe('CollectTracesComponent', () => {
@@ -69,7 +71,6 @@ describe('CollectTracesComponent', () => {
   const testFile = new File([], 'test_file');
 
   beforeAll(() => {
-    spyOn(WdpHostConnection.prototype, 'requestDevices');
     spyOn(WinscopeProxyHostConnection.prototype, 'requestDevices');
   });
 
@@ -97,7 +98,6 @@ describe('CollectTracesComponent', () => {
         OverlayModule,
         CollectTracesComponent,
         WinscopeProxySetupComponent,
-        WdpSetupComponent,
         TraceConfigComponent,
         LoadProgressComponent,
         WarningDialogComponent,
@@ -614,46 +614,9 @@ describe('CollectTracesComponent', () => {
     checkProtologConfig(groups);
   });
 
-  it('changes host type on mat tab change', async () => {
-    const tabGroup = assertDefined(dom.findByDirective(MatTabGroup));
-    const emitter = tabGroup.animationDone;
-    const animationSpy = spyOn(emitter, 'emit');
-    const checks = () => {
-      expect(dom.find('.changing-connection-progress')).toBeDefined();
-      expect(dom.find('wdp-setup')).toBeUndefined();
-      expect(dom.find('winscope-proxy-setup')).toBeUndefined();
-      component.onConnectionTabAnimationDone();
-      expect(dom.find('.changing-connection-progress')).toBeUndefined();
-    };
-
-    await changeConnection(1);
-    await waitToBeCalled(animationSpy, 1, checks);
-    expect(component.controller?.getConnectionType()).toEqual(
-      AdbConnectionType.WINSCOPE_PROXY,
-    );
-    expect(dom.find('winscope-proxy-setup')).toBeDefined();
-    expect(dom.find('wdp-setup')).toBeUndefined();
-
-    await changeConnection(0);
-    await waitToBeCalled(animationSpy, 2, checks);
-    expect(animationSpy.calls.count()).toBe(2);
-    expect(component.controller?.getConnectionType()).toEqual(
-      AdbConnectionType.WDP,
-    );
-    expect(dom.find('winscope-proxy-setup')).toBeUndefined();
-    expect(dom.find('wdp-setup')).toBeDefined();
-  });
-
-  it('changes host type by default if in store', async () => {
-    await changeConnection(1);
-    const newFixture = TestBed.createComponent(CollectTracesComponent);
-    const newDom = new DOMTestHelper(newFixture, newFixture.nativeElement);
-    newDom.setComponentInput('store', storage);
-    await newDom.detectChangesAndWaitStable();
-    const newComponent = newFixture.componentInstance;
-    expect(newComponent.controller?.getConnectionType()).toEqual(
-      AdbConnectionType.WINSCOPE_PROXY,
-    );
+  it('rejects non-configured connection types', async () => {
+    await component.onConnectionChange(AdbConnectionType.WDP);
+    expect(component.errorText).toContain('file-only mode');
   });
 
   it('cancels device requests', async () => {
@@ -722,82 +685,6 @@ describe('CollectTracesComponent', () => {
       stateSpy.and.returnValue(AdbDeviceState.UNAUTHORIZED);
       dom.detectChanges();
       expect(dom.find('.authorize-btn')).toBeUndefined();
-    });
-  });
-
-  describe('WdpHostConnection', () => {
-    beforeEach(async () => {
-      dom.destroy();
-      storage.clear('adbConnectionType');
-      const fixture = TestBed.createComponent(CollectTracesComponent);
-      component = fixture.componentInstance;
-      dom = new DOMTestHelper(fixture, fixture.nativeElement);
-      dom.setComponentInput('store', storage);
-      await dom.detectChangesAndWaitStable();
-      component.state.set(ConnectionState.UNAUTH);
-      dom.detectChanges();
-    });
-
-    it('defaults to wdp host', () => {
-      expect(component.controller?.getConnectionType()).toEqual(
-        AdbConnectionType.WDP,
-      );
-    });
-
-    it('displays proxy element if not adb success', () => {
-      expect(dom.find('wdp-setup')).toBeTruthy();
-    });
-
-    it('restarts host', async () => {
-      const controller = assertDefined(component.controller);
-      const securityTokenSpy = spyOn(controller, 'setSecurityToken');
-      const restartSpy = spyOn(controller, 'restartConnection');
-
-      await dom.clickAndWaitStable('wdp-setup .retry');
-      expect(securityTokenSpy).not.toHaveBeenCalled();
-      expect(restartSpy).toHaveBeenCalledTimes(1);
-    });
-
-    it('tries to authorize device on list item click', () => {
-      const device = new WdpDeviceConnection('35562', component);
-      const authorizeSpy = spyOn(device, 'tryAuthorize');
-      const stateSpy = spyOn(device, 'getState');
-      setSpyWithDevices([device]);
-      stateSpy.and.returnValue(AdbDeviceState.OFFLINE);
-      dom.detectChanges();
-
-      dom.findAndClick('.available-device');
-      expect(authorizeSpy).not.toHaveBeenCalled();
-
-      stateSpy.and.returnValue(AdbDeviceState.AVAILABLE);
-      dom.detectChanges();
-      dom.findAndClick('.available-device');
-      expect(authorizeSpy).not.toHaveBeenCalled();
-
-      stateSpy.and.returnValue(AdbDeviceState.UNAUTHORIZED);
-      dom.detectChanges();
-      dom.findAndClick('.available-device');
-      expect(authorizeSpy).toHaveBeenCalledTimes(1);
-    });
-
-    it('tries to authorize device on authorize button click', () => {
-      const device = new WdpDeviceConnection('35562', component);
-      const authorizeSpy = spyOn(device, 'tryAuthorize');
-      const stateSpy = spyOn(device, 'getState');
-      setSpyWithDevices([device]);
-      stateSpy.and.returnValue(AdbDeviceState.OFFLINE);
-      dom.detectChanges();
-
-      expect(dom.find('.authorize-btn')).toBeUndefined();
-
-      stateSpy.and.returnValue(AdbDeviceState.AVAILABLE);
-      dom.detectChanges();
-      expect(dom.find('.authorize-btn')).toBeUndefined();
-
-      stateSpy.and.returnValue(AdbDeviceState.UNAUTHORIZED);
-      dom.detectChanges();
-      dom.findAndClick('.authorize-btn');
-      expect(authorizeSpy).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -966,11 +853,6 @@ describe('CollectTracesComponent', () => {
     ).selectionConfigs[0];
     expect(config.options).toEqual(makeProtologGroupOptions(groups));
     expect(config.value).toEqual([]);
-  }
-
-  async function changeConnection(index: number) {
-    const selector = '.connection-tabs .mdc-tab__text-label';
-    await dom.clickByIndexAndWaitStable(selector, index);
   }
 
   async function changeConfigTab(index: number) {
