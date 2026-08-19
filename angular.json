@@ -31,11 +31,6 @@
                 "input": "deps_build/trace_processor/to_be_served/",
                 "output": "/"
               },
-              {
-                "glob": "winscope_proxy.py",
-                "input": "src/adb/",
-                "output": "/"
-              },
               { "glob": "logo_page_tab.svg", "input": "src/", "output": "/" },
               { "glob": "logo_light_mode.svg", "input": "src/", "output": "/" },
               { "glob": "logo_dark_mode.svg", "input": "src/", "output": "/" },
@@ -193,11 +188,6 @@
               {
                 "glob": "*",
                 "input": "deps_build/trace_processor/to_be_served/",
-                "output": "/"
-              },
-              {
-                "glob": "winscope_proxy.py",
-                "input": "src/adb/",
                 "output": "/"
               },
               { "glob": "logo_page_tab.svg", "input": "src/", "output": "/" },

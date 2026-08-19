@@ -72,7 +72,7 @@ export class WinscopeProxyDeviceConnection extends AdbDeviceConnection {
   override async pullFile(filepath: string): Promise<Uint8Array> {
     return await new Promise<Uint8Array>((resolve) => {
       getFromProxy(
-        `${Endpoint.FETCH}${this.encodedId}/${filepath}`,
+        `${Endpoint.FETCH}${this.encodedId}/${filepath.replace(/^\//, '')}`,
         this.securityHeader,
         (response) => {
           resolve(this.onSuccessFetchFile(response, filepath));

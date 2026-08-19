@@ -36,7 +36,7 @@ limitations under the License.
             @if (!adbIsSuccessful) {
               <winscope-proxy-setup
                 [state]="currState"
-                (retryConnection)="onRetryConnection($event)"
+                (retryConnection)="onRetryConnection()"
               ></winscope-proxy-setup>
             }
             <ng-container [ngTemplateOutlet]="connectionContent"></ng-container>

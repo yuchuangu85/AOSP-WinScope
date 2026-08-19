@@ -271,12 +271,8 @@ export class CollectTracesComponent
     this.changeDetectorRef.detectChanges();
   }
 
-  async onRetryConnection(token?: string) {
-    const controller = assertDefined(this.controller);
-    if (token !== undefined) {
-      controller.setSecurityToken(token);
-    }
-    await controller.restartConnection();
+  async onRetryConnection() {
+    await assertDefined(this.controller).restartConnection();
   }
 
   showAllDevices(): boolean {

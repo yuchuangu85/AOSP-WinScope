@@ -30,23 +30,16 @@ import {WinscopeProxyDeviceConnection, WinscopeProxyDeviceConnectionResponse,} f
 export class WinscopeProxyHostConnection extends AdbHostConnection<WinscopeProxyDeviceConnection> {
   readonly connectionType = AdbConnectionType.WINSCOPE_PROXY;
 
-  private securityToken = '';
   private refreshDevicesWorker: number | undefined;
   private cancelDeviceRequest = false;
-
-  protected override initializeExtraParameters() {
-    // Session credentials deliberately never enter URLs or browser storage.
-    this.securityToken = '';
-  }
 
   protected override destroyHost() {
     this.cancelDeviceRequests();
   }
 
-  override setSecurityToken(token: string) {
-    if (token.length > 0) {
-      this.securityToken = token;
-    }
+  override setSecurityToken(_: string) {
+    // The launcher injects its session credential only on the private proxy hop.
+    // Browser-provided credentials are intentionally ignored.
   }
 
   override cancelDeviceRequests() {
@@ -115,6 +108,6 @@ export class WinscopeProxyHostConnection extends AdbHostConnection<WinscopeProxy
   }
 
   private makeSecurityTokenHeader(): HttpRequestHeaderType {
-    return [['Winscope-Token', this.securityToken]];
+    return [['Winscope-Token', '']];
   }
 }
