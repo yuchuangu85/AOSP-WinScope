@@ -1,7 +1,0 @@
-defines = -D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS -D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS -DNDEBUG
-include_dirs = -I../buildtools/libcxx_config
-root_out_dir = .
-target_output_name = trace_processor
-
-
-build obj/include/perfetto/trace_processor/trace_processor.stamp: stamp || obj/include/perfetto/trace_processor/basic_types.stamp obj/include/perfetto/trace_processor/storage.stamp obj/include/perfetto/base/base.stamp obj/include/perfetto/public/base.stamp obj/include/perfetto/public/abi/base.stamp

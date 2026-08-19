@@ -1,8 +1,0 @@
-defines = -D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS -D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS -DNDEBUG -DPERFETTO_IMPLEMENTATION
-include_dirs = -I../buildtools/libcxx_config -I.. -I../src/profiling/memory/include -I../include -Igen/build_config -Igen
-root_out_dir = .
-target_output_name = memory_tracker
-
-build obj/include/perfetto/ext/trace_processor/importers/memory_tracker/memory_tracker.inputdeps.stamp: stamp obj/gn/gen_buildflags.stamp obj/gn/standalone/check_build_deps.stamp
-
-build obj/include/perfetto/ext/trace_processor/importers/memory_tracker/memory_tracker.stamp: stamp || obj/include/perfetto/base/base.stamp obj/include/perfetto/ext/base/base.stamp obj/gn/default_deps.stamp obj/include/perfetto/public/base.stamp obj/include/perfetto/public/abi/base.stamp obj/buildtools/libc++.stamp obj/buildtools/libc++abi.stamp

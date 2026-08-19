@@ -1,8 +1,0 @@
-defines = -DNDEBUG -DPERFETTO_IMPLEMENTATION
-include_dirs = -I.. -I../src/profiling/memory/include -I../include -Iwasm/gen/build_config -Iwasm/gen
-root_out_dir = wasm
-target_output_name = memory_tracker
-
-build wasm/obj/include/perfetto/ext/trace_processor/importers/memory_tracker/memory_tracker.inputdeps.stamp: wasm_stamp wasm/obj/gn/gen_buildflags.stamp wasm/obj/gn/standalone/check_build_deps.stamp
-
-build wasm/obj/include/perfetto/ext/trace_processor/importers/memory_tracker/memory_tracker.stamp: wasm_stamp || wasm/obj/include/perfetto/base/base.stamp wasm/obj/include/perfetto/ext/base/base.stamp wasm/obj/gn/default_deps.stamp wasm/obj/include/perfetto/public/base.stamp wasm/obj/include/perfetto/public/abi/base.stamp

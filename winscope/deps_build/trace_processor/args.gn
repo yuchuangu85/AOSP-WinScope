@@ -1,2 +1,0 @@
-is_debug = false
-cc_wrapper = "ccache"
