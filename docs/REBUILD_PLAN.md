@@ -30,6 +30,8 @@ The Android 17 WinScope baseline evidence is:
 | Canonical uncompressed tar SHA-256 | `9ed6c973ae70296f85b47a712f80e65719adacb63f5eaf5956b47ff7147db465` |
 | Git files in the imported subtree | `1086` |
 
+Run `python3 scripts/verify-baseline.py --json` from the repository root to verify the fixed identities, orphan vendor branch and tree, canonical tar, per-file vendor inventory, toolchain declarations, prohibited legacy paths, and the complete current product delta recorded as newly authored clean-room adaptation.
+
 ### Context revisions
 
 | Context | Repository | Accepted revision |

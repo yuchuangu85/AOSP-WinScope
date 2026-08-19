@@ -40,6 +40,196 @@
     }
   },
   "schemaVersion": 1,
+  "standaloneAdaptations": {
+    "files": [
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": ".node-version"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": ".nvmrc"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "CONTEXT.md"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "docs/REBUILD_PLAN.md"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "docs/adr/0001-pin-upstream-revisions-per-release.md"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "docs/adr/0002-adapt-the-imported-source-in-place.md"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "docs/adr/0003-fetch-and-build-pinned-perfetto-source.md"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "docs/adr/0004-ship-standalone-before-consumer-integration.md"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "docs/adr/0005-exclude-all-legacy-product-assets.md"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "docs/adr/0006-use-repository-root-as-product-root.md"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "docs/adr/0007-pin-the-javascript-toolchain.md"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "docs/adr/0008-separate-build-and-runtime-support-matrices.md"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "docs/adr/0009-sync-through-a-pure-vendor-branch.md"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "docs/adr/0010-enforce-a-local-only-runtime-boundary.md"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "docs/adr/0011-use-android-aligned-release-versions.md"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "docs/adr/0012-require-byte-reproducible-official-releases.md"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "docs/adr/0013-gate-releases-on-upstream-feature-equivalence.md"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "docs/adr/0014-publish-one-contract-for-source-and-binary-consumers.md"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "docs/adr/0015-distinguish-product-inputs-from-context-revisions.md"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "docs/adr/0016-lock-and-audit-the-complete-dependency-closure.md"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "docs/adr/0017-ship-redistribution-evidence-with-every-release.md"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "docs/adr/0018-harden-device-capture-as-an-authenticated-local-session.md"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "docs/adr/0019-publish-evidence-tiered-android-compatibility.md"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "docs/adr/0020-ship-native-launchers-around-one-web-build.md"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "docs/adr/0021-attest-immutable-releases-from-a-protected-workflow.md"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "docs/adr/0022-load-ephemeral-host-configuration-at-runtime.md"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "docs/adr/0023-minimize-and-make-data-retention-explicit.md"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "docs/adr/0024-gate-performance-against-the-pinned-upstream.md"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "docs/adr/0025-operate-an-explicit-security-response-lifecycle.md"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "docs/adr/0026-deliver-through-evidence-gated-stages.md"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "docs/adr/0027-support-the-current-and-previous-baseline-generations.md"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "package-lock.json"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "package.json"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "provenance/android17-baseline.json"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "provenance/android17-winscope-files.json"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "scripts/verify-baseline.py"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "tests/test_verify_baseline.py"
+      }
+    ],
+    "policy": "only-recorded-newly-authored-clean-room-files"
+  },
   "toolchain": {
     "go": "1.26.6",
     "node": "24.19.0",

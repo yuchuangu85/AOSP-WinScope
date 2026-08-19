@@ -16,11 +16,16 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_METADATA = Path("provenance/android17-baseline.json")
 
 EXPECTED = {
+    "winscope_repository": "https://android.googlesource.com/platform/development",
+    "winscope_path": "tools/winscope",
     "winscope_revision": "4dafd114fab3c3d9543a5aff0ad097f479915176",
     "winscope_tree": "36d46569800176ce00f60ef27c7dfcca1e967886",
     "winscope_tar_sha256": "9ed6c973ae70296f85b47a712f80e65719adacb63f5eaf5956b47ff7147db465",
+    "perfetto_repository": "https://android.googlesource.com/platform/external/perfetto",
     "perfetto_revision": "ece66975738007dd0978b911d8a2077e49b8f31e",
+    "framework_repository": "https://android.googlesource.com/platform/frameworks/base",
     "framework_revision": "94b4c163b7dfe5ce3607f7bb8456f9573f7de57d",
+    "systemui_repository": "https://android.googlesource.com/platform/frameworks/libs/systemui",
     "systemui_revision": "11e04f60f563aed48e4ec080bd7bde06bae1b2f3",
     "node": "24.19.0",
     "npm": "11.17.0",
@@ -28,7 +33,14 @@ EXPECTED = {
     "python_supported": ["3.11", "3.12", "3.13"],
     "python_ci": "3.12",
     "vendor_branch": "upstream/android17-release",
+    "vendor_inventory": "provenance/android17-winscope-files.json",
     "file_count": 1086,
+    "prohibited_paths": [
+        "winscope",
+        "winscope.pbtx",
+        "WinScope.pdf",
+        "winscope_capture.py",
+    ],
 }
 
 
@@ -76,6 +88,16 @@ def verify_metadata(metadata: dict[str, Any]) -> None:
         (nested(metadata, "schemaVersion"), 1, "schemaVersion"),
         (nested(metadata, "baseline"), "android17-release", "baseline"),
         (
+            nested(metadata, "productInputs", "winscope", "repository"),
+            EXPECTED["winscope_repository"],
+            "WinScope repository",
+        ),
+        (
+            nested(metadata, "productInputs", "winscope", "path"),
+            EXPECTED["winscope_path"],
+            "WinScope source path",
+        ),
+        (
             nested(metadata, "productInputs", "winscope", "revision"),
             EXPECTED["winscope_revision"],
             "WinScope revision",
@@ -101,9 +123,19 @@ def verify_metadata(metadata: dict[str, Any]) -> None:
             "WinScope canonical tar file count",
         ),
         (
+            nested(metadata, "productInputs", "perfetto", "repository"),
+            EXPECTED["perfetto_repository"],
+            "Perfetto repository",
+        ),
+        (
             nested(metadata, "productInputs", "perfetto", "revision"),
             EXPECTED["perfetto_revision"],
             "Perfetto revision",
+        ),
+        (
+            nested(metadata, "contextRevisions", "framework", "repository"),
+            EXPECTED["framework_repository"],
+            "Framework context repository",
         ),
         (
             nested(metadata, "contextRevisions", "framework", "revision"),
@@ -111,11 +143,21 @@ def verify_metadata(metadata: dict[str, Any]) -> None:
             "Framework context revision",
         ),
         (
+            nested(metadata, "contextRevisions", "systemUi", "repository"),
+            EXPECTED["systemui_repository"],
+            "SystemUI context repository",
+        ),
+        (
             nested(metadata, "contextRevisions", "systemUi", "revision"),
             EXPECTED["systemui_revision"],
             "SystemUI context revision",
         ),
         (nested(metadata, "vendor", "branch"), EXPECTED["vendor_branch"], "vendor branch"),
+        (
+            nested(metadata, "vendor", "fileInventory"),
+            EXPECTED["vendor_inventory"],
+            "vendor file inventory path",
+        ),
         (nested(metadata, "vendor", "tree"), EXPECTED["winscope_tree"], "vendor tree"),
         (nested(metadata, "vendor", "fileCount"), EXPECTED["file_count"], "vendor file count"),
         (nested(metadata, "toolchain", "node"), EXPECTED["node"], "Node version"),
@@ -127,6 +169,11 @@ def verify_metadata(metadata: dict[str, Any]) -> None:
             "supported Python versions",
         ),
         (nested(metadata, "toolchain", "python", "ci"), EXPECTED["python_ci"], "CI Python version"),
+        (
+            nested(metadata, "cleanRoom", "prohibitedPaths"),
+            EXPECTED["prohibited_paths"],
+            "clean-room prohibited paths",
+        ),
     ]
     for actual, expected, label in checks:
         require(actual == expected, f"{label} mismatch: expected {expected!r}, got {actual!r}")
@@ -188,6 +235,17 @@ def resolve_vendor_ref(branch: str) -> tuple[str, str]:
     raise VerificationError(f"vendor branch not found in local or origin refs: {branch}")
 
 
+def resolve_product_revision(revision: str) -> str:
+    result = subprocess.run(
+        ["git", "rev-parse", "--verify", f"{revision}^{{commit}}"],
+        cwd=REPOSITORY_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    require(result.returncode == 0, f"product revision is not a commit: {revision}")
+    return result.stdout.strip()
+
+
 def parse_tree(commit: str) -> list[dict[str, Any]]:
     output = subprocess.check_output(
         ["git", "ls-tree", "-r", "-z", commit],
@@ -240,7 +298,51 @@ def read_blobs(object_ids: list[str]) -> dict[str, bytes]:
     return contents
 
 
-def verify_vendor(metadata: dict[str, Any]) -> tuple[bool, int]:
+def verify_product_delta(vendor_commit: str, product_commit: str, metadata: dict[str, Any]) -> None:
+    adaptations = nested(metadata, "standaloneAdaptations")
+    require(
+        adaptations.get("policy") == "only-recorded-newly-authored-clean-room-files",
+        "standalone adaptation provenance policy mismatch",
+    )
+    recorded_files = adaptations.get("files")
+    require(isinstance(recorded_files, list), "standalone adaptation files must be an array")
+
+    normalized_records = []
+    for record in recorded_files:
+        require(isinstance(record, dict), "standalone adaptation entry must be an object")
+        require(set(record) == {"path", "change", "origin"}, "invalid standalone adaptation entry fields")
+        require(record["change"] in {"added", "modified"}, "invalid standalone adaptation change")
+        require(record["origin"] == "newly-authored-clean-room", "standalone adaptation origin mismatch")
+        normalized_records.append(record)
+    require(
+        normalized_records == sorted(normalized_records, key=lambda record: record["path"]),
+        "standalone adaptation inventory must be sorted by path",
+    )
+    require(
+        len({record["path"] for record in normalized_records}) == len(normalized_records),
+        "standalone adaptation inventory contains duplicate paths",
+    )
+
+    output = git("diff", "--name-status", "--no-renames", vendor_commit, product_commit)
+    change_names = {"A": "added", "M": "modified"}
+    actual_records = []
+    for line in output.splitlines():
+        status, path = line.split("\t", 1)
+        require(status in change_names, f"unsupported current product change {status}: {path}")
+        actual_records.append(
+            {
+                "path": path,
+                "change": change_names[status],
+                "origin": "newly-authored-clean-room",
+            }
+        )
+    require(
+        actual_records == normalized_records,
+        "current product delta is not fully provenance-recorded as clean-room adaptation",
+    )
+
+
+def verify_vendor(metadata: dict[str, Any], product_commit: str) -> tuple[bool, int]:
     vendor = nested(metadata, "vendor")
     resolved_ref, resolved_commit = resolve_vendor_ref(vendor["branch"])
     require(resolved_commit == vendor["commit"], f"{resolved_ref} does not match recorded vendor commit")
@@ -248,11 +350,11 @@ def verify_vendor(metadata: dict[str, Any]) -> tuple[bool, int]:
     require(git("show", "-s", "--format=%T", resolved_commit) == vendor["tree"], "vendor commit tree mismatch")
 
     ancestry = subprocess.run(
-        ["git", "merge-base", "--is-ancestor", resolved_commit, "HEAD"],
+        ["git", "merge-base", "--is-ancestor", resolved_commit, product_commit],
         cwd=REPOSITORY_ROOT,
         capture_output=True,
     )
-    require(ancestry.returncode == 0, "vendor import commit is not an ancestor of HEAD")
+    require(ancestry.returncode == 0, "vendor import commit is not an ancestor of the product revision")
 
     inventory_path = REPOSITORY_ROOT / vendor["fileInventory"]
     inventory = load_json(inventory_path)
@@ -281,6 +383,7 @@ def verify_vendor(metadata: dict[str, Any]) -> tuple[bool, int]:
             }
         )
     require(recorded_entries == expected_records, "vendor file inventory does not match the recorded commit")
+    verify_product_delta(resolved_commit, product_commit, metadata)
     return True, len(expected_records)
 
 
@@ -311,10 +414,11 @@ def verify_legacy_assets_absent(metadata: dict[str, Any]) -> bool:
     return True
 
 
-def verification_report(metadata_path: Path) -> dict[str, Any]:
+def verification_report(metadata_path: Path, revision: str) -> dict[str, Any]:
     metadata = load_json(metadata_path)
     verify_metadata(metadata)
-    vendor_verified, files_verified = verify_vendor(metadata)
+    product_commit = resolve_product_revision(revision)
+    vendor_verified, files_verified = verify_vendor(metadata, product_commit)
     verify_canonical_archive(metadata)
     verify_toolchain_declarations(metadata)
     legacy_absent = verify_legacy_assets_absent(metadata)
@@ -325,6 +429,7 @@ def verification_report(metadata_path: Path) -> dict[str, Any]:
         "contextRevisions": metadata["contextRevisions"],
         "toolchain": metadata["toolchain"],
         "vendorBranchVerified": vendor_verified,
+        "productLineageVerified": True,
         "legacyAssetsAbsent": legacy_absent,
         "filesVerified": files_verified,
         "errors": [],
@@ -340,6 +445,11 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_METADATA,
         help="metadata file to verify (relative paths are resolved from the repository root)",
     )
+    parser.add_argument(
+        "--revision",
+        default="HEAD",
+        help="product commit whose tree is checked against the provenance inventory",
+    )
     return parser.parse_args()
 
 
@@ -347,11 +457,12 @@ def main() -> int:
     args = parse_args()
     metadata_path = args.metadata if args.metadata.is_absolute() else REPOSITORY_ROOT / args.metadata
     try:
-        report = verification_report(metadata_path)
+        report = verification_report(metadata_path, args.revision)
     except (KeyError, OSError, subprocess.SubprocessError, VerificationError) as error:
         report = {
             "ok": False,
             "vendorBranchVerified": False,
+            "productLineageVerified": False,
             "legacyAssetsAbsent": False,
             "filesVerified": 0,
             "errors": [str(error)],
