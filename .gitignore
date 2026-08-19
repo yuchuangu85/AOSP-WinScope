@@ -11,6 +11,10 @@
 /node_modules
 npm-debug.log
 
+# Python verification
+__pycache__/
+*.py[cod]
+
 # Dependencies build artifacts (flickerlib, perfetto's trace processor, ...)
 /deps_build
 

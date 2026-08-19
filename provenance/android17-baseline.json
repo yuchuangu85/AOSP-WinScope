@@ -43,6 +43,11 @@
   "standaloneAdaptations": {
     "files": [
       {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": ".gitignore"
+      },
+      {
         "change": "added",
         "origin": "newly-authored-clean-room",
         "path": ".node-version"
