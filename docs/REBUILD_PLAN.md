@@ -19,7 +19,16 @@ The first stable delivery is `17.0.0`. It preserves public Android 17 WinScope a
 | WinScope | `platform/development/tools/winscope` | `4dafd114fab3c3d9543a5aff0ad097f479915176` |
 | Perfetto | `platform/external/perfetto` | `ece66975738007dd0978b911d8a2077e49b8f31e` |
 
-Archive SHA-256 values are calculated, reviewed, and committed during the pure import/dependency-lock stages.
+WinScope is acquired through a commit-addressed partial Git clone. The import verifies both the accepted revision and the `tools/winscope` subtree Git tree, then runs `git archive` against that tree object with the upstream commit timestamp as its normalized mtime. Archiving the tree object avoids embedding the downstream vendor commit identity. The canonical tar SHA-256 is recorded, but the nondeterministic compression bytes returned by the Gitiles HTTP archive endpoint are deliberately not treated as a stable integrity anchor. Perfetto acquisition evidence is established independently during its dependency-lock stage.
+
+The Android 17 WinScope baseline evidence is:
+
+| Evidence | Value |
+|---|---|
+| `tools/winscope` subtree Git tree | `36d46569800176ce00f60ef27c7dfcca1e967886` |
+| Upstream commit epoch / canonical tar mtime | `1778818815` |
+| Canonical uncompressed tar SHA-256 | `9ed6c973ae70296f85b47a712f80e65719adacb63f5eaf5956b47ff7147db465` |
+| Git files in the imported subtree | `1086` |
 
 ### Context revisions
 
@@ -289,7 +298,7 @@ The work is complete only when all of the following are true:
 
 The following are evidence values, not open product decisions, and are filled in by their owning stages:
 
-- verified archive SHA-256 values;
+- verified Perfetto dependency-archive and release-archive SHA-256 values;
 - the digest of the official Linux build image;
 - generated dependency-closure entries and licenses;
 - normalized release-file digests;

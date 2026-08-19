@@ -91,5 +91,10 @@
     "protractor": "^7.0.0",
     "sass": "^1.77.8",
     "ts-protoc-gen": "^0.15.0"
+  },
+  "packageManager": "npm@11.17.0",
+  "engines": {
+    "node": "24.19.0",
+    "npm": "11.17.0"
   }
 }

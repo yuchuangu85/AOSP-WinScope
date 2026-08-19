@@ -1,0 +1,63 @@
+{
+  "baseline": "android17-release",
+  "cleanRoom": {
+    "legacyProjectSourceAllowed": false,
+    "prohibitedPaths": [
+      "winscope",
+      "winscope.pbtx",
+      "WinScope.pdf",
+      "winscope_capture.py"
+    ]
+  },
+  "contextRevisions": {
+    "framework": {
+      "repository": "https://android.googlesource.com/platform/frameworks/base",
+      "revision": "94b4c163b7dfe5ce3607f7bb8456f9573f7de57d"
+    },
+    "systemUi": {
+      "repository": "https://android.googlesource.com/platform/frameworks/libs/systemui",
+      "revision": "11e04f60f563aed48e4ec080bd7bde06bae1b2f3"
+    }
+  },
+  "productInputs": {
+    "perfetto": {
+      "repository": "https://android.googlesource.com/platform/external/perfetto",
+      "revision": "ece66975738007dd0978b911d8a2077e49b8f31e"
+    },
+    "winscope": {
+      "acquisition": {
+        "canonicalTarFileCount": 1086,
+        "canonicalTarSha256": "9ed6c973ae70296f85b47a712f80e65719adacb63f5eaf5956b47ff7147db465",
+        "canonicalTarTreeish": "36d46569800176ce00f60ef27c7dfcca1e967886",
+        "method": "commit-addressed-partial-git-clone",
+        "sourceDateEpoch": 1778818815,
+        "transportArchiveBytesPinned": false
+      },
+      "path": "tools/winscope",
+      "repository": "https://android.googlesource.com/platform/development",
+      "revision": "4dafd114fab3c3d9543a5aff0ad097f479915176",
+      "subtreeGitTree": "36d46569800176ce00f60ef27c7dfcca1e967886"
+    }
+  },
+  "schemaVersion": 1,
+  "toolchain": {
+    "go": "1.26.6",
+    "node": "24.19.0",
+    "npm": "11.17.0",
+    "python": {
+      "ci": "3.12",
+      "supported": [
+        "3.11",
+        "3.12",
+        "3.13"
+      ]
+    }
+  },
+  "vendor": {
+    "branch": "upstream/android17-release",
+    "commit": "9616accb81ae527095bbcce5cf817d0621c473c5",
+    "fileCount": 1086,
+    "fileInventory": "provenance/android17-winscope-files.json",
+    "tree": "36d46569800176ce00f60ef27c7dfcca1e967886"
+  }
+}
