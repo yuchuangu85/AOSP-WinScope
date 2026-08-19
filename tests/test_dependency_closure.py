@@ -58,6 +58,42 @@ class DependencyClosureTest(unittest.TestCase):
             {"darwin-arm64", "darwin-x64", "linux-arm64", "linux-x64"},
         )
 
+    def test_complete_lock_digest_rejects_non_npm_drift_without_a_cache(self):
+        def mutate(lock):
+            perfetto_entry = next(
+                entry for entry in lock["dependencies"] if entry["id"].startswith("perfetto:")
+            )
+            lock["dependencies"].remove(perfetto_entry)
+
+        with tempfile.TemporaryDirectory() as empty_cache:
+            result = self.run_command(
+                "verify-lock",
+                "--json",
+                env={
+                    "AOSP_WINSCOPE_DEPENDENCY_LOCK": self.write_lock_copy(mutate),
+                    "AOSP_WINSCOPE_DEPS_ROOT": empty_cache,
+                },
+            )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("complete dependency lock digest mismatch", result.stdout)
+
+    def test_npm_platform_and_introducer_metadata_are_not_flattened(self):
+        entries = json.loads(
+            (REPOSITORY_ROOT / "build/dependencies.lock.json").read_text(encoding="utf-8")
+        )["dependencies"]
+        nested_jasmine = next(
+            entry
+            for entry in entries
+            if entry["id"] == "npm:node_modules/protractor/node_modules/jasmine"
+        )
+        linux_esbuild = next(
+            entry for entry in entries if entry["name"] == "@esbuild/linux-x64"
+        )
+
+        self.assertEqual(linux_esbuild["platforms"], ["linux-x64"])
+        self.assertTrue(nested_jasmine["introducedBy"].startswith("package-lock.json:"))
+
     def test_toolchain_preflight_reports_the_fixed_versions(self):
         result = self.run_command("verify-toolchain", "--json")
 
@@ -67,6 +103,10 @@ class DependencyClosureTest(unittest.TestCase):
         self.assertEqual(report["actual"]["node"], "24.19.0")
         self.assertEqual(report["actual"]["npm"], "11.17.0")
         self.assertIn(report["actual"]["python"], ["3.11", "3.12", "3.13"])
+        self.assertEqual(
+            report["runtimePython"],
+            report["actual"]["python"],
+        )
 
     def test_explicit_tool_override_fails_closed_on_a_version_mismatch(self):
         result = self.run_command(

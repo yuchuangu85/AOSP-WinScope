@@ -12,6 +12,7 @@ import platform
 import re
 import runpy
 import shutil
+import socket
 import subprocess
 import sys
 import tarfile
@@ -36,6 +37,7 @@ STATE_ROOT = DEPS_ROOT / "state"
 NPM_CACHE = DEPS_ROOT / "npm/cache"
 PNPM_STORE = DEPS_ROOT / "perfetto/pnpm-store"
 PERFETTO_GIT_CACHE = DEPS_ROOT / "perfetto/git-cache"
+DEFAULT_LOCK_PATH = (ROOT / "build/dependencies.lock.json").resolve()
 
 PERFETTO_REPOSITORY = "https://android.googlesource.com/platform/external/perfetto"
 PERFETTO_REVISION = "ece66975738007dd0978b911d8a2077e49b8f31e"
@@ -44,6 +46,10 @@ NODE_VERSION = "24.19.0"
 NPM_VERSION = "11.17.0"
 GO_VERSION = "1.26.6"
 PYTHON_VERSIONS = {"3.11", "3.12", "3.13"}
+PUBLIC_NPM_REGISTRY = "https://registry.npmjs.org/"
+# This is the clean-checkout trust anchor for the complete generated closure.
+# Updating the lock deliberately requires updating this reviewable constant.
+DEPENDENCY_LOCK_SHA256 = "fb4624cc8a99656a7fc3bd505b68d221baff7785a5b70171c5509009f594a3b7"
 
 ALLOWED_ORIGINS = {
     "android.googlesource.com",
@@ -216,9 +222,32 @@ def verify_toolchain() -> dict[str, Any]:
     return {
         "ok": True,
         "actual": actual,
+        "runtimePython": f"{sys.version_info.major}.{sys.version_info.minor}",
         "expected": expected,
         "commands": {"node": node_command, "npm": npm_command, "python": python_command, "go": go_command},
     }
+
+
+def reexec_with_supported_python() -> None:
+    python_command, expected_version = find_python()
+    current_version = f"{sys.version_info.major}.{sys.version_info.minor}"
+    selected_executable = run(
+        [python_command, "-c", "import os,sys; print(os.path.realpath(sys.executable))"]
+    )
+    current_executable = os.path.realpath(sys.executable)
+    if current_version == expected_version and current_executable == selected_executable:
+        return
+    require(
+        os.environ.get("AOSP_WINSCOPE_PYTHON_REEXEC") != "1",
+        f"failed to enter the selected Python {expected_version} runtime",
+    )
+    environment = os.environ.copy()
+    environment["AOSP_WINSCOPE_PYTHON_REEXEC"] = "1"
+    os.execve(
+        selected_executable,
+        [selected_executable, str(Path(__file__).resolve()), *sys.argv[1:]],
+        environment,
+    )
 
 
 def npm_package_name(package_path: str) -> str:
@@ -250,7 +279,8 @@ def npm_dependencies() -> list[dict[str, Any]]:
     package_lock = read_json(PACKAGE_LOCK_PATH)
     require(package_lock.get("lockfileVersion") == 3, "package-lock.json must use lockfileVersion 3")
     root_package = package_lock["packages"][""]
-    direct = set(root_package.get("dependencies", {})) | set(root_package.get("devDependencies", {}))
+    runtime_direct = set(root_package.get("dependencies", {}))
+    development_direct = set(root_package.get("devDependencies", {}))
     license_overrides = {
         "exit@0.1.2": "MIT",
         "grpc-tools@1.13.1": "Apache-2.0",
@@ -267,6 +297,25 @@ def npm_dependencies() -> list[dict[str, Any]]:
         require(isinstance(version, str), f"missing npm version: {package_path}")
         require(isinstance(resolved, str), f"missing npm origin: {package_path}")
         require(isinstance(integrity, str) and integrity.startswith("sha512-"), f"missing npm integrity: {package_path}")
+        root_path = f"node_modules/{name}"
+        if package_path == root_path and name in runtime_direct:
+            introduced_by = "package.json:dependencies"
+        elif package_path == root_path and name in development_direct:
+            introduced_by = "package.json:devDependencies"
+        else:
+            parent = package_path.rsplit("/node_modules/", 1)[0]
+            introduced_by = f"package-lock.json:{parent or 'root'}"
+        operating_systems = package.get("os", ["all"])
+        architectures = package.get("cpu", ["all"])
+        require(isinstance(operating_systems, list), f"invalid npm os metadata: {package_path}")
+        require(isinstance(architectures, list), f"invalid npm cpu metadata: {package_path}")
+        platforms = sorted(
+            f"{operating_system}-{architecture}"
+            for operating_system in operating_systems
+            for architecture in architectures
+        )
+        if platforms == ["all-all"]:
+            platforms = ["all"]
         dependencies.append(
             {
                 "id": f"npm:{package_path}",
@@ -275,10 +324,14 @@ def npm_dependencies() -> list[dict[str, Any]]:
                 "version": version,
                 "origin": resolved,
                 "integrity": {"algorithm": "sha512-sri", "value": integrity},
-                "platforms": ["all"],
+                "platforms": platforms,
                 "license": license_overrides.get(f"{name}@{version}", normalized_license(package.get("license"))),
-                "introducedBy": "package.json" if name in direct else "package-lock.json",
-                "distribution": "runtime-or-build-only-pending-ticket-12",
+                "introducedBy": introduced_by,
+                "distribution": (
+                    "build-only"
+                    if package.get("dev") is True
+                    else "runtime-dependency-pending-ticket-12"
+                ),
             }
         )
     return dependencies
@@ -424,6 +477,10 @@ def validate_dependency(entry: dict[str, Any]) -> tuple[int, int]:
     integrity = entry["integrity"]
     require(integrity.get("algorithm") in {"sha256", "sha512-sri", "git-commit"}, f"invalid integrity: {entry['id']}")
     value = integrity.get("value", "")
+    if integrity["algorithm"] == "sha256":
+        require(re.fullmatch(r"[0-9a-f]{64}", value) is not None, f"invalid SHA-256: {entry['id']}")
+    elif integrity["algorithm"] == "sha512-sri":
+        require(value.startswith("sha512-") and len(value) > 20, f"invalid SHA-512 SRI: {entry['id']}")
     floating = int(
         not value
         or value in {"HEAD", "main", "master", "latest"}
@@ -486,6 +543,10 @@ def verify_lock(*, require_cache: bool = False) -> dict[str, Any]:
     npm_entries = npm_dependencies()
     recorded_npm = [entry for entry in entries if entry["id"].startswith("npm:")]
     require(recorded_npm == sorted(npm_entries, key=lambda entry: entry["id"]), "npm dependency closure drift")
+    require(
+        sha256_file(LOCK_PATH) == DEPENDENCY_LOCK_SHA256,
+        "complete dependency lock digest mismatch",
+    )
     if require_cache or PERFETTO_ROOT.exists():
         generated = closure_from_cache()
         require(generated == lock, "generated dependency closure differs from committed lock")
@@ -535,18 +596,38 @@ def cache_git_dependency(origin: str, revision: str) -> Path:
         cache.parent.mkdir(parents=True, exist_ok=True)
         run(["git", "init", "--quiet", "--bare", str(cache)])
         run(["git", "remote", "add", "origin", origin], cwd=cache)
-    result = subprocess.run(
-        ["git", "cat-file", "-e", f"{revision}^{{commit}}"],
+    for key in ("remote.origin.promisor", "remote.origin.partialclonefilter"):
+        configured = subprocess.run(
+            ["git", "config", "--get", key],
+            cwd=cache,
+            capture_output=True,
+        )
+        if configured.returncode == 0:
+            run(["git", "config", "--unset-all", key], cwd=cache)
+    missing = subprocess.run(
+        ["git", "rev-list", "--objects", "--missing=print", revision],
         cwd=cache,
         capture_output=True,
+        text=True,
     )
-    if result.returncode != 0:
+    if missing.returncode != 0 or any(line.startswith("?") for line in missing.stdout.splitlines()):
         run(
-            ["git", "-c", "http.followRedirects=false", "fetch", "--depth=1", "--filter=blob:none", "origin", revision],
+            [
+                "git",
+                "-c",
+                "http.followRedirects=false",
+                "fetch",
+                "--depth=1",
+                "--refetch",
+                "origin",
+                revision,
+            ],
             cwd=cache,
         )
     require(run(["git", "rev-parse", f"{revision}^{{commit}}"], cwd=cache) == revision, f"Git cache revision mismatch: {origin}")
-    run(["git", "fsck", "--no-dangling"], cwd=cache)
+    missing = run(["git", "rev-list", "--objects", "--missing=print", revision], cwd=cache)
+    require(not any(line.startswith("?") for line in missing.splitlines()), f"Git cache has missing objects: {origin}")
+    run(["git", "fsck", "--full", "--no-dangling"], cwd=cache)
     return cache
 
 
@@ -736,11 +817,22 @@ def prepare_perfetto_dependencies(node_command: str) -> dict[str, Any]:
     pnpm = PERFETTO_ROOT / "tools/pnpm"
     env = environment_for_node(node_command)
     env["PATH"] = f"{PERFETTO_ROOT / 'tools'}{os.pathsep}{env['PATH']}"
+    env["npm_config_registry"] = PUBLIC_NPM_REGISTRY
+    env["pnpm_config_registry"] = PUBLIC_NPM_REGISTRY
     node_modules = PERFETTO_ROOT / "ui/node_modules"
     if node_modules.exists():
         shutil.rmtree(node_modules)
     run(
-        [str(pnpm), "install", "--shamefully-hoist", "--frozen-lockfile", "--store-dir", str(PNPM_STORE)],
+        [
+            str(pnpm),
+            "install",
+            "--shamefully-hoist",
+            "--frozen-lockfile",
+            "--registry",
+            PUBLIC_NPM_REGISTRY,
+            "--store-dir",
+            str(PNPM_STORE),
+        ],
         cwd=PERFETTO_ROOT / "ui",
         env=env,
     )
@@ -761,8 +853,20 @@ def prepare() -> dict[str, Any]:
     NPM_CACHE.mkdir(parents=True, exist_ok=True)
     npm_environment = environment_for_node(toolchain["commands"]["node"])
     npm_environment["npm_config_cache"] = str(NPM_CACHE)
+    npm_environment["npm_config_registry"] = PUBLIC_NPM_REGISTRY
     npm_command = toolchain["commands"]["npm"]
-    run([npm_command, "ci", "--ignore-scripts", "--cache", str(NPM_CACHE)], env=npm_environment)
+    run(
+        [
+            npm_command,
+            "ci",
+            "--ignore-scripts",
+            "--registry",
+            PUBLIC_NPM_REGISTRY,
+            "--cache",
+            str(NPM_CACHE),
+        ],
+        env=npm_environment,
+    )
     install_grpc_tools_artifact(grpc_tools_artifact(allow_download=True))
     perfetto = prepare_perfetto_dependencies(toolchain["commands"]["node"])
     return {
@@ -810,10 +914,27 @@ def verify_cache() -> dict[str, Any]:
         cache = git_cache_path(entry["origin"])
         require(cache.is_dir(), f"missing Git dependency cache: {entry['id']}")
         require(
+            subprocess.run(
+                ["git", "config", "--get", "remote.origin.promisor"],
+                cwd=cache,
+                capture_output=True,
+            ).returncode
+            != 0,
+            f"Git dependency cache is a partial clone: {entry['id']}",
+        )
+        require(
             run(["git", "rev-parse", f"{entry['revision']}^{{commit}}"], cwd=cache) == entry["revision"],
             f"Git dependency cache revision mismatch: {entry['id']}",
         )
-        run(["git", "fsck", "--no-dangling"], cwd=cache)
+        missing = run(
+            ["git", "rev-list", "--objects", "--missing=print", entry["revision"]],
+            cwd=cache,
+        )
+        require(
+            not any(line.startswith("?") for line in missing.splitlines()),
+            f"Git dependency cache has missing objects: {entry['id']}",
+        )
+        run(["git", "fsck", "--full", "--no-dangling"], cwd=cache)
     state = read_json(STATE_ROOT / "perfetto-ui.json")
     digest, count = tree_digest(PERFETTO_ROOT / "ui/node_modules")
     require(digest == state["nodeModulesTreeSha256"] and count == state["nodeModulesFiles"], "Perfetto UI node_modules cache mismatch")
@@ -826,7 +947,21 @@ def verify_cache() -> dict[str, Any]:
     }
 
 
-def offline_check() -> dict[str, Any]:
+def assert_network_disabled() -> None:
+    for address in (("1.1.1.1", 53), ("8.8.8.8", 53)):
+        try:
+            with socket.create_connection(address, timeout=0.25):
+                raise DependencyError(
+                    f"external networking is still available during offline verification: {address[0]}"
+                )
+        except DependencyError:
+            raise
+        except OSError:
+            continue
+
+
+def offline_check_in_network_sandbox() -> dict[str, Any]:
+    assert_network_disabled()
     cache_report = verify_cache()
     npm_command = cache_report["npmCommand"]
     toolchain = verify_toolchain()
@@ -837,6 +972,8 @@ def offline_check() -> dict[str, Any]:
             "npm_config_offline": "true",
             "npm_config_audit": "false",
             "npm_config_fund": "false",
+            "npm_config_registry": PUBLIC_NPM_REGISTRY,
+            "pnpm_config_registry": PUBLIC_NPM_REGISTRY,
             "HTTP_PROXY": "http://127.0.0.1:9",
             "HTTPS_PROXY": "http://127.0.0.1:9",
             "ALL_PROXY": "http://127.0.0.1:9",
@@ -867,6 +1004,8 @@ def offline_check() -> dict[str, Any]:
                 "--offline",
                 "--shamefully-hoist",
                 "--frozen-lockfile",
+                "--registry",
+                PUBLIC_NPM_REGISTRY,
                 "--store-dir",
                 str(PNPM_STORE),
             ],
@@ -895,6 +1034,47 @@ def offline_check() -> dict[str, Any]:
     return {"ok": True, "networkMode": "offline", "npmInstall": True, "perfettoPnpmInstall": True, "generatedFiles": generated_files}
 
 
+def offline_check() -> dict[str, Any]:
+    script = str(Path(__file__).resolve())
+    python_command, _ = find_python()
+    python_executable = run(
+        [python_command, "-c", "import os,sys; print(os.path.realpath(sys.executable))"]
+    )
+    environment = os.environ.copy()
+    environment["AOSP_WINSCOPE_NETWORK_SANDBOX"] = "1"
+    if platform.system() == "Darwin":
+        sandbox = shutil.which("sandbox-exec")
+        require(sandbox is not None, "sandbox-exec is required for offline verification on macOS")
+        command = [
+            sandbox,
+            "-p",
+            "(version 1) (allow default) (deny network*)",
+            python_executable,
+            script,
+            "offline-check-internal",
+            "--json",
+        ]
+    elif platform.system() == "Linux":
+        unshare = shutil.which("unshare")
+        require(unshare is not None, "unshare is required for offline verification on Linux")
+        command = [
+            unshare,
+            "--user",
+            "--map-root-user",
+            "--net",
+            python_executable,
+            script,
+            "offline-check-internal",
+            "--json",
+        ]
+    else:
+        raise DependencyError("offline verification requires macOS sandbox-exec or Linux unshare")
+    output = run(command, env=environment)
+    report = json.loads(output)
+    require(report.get("ok") is True, f"network-sandboxed offline verification failed: {report}")
+    return report
+
+
 def emit(report: dict[str, Any], as_json: bool) -> None:
     if as_json:
         print(json.dumps(report, sort_keys=True))
@@ -903,8 +1083,20 @@ def emit(report: dict[str, Any], as_json: bool) -> None:
 
 
 def main() -> int:
+    reexec_with_supported_python()
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["generate-lock", "verify-lock", "verify-toolchain", "prepare", "verify", "offline-check"])
+    parser.add_argument(
+        "command",
+        choices=[
+            "generate-lock",
+            "verify-lock",
+            "verify-toolchain",
+            "prepare",
+            "verify",
+            "offline-check",
+            "offline-check-internal",
+        ],
+    )
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
     try:
@@ -921,8 +1113,14 @@ def main() -> int:
             report = prepare()
         elif args.command == "verify":
             report = verify_cache()
-        else:
+        elif args.command == "offline-check":
             report = offline_check()
+        else:
+            require(
+                os.environ.get("AOSP_WINSCOPE_NETWORK_SANDBOX") == "1",
+                "offline-check-internal may run only inside the network sandbox",
+            )
+            report = offline_check_in_network_sandbox()
         emit(report, args.json)
         return 0
     except (DependencyError, OSError, subprocess.SubprocessError) as error:
