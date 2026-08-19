@@ -99,7 +99,7 @@ npm run deps:verify
 npm run deps:offline-check
 ```
 
-`deps:prepare` is the only network-enabled step. It checks out the fixed Perfetto commit and tree, fills the ignored `.deps/` cache from declared origins, forces npm and pnpm to the public npm registry, records the platform-specific `grpc-tools` build binary, and prepares complete (non-partial) Perfetto Git repositories plus its archive and pnpm inputs. `deps:verify` rechecks the committed whole-lock digest, Git object completeness, content-addressed downloads, npm cache, and prepared Perfetto UI dependency tree. `deps:offline-check` enters an OS-enforced network namespace/sandbox, confirms direct sockets are denied, performs fresh offline npm and pnpm installs, and regenerates the proto output without `ANDROID_BUILD_TOP`.
+`deps:prepare` is the only network-enabled step. It checks out the fixed Perfetto commit and tree, fills the ignored `.deps/` cache from declared origins, forces npm and pnpm to the public npm registry, records the platform-specific `grpc-tools` build binary, and prepares complete (non-partial) Perfetto Git repositories plus its archive and pnpm inputs. A first `build:prod` delegates to this same preparation operation when `.deps/` is entirely absent; a partial or corrupt cache fails closed rather than being repaired implicitly. `deps:verify` rechecks the committed whole-lock digest, Git object completeness, content-addressed downloads, npm cache, and prepared Perfetto UI dependency tree. `deps:offline-check` enters an OS-enforced network namespace/sandbox, confirms external sockets are denied, performs fresh offline npm and pnpm installs, rebuilds the complete production output from an empty Perfetto output tree, and runs the upstream browser tests without `ANDROID_BUILD_TOP`.
 
 The current lock contains 2,362 sorted entries and fixes Perfetto at commit `ece66975738007dd0978b911d8a2077e49b8f31e`, tree `201a16e409911aa016522a95143af2e5d52a3662`. Cache contents are deliberately excluded from Git. Missing, corrupt, floating, or undeclared inputs fail closed. License values that remain `NOASSERTION` are not a redistribution approval; final license/SBOM classification remains a later release gate.
 
@@ -122,8 +122,8 @@ the OS network sandbox, proving that compilation consumes the prepared cache
 without AOSP or external networking. Output verification checks byte identity
 between the Trace Processor build and deployed web assets. The Android 17
 vendor `layers_trace.perfetto-trace` fixture is the first imported-trace
-behavioral seam; its parse/query test remains the acceptance test for the next
-browser-test stage.
+behavioral seam; the upstream browser test parses it with the generated engine
+and queries `surfaceflinger_layers_snapshot` as this stage's import evidence.
 
 ### Fixed tools
 

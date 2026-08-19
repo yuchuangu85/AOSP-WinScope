@@ -23,24 +23,27 @@ const configCi = (config) => {
     customLaunchers: {
       ChromeHeadlessFixedSize: {
         base: 'ChromeHeadless',
-        flags: ['--window-size=1280,1024', '--enable-unsafe-swiftshader'],
-      }
+        flags: [
+          '--window-size=1280,1024',
+          '--enable-unsafe-swiftshader',
+          ...(process.env.AOSP_WINSCOPE_NETWORK_SANDBOX === '1'
+            ? ['--no-sandbox']
+            : []),
+        ],
+      },
     },
     plugins: [
       'karma-chrome-launcher',
       'karma-jasmine',
       'karma-spec-reporter',
       'karma-coverage',
-      require('@angular-devkit/build-angular/plugins/karma')
+      require('@angular-devkit/build-angular/plugins/karma'),
     ],
     reporters: ['progress', 'spec', 'coverage'],
     coverageReporter: {
       dir: require('path').join(__dirname, './coverage/winscope'),
       subdir: '.',
-      reporters: [
-        { type: 'html' },
-        { type: 'text-summary' }
-      ]
+      reporters: [{type: 'html'}, {type: 'text-summary'}],
     },
     verbose: true, // output config used by istanbul for debugging
   });

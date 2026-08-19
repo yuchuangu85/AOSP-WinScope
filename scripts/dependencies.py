@@ -13,6 +13,7 @@ import re
 import runpy
 import shutil
 import socket
+import struct
 import subprocess
 import sys
 import tarfile
@@ -961,7 +962,24 @@ def assert_network_disabled() -> None:
             continue
 
 
+def enable_isolated_loopback() -> None:
+    """Enable Linux loopback inside the new network namespace for browser tests."""
+    if platform.system() != "Linux":
+        return
+    import fcntl
+
+    get_flags = 0x8913  # SIOCGIFFLAGS
+    set_flags = 0x8914  # SIOCSIFFLAGS
+    interface_up = 0x1  # IFF_UP
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as control:
+        request = struct.pack("16sH14x", b"lo", 0)
+        response = fcntl.ioctl(control.fileno(), get_flags, request)
+        _, flags = struct.unpack("16sH14x", response)
+        fcntl.ioctl(control.fileno(), set_flags, struct.pack("16sH14x", b"lo", flags | interface_up))
+
+
 def offline_check_in_network_sandbox() -> dict[str, Any]:
+    enable_isolated_loopback()
     assert_network_disabled()
     cache_report = verify_cache()
     npm_command = cache_report["npmCommand"]
@@ -1046,6 +1064,7 @@ def offline_check_in_network_sandbox() -> dict[str, Any]:
     except json.JSONDecodeError as error:
         raise DependencyError(f"standalone offline build did not return JSON: {build_output!r}") from error
     require(build_report.get("ok") is True, f"offline standalone build failed: {build_report}")
+    run([npm_command, "run", "test:unit:ci"], env=env)
     return {
         "ok": True,
         "networkMode": "offline",
@@ -1053,6 +1072,7 @@ def offline_check_in_network_sandbox() -> dict[str, Any]:
         "perfettoPnpmInstall": True,
         "generatedFiles": generated_files,
         "standaloneBuild": build_report,
+        "upstreamTests": True,
     }
 
 
@@ -1070,7 +1090,12 @@ def offline_check() -> dict[str, Any]:
         command = [
             sandbox,
             "-p",
-            "(version 1) (allow default) (deny network*)",
+            (
+                "(version 1) (allow default) (deny network*) "
+                "(allow network* (local unix-socket)) "
+                '(allow network-inbound (local tcp "localhost:*")) '
+                '(allow network-outbound (remote ip "localhost:*"))'
+            ),
             python_executable,
             script,
             "offline-check-internal",

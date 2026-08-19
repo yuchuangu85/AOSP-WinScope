@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import platform
@@ -38,34 +37,9 @@ TRACE_PROCESSOR_ARTIFACTS = (
 )
 
 
-class BuildError(RuntimeError):
-    """A standalone build contract invariant was not satisfied."""
-
-
-def require(condition: bool, message: str) -> None:
-    if not condition:
-        raise BuildError(message)
-
-
-def run(
-    command: list[str],
-    *,
-    cwd: Path = ROOT,
-    env: dict[str, str] | None = None,
-) -> str:
-    result = subprocess.run(command, cwd=cwd, env=env, capture_output=True, text=True)
-    if result.returncode != 0:
-        detail = result.stderr.strip() or result.stdout.strip()
-        raise BuildError(f"{' '.join(command)} failed: {detail}")
-    return result.stdout.strip()
-
-
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as source:
-        for chunk in iter(lambda: source.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+require = dependencies.require
+run = dependencies.run
+sha256_file = dependencies.sha256_file
 
 
 def preflight() -> dict[str, Any]:
@@ -92,13 +66,12 @@ def entry_matches_host(entry: dict[str, Any]) -> bool:
 
 def materialize_git(entry: dict[str, Any]) -> None:
     destination = PERFETTO_ROOT / entry["target"]
-    stamp = destination / ".aosp-winscope-revision"
-    if stamp.is_file() and stamp.read_text(encoding="utf-8").strip() == entry["revision"]:
-        return
     # Android bionic has case-colliding UAPI paths which cannot be represented
     # on the default case-insensitive macOS filesystem. It is not referenced by
     # the WebAssembly/UI targets, so omit it only on that host.
     if platform.system() == "Darwin" and entry["target"] == "buildtools/bionic":
+        if destination.exists():
+            shutil.rmtree(destination)
         return
     if destination.exists():
         shutil.rmtree(destination)
@@ -131,7 +104,6 @@ def materialize_git(entry: dict[str, Any]) -> None:
                 return member
 
             source.extractall(destination, filter=safe_member)
-    stamp.write_text(entry["revision"] + "\n", encoding="utf-8")
 
 
 def materialize_archive(entry: dict[str, Any]) -> None:
@@ -141,11 +113,7 @@ def materialize_archive(entry: dict[str, Any]) -> None:
     compressed = entry["target"].endswith((".zip", ".tgz", ".tbz2"))
     if compressed:
         destination = target.with_suffix("")
-        stamp = destination / ".aosp-winscope-sha256"
-        if stamp.is_file() and stamp.read_text(encoding="utf-8").strip() == entry["integrity"]["value"]:
-            return
         dependencies.extract_archive(source, destination)
-        stamp.write_text(entry["integrity"]["value"] + "\n", encoding="utf-8")
         return
     target.parent.mkdir(parents=True, exist_ok=True)
     if not target.is_file() or sha256_file(target) != entry["integrity"]["value"]:
@@ -176,10 +144,25 @@ def build_environment() -> tuple[dict[str, str], dict[str, Any]]:
     return environment, toolchain
 
 
+def prepare_missing_cache() -> None:
+    """Prepare a first clean clone, but never repair a partial/corrupt cache."""
+    if dependencies.DEPS_ROOT.exists():
+        return
+    dependencies.prepare()
+
+
 def build_trace_processor() -> dict[str, Any]:
+    prepare_missing_cache()
     preflight()
+    if BUILD_STATE.exists():
+        BUILD_STATE.unlink()
     materialized = materialize_perfetto_build_inputs()
     environment, _ = build_environment()
+    # A previous Ninja output is never a source input: rebuilding from an empty
+    # GN output tree ensures the verified source/dependency cache is the only
+    # authority for generated JS/WASM bytes.
+    if PERFETTO_BUILD.exists():
+        shutil.rmtree(PERFETTO_BUILD)
     run(
         [
             str(PERFETTO_ROOT / "tools/gn"),
@@ -249,19 +232,31 @@ def build_production() -> dict[str, Any]:
     npm = toolchain["commands"]["npm"]
     run([npm, "run", "build:protos"], env=environment)
     run([npm, "run", "build:app"], env=environment)
-    report = verify_outputs()
+    report = verify_outputs(trace_processor["artifacts"])
     report["traceProcessorBuild"] = trace_processor
     dependencies.STATE_ROOT.mkdir(parents=True, exist_ok=True)
     BUILD_STATE.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return report
 
 
-def verify_outputs() -> dict[str, Any]:
+def recorded_artifacts() -> dict[str, Any]:
+    require(BUILD_STATE.is_file(), "standalone production build state is missing")
+    state = json.loads(BUILD_STATE.read_text(encoding="utf-8"))
+    require(state.get("perfettoRevision") == dependencies.PERFETTO_REVISION, "build state Perfetto revision mismatch")
+    require(state.get("perfettoTree") == dependencies.PERFETTO_TREE, "build state Perfetto tree mismatch")
+    artifacts = state.get("traceProcessorArtifacts")
+    require(isinstance(artifacts, dict), "build state artifact inventory is missing")
+    return artifacts
+
+
+def verify_outputs(expected_artifacts: dict[str, Any] | None = None) -> dict[str, Any]:
+    expected_artifacts = expected_artifacts or recorded_artifacts()
     artifacts = {}
     for name in TRACE_PROCESSOR_ARTIFACTS:
         path = TRACE_PROCESSOR_OUTPUT / name
         require(path.is_file() and path.stat().st_size > 0, f"missing Trace Processor artifact: {name}")
         artifacts[name] = {"sha256": sha256_file(path), "size": path.stat().st_size}
+        require(artifacts[name] == expected_artifacts.get(name), f"{name} differs from recorded build state")
     require(PROTO_OUTPUT.is_dir() and any(PROTO_OUTPUT.rglob("*.js")), "generated proto output is missing")
     require((WEB_OUTPUT / "index.html").is_file(), "Angular production index is missing")
     for name in TRACE_PROCESSOR_ARTIFACTS:
@@ -302,10 +297,11 @@ def main() -> int:
         elif args.command == "production":
             report = build_production()
         else:
+            preflight()
             report = verify_outputs()
         emit(report, args.json)
         return 0
-    except (BuildError, dependencies.DependencyError, OSError, subprocess.SubprocessError) as error:
+    except (dependencies.DependencyError, json.JSONDecodeError, OSError, subprocess.SubprocessError) as error:
         report = {"ok": False, "errors": [str(error)]}
         if args.json:
             print(json.dumps(report, sort_keys=True))

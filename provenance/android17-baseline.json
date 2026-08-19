@@ -210,6 +210,11 @@
       {
         "change": "modified",
         "origin": "newly-authored-clean-room",
+        "path": "karma.config.ci.js"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
         "path": "package-lock.json"
       },
       {
