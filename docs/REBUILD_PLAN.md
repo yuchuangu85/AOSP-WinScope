@@ -103,7 +103,27 @@ npm run deps:offline-check
 
 The current lock contains 2,362 sorted entries and fixes Perfetto at commit `ece66975738007dd0978b911d8a2077e49b8f31e`, tree `201a16e409911aa016522a95143af2e5d52a3662`. Cache contents are deliberately excluded from Git. Missing, corrupt, floating, or undeclared inputs fail closed. License values that remain `NOASSERTION` are not a redistribution approval; final license/SBOM classification remains a later release gate.
 
-This dependency stage proves only the offline installation and proto-generation foundation. The complete Trace Processor and Angular production build, and the first imported trace, remain the next build-integration stage.
+The standalone build-integration stage is executable with:
+
+```bash
+python3 scripts/build.py preflight --json
+python3 scripts/build.py production --json
+python3 scripts/build.py verify --json
+```
+
+`build.py` materializes only the locked Perfetto inputs, invokes the pinned
+Android 17 Trace Processor GN/WASM build, copies the generated engine and both
+WASM modules into the application assets, generates protobuf bindings, and
+performs the Angular production build. TypeScript is run through a temporary
+symlink outside the application checkout so the application's Jasmine
+ambient types cannot leak into Perfetto's Jest types; no upstream Perfetto
+source is modified. `deps:offline-check` repeats this production build inside
+the OS network sandbox, proving that compilation consumes the prepared cache
+without AOSP or external networking. Output verification checks byte identity
+between the Trace Processor build and deployed web assets. The Android 17
+vendor `layers_trace.perfetto-trace` fixture is the first imported-trace
+behavioral seam; its parse/query test remains the acceptance test for the next
+browser-test stage.
 
 ### Fixed tools
 

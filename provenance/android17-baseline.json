@@ -235,6 +235,11 @@
       {
         "change": "added",
         "origin": "newly-authored-clean-room",
+        "path": "scripts/build.py"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
         "path": "scripts/dependencies.py"
       },
       {
@@ -246,6 +251,11 @@
         "change": "added",
         "origin": "newly-authored-clean-room",
         "path": "tests/test_dependency_closure.py"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "tests/test_standalone_build.py"
       },
       {
         "change": "added",

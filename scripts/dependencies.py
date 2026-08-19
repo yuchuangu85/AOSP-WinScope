@@ -243,9 +243,10 @@ def reexec_with_supported_python() -> None:
     )
     environment = os.environ.copy()
     environment["AOSP_WINSCOPE_PYTHON_REEXEC"] = "1"
+    script = str(Path(sys.argv[0]).resolve())
     os.execve(
         selected_executable,
-        [selected_executable, str(Path(__file__).resolve()), *sys.argv[1:]],
+        [selected_executable, script, *sys.argv[1:]],
         environment,
     )
 
@@ -1031,7 +1032,28 @@ def offline_check_in_network_sandbox() -> dict[str, Any]:
     shutil.rmtree(backup)
     generated_files = sum(item.is_file() for item in (ROOT / "deps_build/protos").rglob("*"))
     require(generated_files > 0, "offline proto generation produced no files")
-    return {"ok": True, "networkMode": "offline", "npmInstall": True, "perfettoPnpmInstall": True, "generatedFiles": generated_files}
+    build_output = run(
+        [
+            toolchain["commands"]["python"],
+            str(ROOT / "scripts/build.py"),
+            "production",
+            "--json",
+        ],
+        env=env,
+    )
+    try:
+        build_report = json.loads(build_output)
+    except json.JSONDecodeError as error:
+        raise DependencyError(f"standalone offline build did not return JSON: {build_output!r}") from error
+    require(build_report.get("ok") is True, f"offline standalone build failed: {build_report}")
+    return {
+        "ok": True,
+        "networkMode": "offline",
+        "npmInstall": True,
+        "perfettoPnpmInstall": True,
+        "generatedFiles": generated_files,
+        "standaloneBuild": build_report,
+    }
 
 
 def offline_check() -> dict[str, Any]:
