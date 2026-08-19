@@ -22,10 +22,7 @@ import {ConnectionState} from '@trace_collection/connection_state';
 
 import {Endpoint} from './endpoint';
 import {getFromProxy} from './utils';
-import {
-  WinscopeProxyDeviceConnection,
-  WinscopeProxyDeviceConnectionResponse,
-} from './winscope_proxy_device_connection';
+import {WinscopeProxyDeviceConnection, WinscopeProxyDeviceConnectionResponse,} from './winscope_proxy_device_connection';
 
 /**
  * A connection to the Winscope Proxy server.

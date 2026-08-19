@@ -15,17 +15,7 @@
  */
 
 import {CommonModule} from '@angular/common';
-import {
-  ChangeDetectorRef,
-  Component,
-  computed,
-  Inject,
-  input,
-  NgZone,
-  output,
-  signal,
-  ViewEncapsulation,
-} from '@angular/core';
+import {ChangeDetectorRef, Component, computed, Inject, input, NgZone, output, signal, ViewEncapsulation,} from '@angular/core';
 import {MatButtonModule} from '@angular/material/button';
 import {MatCardModule} from '@angular/material/card';
 import {MatDialog} from '@angular/material/dialog';
@@ -44,44 +34,25 @@ import {getLogger} from '@compat/logging';
 import {Analytics} from '@logging/analytics';
 import {ProgressListener} from '@messaging/progress_listener';
 import {WinscopeEvent} from '@messaging/winscope_event';
-import {
-  EmitEvent,
-  WinscopeEventEmitter,
-} from '@messaging/winscope_event_emitter';
+import {EmitEvent, WinscopeEventEmitter,} from '@messaging/winscope_event_emitter';
 import {WinscopeEventListener} from '@messaging/winscope_event_listener';
-import {UserNotifier} from '@services/user_notifier';
 import {getRuntimeConfig} from '@runtime/runtime_config';
+import {UserNotifier} from '@services/user_notifier';
 import {AdbConnectionType} from '@trace_collection/adb_connection_type';
-import {
-  AdbDeviceConnection,
-  AdbDeviceState,
-} from '@trace_collection/adb_device_connection';
+import {AdbDeviceConnection, AdbDeviceState,} from '@trace_collection/adb_device_connection';
 import {AdbFiles, RequestedTraceTypes} from '@trace_collection/adb_files';
 import {ConnectionState} from '@trace_collection/connection_state';
 import {ConnectionStateListener} from '@trace_collection/connection_state_listener';
 import {TraceCollectionController} from '@trace_collection/controller/trace_collection_controller';
 import {UiTraceTarget} from '@trace_collection/ui_trace_target';
-import {
-  CheckboxConfiguration,
-  makeDefaultDumpConfigMap,
-  makeDefaultTraceConfigMap,
-  makeProtologGroupOptions,
-  makeScreenRecordingSelectionConfigs,
-  SelectionConfiguration,
-  TraceConfigurationMap,
-  updateConfigsFromStore,
-} from '@trace_collection/ui/ui_trace_configuration';
+import {CheckboxConfiguration, makeDefaultDumpConfigMap, makeDefaultTraceConfigMap, makeProtologGroupOptions, makeScreenRecordingSelectionConfigs, SelectionConfiguration, TraceConfigurationMap, updateConfigsFromStore,} from '@trace_collection/ui/ui_trace_configuration';
 import {UserRequest, UserRequestConfig} from '@trace_collection/user_request';
 import {AppRefreshDumpsRequest} from '@ui/shared/events/app_events';
 import {NoTraceTargetsSelectedEvent} from '@ui/shared/events/misc_events';
 import {makeWarningProxyTraceTimeout} from '@ui/trace_loading/warnings';
 
 import {TraceConfigComponent} from './trace_config_component';
-import {
-  WarningDialogComponent,
-  WarningDialogData,
-  WarningDialogResult,
-} from './warning_dialog_component';
+import {WarningDialogComponent, WarningDialogData, WarningDialogResult,} from './warning_dialog_component';
 import {WinscopeProxySetupComponent} from './winscope_proxy_setup_component';
 
 /**
@@ -258,10 +229,6 @@ export class CollectTracesComponent
   }
 
   onDeviceClick(device: AdbDeviceConnection) {
-    if (this.deviceNeedsAuthFromWinscope(device)) {
-      device.tryAuthorize();
-      return;
-    }
     if (device.getState() !== AdbDeviceState.AVAILABLE) {
       return;
     }
@@ -269,11 +236,6 @@ export class CollectTracesComponent
     this.onDevicesChange(assertDefined(this.controller).getDevices());
     this.store().add(this.storeKeyLastDevice, device.id);
     this.changeDetectorRef.detectChanges();
-  }
-
-  onAuthorizeButtonClick(event: MouseEvent, device: AdbDeviceConnection) {
-    event.stopPropagation();
-    device.tryAuthorize();
   }
 
   async onWinscopeEvent(event: WinscopeEvent) {
@@ -473,13 +435,6 @@ export class CollectTracesComponent
 
   getDeviceName(device: AdbDeviceConnection): string {
     return device.getFormattedName();
-  }
-
-  deviceNeedsAuthFromWinscope(device: AdbDeviceConnection): boolean {
-    return (
-      device.getState() === AdbDeviceState.UNAUTHORIZED &&
-      this.getConnectionType() === AdbConnectionType.WDP
-    );
   }
 
   getDeviceStateIcon(state: AdbDeviceState): string {

@@ -260,6 +260,16 @@
       {
         "change": "modified",
         "origin": "newly-authored-clean-room",
+        "path": "src/app/app_component.ng.html"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/app/app_component.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
         "path": "src/app/trace_collection/collect_traces_component.ng.html"
       },
       {
@@ -275,7 +285,22 @@
       {
         "change": "modified",
         "origin": "newly-authored-clean-room",
+        "path": "src/app/trace_collection/winscope_proxy_setup_component.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
         "path": "src/common/analytics.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/common/store/persistent_store.ts"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "src/common/store/persistent_store_test.ts"
       },
       {
         "change": "modified",

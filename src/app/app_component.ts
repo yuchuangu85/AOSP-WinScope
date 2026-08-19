@@ -44,7 +44,7 @@ import {UploadTracesComponent} from '@app/trace_loading/upload_traces_component'
 import {downloadFromUrl, DownloadRequest} from '@common/download';
 import {DOWNLOAD_FILENAME_REGEX} from '@common/io';
 import {InMemoryStorage} from '@common/store/in_memory_storage';
-import {PersistentStore} from '@common/store/persistent_store';
+import {clearPersistentState, isPersistenceEnabled, PersistentStore,} from '@common/store/persistent_store';
 import {Store} from '@common/store/store';
 import {Timestamp} from '@common/time/time';
 import {getRootUrl} from '@common/window';
@@ -57,6 +57,7 @@ import {Analytics} from '@logging/analytics';
 import {ProgressListener} from '@messaging/progress_listener';
 import {WinscopeEvent} from '@messaging/winscope_event';
 import {WinscopeEventListener} from '@messaging/winscope_event_listener';
+import {getRuntimeConfigDiagnostic} from '@runtime/runtime_config';
 import {UserNotifier} from '@services/user_notifier';
 import {FileReader} from '@trace_api/file_reader';
 import {ActiveTraceChanged, TracePositionUpdate, TraceSearchRequest,} from '@trace_api/trace_events';
@@ -111,6 +112,8 @@ import {ViewersLoaded, ViewersUnloaded} from './viewers_events';
 })
 export class AppComponent implements WinscopeEventListener {
   title = 'winscope';
+  readonly runtimeConfigDiagnostic = getRuntimeConfigDiagnostic();
+  readonly privacyMode = !isPersistenceEnabled();
   timelineData = new TimelineData();
   initialTimelineTabTraceType: TraceType | undefined;
   abtChromeExtensionProtocol = new AbtChromeExtensionProtocol();
@@ -310,6 +313,10 @@ export class AppComponent implements WinscopeEventListener {
     this.persistentStore.clear('treeView');
   }
 
+  clearLocalState() {
+    clearPersistentState();
+  }
+
   async onViewTracesButtonClick(discardLegacyFiles: boolean) {
     await this.mediator.onWinscopeEvent(
       new AppTraceViewRequest(discardLegacyFiles),
@@ -361,11 +368,6 @@ export class AppComponent implements WinscopeEventListener {
     this.goToLink(
       'https://source.android.com/docs/core/graphics/tracing-win-transitions',
     );
-  }
-
-  goToBuganizer() {
-    Analytics.Help.logBuganizerOpened();
-    this.goToLink('https://b.corp.google.com/issues/new?component=909476');
   }
 
   toggleDarkMode() {

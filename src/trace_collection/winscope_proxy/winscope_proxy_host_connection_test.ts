@@ -14,22 +14,11 @@
  * limitations under the License.
  */
 
-import {
-  HttpRequest,
-  HttpRequestHeaderType,
-  HttpRequestStatus,
-  HttpResponse,
-} from '@common/http_request';
+import {HttpRequest, HttpRequestHeaderType, HttpRequestStatus, HttpResponse,} from '@common/http_request';
 import {waitToBeCalled} from '@common/spy_utils';
-import {
-  AdbDeviceConnection,
-  AdbDeviceState,
-} from '@trace_collection/adb_device_connection';
+import {getRuntimeProxyEndpoint, resetRuntimeConfigForTest, setRuntimeConfigForTest,} from '@runtime/runtime_config';
+import {AdbDeviceConnection, AdbDeviceState,} from '@trace_collection/adb_device_connection';
 import {ConnectionState} from '@trace_collection/connection_state';
-import {
-  getRuntimeProxyEndpoint,
-  setRuntimeConfigForTest,
-} from '@runtime/runtime_config';
 import {ConnectionStateListener} from '@trace_collection/connection_state_listener';
 
 import {Endpoint} from './endpoint';
@@ -80,6 +69,7 @@ describe('WinscopeProxyHostConnection', () => {
     expect(listener.onConnectionStateChange).not.toHaveBeenCalled();
     expect(listener.onDevicesChange).not.toHaveBeenCalled();
     connection.onDestroy();
+    resetRuntimeConfigForTest();
   });
 
   describe('initialization:', () => {

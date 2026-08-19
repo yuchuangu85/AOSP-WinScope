@@ -14,31 +14,17 @@
  * limitations under the License.
  */
 
-import {
-  HttpRequest,
-  HttpRequestHeaderType,
-  HttpRequestStatus,
-  HttpResponse,
-} from '@common/http_request';
+import {HttpRequest, HttpRequestHeaderType, HttpRequestStatus, HttpResponse,} from '@common/http_request';
+import {getRuntimeProxyEndpoint, resetRuntimeConfigForTest, setRuntimeConfigForTest,} from '@runtime/runtime_config';
 import {UserNotifierChecker} from '@services/testing/user_notifier_checker';
-import {
-  AdbDeviceConnectionListener,
-  AdbDeviceState,
-} from '@trace_collection/adb_device_connection';
+import {AdbDeviceConnectionListener, AdbDeviceState,} from '@trace_collection/adb_device_connection';
 import {ConnectionState} from '@trace_collection/connection_state';
-import {
-  getRuntimeProxyEndpoint,
-  setRuntimeConfigForTest,
-} from '@runtime/runtime_config';
 import {TraceTarget} from '@trace_collection/trace_target';
 import {makeWarningProxyTracingErrors} from '@trace_collection/warnings';
 
 import {Endpoint} from './endpoint';
 import {VERSION} from './utils';
-import {
-  WinscopeProxyDeviceConnection,
-  WinscopeProxyDeviceConnectionResponse,
-} from './winscope_proxy_device_connection';
+import {WinscopeProxyDeviceConnection, WinscopeProxyDeviceConnectionResponse,} from './winscope_proxy_device_connection';
 
 type HttpRequestGetType = (
   path: string,
@@ -90,6 +76,7 @@ describe('WinscopeProxyDeviceConnection', () => {
     expect(listener.onAvailableTracesChange).not.toHaveBeenCalled();
     expect(listener.onError).not.toHaveBeenCalled();
     expect(listener.onConnectionStateChange).not.toHaveBeenCalled();
+    resetRuntimeConfigForTest();
   });
 
   describe('errors:', () => {

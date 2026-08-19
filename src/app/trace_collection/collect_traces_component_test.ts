@@ -31,10 +31,7 @@ import {MatProgressBarModule} from '@angular/material/progress-bar';
 import {MatSelectModule} from '@angular/material/select';
 import {MatSnackBar, MatSnackBarModule} from '@angular/material/snack-bar';
 import {MatTabsModule} from '@angular/material/tabs';
-import {
-  BrowserAnimationsModule,
-  NoopAnimationsModule,
-} from '@angular/platform-browser/animations';
+import {BrowserAnimationsModule, NoopAnimationsModule,} from '@angular/platform-browser/animations';
 import {LoadProgressComponent} from '@app/trace_loading/load_progress_component';
 import {assertDefined} from '@common/assert';
 import {InMemoryStorage} from '@common/store/in_memory_storage';
@@ -43,10 +40,7 @@ import {WinscopeEvent} from '@messaging/winscope_event';
 import {UserNotifierChecker} from '@services/testing/user_notifier_checker';
 import {TraceType} from '@trace_api/trace_type';
 import {AdbConnectionType} from '@trace_collection/adb_connection_type';
-import {
-  AdbDeviceConnection,
-  AdbDeviceState,
-} from '@trace_collection/adb_device_connection';
+import {AdbDeviceConnection, AdbDeviceState,} from '@trace_collection/adb_device_connection';
 import {ConnectionState} from '@trace_collection/connection_state';
 import {MockAdbDeviceConnection} from '@trace_collection/mock/mock_adb_device_connection';
 import {UiTraceTarget} from '@trace_collection/ui_trace_target';

@@ -1,10 +1,4 @@
-import {
-  DEFAULT_RUNTIME_CONFIG,
-  getRuntimeConfig,
-  parseRuntimeConfig,
-  resetRuntimeConfigForTest,
-  loadRuntimeConfig,
-} from './runtime_config';
+import {DEFAULT_RUNTIME_CONFIG, getRuntimeConfig, loadRuntimeConfig, parseRuntimeConfig, resetRuntimeConfigForTest,} from './runtime_config';
 
 describe('Runtime configuration', () => {
   afterEach(() => resetRuntimeConfigForTest());
@@ -99,5 +93,17 @@ describe('Runtime configuration', () => {
       const config = await loadRuntimeConfig(async () => response);
       expect(config).toEqual(DEFAULT_RUNTIME_CONFIG);
     }
+  });
+
+  it('rejects a response that reports a redirect', async () => {
+    const response = {
+      ok: true,
+      redirected: true,
+      headers: new Headers({'content-type': 'application/json'}),
+      text: async () => JSON.stringify(DEFAULT_RUNTIME_CONFIG),
+    } as Response;
+    expect(await loadRuntimeConfig(async () => response)).toEqual(
+      DEFAULT_RUNTIME_CONFIG,
+    );
   });
 });

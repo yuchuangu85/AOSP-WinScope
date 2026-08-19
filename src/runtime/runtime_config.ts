@@ -21,9 +21,14 @@ export const DEFAULT_RUNTIME_CONFIG: RuntimeConfig = {
 
 const MAX_CONFIG_BYTES = 64 * 1024;
 let activeConfig = DEFAULT_RUNTIME_CONFIG;
+let configDiagnostic: string | undefined;
 
 export function getRuntimeConfig(): RuntimeConfig {
   return activeConfig;
+}
+
+export function getRuntimeConfigDiagnostic(): string | undefined {
+  return configDiagnostic;
 }
 
 /**
@@ -41,6 +46,9 @@ export async function loadRuntimeConfig(
       headers: {Accept: 'application/json'},
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    if (response.redirected) {
+      throw new Error('configuration fetch was redirected');
+    }
     const contentType = response.headers.get('content-type');
     if (
       contentType === null ||
@@ -57,8 +65,11 @@ export async function loadRuntimeConfig(
       throw new Error('configuration exceeds size limit');
     }
     activeConfig = parseRuntimeConfig(JSON.parse(text));
+    configDiagnostic = undefined;
   } catch (error) {
     activeConfig = DEFAULT_RUNTIME_CONFIG;
+    configDiagnostic =
+      'Runtime configuration is unavailable; device capture is disabled and file-only analysis is active.';
     console.warn(
       'Runtime configuration unavailable; using file-only mode.',
       error,
@@ -123,6 +134,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 export function resetRuntimeConfigForTest(): void {
   activeConfig = DEFAULT_RUNTIME_CONFIG;
+  configDiagnostic = undefined;
 }
 
 /** Test-only setup for consumers that exercise the configured proxy boundary. */

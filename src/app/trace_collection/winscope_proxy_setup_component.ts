@@ -56,8 +56,7 @@ export class WinscopeProxySetupComponent {
   retryConnection = output<string>();
 
   readonly downloadProxyUrl: string = getRootUrl() + 'winscope_proxy.py';
-  readonly proxyCommand: string =
-    'python3 $ANDROID_BUILD_TOP/development/tools/winscope/src/adb/winscope_proxy.py';
+  readonly proxyCommand = 'python3 winscope_proxy.py';
   readonly proxyVersion = VERSION;
   proxyToken = '';
 

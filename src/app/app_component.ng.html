@@ -140,8 +140,13 @@ limitations under the License.
       <mat-icon>menu_book</mat-icon>
     </button>
 
-    <button mat-icon-button class="report-bug" matTooltip="Report bug" (click)="goToBuganizer()">
-      <mat-icon>bug_report</mat-icon>
+    <button
+      mat-icon-button
+      class="clear-local-state"
+      matTooltip="Clear saved local preferences"
+      (click)="clearLocalState()"
+    >
+      <mat-icon>delete_sweep</mat-icon>
     </button>
 
     <button
@@ -259,6 +264,16 @@ limitations under the License.
           <h1 class="welcome-info mat-headline-1">
             Welcome to Winscope. Please select source to view traces.
           </h1>
+          @if (runtimeConfigDiagnostic) {
+            <p class="runtime-config-diagnostic mat-body-1">
+              {{ runtimeConfigDiagnostic }}
+            </p>
+          }
+          @if (privacyMode) {
+            <p class="privacy-mode-diagnostic mat-body-1">
+              Privacy mode is active; local preferences will not be persisted.
+            </p>
+          }
 
           <div class="card-grid landing-grid">
             <collect-traces

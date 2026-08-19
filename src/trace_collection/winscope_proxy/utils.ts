@@ -15,18 +15,10 @@
  */
 
 import {assertUnreachable} from '@common/assert';
-import {
-  HttpRequest,
-  HttpRequestHeaderType,
-  HttpRequestStatus,
-  HttpResponse,
-} from '@common/http_request';
-import {
-  AdbResponse,
-  OnRequestSuccessCallback,
-} from '@trace_collection/adb_host_connection';
-import {ConnectionState} from '@trace_collection/connection_state';
+import {HttpRequest, HttpRequestHeaderType, HttpRequestStatus, HttpResponse,} from '@common/http_request';
 import {getRuntimeProxyEndpoint} from '@runtime/runtime_config';
+import {AdbResponse, OnRequestSuccessCallback,} from '@trace_collection/adb_host_connection';
+import {ConnectionState} from '@trace_collection/connection_state';
 
 // Keep in sync with VERSION in src/adb/winscope_proxy.py
 export const VERSION = '6.0.2';

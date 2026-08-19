@@ -16,21 +16,54 @@
 
 import {Store} from './store';
 
+const DISPLAY_PREFERENCE_KEYS = new Set(['dark-mode', 'savedSearches']);
+let persistenceEnabled =
+  typeof window === 'undefined' ||
+  !new URLSearchParams(window.location.search).has('no-persistence');
+
+function isAllowedKey(key: string): boolean {
+  return (
+    DISPLAY_PREFERENCE_KEYS.has(key) ||
+    key.endsWith('Options') ||
+    key.startsWith('treeView')
+  );
+}
+
+export function isPersistenceEnabled(): boolean {
+  return persistenceEnabled;
+}
+
+export function setPersistenceEnabledForTest(enabled: boolean): void {
+  persistenceEnabled = enabled;
+}
+
+/** Clears only WinScope's allowlisted persistent preferences. */
+export function clearPersistentState(): void {
+  Object.keys(localStorage).forEach((key) => {
+    if (isAllowedKey(key)) localStorage.removeItem(key);
+  });
+}
+
 /**
  * A persistent store implementation that uses localStorage to store data.
  */
 export class PersistentStore implements Store {
   add(key: string, value: string) {
+    if (!persistenceEnabled || !isAllowedKey(key)) return;
     localStorage.setItem(key, value);
   }
 
   get(key: string): string | undefined {
+    if (!persistenceEnabled || !isAllowedKey(key)) return undefined;
     return localStorage.getItem(key) ?? undefined;
   }
 
   clear(keySubstring: string) {
+    if (!persistenceEnabled) return;
     Object.keys(localStorage).forEach((key) => {
-      if (key.includes(keySubstring)) localStorage.removeItem(key);
+      if (isAllowedKey(key) && key.includes(keySubstring)) {
+        localStorage.removeItem(key);
+      }
     });
   }
 }

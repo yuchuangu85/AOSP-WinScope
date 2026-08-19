@@ -7,6 +7,7 @@ import argparse
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -41,7 +42,7 @@ REQUIRED_CSP_DIRECTIVES = (
     "base-uri 'self'",
     "object-src 'none'",
     "frame-ancestors 'none'",
-    "script-src 'self'",
+    "script-src 'self' 'wasm-unsafe-eval'",
     "connect-src 'self'",
 )
 FORBIDDEN_WEB_RUNTIME_MARKERS = (
@@ -303,6 +304,11 @@ def verify_web_contract(web_files: list[Path]) -> dict[str, Any]:
         require(directive in index, f"Web CSP is missing {directive}")
     for marker in FORBIDDEN_WEB_RUNTIME_MARKERS:
         require(marker not in index, f"Web index contains a forbidden external runtime marker: {marker}")
+    for resource in re.findall(r'(?:src|href)="([^"]+)"', index):
+        require(
+            not resource.startswith(('/', '//', 'http:', 'https:', 'ws:', 'wss:')),
+            f"Web index contains a non-relative resource URL: {resource}",
+        )
 
     runtime_config = WEB_OUTPUT / RUNTIME_CONFIG_NAME
     require(runtime_config.is_file(), "Web output is missing runtime-config.json")
