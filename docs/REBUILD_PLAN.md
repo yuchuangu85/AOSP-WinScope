@@ -26,6 +26,7 @@ The Android 17 WinScope baseline evidence is:
 | Evidence | Value |
 |---|---|
 | `tools/winscope` subtree Git tree | `36d46569800176ce00f60ef27c7dfcca1e967886` |
+| Perfetto source Git tree | `201a16e409911aa016522a95143af2e5d52a3662` |
 | Upstream commit epoch / canonical tar mtime | `1778818815` |
 | Canonical uncompressed tar SHA-256 | `9ed6c973ae70296f85b47a712f80e65719adacb63f5eaf5956b47ff7147db465` |
 | Git files in the imported subtree | `1086` |
@@ -88,6 +89,21 @@ verify toolchain
 ```
 
 `build/dependencies.lock.json` describes the complete direct and transitive dependency closure, including immutable identity, integrity, origin, platform, license, introducer, and distribution status. A generated-lock comparison fails rather than silently updating inputs.
+
+The dependency preparation contract is executable from a clean checkout:
+
+```bash
+npm run toolchain:verify
+npm run deps:prepare
+npm run deps:verify
+npm run deps:offline-check
+```
+
+`deps:prepare` is the only network-enabled step. It checks out the fixed Perfetto commit and tree, fills the ignored `.deps/` cache from declared origins, installs npm packages from the public npm registry, records the platform-specific `grpc-tools` build binary, and prepares Perfetto's pinned Git, archive, and pnpm inputs. `deps:verify` rechecks the committed closure, Git objects, content-addressed downloads, npm cache, and prepared Perfetto UI dependency tree. `deps:offline-check` then points all standard proxy variables at a closed loopback port, performs fresh offline npm and pnpm installs, and regenerates the proto output without `ANDROID_BUILD_TOP`.
+
+The current lock contains 2,362 sorted entries and fixes Perfetto at commit `ece66975738007dd0978b911d8a2077e49b8f31e`, tree `201a16e409911aa016522a95143af2e5d52a3662`. Cache contents are deliberately excluded from Git. Missing, corrupt, floating, or undeclared inputs fail closed. License values that remain `NOASSERTION` are not a redistribution approval; final license/SBOM classification remains a later release gate.
+
+This dependency stage proves only the offline installation and proto-generation foundation. The complete Trace Processor and Angular production build, and the first imported trace, remain the next build-integration stage.
 
 ### Fixed tools
 

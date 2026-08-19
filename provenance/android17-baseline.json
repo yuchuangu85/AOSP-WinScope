@@ -65,6 +65,11 @@
       {
         "change": "added",
         "origin": "newly-authored-clean-room",
+        "path": "build/dependencies.lock.json"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
         "path": "docs/REBUILD_PLAN.md"
       },
       {
@@ -213,6 +218,11 @@
         "path": "package.json"
       },
       {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "protos/build.js"
+      },
+      {
         "change": "added",
         "origin": "newly-authored-clean-room",
         "path": "provenance/android17-baseline.json"
@@ -225,7 +235,17 @@
       {
         "change": "added",
         "origin": "newly-authored-clean-room",
+        "path": "scripts/dependencies.py"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
         "path": "scripts/verify-baseline.py"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "tests/test_dependency_closure.py"
       },
       {
         "change": "added",
