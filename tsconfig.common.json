@@ -1,0 +1,96 @@
+{
+  "compileOnSave": false,
+  "compilerOptions": {
+    "baseUrl": "./src",
+    "paths": {
+      "@app/*": [
+        "app/*"
+      ],
+      "@configs/*": [
+        "../configs/*"
+      ],
+      "@abt_chrome_extension/*": [
+        "abt_chrome_extension/*"
+      ],
+      "@common/*": [
+        "common/*"
+      ],
+      "@compat/*": [
+        "compat/*"
+      ],
+      "@cross_tool/*": [
+        "cross_tool/*"
+      ],
+      "@legacy_file_readers/*": [
+        "legacy_file_readers/*"
+      ],
+      "@logging/*": [
+        "logging/*"
+      ],
+      "@messaging/*": [
+        "messaging/*"
+      ],
+      "@parsers/*": [
+        "parsers/*"
+      ],
+      "@protos/*": [
+        "../deps_build/protos/*"
+      ],
+      "@services/*": [
+        "services/*"
+      ],
+      "@test/*": [
+        "test/*"
+      ],
+      "@trace/*": [
+        "trace/*"
+      ],
+      "@trace_api/*": [
+        "trace_api/*"
+      ],
+      "@trace_collection/*": [
+        "trace_collection/*"
+      ],
+      "@trace_processor/*": [
+        "trace_processor/*"
+      ],
+      "@tree_node/*": [
+        "tree_node/*"
+      ],
+      "@ui/*": [
+        "ui/*"
+      ],
+    },
+    "outDir": "./dist/out-tsc",
+    "allowJs": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "allowSyntheticDefaultImports": true,
+    "sourceMap": true,
+    "declaration": false,
+    "downlevelIteration": true,
+    "experimentalDecorators": true,
+    "moduleResolution": "node",
+    "importHelpers": true,
+    "target": "es2020",
+    "module": "es2020",
+    "lib": [
+      "es2022",
+      "es2020",
+      "dom",
+    ],
+    "resolveJsonModule": true
+  },
+  "angularCompilerOptions": {
+    "enableI18nLegacyMessageIdFormat": false,
+    "strictInjectionParameters": true,
+    "strictInputAccessModifiers": true,
+    "strictTemplates": true
+  }
+}

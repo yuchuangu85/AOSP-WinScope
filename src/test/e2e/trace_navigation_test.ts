@@ -1,0 +1,93 @@
+/*
+ * Copyright (C) 2024 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import {browser, by, element, ElementFinder} from 'protractor';
+
+import {clickUploadNewButton, clickViewTracesButton, closeSnackBar, setTimeouts, uploadFixture, WINSCOPE_URL,} from './helpers';
+
+describe('Trace navigation', () => {
+  const DEFAULT_TIMEOUT_MS = 5000;
+
+  beforeEach(async () => {
+    await setTimeouts(DEFAULT_TIMEOUT_MS);
+    await browser.get(WINSCOPE_URL);
+  });
+
+  it('can go between home and trace view pages correctly', async () => {
+    await uploadFixture('traces/perfetto/layers_trace.perfetto-trace');
+    await checkHomepage();
+    await closeSnackBar();
+    await clickViewTracesButton(false);
+    await checkTraceViewPage();
+
+    await clickUploadNewButton();
+    await checkHomepage();
+  });
+
+  it('discards legacy traces', async () => {
+    await uploadFixture('archives/deployment_full_trace_phone_legacy.zip');
+    await clickViewTracesButton(false);
+    const screenRecording = element(by.css('viewer-media-based'));
+    expect(await screenRecording.isPresent()).toBeTruthy();
+    const tabs = await element.all(by.css('.tab'));
+    expect(tabs.length).toBe(0);
+  });
+
+  it('converts legacy traces', async () => {
+    await uploadFixture('archives/deployment_full_trace_phone_legacy.zip');
+    await clickViewTracesButton(true);
+    const screenRecording = element(by.css('viewer-media-based'));
+    expect(await screenRecording.isPresent()).toBeTruthy();
+    const tabs = await element.all(by.css('.tab'));
+    expect(tabs.length).toBe(4);
+  });
+
+  async function checkHomepage() {
+    const toolbar = element(by.css('.toolbar'));
+    const elements = [
+      toolbar.element(by.css('.app-title')),
+      toolbar.element(by.css('.documentation')),
+      toolbar.element(by.css('.report-bug')),
+      toolbar.element(by.css('.dark-mode')),
+      element(by.css('.welcome-info')),
+      element(by.css('collect-traces')),
+      element(by.css('upload-traces')),
+    ];
+    await checkElementsPresent(elements);
+  }
+
+  async function checkTraceViewPage() {
+    const toolbar = element(by.css('.toolbar'));
+    const elements = [
+      toolbar.element(by.css('.app-title')),
+      toolbar.element(by.css('.file-descriptor')),
+      toolbar.element(by.css('.upload-new')),
+      toolbar.element(by.css('.save-button')),
+      toolbar.element(by.css('.documentation')),
+      toolbar.element(by.css('.report-bug')),
+      toolbar.element(by.css('.dark-mode')),
+      element(by.css('viewer-surface-flinger')),
+      element(by.css('timeline')),
+    ];
+    await checkElementsPresent(elements);
+  }
+
+  async function checkElementsPresent(elements: ElementFinder[]) {
+    for (const element of elements) {
+      expect(await element.isPresent()).toBeTruthy();
+    }
+  }
+});

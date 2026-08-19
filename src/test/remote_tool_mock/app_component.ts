@@ -1,0 +1,257 @@
+/*
+ * Copyright (C) 2022 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import {CommonModule} from '@angular/common';
+import {ChangeDetectorRef, Component, Inject} from '@angular/core';
+import {assertDefined, assertUnreachable} from '@common/assert';
+import {Timer} from '@common/time/timer';
+import {getLogger, Logger} from '@compat/logging';
+import {Message, MessageBugReport, MessageFiles, MessagePing, MessageTimestamp, MessageType, TimestampType,} from '@cross_tool/messages';
+
+@Component({
+  selector: 'app-root',
+  standalone: true,
+  imports: [CommonModule],
+  templateUrl: './app_component.ng.html',
+})
+/**
+ * A mock remote tool that can be used to test the cross-tool communication protocol.
+ */
+export class AppComponent {
+  static readonly TARGET = 'http://localhost:8080';
+  static readonly TARGET_FROM_ABT =
+    'http://localhost:8080?source=openFromExtension'; // for manual testing only
+  static readonly TIMESTAMP_IN_BUGREPORT_MESSAGE = 1670509911000000000n;
+  static readonly TIMESTAMP_IN_FILES_MESSAGE = 15725894416n;
+
+  private winscope: Window | null = null;
+  private target = AppComponent.TARGET;
+  private isWinscopeUp = false;
+  private onMessagePongReceived: () => void = () => {};
+  private readonly logger: Logger = getLogger('AppComponent');
+
+  constructor(
+    @Inject(ChangeDetectorRef) private changeDetectorRef: ChangeDetectorRef,
+  ) {
+    window.addEventListener('message', (event) => {
+      this.onMessageReceived(event);
+    });
+  }
+
+  async onButtonOpenWinscopeClick() {
+    this.target = AppComponent.TARGET;
+    this.openWinscope();
+    await this.waitWinscopeUp();
+  }
+
+  async onButtonOpenWinscopeFromABTClick() {
+    this.target = AppComponent.TARGET_FROM_ABT;
+    this.openWinscope();
+    await this.waitWinscopeUp();
+  }
+
+  async onButtonSendBugreportClick(event: Event) {
+    const file = await this.readInputFile(event);
+    this.sendBugreport(file);
+  }
+
+  async onButtonSendFilesClick(event: Event) {
+    const file = await this.readInputFile(event);
+    this.sendFiles([file]);
+  }
+
+  onButtonSendRealtimeTimestampClick() {
+    const inputTimestampElement = assertDefined(
+      document.querySelector<HTMLInputElement>('.input-timestamp'),
+    );
+    this.sendTimestamp(
+      BigInt(inputTimestampElement.value),
+      TimestampType.CLOCK_REALTIME,
+    );
+  }
+
+  onButtonSendBoottimeTimestampClick() {
+    const inputTimestampElement = assertDefined(
+      document.querySelector<HTMLInputElement>('.input-timestamp'),
+    );
+    this.sendTimestamp(
+      BigInt(inputTimestampElement.value),
+      TimestampType.CLOCK_BOOTTIME,
+    );
+  }
+
+  private openWinscope() {
+    this.printStatus('OPENING WINSCOPE');
+
+    this.winscope = window.open(this.target);
+    if (!this.winscope) {
+      throw new Error('Failed to open winscope');
+    }
+
+    this.printStatus('OPENED WINSCOPE');
+  }
+
+  private async waitWinscopeUp() {
+    this.printStatus('WAITING WINSCOPE UP');
+
+    const promise = new Promise<void>((resolve) => {
+      this.onMessagePongReceived = () => {
+        this.isWinscopeUp = true;
+        resolve();
+      };
+    });
+
+    setTimeout(async () => {
+      while (!this.isWinscopeUp) {
+        assertDefined(this.winscope).postMessage(
+          new MessagePing(),
+          this.target,
+        );
+        await new Timer(10).sleepMs();
+      }
+    }, 0);
+
+    await promise;
+
+    this.printStatus('DONE WAITING (WINSCOPE IS UP)');
+  }
+
+  private sendBugreport(file: File) {
+    this.printStatus('SENDING BUGREPORT');
+
+    assertDefined(this.winscope).postMessage(
+      new MessageBugReport(file, AppComponent.TIMESTAMP_IN_BUGREPORT_MESSAGE),
+      this.target,
+    );
+
+    this.printStatus('SENT BUGREPORT');
+  }
+
+  private sendFiles(files: File[]) {
+    this.printStatus('SENDING FILES');
+
+    assertDefined(this.winscope).postMessage(
+      new MessageFiles(
+        files,
+        AppComponent.TIMESTAMP_IN_FILES_MESSAGE,
+        TimestampType.CLOCK_BOOTTIME,
+      ),
+      this.target,
+    );
+
+    this.printStatus('SENT FILES');
+  }
+
+  private sendTimestamp(value: bigint, type: TimestampType) {
+    this.printStatus('SENDING TIMESTAMP');
+
+    assertDefined(this.winscope).postMessage(
+      new MessageTimestamp(value, type),
+      this.target,
+    );
+
+    this.printStatus('SENT TIMESTAMP');
+  }
+
+  private onMessageReceived(event: MessageEvent) {
+    const message = event.data as Message;
+    if (!message.type) {
+      this.logger.warn(
+        'Cross-tool protocol received unrecognized message:',
+        message,
+      );
+      return;
+    }
+
+    switch (message.type) {
+      case MessageType.PING:
+        this.logger.warn(
+          'Cross-tool protocol received unexpected ping message:',
+          message,
+        );
+        break;
+      case MessageType.PONG:
+        this.onMessagePongReceived();
+        break;
+      case MessageType.BUGREPORT:
+        this.logger.warn(
+          'Cross-tool protocol received unexpected bugreport message:',
+          message,
+        );
+        break;
+      case MessageType.TIMESTAMP:
+        this.logger.info(
+          'Cross-tool protocol received timestamp message:',
+          message,
+        );
+        this.onMessageTimestampReceived(message as MessageTimestamp);
+        break;
+      case MessageType.FILES:
+        this.logger.warn(
+          'Cross-tool protocol received unexpected files message:',
+          message,
+        );
+        break;
+      default:
+        this.logger.warn(
+          'Cross-tool protocol received unrecognized message:',
+          message,
+        );
+        break;
+    }
+  }
+
+  private onMessageTimestampReceived(message: MessageTimestamp) {
+    let paragraph: HTMLParagraphElement | undefined;
+
+    const timestampType = assertDefined(message.timestampType);
+    switch (timestampType) {
+      case TimestampType.UNKNOWN:
+        throw new Error("Winscope shouldn't send timestamps with UNKNOWN type");
+      case TimestampType.CLOCK_BOOTTIME: {
+        paragraph = document.querySelector(
+          '.paragraph-received-boottime-timestamp',
+        ) as HTMLParagraphElement;
+        break;
+      }
+      case TimestampType.CLOCK_REALTIME: {
+        paragraph = document.querySelector(
+          '.paragraph-received-realtime-timestamp',
+        ) as HTMLParagraphElement;
+        break;
+      }
+      default:
+        assertUnreachable(timestampType);
+    }
+
+    paragraph.textContent = message.timestampNs.toString();
+    this.changeDetectorRef.detectChanges();
+  }
+
+  private printStatus(status: string) {
+    this.logger.info('STATUS: ' + status);
+  }
+
+  private async readInputFile(event: Event): Promise<File> {
+    const files: FileList | null = (event?.target as HTMLInputElement)?.files;
+
+    if (!files || !files[0]) {
+      throw new Error('Failed to read input files');
+    }
+
+    return files[0];
+  }
+}
