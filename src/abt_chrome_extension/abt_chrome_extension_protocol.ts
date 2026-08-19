@@ -1,0 +1,118 @@
+/*
+ * Copyright (C) 2022 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import {getLogger, Logger} from '@compat/logging';
+import {RemoteToolDownloadStart, RemoteToolFilesReceived, RemoteToolInitialized, RemoteToolWaitingForFiles,} from '@cross_tool/remote_tool_events';
+import {WinscopeEvent} from '@messaging/winscope_event';
+import {EmitEvent, WinscopeEventEmitter,} from '@messaging/winscope_event_emitter';
+import {WinscopeEventListener} from '@messaging/winscope_event_listener';
+import {AppInitialized} from '@ui/shared/events/app_events';
+
+import {MessageType, OpenBuganizerResponse, OpenRequest, WebCommandMessage,} from './messages';
+
+/**
+ * Protocol for communication between Winscope and the ABT Chrome extension.
+ *
+ * The extension is used to download traces from Buganizer.
+ */
+export class AbtChromeExtensionProtocol
+  implements WinscopeEventEmitter, WinscopeEventListener
+{
+  static readonly ABT_EXTENSION_ID = 'mbbaofdfoekifkfpgehgffcpagbbjkmj';
+
+  private emitEvent: EmitEvent = () => Promise.resolve();
+
+  constructor(
+    private readonly logger: Logger = getLogger('AbtChromeExtensionProtocol'),
+  ) {}
+
+  setEmitEvent(callback: EmitEvent) {
+    this.emitEvent = callback;
+  }
+
+  async onWinscopeEvent(event: WinscopeEvent) {
+    if (event instanceof AppInitialized) {
+      return await this.onAppInitialized();
+    }
+  }
+
+  private async onAppInitialized() {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('source') !== 'openFromExtension' || !chrome) {
+      return;
+    }
+
+    await this.emitEvent(new RemoteToolInitialized());
+    await this.emitEvent(new RemoteToolWaitingForFiles());
+
+    const openRequestMessage: OpenRequest = {
+      action: MessageType.OPEN_REQUEST,
+    };
+
+    chrome.runtime.sendMessage(
+      AbtChromeExtensionProtocol.ABT_EXTENSION_ID,
+      openRequestMessage,
+      async (message) => await this.onMessageReceived(message),
+    );
+  }
+
+  private async onMessageReceived(message: WebCommandMessage) {
+    if (this.isOpenFromBuganizerResponseMessage(message)) {
+      await this.onOpenFromBuganizerResponseMessageReceived(message);
+    } else {
+      this.logger.warn(
+        'ABT chrome extension protocol received unexpected message:',
+        message,
+      );
+    }
+  }
+
+  private async onOpenFromBuganizerResponseMessageReceived(
+    message: OpenBuganizerResponse,
+  ) {
+    this.logger.info(
+      'ABT chrome extension protocol received OpenBuganizerResponse message:',
+      message,
+    );
+
+    if (message.attachments.length === 0) {
+      this.logger.warn('ABT chrome extension protocol received no attachments');
+    }
+
+    await this.emitEvent(new RemoteToolDownloadStart());
+
+    const filesBlobPromises = message.attachments.map(async (attachment) => {
+      const fileQueryResponse = await fetch(attachment.objectUrl);
+      const blob = await fileQueryResponse.blob();
+
+      // Note: the received blob's media type is wrong. It is always set to "image/png".
+      // Context: http://google3/javascript/closure/html/safeurl.js?g=0&l=256&rcl=273756987
+      // Cloning the blob clears the media type.
+      const file = new File([blob], attachment.name);
+
+      return file;
+    });
+
+    const files = await Promise.all(filesBlobPromises);
+    await this.emitEvent(new RemoteToolFilesReceived(files));
+  }
+
+  private isOpenFromBuganizerResponseMessage(
+    message: WebCommandMessage,
+  ): message is OpenBuganizerResponse {
+    return message.action === MessageType.OPEN_BUGANIZER_RESPONSE;
+  }
+}
