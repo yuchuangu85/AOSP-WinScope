@@ -75,6 +75,26 @@ def load_json(path: Path) -> dict[str, Any]:
     return value
 
 
+def read_product_file(product_commit: str, path: str) -> str:
+    result = subprocess.run(
+        ["git", "show", f"{product_commit}:{path}"],
+        cwd=REPOSITORY_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    require(result.returncode == 0, f"cannot read {path} from product commit {product_commit}")
+    return result.stdout
+
+
+def load_product_json(product_commit: str, path: str) -> dict[str, Any]:
+    try:
+        value = json.loads(read_product_file(product_commit, path))
+    except json.JSONDecodeError as error:
+        raise VerificationError(f"invalid JSON in {path} at product commit {product_commit}: {error}") from error
+    require(isinstance(value, dict), f"{path} at product commit {product_commit} must contain a JSON object")
+    return value
+
+
 def nested(value: dict[str, Any], *keys: str) -> Any:
     current: Any = value
     for key in keys:
@@ -387,30 +407,31 @@ def verify_vendor(metadata: dict[str, Any], product_commit: str) -> tuple[bool, 
     return True, len(expected_records)
 
 
-def verify_toolchain_declarations(metadata: dict[str, Any]) -> None:
+def verify_toolchain_declarations(metadata: dict[str, Any], product_commit: str) -> None:
     toolchain = nested(metadata, "toolchain")
-    require((REPOSITORY_ROOT / ".nvmrc").read_text().strip() == toolchain["node"], ".nvmrc mismatch")
-    require((REPOSITORY_ROOT / ".node-version").read_text().strip() == toolchain["node"], ".node-version mismatch")
+    require(read_product_file(product_commit, ".nvmrc").strip() == toolchain["node"], ".nvmrc mismatch")
+    require(read_product_file(product_commit, ".node-version").strip() == toolchain["node"], ".node-version mismatch")
 
-    package = load_json(REPOSITORY_ROOT / "package.json")
+    package = load_product_json(product_commit, "package.json")
     require(package.get("packageManager") == f"npm@{toolchain['npm']}", "packageManager mismatch")
     require(package.get("engines") == {"node": toolchain["node"], "npm": toolchain["npm"]}, "package engines mismatch")
 
-    package_lock = load_json(REPOSITORY_ROOT / "package-lock.json")
+    package_lock = load_product_json(product_commit, "package-lock.json")
     root_package = package_lock.get("packages", {}).get("", {})
     require(root_package.get("engines") == package["engines"], "package-lock engines mismatch")
 
 
-def verify_legacy_assets_absent(metadata: dict[str, Any]) -> bool:
+def verify_legacy_assets_absent(metadata: dict[str, Any], product_commit: str) -> bool:
     prohibited = nested(metadata, "cleanRoom", "prohibitedPaths")
     require(isinstance(prohibited, list) and prohibited, "clean-room prohibited path list is empty")
-    tracked = set(git("ls-files").splitlines())
+    product_paths = {entry["path"] for entry in parse_tree(product_commit)}
     for path in prohibited:
         require(isinstance(path, str) and path, "invalid prohibited path")
         normalized = path.rstrip("/")
-        tracked_match = normalized in tracked or any(item.startswith(f"{normalized}/") for item in tracked)
-        disk_match = (REPOSITORY_ROOT / normalized).exists()
-        require(not tracked_match and not disk_match, f"prohibited legacy asset is present: {path}")
+        product_match = normalized in product_paths or any(
+            item.startswith(f"{normalized}/") for item in product_paths
+        )
+        require(not product_match, f"prohibited legacy asset is present: {path}")
     return True
 
 
@@ -420,8 +441,8 @@ def verification_report(metadata_path: Path, revision: str) -> dict[str, Any]:
     product_commit = resolve_product_revision(revision)
     vendor_verified, files_verified = verify_vendor(metadata, product_commit)
     verify_canonical_archive(metadata)
-    verify_toolchain_declarations(metadata)
-    legacy_absent = verify_legacy_assets_absent(metadata)
+    verify_toolchain_declarations(metadata, product_commit)
+    legacy_absent = verify_legacy_assets_absent(metadata, product_commit)
     return {
         "ok": True,
         "baseline": metadata["baseline"],

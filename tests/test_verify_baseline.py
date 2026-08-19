@@ -40,6 +40,54 @@ class BaselineVerificationTest(unittest.TestCase):
         metadata_path = REPOSITORY_ROOT / "provenance/android17-baseline.json"
         return json.loads(metadata_path.read_text(encoding="utf-8"))
 
+    def create_product_commit(self, path, content):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            environment = os.environ.copy()
+            environment["GIT_INDEX_FILE"] = str(Path(temporary_directory) / "index")
+            subprocess.run(
+                ["git", "read-tree", "HEAD"],
+                cwd=REPOSITORY_ROOT,
+                env=environment,
+                check=True,
+            )
+            blob = subprocess.run(
+                ["git", "hash-object", "-w", "--stdin"],
+                cwd=REPOSITORY_ROOT,
+                input=content,
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout.strip()
+            subprocess.run(
+                ["git", "update-index", "--add", "--cacheinfo", f"100644,{blob},{path}"],
+                cwd=REPOSITORY_ROOT,
+                env=environment,
+                check=True,
+            )
+            tree = subprocess.run(
+                ["git", "write-tree"],
+                cwd=REPOSITORY_ROOT,
+                env=environment,
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout.strip()
+            commit_environment = environment | {
+                "GIT_AUTHOR_NAME": "Baseline Test",
+                "GIT_AUTHOR_EMAIL": "baseline-test@example.invalid",
+                "GIT_COMMITTER_NAME": "Baseline Test",
+                "GIT_COMMITTER_EMAIL": "baseline-test@example.invalid",
+            }
+            return subprocess.run(
+                ["git", "commit-tree", tree, "-p", "HEAD"],
+                cwd=REPOSITORY_ROOT,
+                env=commit_environment,
+                input=f"test product change at {path}\n",
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout.strip()
+
     def test_repository_reports_the_accepted_clean_room_baseline(self):
         result = self.run_verifier()
 
@@ -110,58 +158,10 @@ class BaselineVerificationTest(unittest.TestCase):
                 self.assertIn(expected_error, report["errors"][0])
 
     def test_repository_rejects_an_unprovenanced_product_file(self):
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            environment = os.environ.copy()
-            environment["GIT_INDEX_FILE"] = str(Path(temporary_directory) / "index")
-            subprocess.run(
-                ["git", "read-tree", "HEAD"],
-                cwd=REPOSITORY_ROOT,
-                env=environment,
-                check=True,
-            )
-            blob = subprocess.run(
-                ["git", "hash-object", "-w", "--stdin"],
-                cwd=REPOSITORY_ROOT,
-                input="legacy project bytes must not enter the product\n",
-                capture_output=True,
-                text=True,
-                check=True,
-            ).stdout.strip()
-            subprocess.run(
-                [
-                    "git",
-                    "update-index",
-                    "--add",
-                    "--cacheinfo",
-                    f"100644,{blob},src/unprovenanced_legacy_copy.ts",
-                ],
-                cwd=REPOSITORY_ROOT,
-                env=environment,
-                check=True,
-            )
-            tree = subprocess.run(
-                ["git", "write-tree"],
-                cwd=REPOSITORY_ROOT,
-                env=environment,
-                capture_output=True,
-                text=True,
-                check=True,
-            ).stdout.strip()
-            commit_environment = environment | {
-                "GIT_AUTHOR_NAME": "Baseline Test",
-                "GIT_AUTHOR_EMAIL": "baseline-test@example.invalid",
-                "GIT_COMMITTER_NAME": "Baseline Test",
-                "GIT_COMMITTER_EMAIL": "baseline-test@example.invalid",
-            }
-            product_commit = subprocess.run(
-                ["git", "commit-tree", tree, "-p", "HEAD"],
-                cwd=REPOSITORY_ROOT,
-                env=commit_environment,
-                input="test unprovenanced product delta\n",
-                capture_output=True,
-                text=True,
-                check=True,
-            ).stdout.strip()
+        product_commit = self.create_product_commit(
+            "src/unprovenanced_legacy_copy.ts",
+            "legacy project bytes must not enter the product\n",
+        )
 
         result = self.run_verifier(revision=product_commit)
 
@@ -169,6 +169,16 @@ class BaselineVerificationTest(unittest.TestCase):
         report = json.loads(result.stdout)
         self.assertFalse(report["ok"])
         self.assertIn("not fully provenance-recorded", report["errors"][0])
+
+    def test_repository_checks_recorded_adaptation_content_at_the_selected_revision(self):
+        product_commit = self.create_product_commit(".nvmrc", "24.19.1\n")
+
+        result = self.run_verifier(revision=product_commit)
+
+        self.assertNotEqual(result.returncode, 0)
+        report = json.loads(result.stdout)
+        self.assertFalse(report["ok"])
+        self.assertIn(".nvmrc mismatch", report["errors"][0])
 
 
 if __name__ == "__main__":
