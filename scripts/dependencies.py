@@ -1072,7 +1072,7 @@ def offline_check_in_network_sandbox() -> dict[str, Any]:
         "perfettoPnpmInstall": True,
         "generatedFiles": generated_files,
         "standaloneBuild": build_report,
-        "upstreamTests": True,
+        "winscopeBrowserTests": True,
     }
 
 
