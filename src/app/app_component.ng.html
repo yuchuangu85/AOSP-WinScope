@@ -151,6 +151,15 @@ limitations under the License.
 
     <button
       mat-icon-button
+      class="report-bug"
+      matTooltip="Bug reporting is unavailable in standalone mode"
+      disabled
+    >
+      <mat-icon>bug_report</mat-icon>
+    </button>
+
+    <button
+      mat-icon-button
       class="dark-mode"
       matTooltip="Switch to {{ isDarkModeOn ? 'light' : 'dark' }} mode"
       (click)="toggleDarkMode()"
