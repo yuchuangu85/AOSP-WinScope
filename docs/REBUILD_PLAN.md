@@ -485,3 +485,38 @@ tag, source digest, and signer digest, computes the verified file's SHA-256, and
 supplies that digest to the trusted offline verifier before unpacking. The
 offline verifier requires the authenticated frozen inputs to contain the
 immutable build-image digest used by the release job.
+
+## Stage 15 implementation evidence
+
+`scripts/verify-release-settings.py` is a read-only pre-tag auditor for the
+repository administration prerequisites left outside the Stage 14 workflow. It
+uses the GitHub REST API with `GH_TOKEN` or `GITHUB_TOKEN` and fails unless the
+`official-release` environment has at least one required reviewer, prevents
+self-review, enables custom deployment policies with the exact `v17.*` tag
+pattern, defines a
+digest-pinned `OFFICIAL_RELEASE_IMAGE`, and contains all four approved evidence
+secrets. It also requires an active repository tag ruleset for
+`refs/tags/v17.*` with no exclusions and with update and deletion protections,
+and requires immutable
+GitHub releases to be enabled.
+
+Run the live, non-mutating administrator audit before creating a release tag:
+
+```sh
+npm run release:settings
+```
+
+For deterministic review or an air-gapped audit, create a schema-v1 snapshot
+object bound by `repository` and `environmentName`, with `environment`,
+`deploymentBranchPolicies`, `variables`, `secrets`, `rulesets`, and
+`immutableReleases`. The `rulesets` array contains the detailed rule-set
+responses, not only the abbreviated list response. Then run:
+
+```sh
+npm run release:settings -- --snapshot <snapshot.json> --output <report.json>
+```
+
+The command emits a schema-v1 machine-readable report and exits nonzero for any
+missing setting or unreadable endpoint. It never creates an environment,
+ruleset, variable, secret, tag, or release. Repository administrators remain
+responsible for applying settings through a separately authorized process.

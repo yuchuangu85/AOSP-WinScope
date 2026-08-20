@@ -333,6 +333,11 @@
         "path": "scripts/verify-baseline.py"
       },
       {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "scripts/verify-release-settings.py"
+      },
+      {
         "change": "modified",
         "origin": "newly-authored-clean-room",
         "path": "src/adb/winscope_proxy.py"
@@ -481,6 +486,11 @@
         "change": "added",
         "origin": "newly-authored-clean-room",
         "path": "tests/test_release.py"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "tests/test_release_settings.py"
       },
       {
         "change": "added",

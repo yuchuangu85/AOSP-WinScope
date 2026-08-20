@@ -47,7 +47,8 @@
     "publish:stable": "python3 scripts/publish.py publish --version 17.0.0 --tag v17.0.0 --json",
     "support:verify": "python3 scripts/support.py verify --json",
     "security:advisory-verify": "python3 scripts/support.py verify-advisory --json",
-    "aps:verify": "python3 scripts/verify-aps-release.py --json"
+    "aps:verify": "python3 scripts/verify-aps-release.py --json",
+    "release:settings": "python3 scripts/verify-release-settings.py --repository yuchuangu85/AOSP-WinScope --json"
   },
   "private": true,
   "dependencies": {
