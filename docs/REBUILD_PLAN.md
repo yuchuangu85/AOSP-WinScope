@@ -349,3 +349,7 @@ Any evidence that contradicts an accepted assumption stops the dependent stage a
 ## Stage 4 implementation evidence
 
 The standalone Web build now ships only local assets, declares a restrictive Content Security Policy, and defaults to file-only analysis through `runtime-config.json`. Startup loads that configuration with `no-store`, same-origin credentials, redirect rejection, a 64 KiB bound, and schema validation; invalid input leaves capture disabled. A configured capture path must be a clean `./` relative endpoint and is resolved only at request time. Production no longer embeds Google analytics, remote fonts, the Web Device Proxy, or a fixed capture port; the capture token is memory-only. `python3 scripts/build.py verify --json` checks the built Web tree for the CSP, relative base URL, default runtime configuration, and forbidden remote runtime markers.
+
+## Stage 6 implementation evidence
+
+`scripts/release.py` provides the release boundary without additional runtime dependencies. `package` copies the verified Web tree, all six CGO-free launchers, and the launcher-managed proxy into the stable distribution layout; emits a Web manifest, normalized release inventory, SPDX 2.3 SBOM, attribution/license evidence, dependency reconstruction bundle, `SHA256SUMS`, and an in-toto/SLSA-shaped attestation. `verify` checks manifest and release-file digests, and `double-build` packages the same inputs twice and requires byte-identical ZIP output. `SOURCE_DATE_EPOCH` or the selected Git commit timestamp controls all generated timestamps.

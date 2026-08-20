@@ -30,7 +30,11 @@
     "test:e2e": "node scripts/run_e2e.js",
     "test:presubmit": "npm run build:protos && npm run format:check && npm run test:unit:ci && npm run deps_graph:check_cycles",
     "test:all": "npm run format:check && npm run test:unit:ci && npm run test:e2e && npm run deps_graph:check_cycles",
-    "build:launchers": "python3 scripts/build-launchers.py"
+    "build:launchers": "python3 scripts/build-launchers.py",
+    "release:package": "python3 scripts/release.py package --json",
+    "release:verify": "python3 scripts/release.py verify --json",
+    "release:double-build": "python3 scripts/release.py double-build --json",
+    "build:release": "npm run build:prod && npm run build:launchers && npm run release:package"
   },
   "private": true,
   "dependencies": {
