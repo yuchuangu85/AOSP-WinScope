@@ -315,6 +315,7 @@ The default regression budget is 10% for medians of critical startup/import/inte
 8. **Publish candidate and stable release** — alpha, `17.0.0-rc.1`, frozen inputs, protected `v17.0.0`, complete evidence, APS integration guide.
 9. **Close performance and security gates** — upstream-relative benchmark baselines, vulnerability evidence, and hostile-input regression checks are complete before final release eligibility.
 10. **Prove reproducible release provenance** — two isolated package builds from a clean source tree are byte-identical and both attest the same source and dependency inputs.
+11. **Publish the final release contract** — stable index, all reports, frozen inputs, verification instructions, and APS integration guidance are immutable and digest-verifiable.
 
 Every stage produces machine-readable verification evidence. Pure vendor imports, one class of adaptation, and its tests remain reviewable commits. `.deps/`, `node_modules/`, transient output, and real device traces are not committed.
 
@@ -397,3 +398,15 @@ schema-v1 Stage 10 report at `dist/validation/reproducibility.json`.
 `validate.py` consumes that report as `release:reproducibility`; a complete gate
 requires two matching ZIP digests, verified provenance, the current source
 commit, and the current dependency-lock digest.
+
+## Stage 11 implementation evidence
+
+The final publication gate now requires passing Stage 9 security and Stage 10
+reproducibility checks in the complete Stage 7 validation report. Publication
+stages the archive, checksums, attestation, validation report, reproducibility
+report, frozen-input metadata, and `APS_INTEGRATION.md` together. The release
+index declares report and instruction paths, and `publish:verify` rejects an
+index that omits them or whose artifact/frozen-input digests do not match.
+Explicit `publish:alpha`, `publish:rc`, and `publish:stable` commands document
+the alpha, `17.0.0-rc.1`, and protected `v17.0.0` publication lanes; no command
+performs an external tag, network, or artifact overwrite operation.

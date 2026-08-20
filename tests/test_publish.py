@@ -48,15 +48,44 @@ class PublishTest(unittest.TestCase):
         )
         validation = root / "validation.json"
         validation.write_text(
-            json.dumps({"schemaVersion": 1, "stage": 7, "ok": True, "complete": True}),
+            json.dumps({
+                "schemaVersion": 1,
+                "stage": 7,
+                "ok": True,
+                "complete": True,
+                "checks": [
+                    {"name": "release:reproducibility", "status": "pass"},
+                    {"name": "runtime:security", "status": "pass"},
+                ],
+            }),
             encoding="utf-8",
         )
-        return release_dir, validation
+        reproducibility = root / "reproducibility.json"
+        reproducibility.write_text(
+            json.dumps({
+                "schemaVersion": 1,
+                "stage": 10,
+                "ok": True,
+                "version": version,
+                "sourceCommit": publish.git_commit(),
+                "dependencyLockSha256": publish.sha256_file(publish.LOCK),
+                "byteIdentical": True,
+                "provenanceVerified": True,
+                "builds": [
+                    {"zipSha256": "same", "provenanceVerified": True},
+                    {"zipSha256": "same", "provenanceVerified": True},
+                ],
+            }),
+            encoding="utf-8",
+        )
+        return release_dir, validation, reproducibility
 
     def publish_fixture(self, root: Path, version: str = VERSION, tag: str | None = None):
-        release_dir, validation = self.make_release(root, version)
+        release_dir, validation, reproducibility = self.make_release(root, version)
         with mock.patch.object(publish, "require_clean_tree"):
-            result = publish.publish(version, release_dir, validation, root / "public", tag)
+            result = publish.publish(
+                version, release_dir, validation, root / "public", tag, reproducibility
+            )
         return result
 
     def test_candidate_publish_generates_index_and_verifies(self):
@@ -65,7 +94,7 @@ class PublishTest(unittest.TestCase):
             index = Path(result["index"])
 
             self.assertEqual(result["channel"], "rc")
-            self.assertEqual(publish.verify(index)["artifactsVerified"], 5)
+            self.assertEqual(publish.verify(index)["artifactsVerified"], 7)
             self.assertEqual(json.loads(index.read_text())["channel"], "rc")
 
     def test_stable_and_version_validation(self):
@@ -83,10 +112,22 @@ class PublishTest(unittest.TestCase):
     def test_missing_archive_evidence_is_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            release_dir, validation = self.make_release(root, missing="LICENSES/NOTICE")
+            release_dir, validation, reproducibility = self.make_release(root, missing="LICENSES/NOTICE")
             with mock.patch.object(publish, "require_clean_tree"):
                 with self.assertRaisesRegex(ValueError, "omits required evidence"):
-                    publish.publish(VERSION, release_dir, validation, root / "public", None)
+                    publish.publish(
+                        VERSION, release_dir, validation, root / "public", None, reproducibility
+                    )
+
+    def test_final_index_requires_reports_and_aps_instructions(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            result = self.publish_fixture(Path(temporary))
+            index = Path(result["index"])
+            value = json.loads(index.read_text())
+            value.pop("instructions")
+            index.write_text(json.dumps(value), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "omits final reports"):
+                publish.verify(index)
 
     def test_tampered_published_archive_is_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:

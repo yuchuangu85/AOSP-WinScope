@@ -23,9 +23,11 @@ JCEF, Compose, or a WinScope-specific bridge to use the standalone viewer.
 1. Select an immutable release under `dist/public/<version>/` or its published
    equivalent.
 2. Verify `SHA256SUMS` against `aosp-winscope-<version>.zip`.
-3. Verify `release-index.json`, `frozen-inputs.json`, the attestation, and the
-   copied Stage 7 validation report.
-4. Unpack the archive and use its `web/` directory plus root `manifest.json`.
+3. Verify `release-index.json`, `frozen-inputs.json`, the attestation, the
+   copied Stage 7 validation report, and the Stage 10 reproducibility report.
+4. Read the copied `APS_INTEGRATION.md` instructions and verify every artifact
+   listed by the release index before unpacking.
+5. Unpack the archive and use its `web/` directory plus root `manifest.json`.
 
 The archive is self-contained for APS release CI: Node, npm, Python, Go, and
 Perfetto build tools are not required after verification and unpacking.

@@ -19,6 +19,8 @@ FILE_INVENTORY = ROOT / "provenance/android17-winscope-files.json"
 LOCK = ROOT / "build/dependencies.lock.json"
 PACKAGE_LOCK = ROOT / "package-lock.json"
 DEFAULT_OUTPUT = ROOT / "dist/public"
+DEFAULT_REPRODUCIBILITY = ROOT / "dist/validation/reproducibility.json"
+DEFAULT_GUIDE = ROOT / "docs/APS_INTEGRATION.md"
 VERSION_RE = re.compile(r"^17\.\d+\.\d+(?:-(?:alpha|rc)\.\d+)?$")
 
 
@@ -97,7 +99,44 @@ def verify_validation(path: Path) -> dict[str, Any]:
         fail("validation evidence is not a Stage 7 schema-v1 report")
     if validation.get("ok") is not True or validation.get("complete") is not True:
         fail("Stage 7 validation is not complete and passing")
+    checks = validation.get("checks")
+    required = {"release:reproducibility", "runtime:security"}
+    passing = {
+        check.get("name")
+        for check in checks
+        if isinstance(check, dict) and check.get("status") == "pass"
+    } if isinstance(checks, list) else set()
+    missing = sorted(required - passing)
+    if missing:
+        fail(f"final publication is missing passing gates: {', '.join(missing)}")
     return validation
+
+
+def verify_reproducibility(path: Path, version: str) -> dict[str, Any]:
+    evidence = read_json(path)
+    builds = evidence.get("builds")
+    valid = (
+        evidence.get("schemaVersion") == 1
+        and evidence.get("stage") == 10
+        and evidence.get("ok") is True
+        and evidence.get("version") == version
+        and evidence.get("sourceCommit") == git_commit()
+        and evidence.get("dependencyLockSha256") == sha256_file(LOCK)
+        and evidence.get("byteIdentical") is True
+        and evidence.get("provenanceVerified") is True
+        and isinstance(builds, list)
+        and len(builds) == 2
+        and all(
+            isinstance(build, dict)
+            and build.get("provenanceVerified") is True
+            and isinstance(build.get("zipSha256"), str)
+            for build in builds
+        )
+        and builds[0]["zipSha256"] == builds[1]["zipSha256"]
+    )
+    if not valid:
+        fail("reproducibility evidence is not a complete Stage 10 report for this release")
+    return evidence
 
 
 def verify_release_artifact(release_dir: Path, version: str) -> dict[str, Any]:
@@ -145,7 +184,12 @@ def verify_release_artifact(release_dir: Path, version: str) -> dict[str, Any]:
     }
 
 
-def frozen_inputs(version: str, validation: dict[str, Any], artifact: dict[str, Any]) -> dict[str, Any]:
+def frozen_inputs(
+    version: str,
+    validation: dict[str, Any],
+    reproducibility: dict[str, Any],
+    artifact: dict[str, Any],
+) -> dict[str, Any]:
     baseline = read_json(BASELINE)
     lock = read_json(LOCK)
     return {
@@ -161,29 +205,49 @@ def frozen_inputs(version: str, validation: dict[str, Any], artifact: dict[str, 
         "vendorFileInventorySha256": sha256_file(FILE_INVENTORY),
         "dependencyEntries": len(lock["dependencies"]),
         "validationReportSha256": validation["reportSha256"],
+        "reproducibilityReportSha256": reproducibility["reportSha256"],
         "releaseArchiveSha256": artifact["sha256"],
     }
 
 
-def publish(version: str, release_dir: Path, validation_path: Path, output: Path, tag: str | None) -> dict[str, Any]:
+def publish(
+    version: str,
+    release_dir: Path,
+    validation_path: Path,
+    output: Path,
+    tag: str | None,
+    reproducibility_path: Path = DEFAULT_REPRODUCIBILITY,
+    guide_path: Path = DEFAULT_GUIDE,
+) -> dict[str, Any]:
     channel = version_channel(version)
     if channel == "stable" and tag not in (None, "v17.0.0"):
         fail("stable release must be tagged v17.0.0")
     require_clean_tree()
     validation = verify_validation(validation_path)
     validation = {**validation, "reportSha256": sha256_file(validation_path)}
+    reproducibility = verify_reproducibility(reproducibility_path, version)
+    reproducibility = {**reproducibility, "reportSha256": sha256_file(reproducibility_path)}
+    if not guide_path.is_file() or guide_path.stat().st_size == 0:
+        fail(f"APS integration guide is missing: {guide_path}")
     artifact = verify_release_artifact(release_dir, version)
     target = output / version
     if target.exists():
         shutil.rmtree(target)
     target.mkdir(parents=True)
     copied = []
-    for source in (artifact["archive"], artifact["sums"], artifact["attestation"], validation_path):
+    for source in (
+        artifact["archive"],
+        artifact["sums"],
+        artifact["attestation"],
+        validation_path,
+        reproducibility_path,
+        guide_path,
+    ):
         destination = target / source.name
         shutil.copyfile(source, destination)
         copied.append(destination)
 
-    frozen = frozen_inputs(version, validation, artifact)
+    frozen = frozen_inputs(version, validation, reproducibility, artifact)
     frozen_path = target / "frozen-inputs.json"
     write_json(frozen_path, frozen)
     copied.append(frozen_path)
@@ -221,6 +285,11 @@ def publish(version: str, release_dir: Path, validation_path: Path, output: Path
             "bridgeProtocol": None,
         },
         "frozenInputs": {"path": frozen_path.name, "sha256": sha256_file(frozen_path)},
+        "reports": {
+            "validation": validation_path.name,
+            "reproducibility": reproducibility_path.name,
+        },
+        "instructions": {"apsIntegration": guide_path.name},
         "artifacts": artifacts,
     }
     index_path = target / "release-index.json"
@@ -245,6 +314,20 @@ def verify(index_path: Path) -> dict[str, Any]:
     if index.get("channel") != channel or index.get("sourceCommit") != git_commit():
         fail("release index lineage mismatch")
     root = index_path.parent
+    reports = index.get("reports")
+    instructions = index.get("instructions")
+    if not isinstance(reports, dict) or not isinstance(instructions, dict):
+        fail("release index omits final reports or APS instructions")
+    required_names = {
+        reports.get("validation"),
+        reports.get("reproducibility"),
+        instructions.get("apsIntegration"),
+    }
+    artifact_names = {
+        artifact.get("name") for artifact in index.get("artifacts", []) if isinstance(artifact, dict)
+    }
+    if None in required_names or not required_names.issubset(artifact_names):
+        fail("release index omits final reports or APS instructions")
     frozen = index.get("frozenInputs", {})
     if not isinstance(frozen, dict):
         fail("release index frozen input evidence is invalid")
@@ -287,6 +370,8 @@ def main() -> int:
     parser.add_argument("--version", default="17.0.0-rc.1")
     parser.add_argument("--release-dir", type=Path, default=ROOT / "dist/release")
     parser.add_argument("--validation", type=Path, default=ROOT / "dist/validation/report.json")
+    parser.add_argument("--reproducibility", type=Path, default=DEFAULT_REPRODUCIBILITY)
+    parser.add_argument("--guide", type=Path, default=DEFAULT_GUIDE)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--index", type=Path)
     parser.add_argument("--tag")
@@ -294,7 +379,15 @@ def main() -> int:
     args = parser.parse_args()
     try:
         if args.command == "publish":
-            payload = publish(args.version, args.release_dir, args.validation, args.output, args.tag)
+            payload = publish(
+                args.version,
+                args.release_dir,
+                args.validation,
+                args.output,
+                args.tag,
+                args.reproducibility,
+                args.guide,
+            )
         else:
             if args.index is None:
                 fail("--index is required for verify")
