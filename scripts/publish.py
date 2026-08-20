@@ -40,6 +40,13 @@ SECURITY_RESPONSE_POLICY = {
 VERSION_RE = re.compile(r"^17\.\d+\.\d+(?:-(?:alpha|rc)\.\d+)?$")
 IMAGE_RE = re.compile(r"^[a-z0-9][a-z0-9._/-]*@sha256:[0-9a-f]{64}$")
 IMAGE_ID_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+REQUIRED_EXTERNAL_EVIDENCE = (
+    "android17Device",
+    "vulnerability",
+    "performanceBaseline",
+    "performanceBenchmark",
+)
 REQUIRED_RELEASE_IMAGE_TOOLS = (
     "bash",
     "base64",
@@ -133,12 +140,38 @@ def version_channel(version: str) -> str:
     return "stable"
 
 
+def valid_external_evidence_manifest(value: Any) -> bool:
+    if (
+        not isinstance(value, dict)
+        or set(value) != {"schemaVersion", "inputs", "missing"}
+        or value.get("schemaVersion") != 1
+    ):
+        return False
+    inputs = value.get("inputs")
+    if not isinstance(inputs, dict) or set(inputs) != set(REQUIRED_EXTERNAL_EVIDENCE):
+        return False
+    if value.get("missing") != []:
+        return False
+    return all(
+        isinstance(item, dict)
+        and set(item) == {"sha256", "size"}
+        and isinstance(item.get("sha256"), str)
+        and SHA256_RE.fullmatch(item["sha256"]) is not None
+        and isinstance(item.get("size"), int)
+        and not isinstance(item["size"], bool)
+        and item["size"] >= 0
+        for item in inputs.values()
+    )
+
+
 def verify_validation(path: Path) -> dict[str, Any]:
     validation = read_json(path)
     if validation.get("schemaVersion") != 1 or validation.get("stage") != 7:
         fail("validation evidence is not a Stage 7 schema-v1 report")
     if validation.get("ok") is not True or validation.get("complete") is not True:
         fail("Stage 7 validation is not complete and passing")
+    if not valid_external_evidence_manifest(validation.get("externalEvidence")):
+        fail("Stage 7 validation external evidence manifest is incomplete")
     checks = validation.get("checks")
     required = {"release:reproducibility", "runtime:security"}
     passing = {

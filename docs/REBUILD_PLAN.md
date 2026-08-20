@@ -359,7 +359,7 @@ The standalone Web build now ships only local assets, declares a restrictive Con
 
 ## Stage 7 implementation evidence
 
-`scripts/validate.py` provides the Stage 7 machine-readable validation report and gate. It inventories representative Perfetto, legacy, screenshot, screen-recording, and IME fixtures; checks the production Web CSP/runtime configuration and forbidden runtime markers; runs the existing dependency-lock verifier; validates launcher/browser support declarations; verifies release license/SBOM/dependency evidence; records Web size plus startup/import/interaction/peak-memory benchmark metrics against a regression baseline; and validates schema-bound Android 17 device and vulnerability evidence. Unit, development E2E, production-distribution E2E, and offline checks can be requested with `--run-unit`, `--run-e2e`, `--run-production-e2e`, and `--run-offline`. Missing external artifacts are reported as `skipped`, never as false passes; `--require-complete` turns those skips into a blocking gate. `validate:report` is the non-blocking local report; `validate:gate` is the strict release gate.
+`scripts/validate.py` provides the Stage 7 machine-readable validation report and gate. It inventories representative Perfetto, legacy, screenshot, screen-recording, and IME fixtures; checks the production Web CSP/runtime configuration and forbidden runtime markers; runs the existing dependency-lock verifier; validates launcher/browser support declarations; verifies release license/SBOM/dependency evidence; records Web size plus startup/import/interaction/peak-memory benchmark metrics against a regression baseline; and validates schema-bound Android 17 device and vulnerability evidence. The public report records bounded summaries and cryptographic identities for protected external inputs, not raw device or scanner evidence. Unit, development E2E, production-distribution E2E, and offline checks can be requested with `--run-unit`, `--run-e2e`, `--run-production-e2e`, and `--run-offline`. Missing external artifacts are reported as `skipped`, never as false passes; `--require-complete` turns those skips into a blocking gate. `validate:report` is the non-blocking local report; `validate:gate` is the strict release gate.
 
 ## Stage 8 implementation evidence
 
@@ -560,3 +560,20 @@ read-only probe flags, the complete release-tool inventory, an empty error list,
 and the frozen report digest. The protected workflow attests the resulting
 publication. This stage does not choose, build, tag, or publish a container
 image; image approval and registry administration remain external prerequisites.
+
+## Stage 18 implementation evidence
+
+The Stage 7 validation report now binds the exact protected device,
+vulnerability, performance-baseline, and performance-benchmark inputs through a
+schema-v1 manifest containing stable logical names, SHA-256 digests, and byte
+sizes. A complete publication requires all four identities, and both
+`publish.py` and the trusted APS verifier reject missing, malformed, or partial
+manifests.
+
+Device validation now publishes only the evidence digest, Android version, and
+capture/import outcomes. Vulnerability validation publishes only its digest and
+the bounded scanner, source, lock, and severity summary. Unknown private fields,
+device fingerprints, serials, paths, and raw scanner details are excluded from
+validation JSON and workflow logs. Stage 18 does not publish the raw protected
+evidence or change the separately authorized Stage 15 repository-settings
+audit.

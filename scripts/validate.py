@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import re
 import subprocess
 import sys
@@ -27,6 +28,7 @@ FORBIDDEN_RUNTIME_MARKERS = (
     "localhost:9167",
     "ws://localhost",
 )
+SCANNER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+ /-]{0,127}$")
 CSP_DIRECTIVES = (
     "default-src 'self'",
     "base-uri 'self'",
@@ -42,6 +44,12 @@ FEATURE_FIXTURES = {
     "screen-recording": ("src/test/fixtures/traces", "**/*.mp4"),
     "input-and-ime": ("src/test/fixtures/traces/ime", "*.pb"),
 }
+REQUIRED_EXTERNAL_EVIDENCE = (
+    "android17Device",
+    "vulnerability",
+    "performanceBaseline",
+    "performanceBenchmark",
+)
 COMMANDS = {
     "unit": ["npm", "run", "test:unit:ci"],
     "e2e": ["npm", "run", "test:e2e"],
@@ -49,6 +57,26 @@ COMMANDS = {
     "offline": ["npm", "run", "deps:offline-check"],
     "security": ["npm", "run", "security:hostile"],
 }
+
+
+def reject_json_constant(value: str) -> None:
+    raise ValueError(f"non-standard JSON number: {value}")
+
+
+def read_json_object(path: Path) -> dict[str, Any]:
+    value = json.loads(path.read_text(encoding="utf-8"), parse_constant=reject_json_constant)
+    if not isinstance(value, dict):
+        raise ValueError("evidence must be a JSON object")
+    return value
+
+
+def finite_nonnegative(value: Any) -> bool:
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+        and value >= 0
+    )
 
 
 def result(name: str, status: str, **details: Any) -> dict[str, Any]:
@@ -77,6 +105,23 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: source.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def external_evidence_manifest(
+    paths: dict[str, Path | None],
+) -> dict[str, Any]:
+    inputs = {}
+    missing = []
+    for name in REQUIRED_EXTERNAL_EVIDENCE:
+        path = paths.get(name)
+        if path is None or not path.is_file():
+            missing.append(name)
+            continue
+        try:
+            inputs[name] = {"sha256": sha256_file(path), "size": path.stat().st_size}
+        except OSError:
+            missing.append(name)
+    return {"schemaVersion": 1, "inputs": inputs, "missing": missing}
 
 
 def git_commit() -> str:
@@ -239,26 +284,44 @@ def vulnerability_gate(path: Path | None) -> dict[str, Any]:
     if path is None:
         return result("security:vulnerability-scan", "skipped", reason="external scanner evidence not supplied")
     try:
-        evidence = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as error:
-        return result("security:vulnerability-scan", "fail", reason=str(error))
+        evidence = read_json_object(path)
+    except OSError:
+        return result("security:vulnerability-scan", "fail", reason="cannot read vulnerability evidence")
+    except (ValueError, json.JSONDecodeError):
+        return result("security:vulnerability-scan", "fail", reason="invalid vulnerability evidence JSON")
     required = ("schemaVersion", "scanner", "sourceCommit", "lockSha256", "critical", "high", "ok")
     missing = [key for key in required if key not in evidence]
     valid = (
         not missing
+        and type(evidence["schemaVersion"]) is int
         and evidence["schemaVersion"] == 1
         and isinstance(evidence["scanner"], str)
-        and bool(evidence["scanner"])
+        and SCANNER_RE.fullmatch(evidence["scanner"]) is not None
         and evidence["sourceCommit"] == git_commit()
         and working_tree_clean()
         and evidence["lockSha256"] == sha256_file(LOCK)
-        and isinstance(evidence["critical"], int)
-        and isinstance(evidence["high"], int)
+        and type(evidence["critical"]) is int
+        and type(evidence["high"]) is int
         and evidence["critical"] == 0
         and evidence["high"] == 0
         and evidence["ok"] is True
     )
-    return result("security:vulnerability-scan", "pass" if valid else "fail", evidence=evidence, missing=missing)
+    return result(
+        "security:vulnerability-scan",
+        "pass" if valid else "fail",
+        evidenceSha256=sha256_file(path),
+        scanner=(
+            evidence["scanner"]
+            if isinstance(evidence.get("scanner"), str)
+            and SCANNER_RE.fullmatch(evidence["scanner"]) is not None
+            else None
+        ),
+        sourceCommit=git_commit() if evidence.get("sourceCommit") == git_commit() else None,
+        lockSha256=sha256_file(LOCK) if evidence.get("lockSha256") == sha256_file(LOCK) else None,
+        critical=evidence.get("critical") if type(evidence.get("critical")) is int else None,
+        high=evidence.get("high") if type(evidence.get("high")) is int else None,
+        missing=missing,
+    )
 
 
 def performance(web_root: Path, baseline: Path | None, benchmark: Path | None = None, require_benchmark: bool = False) -> dict[str, Any]:
@@ -280,12 +343,21 @@ def performance(web_root: Path, baseline: Path | None, benchmark: Path | None = 
     benchmark_metrics: dict[str, float] = {}
     if benchmark is not None:
         try:
-            payload = json.loads(benchmark.read_text(encoding="utf-8"))
-            benchmark_metrics = payload.get("metrics", payload)
-        except (OSError, json.JSONDecodeError) as error:
-            return result("performance:benchmark", "fail", reason=str(error))
+            payload = read_json_object(benchmark)
+            raw_metrics = payload.get("metrics", payload)
+            if not isinstance(raw_metrics, dict):
+                raise ValueError("benchmark metrics must be a JSON object")
+            benchmark_metrics = {
+                name: value
+                for name in ("startupMs", "importMs", "interactionMs", "peakMemoryBytes")
+                if finite_nonnegative(value := raw_metrics.get(name))
+            }
+        except OSError:
+            return result("performance:benchmark", "fail", reason="cannot read performance benchmark evidence")
+        except (ValueError, json.JSONDecodeError):
+            return result("performance:benchmark", "fail", reason="invalid performance benchmark evidence")
         required = ("startupMs", "importMs", "interactionMs", "peakMemoryBytes")
-        missing = [name for name in required if not isinstance(benchmark_metrics.get(name), (int, float))]
+        missing = [name for name in required if name not in benchmark_metrics]
         if missing:
             return result("performance:benchmark", "fail", missing=missing, metrics=benchmark_metrics)
         metrics.update({name: benchmark_metrics[name] for name in required})
@@ -302,19 +374,30 @@ def performance(web_root: Path, baseline: Path | None, benchmark: Path | None = 
             metrics=metrics,
         )
     try:
-        expected = json.loads(baseline.read_text(encoding="utf-8"))
+        expected = read_json_object(baseline)
         expected_metrics = expected.get("metrics", expected)
-        budget = float(expected.get("maxRegressionPercent", 10))
+        if not isinstance(expected_metrics, dict):
+            raise ValueError("performance baseline metrics must be a JSON object")
+        budget_value = expected.get("maxRegressionPercent", 10)
+        if not finite_nonnegative(budget_value):
+            raise ValueError("performance regression budget must be finite and non-negative")
+        budget = float(budget_value)
         required_baseline = ["startupMs", "importMs", "interactionMs", "peakMemoryBytes"] if benchmark is not None else []
         required_baseline.extend(name for name in ("webBytes", "traceProcessorBytes") if metrics.get(name))
-        missing_baseline = [name for name in required_baseline if not expected_metrics.get(name)]
+        missing_baseline = [
+            name
+            for name in required_baseline
+            if not finite_nonnegative(expected_metrics.get(name)) or expected_metrics[name] == 0
+        ]
         if missing_baseline:
             return result("performance:benchmark", "fail", missing=missing_baseline, metrics=metrics)
         comparable = {name: value for name, value in metrics.items() if name in expected_metrics and expected_metrics[name]}
         regressions = {name: (value / expected_metrics[name] - 1) * 100 for name, value in comparable.items()}
         failures = {name: value for name, value in regressions.items() if value > budget}
-    except (OSError, ValueError, json.JSONDecodeError, TypeError) as error:
-        return result("performance:benchmark", "fail", reason=str(error), metrics=metrics)
+    except OSError:
+        return result("performance:benchmark", "fail", reason="cannot read performance baseline evidence", metrics=metrics)
+    except (ValueError, json.JSONDecodeError, TypeError):
+        return result("performance:benchmark", "fail", reason="invalid performance baseline evidence", metrics=metrics)
     return result(
         "performance:benchmark" if benchmark is not None else "performance:size-budget",
         "fail" if failures else "pass",
@@ -354,7 +437,8 @@ def reproducibility_evidence(path: Path | None) -> dict[str, Any]:
         return result("release:reproducibility", "fail", reason=str(error))
     builds = evidence.get("builds")
     valid = (
-        evidence.get("schemaVersion") == 1
+        type(evidence.get("schemaVersion")) is int
+        and evidence.get("schemaVersion") == 1
         and evidence.get("stage") == 10
         and evidence.get("ok") is True
         and evidence.get("sourceCommit") == git_commit()
@@ -378,20 +462,30 @@ def device_evidence(path: Path | None) -> dict[str, Any]:
     if path is None:
         return result("device:android17-capture", "skipped", reason="real-device evidence not supplied")
     try:
-        evidence = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as error:
-        return result("device:android17-capture", "fail", reason=str(error))
+        evidence = read_json_object(path)
+    except OSError:
+        return result("device:android17-capture", "fail", reason="cannot read device evidence")
+    except (ValueError, json.JSONDecodeError):
+        return result("device:android17-capture", "fail", reason="invalid device evidence JSON")
     capture = evidence.get("capture")
     imported = evidence.get("import")
     valid = (
-        evidence.get("schemaVersion") == 1
+        type(evidence.get("schemaVersion")) is int
+        and evidence.get("schemaVersion") == 1
         and evidence.get("androidVersion") == "17"
         and isinstance(evidence.get("fingerprint"), str)
         and bool(evidence["fingerprint"].strip())
         and isinstance(capture, dict) and capture.get("ok") is True
         and isinstance(imported, dict) and imported.get("ok") is True
     )
-    return result("device:android17-capture", "pass" if valid else "fail", evidence=evidence)
+    return result(
+        "device:android17-capture",
+        "pass" if valid else "fail",
+        evidenceSha256=sha256_file(path),
+        androidVersion="17" if evidence.get("androidVersion") == "17" else None,
+        captureOk=isinstance(capture, dict) and capture.get("ok") is True,
+        importOk=isinstance(imported, dict) and imported.get("ok") is True,
+    )
 
 
 def report(args: argparse.Namespace) -> dict[str, Any]:
@@ -414,14 +508,21 @@ def report(args: argparse.Namespace) -> dict[str, Any]:
         run_optional("offline", args.run_offline, args.timeout),
         run_optional("security", args.run_security, args.timeout),
     ))
+    external_evidence = external_evidence_manifest({
+        "android17Device": args.device_evidence,
+        "vulnerability": args.vulnerability_evidence,
+        "performanceBaseline": args.baseline,
+        "performanceBenchmark": args.benchmark,
+    })
     return {
         "schemaVersion": 1,
         "stage": 7,
         "ok": not any(check["status"] == "fail" for check in checks),
         "complete": not any(check["status"] == "skipped" for check in checks),
-        "repository": str(ROOT),
+        "repository": "aosp-winscope",
         "checks": checks,
         "fixtureCoverage": coverage["inventory"],
+        "externalEvidence": external_evidence,
         "dynamicChecksRequested": any((
             args.run_unit, args.run_e2e, args.run_production_e2e, args.run_offline, args.run_security
         )),
@@ -451,9 +552,9 @@ def main() -> int:
     try:
         payload = report(args)
         args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        args.output.write_text(json.dumps(payload, indent=2, sort_keys=True, allow_nan=False) + "\n", encoding="utf-8")
         if args.json:
-            print(json.dumps(payload, sort_keys=True))
+            print(json.dumps(payload, sort_keys=True, allow_nan=False))
         else:
             print("Validation report written to " + str(args.output))
         if args.command == "report":
@@ -462,7 +563,7 @@ def main() -> int:
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         payload = {"schemaVersion": 1, "stage": 7, "ok": False, "errors": [str(error)]}
         if args.json:
-            print(json.dumps(payload, sort_keys=True))
+            print(json.dumps(payload, sort_keys=True, allow_nan=False))
         else:
             print(f"ERROR: {error}", file=sys.stderr)
         return 1

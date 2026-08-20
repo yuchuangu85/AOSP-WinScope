@@ -121,6 +121,19 @@ class PublishTest(unittest.TestCase):
                     {"name": "release:reproducibility", "status": "pass"},
                     {"name": "runtime:security", "status": "pass"},
                 ],
+                "externalEvidence": {
+                    "schemaVersion": 1,
+                    "inputs": {
+                        name: {"sha256": character * 64, "size": index + 1}
+                        for index, (name, character) in enumerate((
+                            ("android17Device", "1"),
+                            ("vulnerability", "2"),
+                            ("performanceBaseline", "3"),
+                            ("performanceBenchmark", "4"),
+                        ))
+                    },
+                    "missing": [],
+                },
             }),
             encoding="utf-8",
         )
@@ -237,6 +250,46 @@ class PublishTest(unittest.TestCase):
                         build_image="ghcr.io/example/release:latest",
                     )
 
+
+
+
+    def test_external_evidence_manifest_rejects_private_extra_fields(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            release_dir, validation, reproducibility = self.make_release(root)
+            value = json.loads(validation.read_text())
+            value["externalEvidence"]["inputs"]["android17Device"]["private"] = "must-not-publish"
+            validation.write_text(json.dumps(value), encoding="utf-8")
+            with mock.patch.object(publish, "require_clean_tree"):
+                with self.assertRaisesRegex(ValueError, "external evidence manifest"):
+                    publish.publish(
+                        VERSION,
+                        release_dir,
+                        validation,
+                        root / "public",
+                        None,
+                        reproducibility,
+                        build_image=BUILD_IMAGE,
+                    )
+
+    def test_validation_requires_complete_external_evidence_manifest(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            release_dir, validation, reproducibility = self.make_release(root)
+            value = json.loads(validation.read_text())
+            value.pop("externalEvidence")
+            validation.write_text(json.dumps(value), encoding="utf-8")
+            with mock.patch.object(publish, "require_clean_tree"):
+                with self.assertRaisesRegex(ValueError, "external evidence manifest"):
+                    publish.publish(
+                        VERSION,
+                        release_dir,
+                        validation,
+                        root / "public",
+                        None,
+                        reproducibility,
+                        build_image=BUILD_IMAGE,
+                    )
 
     def test_release_image_evidence_must_match_the_approved_image(self):
         with tempfile.TemporaryDirectory() as temporary:

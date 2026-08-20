@@ -191,6 +191,19 @@ class ApsReleaseTest(unittest.TestCase):
                 {"name": "release:reproducibility", "status": "pass"},
                 {"name": "runtime:security", "status": "pass"},
             ],
+            "externalEvidence": {
+                "schemaVersion": 1,
+                "inputs": {
+                    name: {"sha256": character * 64, "size": index + 1}
+                    for index, (name, character) in enumerate((
+                        ("android17Device", "1"),
+                        ("vulnerability", "2"),
+                        ("performanceBaseline", "3"),
+                        ("performanceBenchmark", "4"),
+                    ))
+                },
+                "missing": [],
+            },
         }), encoding="utf-8")
         reproducibility = publication / "reproducibility.json"
         reproducibility.write_text(json.dumps({
@@ -520,6 +533,36 @@ class ApsReleaseTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "exactly inventory"):
                 aps_release.verify_publication(publication, digest((publication / "release-index.json").read_bytes()), BUILD_IMAGE)
 
+
+
+    def test_stage7_report_requires_external_evidence_manifest(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            publication = self.make_publication(Path(temporary))
+            validation = publication / "report.json"
+            value = json.loads(validation.read_text())
+            value.pop("externalEvidence")
+            validation.write_text(json.dumps(value), encoding="utf-8")
+            index = publication / "release-index.json"
+            index_value = json.loads(index.read_text())
+            validation_entry = next(
+                item for item in index_value["artifacts"] if item["name"] == validation.name
+            )
+            validation_entry["sha256"] = digest(validation.read_bytes())
+            validation_entry["size"] = validation.stat().st_size
+            frozen = publication / "frozen-inputs.json"
+            frozen_value = json.loads(frozen.read_text())
+            frozen_value["validationReportSha256"] = digest(validation.read_bytes())
+            frozen.write_text(json.dumps(frozen_value), encoding="utf-8")
+            frozen_entry = next(
+                item for item in index_value["artifacts"] if item["name"] == frozen.name
+            )
+            frozen_entry["sha256"] = digest(frozen.read_bytes())
+            frozen_entry["size"] = frozen.stat().st_size
+            index_value["frozenInputs"]["sha256"] = digest(frozen.read_bytes())
+            index.write_text(json.dumps(index_value), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "Stage 7 validation evidence is invalid"):
+                aps_release.verify_publication(publication, digest(index.read_bytes()), BUILD_IMAGE)
 
     def test_release_image_evidence_must_match_the_trusted_image(self):
         with tempfile.TemporaryDirectory() as temporary:
