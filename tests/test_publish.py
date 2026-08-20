@@ -2,6 +2,7 @@ import hashlib
 import importlib.util
 import json
 import tempfile
+from datetime import datetime, timezone
 import unittest
 import zipfile
 from pathlib import Path
@@ -95,7 +96,52 @@ class PublishTest(unittest.TestCase):
 
             self.assertEqual(result["channel"], "rc")
             self.assertEqual(publish.verify(index)["artifactsVerified"], 7)
-            self.assertEqual(json.loads(index.read_text())["channel"], "rc")
+            value = json.loads(index.read_text())
+            self.assertEqual(value["channel"], "rc")
+            self.assertEqual(value["support"]["status"], "prerelease")
+            self.assertFalse(value["support"]["securityUpdates"])
+            self.assertEqual(value["support"]["track"], "prerelease")
+            self.assertEqual(value["securityResponse"]["policy"], publish.SECURITY_RESPONSE_POLICY)
+
+    def test_existing_publication_target_is_immutable(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            release_dir, validation, reproducibility = self.make_release(root)
+            output = root / "public"
+            output.mkdir()
+            (output / VERSION).mkdir()
+            marker = output / VERSION / "keep.txt"
+            marker.write_text("keep", encoding="utf-8")
+            with mock.patch.object(publish, "require_clean_tree"):
+                with self.assertRaisesRegex(ValueError, "immutable"):
+                    publish.publish(VERSION, release_dir, validation, output, None, reproducibility)
+            self.assertEqual(marker.read_text(encoding="utf-8"), "keep")
+
+    def test_failed_publication_leaves_no_final_or_staging_directory(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            release_dir, validation, reproducibility = self.make_release(root)
+            output = root / "public"
+            with mock.patch.object(publish, "require_clean_tree"), mock.patch.object(
+                publish.shutil, "copyfile", side_effect=OSError("copy failed")
+            ):
+                with self.assertRaisesRegex(OSError, "copy failed"):
+                    publish.publish(VERSION, release_dir, validation, output, None, reproducibility)
+            self.assertFalse((output / VERSION).exists())
+            self.assertEqual(list(output.iterdir()), [])
+
+    def test_publication_uses_explicit_event_time(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            release_dir, validation, reproducibility = self.make_release(root)
+            event_time = datetime(2026, 8, 20, 12, 34, 56, tzinfo=timezone.utc)
+            with mock.patch.object(publish, "require_clean_tree"):
+                result = publish.publish(
+                    VERSION, release_dir, validation, root / "public", None, reproducibility,
+                    published_at=event_time,
+                )
+            index = json.loads(Path(result["index"]).read_text())
+            self.assertEqual(index["publishedAt"], "2026-08-20T12:34:56Z")
 
     def test_stable_and_version_validation(self):
         self.assertEqual(publish.version_channel("17.0.0"), "stable")

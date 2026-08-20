@@ -410,3 +410,16 @@ index that omits them or whose artifact/frozen-input digests do not match.
 Explicit `publish:alpha`, `publish:rc`, and `publish:stable` commands document
 the alpha, `17.0.0-rc.1`, and protected `v17.0.0` publication lanes; no command
 performs an external tag, network, or artifact overwrite operation.
+
+
+## Stage 12 implementation evidence
+
+`scripts/support.py` verifies the explicit release support lifecycle without
+network access. It validates schema-versioned support metadata and security
+response policy, computes current/previous-generation support from supplied
+release indexes, enforces the 90-day previous-generation transition window,
+and retains EOL/withdrawn evidence. It also validates standalone advisories and
+SHA-256 digests for their local evidence files. Publication indexes now record
+release time, baseline generation, support track, withdrawal metadata, and the
+Critical/High response targets. Existing publication directories are immutable;
+re-publishing the same version fails instead of deleting evidence.

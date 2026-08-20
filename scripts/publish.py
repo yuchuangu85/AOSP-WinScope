@@ -9,11 +9,18 @@ import json
 import re
 import shutil
 import subprocess
+import sys
+import tempfile
 import zipfile
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT / "scripts"))
+from support import validate_index as validate_support_index
+
 BASELINE = ROOT / "provenance/android17-baseline.json"
 FILE_INVENTORY = ROOT / "provenance/android17-winscope-files.json"
 LOCK = ROOT / "build/dependencies.lock.json"
@@ -21,6 +28,12 @@ PACKAGE_LOCK = ROOT / "package-lock.json"
 DEFAULT_OUTPUT = ROOT / "dist/public"
 DEFAULT_REPRODUCIBILITY = ROOT / "dist/validation/reproducibility.json"
 DEFAULT_GUIDE = ROOT / "docs/APS_INTEGRATION.md"
+SECURITY_RESPONSE_POLICY = {
+    "criticalAssessmentHours": 24,
+    "criticalFixOrMitigationHours": 72,
+    "highAssessmentWorkingDays": 3,
+    "highFixWorkingDays": 7,
+}
 VERSION_RE = re.compile(r"^17\.\d+\.\d+(?:-(?:alpha|rc)\.\d+)?$")
 
 
@@ -218,7 +231,12 @@ def publish(
     tag: str | None,
     reproducibility_path: Path = DEFAULT_REPRODUCIBILITY,
     guide_path: Path = DEFAULT_GUIDE,
+    published_at: datetime | None = None,
 ) -> dict[str, Any]:
+    if published_at is not None:
+        if published_at.tzinfo is None:
+            fail("published-at must include a timezone")
+        published_at = published_at.astimezone(timezone.utc)
     channel = version_channel(version)
     if channel == "stable" and tag not in (None, "v17.0.0"):
         fail("stable release must be tagged v17.0.0")
@@ -232,74 +250,92 @@ def publish(
     artifact = verify_release_artifact(release_dir, version)
     target = output / version
     if target.exists():
-        shutil.rmtree(target)
-    target.mkdir(parents=True)
-    copied = []
-    for source in (
-        artifact["archive"],
-        artifact["sums"],
-        artifact["attestation"],
-        validation_path,
-        reproducibility_path,
-        guide_path,
-    ):
-        destination = target / source.name
-        shutil.copyfile(source, destination)
-        copied.append(destination)
+        fail(f"publication target already exists and is immutable: {target}")
+    output.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix=f".{version}.", dir=output))
+    try:
+        copied = []
+        for source in (
+            artifact["archive"],
+            artifact["sums"],
+            artifact["attestation"],
+            validation_path,
+            reproducibility_path,
+            guide_path,
+        ):
+            destination = staging / source.name
+            shutil.copyfile(source, destination)
+            copied.append(destination)
 
-    frozen = frozen_inputs(version, validation, reproducibility, artifact)
-    frozen_path = target / "frozen-inputs.json"
-    write_json(frozen_path, frozen)
-    copied.append(frozen_path)
-    artifacts = [
-        {
-            "name": path.name,
-            "sha256": sha256_file(path),
-            "size": path.stat().st_size,
-            "kind": "archive" if path.suffix == ".zip" else "evidence",
+        frozen = frozen_inputs(version, validation, reproducibility, artifact)
+        frozen_path = staging / "frozen-inputs.json"
+        write_json(frozen_path, frozen)
+        copied.append(frozen_path)
+        artifacts = [
+            {
+                "name": path.name,
+                "sha256": sha256_file(path),
+                "size": path.stat().st_size,
+                "kind": "archive" if path.suffix == ".zip" else "evidence",
+            }
+            for path in sorted(copied, key=lambda item: item.name)
+        ]
+        index = {
+            "schemaVersion": 1,
+            "product": "aosp-winscope",
+            "baseline": "android17-release",
+            "version": version,
+            "channel": channel,
+            "tag": tag or f"v{version}",
+            "sourceCommit": git_commit(),
+            "sourceDateEpoch": git_epoch(),
+            "publishedAt": (published_at or datetime.now(timezone.utc))
+            .replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+            "support": {
+                "status": "supported" if channel == "stable" else "prerelease",
+                "securityUpdates": channel == "stable",
+                "baselineGeneration": int(version.split(".")[1]),
+                "track": "current" if channel == "stable" else "prerelease",
+                "securitySupportUntil": None,
+                "withdrawn": False,
+                "withdrawal": None,
+            },
+            "securityResponse": {
+                "schemaVersion": 1,
+                "policy": SECURITY_RESPONSE_POLICY,
+                "advisories": [],
+            },
+            "publicationPolicy": {
+                "protectedTagRequired": channel == "stable",
+                "environmentApprovalRequired": True,
+                "artifactsImmutable": True,
+            },
+            "aps": {
+                "manifestSchemaVersion": 1,
+                "archiveConsumerSupported": True,
+                "sourceConsumerSupported": True,
+                "bridgeProtocol": None,
+            },
+            "frozenInputs": {"path": frozen_path.name, "sha256": sha256_file(frozen_path)},
+            "reports": {
+                "validation": validation_path.name,
+                "reproducibility": reproducibility_path.name,
+            },
+            "instructions": {"apsIntegration": guide_path.name},
+            "artifacts": artifacts,
         }
-        for path in sorted(copied, key=lambda item: item.name)
-    ]
-    index = {
-        "schemaVersion": 1,
-        "product": "aosp-winscope",
-        "baseline": "android17-release",
-        "version": version,
-        "channel": channel,
-        "tag": tag or f"v{version}",
-        "sourceCommit": git_commit(),
-        "sourceDateEpoch": git_epoch(),
-        "support": {
-            "status": "supported" if channel == "stable" else "prerelease",
-            "securityUpdates": channel == "stable",
-        },
-        "publicationPolicy": {
-            "protectedTagRequired": channel == "stable",
-            "environmentApprovalRequired": True,
-            "artifactsImmutable": True,
-        },
-        "aps": {
-            "manifestSchemaVersion": 1,
-            "archiveConsumerSupported": True,
-            "sourceConsumerSupported": True,
-            "bridgeProtocol": None,
-        },
-        "frozenInputs": {"path": frozen_path.name, "sha256": sha256_file(frozen_path)},
-        "reports": {
-            "validation": validation_path.name,
-            "reproducibility": reproducibility_path.name,
-        },
-        "instructions": {"apsIntegration": guide_path.name},
-        "artifacts": artifacts,
-    }
-    index_path = target / "release-index.json"
-    write_json(index_path, index)
+        index_path = staging / "release-index.json"
+        write_json(index_path, index)
+        staging.rename(target)
+    except Exception:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
     return {
         "ok": True,
         "version": version,
         "channel": channel,
         "directory": target.as_posix(),
-        "index": index_path.as_posix(),
+        "index": (target / "release-index.json").as_posix(),
         "archiveSha256": artifact["sha256"],
         "artifacts": len(artifacts),
     }
@@ -314,6 +350,7 @@ def verify(index_path: Path) -> dict[str, Any]:
     if index.get("channel") != channel or index.get("sourceCommit") != git_commit():
         fail("release index lineage mismatch")
     root = index_path.parent
+    validate_support_index(index_path)
     reports = index.get("reports")
     instructions = index.get("instructions")
     if not isinstance(reports, dict) or not isinstance(instructions, dict):
@@ -372,6 +409,7 @@ def main() -> int:
     parser.add_argument("--validation", type=Path, default=ROOT / "dist/validation/report.json")
     parser.add_argument("--reproducibility", type=Path, default=DEFAULT_REPRODUCIBILITY)
     parser.add_argument("--guide", type=Path, default=DEFAULT_GUIDE)
+    parser.add_argument("--published-at")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--index", type=Path)
     parser.add_argument("--tag")
@@ -387,6 +425,7 @@ def main() -> int:
                 args.tag,
                 args.reproducibility,
                 args.guide,
+                datetime.fromisoformat(args.published_at.replace("Z", "+00:00")) if args.published_at else None,
             )
         else:
             if args.index is None:
