@@ -417,7 +417,10 @@ describe('TraceFileIdentifier', () => {
       );
       expect(result.perfetto[0].getFiles()[0]).toEqual(large);
       expect(result.legacy).toEqual([]);
-      userNotifierChecker.expectNone();
+      userNotifierChecker.expectAdded([
+        makeWarningTraceOverridden(small.getDescriptor()),
+        makeWarningTraceOverridden(medium.getDescriptor()),
+      ]);
     });
 
     it('extracts screen recording metadata', async () => {

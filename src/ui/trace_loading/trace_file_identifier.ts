@@ -175,13 +175,29 @@ export class TraceFileIdentifier<T extends FileReader>
       });
     } else {
       unsupportedFiles.sort(
-        (a: TraceFile, b: TraceFile) => b.file.size - a.file.size,
+        (a: TraceFile, b: TraceFile) => a.file.size - b.file.size,
       );
+      let selectedPerfettoFile: TraceFile | undefined;
       for (const file of unsupportedFiles) {
-        perfettoParsers = await tryIdentifyPerfetto(file);
-        if (perfettoParsers) {
-          break;
+        const candidateParsers = await tryIdentifyPerfetto(file);
+        if (candidateParsers.length === 0) {
+          continue;
         }
+        if (selectedPerfettoFile) {
+          UserNotifier.add(
+            makeWarningTraceOverridden(
+              selectedPerfettoFile.getDescriptor(),
+            ),
+          );
+        }
+        selectedPerfettoFile = file;
+        perfettoParsers = candidateParsers;
+      }
+      if (
+        selectedPerfettoFile &&
+        unsupportedFiles.at(-1) !== selectedPerfettoFile
+      ) {
+        perfettoParsers = await tryIdentifyPerfetto(selectedPerfettoFile);
       }
     }
 

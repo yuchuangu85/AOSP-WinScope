@@ -209,6 +209,65 @@ describe('FileLoader', () => {
     ]);
   });
 
+  it('diagnoses every unrecognized file', async () => {
+    const first = new File(['not a trace'], 'first.unknown');
+    const second = new File(['also not a trace'], 'second.unknown');
+
+    const result = await loadFiles([first, second]);
+
+    expectLoadResult(result, 0, [
+      new UserWarning(
+        'unsupported format',
+        'first.unknown: file format was not recognized as a supported Winscope trace',
+      ),
+      new UserWarning(
+        'unsupported format',
+        'second.unknown: file format was not recognized as a supported Winscope trace',
+      ),
+    ]);
+  });
+
+  it('diagnoses files left after recognizing an extensionless Perfetto trace', async () => {
+    const extensionlessPerfetto = new File(
+      [await perfettoFileProtolog.arrayBuffer()],
+      'valid.unknown',
+    );
+    const unrecognized = new File(['not a trace'], 'invalid.unknown');
+
+    const result = await loadFiles([extensionlessPerfetto, unrecognized]);
+
+    expectLoadResult(result, 1, [
+      new UserWarning(
+        'unsupported format',
+        'invalid.unknown: file format was not recognized as a supported Winscope trace',
+      ),
+    ]);
+  });
+
+  it('restores a selected extensionless Perfetto trace after rejecting a larger file', async () => {
+    const extensionlessPerfetto = new File(
+      [await perfettoFileProtolog.arrayBuffer()],
+      'valid.unknown',
+    );
+    const largerUnrecognized = new File(
+      [new Uint8Array(extensionlessPerfetto.size + 1)],
+      'larger-invalid.unknown',
+    );
+
+    const result = await loadFiles([
+      extensionlessPerfetto,
+      largerUnrecognized,
+    ]);
+
+    expectLoadResult(result, 1, [
+      new UserWarning(
+        'unsupported format',
+        'larger-invalid.unknown: file format was not recognized as a supported Winscope trace',
+      ),
+    ]);
+    expect(await result.perfetto[0].getEntry(0)).toBeDefined();
+  });
+
   it('notifies for unsupported file uploaded with file', async () => {
     const result = await loadFiles([jpgFile, perfettoFileProtolog]);
     expectLoadResult(result, 1, [

@@ -473,6 +473,26 @@
         "path": "src/trace_collection/winscope_proxy/winscope_proxy_host_connection_test.ts"
       },
       {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/ui/trace_loading/file_loader_test.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/ui/trace_loading/trace_file_identifier.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/ui/trace_loading/trace_file_identifier_test.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/ui/trace_loading/warnings.ts"
+      },
+      {
         "change": "added",
         "origin": "newly-authored-clean-room",
         "path": "tests/test_aps_release.py"

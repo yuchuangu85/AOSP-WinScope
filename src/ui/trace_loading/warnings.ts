@@ -206,7 +206,7 @@ function makeWarningTraceErrorMessage(
 export function makeWarningUnsupportedFileFormat(descriptor: string) {
   return new UserWarning(
     'unsupported format',
-    `${descriptor}: unsupported format`,
+    `${descriptor}: file format was not recognized as a supported Winscope trace`,
   );
 }
 

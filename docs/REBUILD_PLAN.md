@@ -598,3 +598,14 @@ distribution in attribution, and records matching SPDX package purposes.
 malformed, inconsistent, or unapproved license/SBOM evidence. No restrictive
 license exception is approved by this stage; adding one requires a separate
 reviewed policy change.
+
+## Stage 20 implementation evidence
+
+File import now produces an explicit warning for every selected file whose
+format cannot be recognized as a supported Winscope trace. Content-based
+Perfetto detection no longer stops after the first failed candidate, and files
+that remain after an extensionless Perfetto trace is found are classified
+instead of being silently ignored. Additional valid Perfetto candidates are
+reported as overridden, while unrecognized candidates retain their own
+filename-specific diagnostic. If classification ends on a rejected candidate,
+the selected Perfetto trace is restored before loading continues.
