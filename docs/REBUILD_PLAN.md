@@ -543,3 +543,20 @@ anonymous pull failures, digest/platform mismatches, missing tools, or an
 unavailable Docker daemon. It may populate the local Docker image cache, but it
 does not build or publish an image, mutate a registry, configure GitHub, or
 select which release image administrators should approve.
+
+## Stage 17 implementation evidence
+
+The official workflow now preserves the passing Stage 16 image verification
+report instead of discarding its JSON output. Preflight uploads
+`release-image.json` as a run-scoped artifact, the read-only build job downloads
+that exact report, and `publish.py` requires it to match the approved
+`OFFICIAL_RELEASE_IMAGE` before staging a publication. The release index lists
+the report, and frozen inputs bind its SHA-256 digest.
+
+The trusted APS verifier checks the indexed Stage 16 report offline alongside
+the Stage 7 and Stage 10 reports. It requires the approved image digest,
+`linux/amd64` platform, inspected image ID, anonymous pull, network-disabled and
+read-only probe flags, the complete release-tool inventory, an empty error list,
+and the frozen report digest. The protected workflow attests the resulting
+publication. This stage does not choose, build, tag, or publish a container
+image; image approval and registry administration remain external prerequisites.

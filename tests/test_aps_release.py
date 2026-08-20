@@ -207,6 +207,19 @@ class ApsReleaseTest(unittest.TestCase):
                 {"zipSha256": archive_digest, "provenanceVerified": True},
             ],
         }), encoding="utf-8")
+        release_image = publication / "release-image.json"
+        release_image.write_text(json.dumps({
+            "schemaVersion": 1,
+            "ok": True,
+            "image": BUILD_IMAGE,
+            "imageId": "sha256:" + "b" * 64,
+            "platform": "linux/amd64",
+            "anonymousPull": True,
+            "networkDisabledDuringProbe": True,
+            "readOnlyProbe": True,
+            "tools": list(aps_release.REQUIRED_RELEASE_IMAGE_TOOLS),
+            "errors": [],
+        }), encoding="utf-8")
         guide = publication / "APS_INTEGRATION.md"
         guide.write_text("offline integration\n", encoding="utf-8")
         frozen = publication / "frozen-inputs.json"
@@ -224,6 +237,7 @@ class ApsReleaseTest(unittest.TestCase):
             "dependencyEntries": len(lock["dependencies"]),
             "validationReportSha256": hashlib.sha256(validation.read_bytes()).hexdigest(),
             "reproducibilityReportSha256": hashlib.sha256(reproducibility.read_bytes()).hexdigest(),
+            "releaseImageReportSha256": hashlib.sha256(release_image.read_bytes()).hexdigest(),
             "releaseArchiveSha256": archive_digest,
             "buildImage": BUILD_IMAGE,
         }
@@ -260,7 +274,11 @@ class ApsReleaseTest(unittest.TestCase):
             },
             "securityResponse": {"schemaVersion": 1, "policy": POLICY, "advisories": []},
             "frozenInputs": {"path": frozen.name, "sha256": hashlib.sha256(frozen.read_bytes()).hexdigest()},
-            "reports": {"validation": validation.name, "reproducibility": reproducibility.name},
+            "reports": {
+                "validation": validation.name,
+                "reproducibility": reproducibility.name,
+                "releaseImage": release_image.name,
+            },
             "instructions": {"apsIntegration": guide.name},
             "artifacts": artifacts,
         }
@@ -501,6 +519,82 @@ class ApsReleaseTest(unittest.TestCase):
             publication = self.make_publication(Path(temporary), unmanifested_web=True)
             with self.assertRaisesRegex(ValueError, "exactly inventory"):
                 aps_release.verify_publication(publication, digest((publication / "release-index.json").read_bytes()), BUILD_IMAGE)
+
+
+    def test_release_image_evidence_must_match_the_trusted_image(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            publication = self.make_publication(Path(temporary))
+            report = publication / "release-image.json"
+            value = json.loads(report.read_text())
+            value["image"] = "ghcr.io/example/other@sha256:" + "c" * 64
+            report.write_text(json.dumps(value), encoding="utf-8")
+            index = publication / "release-index.json"
+            index_value = json.loads(index.read_text())
+            entry = next(item for item in index_value["artifacts"] if item["name"] == report.name)
+            entry["sha256"] = digest(report.read_bytes())
+            entry["size"] = report.stat().st_size
+            frozen = publication / "frozen-inputs.json"
+            frozen_value = json.loads(frozen.read_text())
+            frozen_value["releaseImageReportSha256"] = digest(report.read_bytes())
+            frozen.write_text(json.dumps(frozen_value), encoding="utf-8")
+            frozen_reference = index_value["frozenInputs"]
+            frozen_reference["sha256"] = digest(frozen.read_bytes())
+            frozen_entry = next(item for item in index_value["artifacts"] if item["name"] == frozen.name)
+            frozen_entry["sha256"] = digest(frozen.read_bytes())
+            frozen_entry["size"] = frozen.stat().st_size
+            index.write_text(json.dumps(index_value), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "Stage 16 release image evidence is invalid"):
+                aps_release.verify_publication(
+                    publication,
+                    digest(index.read_bytes()),
+                    BUILD_IMAGE,
+                )
+
+
+
+    def test_release_image_evidence_rejects_non_string_image_id(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            report = Path(temporary) / "release-image.json"
+            report.write_text(json.dumps({
+                "schemaVersion": 1,
+                "ok": True,
+                "image": BUILD_IMAGE,
+                "imageId": 7,
+                "platform": "linux/amd64",
+                "anonymousPull": True,
+                "networkDisabledDuringProbe": True,
+                "readOnlyProbe": True,
+                "tools": list(aps_release.REQUIRED_RELEASE_IMAGE_TOOLS),
+                "errors": [],
+            }), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "Stage 16 release image evidence is invalid"):
+                aps_release.verify_release_image_evidence(
+                    report,
+                    {"releaseImageReportSha256": digest(report.read_bytes())},
+                    BUILD_IMAGE,
+                )
+
+    def test_release_image_evidence_rejects_non_string_tool_entries(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            report = Path(temporary) / "release-image.json"
+            report.write_text(json.dumps({
+                "schemaVersion": 1,
+                "ok": True,
+                "image": BUILD_IMAGE,
+                "imageId": "sha256:" + "b" * 64,
+                "platform": "linux/amd64",
+                "anonymousPull": True,
+                "networkDisabledDuringProbe": True,
+                "readOnlyProbe": True,
+                "tools": [*aps_release.REQUIRED_RELEASE_IMAGE_TOOLS[:-1], {}],
+                "errors": [],
+            }), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "Stage 16 release image evidence is invalid"):
+                aps_release.verify_release_image_evidence(
+                    report,
+                    {"releaseImageReportSha256": digest(report.read_bytes())},
+                    BUILD_IMAGE,
+                )
 
     def test_expected_build_image_argument_cannot_be_omitted(self):
         with tempfile.TemporaryDirectory() as temporary:

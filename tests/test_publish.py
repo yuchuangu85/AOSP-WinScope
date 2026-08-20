@@ -142,6 +142,22 @@ class PublishTest(unittest.TestCase):
             }),
             encoding="utf-8",
         )
+        release_image = root / "release-image.json"
+        release_image.write_text(
+            json.dumps({
+                "schemaVersion": 1,
+                "ok": True,
+                "image": BUILD_IMAGE,
+                "imageId": "sha256:" + "b" * 64,
+                "platform": "linux/amd64",
+                "anonymousPull": True,
+                "networkDisabledDuringProbe": True,
+                "readOnlyProbe": True,
+                "tools": list(publish.REQUIRED_RELEASE_IMAGE_TOOLS),
+                "errors": [],
+            }),
+            encoding="utf-8",
+        )
         return release_dir, validation, reproducibility
 
     def publish_fixture(self, root: Path, version: str = VERSION, tag: str | None = None):
@@ -158,7 +174,7 @@ class PublishTest(unittest.TestCase):
             index = Path(result["index"])
 
             self.assertEqual(result["channel"], "rc")
-            self.assertEqual(publish.verify(index)["artifactsVerified"], 7)
+            self.assertEqual(publish.verify(index)["artifactsVerified"], 8)
             value = json.loads(index.read_text())
             self.assertEqual(value["channel"], "rc")
             self.assertEqual(value["support"]["status"], "prerelease")
@@ -168,6 +184,11 @@ class PublishTest(unittest.TestCase):
             self.assertEqual(value["securityResponse"]["policy"], publish.SECURITY_RESPONSE_POLICY)
             frozen = json.loads((index.parent / "frozen-inputs.json").read_text())
             self.assertEqual(frozen["buildImage"], BUILD_IMAGE)
+            self.assertEqual(value["reports"]["releaseImage"], "release-image.json")
+            self.assertEqual(
+                frozen["releaseImageReportSha256"],
+                publish.sha256_file(index.parent / "release-image.json"),
+            )
 
     def test_cli_reads_build_image_from_environment(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -185,6 +206,8 @@ class PublishTest(unittest.TestCase):
                 str(validation),
                 "--reproducibility",
                 str(reproducibility),
+                "--release-image-report",
+                str(root / "release-image.json"),
                 "--output",
                 str(output),
                 "--json",
@@ -214,6 +237,26 @@ class PublishTest(unittest.TestCase):
                         build_image="ghcr.io/example/release:latest",
                     )
 
+
+    def test_release_image_evidence_must_match_the_approved_image(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            release_dir, validation, reproducibility = self.make_release(root)
+            report = root / "release-image.json"
+            value = json.loads(report.read_text())
+            value["image"] = "ghcr.io/example/other@sha256:" + "c" * 64
+            report.write_text(json.dumps(value), encoding="utf-8")
+            with mock.patch.object(publish, "require_clean_tree"):
+                with self.assertRaisesRegex(ValueError, "release image evidence"):
+                    publish.publish(
+                        VERSION,
+                        release_dir,
+                        validation,
+                        root / "public",
+                        None,
+                        reproducibility,
+                        build_image=BUILD_IMAGE,
+                    )
 
     def test_existing_publication_target_is_immutable(self):
         with tempfile.TemporaryDirectory() as temporary:

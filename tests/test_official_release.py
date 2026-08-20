@@ -77,6 +77,26 @@ class OfficialReleaseWorkflowTest(unittest.TestCase):
         self.assertIn('--build-image "$OFFICIAL_RELEASE_IMAGE"', self.workflow)
         self.assertIn('--expected-build-image "$OFFICIAL_RELEASE_IMAGE"', self.workflow)
 
+
+    def test_release_image_evidence_is_transferred_into_publication(self):
+        preflight = self.workflow.split("\n  preflight:", 1)[1].split("\n  build:", 1)[0]
+        build = self.workflow.split("\n  build:", 1)[1].split("\n  publish:", 1)[0]
+        self.assertIn(
+            'python3 scripts/verify-release-image.py --image "$OFFICIAL_RELEASE_IMAGE" '
+            '--output dist/validation/release-image.json --json',
+            preflight,
+        )
+        self.assertIn("name: official-release-image-${{ steps.contract.outputs.version }}", preflight)
+        self.assertIn("path: dist/validation/release-image.json", preflight)
+        self.assertIn("name: official-release-image-${{ needs.preflight.outputs.version }}", build)
+        self.assertIn("path: dist/validation", build)
+        self.assertIn("--release-image-report dist/validation/release-image.json", build)
+        self.assertLess(
+            preflight.index("python3 scripts/verify-release-image.py"),
+            preflight.index("actions/upload-artifact@"),
+        )
+        self.assertLess(build.index("actions/download-artifact@"), build.index("python3 scripts/publish.py publish"))
+
     def test_build_is_read_only_and_publish_holds_oidc_permissions(self):
         build_job = self.workflow.split("\n  build:", 1)[1].split("\n  publish:", 1)[0]
         publish_job = self.workflow.split("\n  publish:", 1)[1]

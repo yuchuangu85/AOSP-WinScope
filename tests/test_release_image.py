@@ -15,6 +15,14 @@ SPEC = importlib.util.spec_from_file_location("release_image", SCRIPT)
 release_image = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
 SPEC.loader.exec_module(release_image)
+PUBLISH_SPEC = importlib.util.spec_from_file_location("release_publish", ROOT / "scripts/publish.py")
+release_publish = importlib.util.module_from_spec(PUBLISH_SPEC)
+assert PUBLISH_SPEC.loader is not None
+PUBLISH_SPEC.loader.exec_module(release_publish)
+APS_SPEC = importlib.util.spec_from_file_location("aps_release", ROOT / "scripts/verify-aps-release.py")
+aps_release = importlib.util.module_from_spec(APS_SPEC)
+assert APS_SPEC.loader is not None
+APS_SPEC.loader.exec_module(aps_release)
 
 IMAGE = "ghcr.io/example/aosp-winscope-release@sha256:" + "a" * 64
 IMAGE_ID = "sha256:" + "b" * 64
@@ -36,6 +44,17 @@ def inspect_value(**overrides: object) -> str:
 
 
 class ReleaseImageTest(unittest.TestCase):
+
+    def test_release_image_tool_contract_matches_publication_verifiers(self):
+        self.assertEqual(
+            release_image.REQUIRED_TOOLS,
+            release_publish.REQUIRED_RELEASE_IMAGE_TOOLS,
+        )
+        self.assertEqual(
+            release_image.REQUIRED_TOOLS,
+            aps_release.REQUIRED_RELEASE_IMAGE_TOOLS,
+        )
+
     def test_valid_image_is_pulled_anonymously_and_probed_in_a_sandbox(self):
         with mock.patch.dict(os.environ, {"DOCKER_AUTH_CONFIG": "secret"}), mock.patch.object(
             release_image,
@@ -230,9 +249,11 @@ class ReleaseImageTest(unittest.TestCase):
         workflow = (ROOT / ".github/workflows/official-release.yml").read_text()
         self.assertIn("Verify official release image", workflow)
         self.assertIn(
-            'python3 scripts/verify-release-image.py --image "$OFFICIAL_RELEASE_IMAGE" --json',
+            'python3 scripts/verify-release-image.py --image "$OFFICIAL_RELEASE_IMAGE" '
+            '--output dist/validation/release-image.json --json',
             workflow,
         )
+        self.assertIn("## Stage 17 implementation evidence", plan)
 
 
 if __name__ == "__main__":

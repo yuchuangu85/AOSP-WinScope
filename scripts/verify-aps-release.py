@@ -15,6 +15,7 @@ from typing import Any
 
 SHA256_LENGTH = 64
 IMAGE_RE = re.compile(r"^[a-z0-9][a-z0-9._/-]*@sha256:[0-9a-f]{64}$")
+IMAGE_ID_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 VERSION_RE = re.compile(r"^17\.\d+\.\d+(?:-(alpha|rc)\.\d+)?$")
 REQUIRED_ARCHIVE_FILES = {
     "manifest.json",
@@ -31,6 +32,28 @@ REQUIRED_ARCHIVE_FILES = {
     "dependency-bundle/manifest.json",
 }
 REQUIRED_GATES = {"release:reproducibility", "runtime:security"}
+REQUIRED_RELEASE_IMAGE_TOOLS = (
+    "bash",
+    "base64",
+    "sha256sum",
+    "mkdir",
+    "rm",
+    "cut",
+    "find",
+    "xargs",
+    "tar",
+    "gzip",
+    "unzip",
+    "curl",
+    "wget",
+    "git",
+    "gh",
+    "google-chrome",
+    "cc",
+    "c++",
+    "make",
+    "ar",
+)
 BUILD_TYPE = "https://android.googlesource.com/aosp-winscope/release"
 BUILDER_ID = "https://android.googlesource.com/aosp-winscope/release-builder"
 MAX_ARCHIVE_MEMBERS = 10_000
@@ -187,6 +210,33 @@ def required_artifact(
     if artifacts.get(basename) != path:
         fail(f"release index omits {label}: {basename}")
     return path
+
+
+def verify_release_image_evidence(
+    path: Path,
+    frozen: dict[str, Any],
+    expected_build_image: str,
+) -> None:
+    evidence = read_json_file(path)
+    tools = evidence.get("tools")
+    if not (
+        evidence.get("schemaVersion") == 1
+        and evidence.get("ok") is True
+        and evidence.get("image") == expected_build_image
+        and isinstance(evidence.get("imageId"), str)
+        and IMAGE_ID_RE.fullmatch(evidence["imageId"]) is not None
+        and evidence.get("platform") == "linux/amd64"
+        and evidence.get("anonymousPull") is True
+        and evidence.get("networkDisabledDuringProbe") is True
+        and evidence.get("readOnlyProbe") is True
+        and isinstance(tools, list)
+        and all(isinstance(tool, str) for tool in tools)
+        and len(tools) == len(REQUIRED_RELEASE_IMAGE_TOOLS)
+        and set(tools) == set(REQUIRED_RELEASE_IMAGE_TOOLS)
+        and evidence.get("errors") == []
+        and frozen.get("releaseImageReportSha256") == sha256_file(path)
+    ):
+        fail("Stage 16 release image evidence is invalid")
 
 
 def verify_reports(
@@ -580,6 +630,12 @@ def verify_publication(
         reports.get("reproducibility"),
         "reproducibility report",
     )
+    release_image_path = required_artifact(
+        publication,
+        artifacts,
+        reports.get("releaseImage"),
+        "release image report",
+    )
     required_artifact(publication, artifacts, instructions.get("apsIntegration"), "APS instructions")
     frozen_path = required_artifact(publication, artifacts, frozen_reference.get("path"), "frozen inputs")
     if not valid_sha256(frozen_reference.get("sha256")) or sha256_file(frozen_path) != frozen_reference["sha256"]:
@@ -613,6 +669,7 @@ def verify_publication(
         archive_sha256,
         dependency_sha256,
     )
+    verify_release_image_evidence(release_image_path, frozen, expected_build_image)
     verify_attestation(
         attestation_path,
         index,

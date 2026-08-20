@@ -51,7 +51,16 @@ jobs:
           OFFICIAL_RELEASE_IMAGE: ${{ vars.OFFICIAL_RELEASE_IMAGE }}
         run: |
           set -euo pipefail
-          python3 scripts/verify-release-image.py --image "$OFFICIAL_RELEASE_IMAGE" --json
+          python3 scripts/verify-release-image.py --image "$OFFICIAL_RELEASE_IMAGE" --output dist/validation/release-image.json --json
+
+      - name: Transfer release image evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: official-release-image-${{ steps.contract.outputs.version }}
+          path: dist/validation/release-image.json
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
 
   build:
     needs: preflight
@@ -73,6 +82,12 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Download release image evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: official-release-image-${{ needs.preflight.outputs.version }}
+          path: dist/validation
 
       - name: Verify tagged source and clean-room lineage
         run: |
@@ -178,6 +193,7 @@ jobs:
             --version "$AOSP_WINSCOPE_VERSION" \
             --tag "$GITHUB_REF_NAME" \
             --build-image "$OFFICIAL_RELEASE_IMAGE" \
+            --release-image-report dist/validation/release-image.json \
             --json
           python3 scripts/publish.py verify \
             --index "$PUBLICATION_DIR/release-index.json" \

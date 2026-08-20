@@ -28,6 +28,7 @@ LOCK = ROOT / "build/dependencies.lock.json"
 PACKAGE_LOCK = ROOT / "package-lock.json"
 DEFAULT_OUTPUT = ROOT / "dist/public"
 DEFAULT_REPRODUCIBILITY = ROOT / "dist/validation/reproducibility.json"
+DEFAULT_RELEASE_IMAGE_REPORT = ROOT / "dist/validation/release-image.json"
 DEFAULT_GUIDE = ROOT / "docs/APS_INTEGRATION.md"
 APS_VERIFIER = ROOT / "scripts/verify-aps-release.py"
 SECURITY_RESPONSE_POLICY = {
@@ -38,6 +39,29 @@ SECURITY_RESPONSE_POLICY = {
 }
 VERSION_RE = re.compile(r"^17\.\d+\.\d+(?:-(?:alpha|rc)\.\d+)?$")
 IMAGE_RE = re.compile(r"^[a-z0-9][a-z0-9._/-]*@sha256:[0-9a-f]{64}$")
+IMAGE_ID_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+REQUIRED_RELEASE_IMAGE_TOOLS = (
+    "bash",
+    "base64",
+    "sha256sum",
+    "mkdir",
+    "rm",
+    "cut",
+    "find",
+    "xargs",
+    "tar",
+    "gzip",
+    "unzip",
+    "curl",
+    "wget",
+    "git",
+    "gh",
+    "google-chrome",
+    "cc",
+    "c++",
+    "make",
+    "ar",
+)
 
 
 def fail(message: str) -> None:
@@ -128,6 +152,30 @@ def verify_validation(path: Path) -> dict[str, Any]:
     return validation
 
 
+def verify_release_image(path: Path, build_image: str) -> dict[str, Any]:
+    evidence = read_json(path)
+    tools = evidence.get("tools")
+    valid = (
+        evidence.get("schemaVersion") == 1
+        and evidence.get("ok") is True
+        and evidence.get("image") == build_image
+        and isinstance(evidence.get("imageId"), str)
+        and IMAGE_ID_RE.fullmatch(evidence["imageId"]) is not None
+        and evidence.get("platform") == "linux/amd64"
+        and evidence.get("anonymousPull") is True
+        and evidence.get("networkDisabledDuringProbe") is True
+        and evidence.get("readOnlyProbe") is True
+        and isinstance(tools, list)
+        and all(isinstance(tool, str) for tool in tools)
+        and len(tools) == len(REQUIRED_RELEASE_IMAGE_TOOLS)
+        and set(tools) == set(REQUIRED_RELEASE_IMAGE_TOOLS)
+        and evidence.get("errors") == []
+    )
+    if not valid:
+        fail("release image evidence is not a complete Stage 16 report for the approved image")
+    return evidence
+
+
 def verify_reproducibility(path: Path, version: str) -> dict[str, Any]:
     evidence = read_json(path)
     builds = evidence.get("builds")
@@ -214,6 +262,7 @@ def frozen_inputs(
     reproducibility: dict[str, Any],
     artifact: dict[str, Any],
     build_image: str,
+    release_image: dict[str, Any],
 ) -> dict[str, Any]:
     baseline = read_json(BASELINE)
     lock = read_json(LOCK)
@@ -231,6 +280,7 @@ def frozen_inputs(
         "dependencyEntries": len(lock["dependencies"]),
         "validationReportSha256": validation["reportSha256"],
         "reproducibilityReportSha256": reproducibility["reportSha256"],
+        "releaseImageReportSha256": release_image["reportSha256"],
         "releaseArchiveSha256": artifact["sha256"],
         "buildImage": build_image,
     }
@@ -246,6 +296,7 @@ def publish(
     guide_path: Path = DEFAULT_GUIDE,
     published_at: datetime | None = None,
     build_image: str | None = None,
+    release_image_path: Path | None = None,
 ) -> dict[str, Any]:
     if published_at is not None:
         if published_at.tzinfo is None:
@@ -262,6 +313,9 @@ def publish(
     validation = {**validation, "reportSha256": sha256_file(validation_path)}
     reproducibility = verify_reproducibility(reproducibility_path, version)
     reproducibility = {**reproducibility, "reportSha256": sha256_file(reproducibility_path)}
+    release_image_path = release_image_path or validation_path.with_name("release-image.json")
+    release_image = verify_release_image(release_image_path, build_image)
+    release_image = {**release_image, "reportSha256": sha256_file(release_image_path)}
     if not guide_path.is_file() or guide_path.stat().st_size == 0:
         fail(f"APS integration guide is missing: {guide_path}")
     if not APS_VERIFIER.is_file() or APS_VERIFIER.stat().st_size == 0:
@@ -280,13 +334,16 @@ def publish(
             artifact["attestation"],
             validation_path,
             reproducibility_path,
+            release_image_path,
             guide_path,
         ):
             destination = staging / source.name
             shutil.copyfile(source, destination)
             copied.append(destination)
 
-        frozen = frozen_inputs(version, validation, reproducibility, artifact, build_image)
+        frozen = frozen_inputs(
+            version, validation, reproducibility, artifact, build_image, release_image
+        )
         frozen_path = staging / "frozen-inputs.json"
         write_json(frozen_path, frozen)
         copied.append(frozen_path)
@@ -339,6 +396,7 @@ def publish(
             "reports": {
                 "validation": validation_path.name,
                 "reproducibility": reproducibility_path.name,
+                "releaseImage": release_image_path.name,
             },
             "instructions": {"apsIntegration": guide_path.name},
             "artifacts": artifacts,
@@ -394,6 +452,7 @@ def verify(index_path: Path) -> dict[str, Any]:
     required_names = {
         reports.get("validation"),
         reports.get("reproducibility"),
+        reports.get("releaseImage"),
         instructions.get("apsIntegration"),
     }
     artifact_names = {
@@ -412,8 +471,16 @@ def verify(index_path: Path) -> dict[str, Any]:
         fail("release index frozen input digest is invalid")
     if not frozen_path.is_file() or sha256_file(frozen_path) != frozen["sha256"]:
         fail("frozen input evidence digest mismatch")
-    if IMAGE_RE.fullmatch(read_json(frozen_path).get("buildImage", "")) is None:
+    frozen_value = read_json(frozen_path)
+    if IMAGE_RE.fullmatch(frozen_value.get("buildImage", "")) is None:
         fail("frozen input build image is invalid")
+    release_image_name = reports.get("releaseImage")
+    if not isinstance(release_image_name, str) or Path(release_image_name).name != release_image_name:
+        fail("release index release image report path is invalid")
+    release_image_path = root / release_image_name
+    verify_release_image(release_image_path, frozen_value["buildImage"])
+    if frozen_value.get("releaseImageReportSha256") != sha256_file(release_image_path):
+        fail("release image evidence digest mismatch")
     artifacts = index.get("artifacts")
     if not isinstance(artifacts, list) or not artifacts:
         fail("release index has no published artifacts")
@@ -447,6 +514,7 @@ def main() -> int:
     parser.add_argument("--validation", type=Path, default=ROOT / "dist/validation/report.json")
     parser.add_argument("--reproducibility", type=Path, default=DEFAULT_REPRODUCIBILITY)
     parser.add_argument("--guide", type=Path, default=DEFAULT_GUIDE)
+    parser.add_argument("--release-image-report", type=Path, default=DEFAULT_RELEASE_IMAGE_REPORT)
     parser.add_argument("--published-at")
     parser.add_argument("--build-image")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
@@ -466,6 +534,7 @@ def main() -> int:
                 args.guide,
                 datetime.fromisoformat(args.published_at.replace("Z", "+00:00")) if args.published_at else None,
                 args.build_image,
+                args.release_image_report,
             )
         else:
             if args.index is None:

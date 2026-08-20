@@ -60,9 +60,11 @@ JCEF, Compose, or a WinScope-specific bridge to use the standalone viewer.
    ```
 
    The trusted verifier validates every indexed artifact, `SHA256SUMS`, frozen
-   inputs, Stage 7 and Stage 10 reports, the in-toto provenance statement, safe
-   ZIP paths, the release inventory, the digest-pinned build image, and every
-   Web manifest digest without Git, Node, build caches, or network access.
+   inputs, Stage 7, Stage 10, and Stage 16 reports, the in-toto provenance
+   statement, safe
+   ZIP paths, the release inventory, the digest-pinned build image and its
+   sandboxed runtime-verification evidence, and every Web manifest digest
+   without Git, Node, build caches, or network access.
 4. Only after verification succeeds, unpack the archive and use its `web/`
    directory plus root `manifest.json`.
 
