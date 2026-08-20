@@ -151,11 +151,11 @@ limitations under the License.
 
     <button
       mat-icon-button
-      class="report-bug"
-      matTooltip="Bug reporting is unavailable in standalone mode"
-      disabled
+      class="export-diagnostics"
+      matTooltip="Preview and export privacy-safe diagnostics"
+      (click)="exportDiagnostics()"
     >
-      <mat-icon>bug_report</mat-icon>
+      <mat-icon>troubleshoot</mat-icon>
     </button>
 
     <button

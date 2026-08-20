@@ -45,10 +45,8 @@ export class TracingSession {
   async dump(device: AdbDeviceConnection) {
     await this.setup(device);
     this.logger.debug(`Starting dump for ${this.target.traceName}`);
-    const output = await device.runShellCommand(this.target.startCmd);
-    this.logger.debug(
-      `Completed dump for ${this.target.traceName}. Output: ${output}`,
-    );
+    await device.runShellCommand(this.target.startCmd);
+    this.logger.debug(`Completed dump for ${this.target.traceName}`);
   }
 
   async moveFiles(device: AdbDeviceConnection) {
@@ -58,12 +56,12 @@ export class TracingSession {
     for (const file of this.target.fileIdentifiers) {
       const filepaths = await device.findFiles(file.path, file.matchers);
 
-      for (const filepath of filepaths) {
+      for (const [index, filepath] of filepaths.entries()) {
         this.logger.debug(
-          `Attempting to move file ${filepath} to ${WINSCOPE_BACKUP_DIR}${file.destName} on device`,
+          `Moving capture output ${index + 1} of ${filepaths.length} for ${this.target.traceName}`,
         );
         try {
-          const output = await device.runShellCommand(
+          await device.runShellCommand(
             maybeRootParam +
               `[ -f ${filepath} ] && ` +
               maybeRootParam +
@@ -72,12 +70,11 @@ export class TracingSession {
               `rm -f ${filepath}`,
           );
           this.logger.debug(
-            `Moved ${filepath} to ${WINSCOPE_BACKUP_DIR}${file.destName} on device.` +
-              ` Output: ${output}`,
+            `Moved capture output ${index + 1} of ${filepaths.length} for ${this.target.traceName}`,
           );
-        } catch (e) {
+        } catch {
           this.logger.warn(
-            `Unable to move file ${filepath}: ${(e as Error).message}`,
+            `Unable to move capture output for ${this.target.traceName}`,
           );
         }
       }
@@ -90,8 +87,7 @@ export class TracingSession {
 
   private async setup(device: AdbDeviceConnection) {
     for (const cmd of this.target.setupCmds) {
-      const output = await device.runShellCommand(cmd);
-      this.logger.info(`Ran ${cmd}. Output: ${output}`);
+      await device.runShellCommand(cmd);
     }
   }
 }

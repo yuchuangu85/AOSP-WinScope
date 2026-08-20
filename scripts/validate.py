@@ -500,7 +500,8 @@ def report(args: argparse.Namespace) -> dict[str, Any]:
     checks.append(release_evidence(args.release))
     checks.append(reproducibility_evidence(args.reproducibility))
     checks.append(performance(args.web, args.baseline, args.benchmark, args.require_complete))
-    checks.append(device_evidence(args.device_evidence))
+    android17_device = device_evidence(args.device_evidence)
+    checks.append(android17_device)
     checks.extend((
         run_optional("unit", args.run_unit, args.timeout),
         run_optional("e2e", args.run_e2e, args.timeout),
@@ -514,6 +515,24 @@ def report(args: argparse.Namespace) -> dict[str, Any]:
         "performanceBaseline": args.baseline,
         "performanceBenchmark": args.benchmark,
     })
+    fixture_validated = all(
+        check["status"] == "pass" for check in coverage["checks"]
+    )
+    compatibility_tiers = {
+        "15": {
+            "fixtureValidated": fixture_validated,
+            "deviceValidated": False,
+        },
+        "16": {
+            "fixtureValidated": fixture_validated,
+            "deviceValidated": False,
+        },
+        "17": {
+            "fixtureValidated": fixture_validated,
+            "deviceValidated": android17_device["status"] == "pass",
+            "releaseRequired": True,
+        },
+    }
     return {
         "schemaVersion": 1,
         "stage": 7,
@@ -522,6 +541,7 @@ def report(args: argparse.Namespace) -> dict[str, Any]:
         "repository": "aosp-winscope",
         "checks": checks,
         "fixtureCoverage": coverage["inventory"],
+        "androidCompatibility": compatibility_tiers,
         "externalEvidence": external_evidence,
         "dynamicChecksRequested": any((
             args.run_unit, args.run_e2e, args.run_production_e2e, args.run_offline, args.run_security

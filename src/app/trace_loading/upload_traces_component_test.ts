@@ -190,7 +190,7 @@ describe('UploadTracesComponent', () => {
     loadFiles([TraceType.SURFACE_FLINGER]);
     const spy = spyOn(component.viewTracesButtonClick, 'emit');
     dom.findAndClick(viewTracesSelector);
-    expect(spy).toHaveBeenCalledWith(true);
+    expect(spy).toHaveBeenCalledWith(false);
   });
 
   it('can emit view traces event discarding legacy traces', async () => {
@@ -198,7 +198,7 @@ describe('UploadTracesComponent', () => {
     dom.findAndClick(discardLegacySelector);
     const spy = spyOn(component.viewTracesButtonClick, 'emit');
     dom.findAndClick(viewTracesSelector);
-    expect(spy).toHaveBeenCalledWith(false);
+    expect(spy).toHaveBeenCalledWith(true);
   });
 
   it('disables checkbox to discard legacy traces', async () => {
@@ -206,7 +206,7 @@ describe('UploadTracesComponent', () => {
     dom.detectChanges();
     const box = dom.get(discardLegacySelector);
     box.checkDisabled(false);
-    box.checkInputChecked(true);
+    box.checkInputChecked(false);
 
     loadFiles([TraceType.SURFACE_FLINGER]);
     box.checkDisabled(true);
@@ -226,10 +226,10 @@ describe('UploadTracesComponent', () => {
 
     loadLegacySfFile(newDom);
 
-    newDom.get(discardLegacySelector).checkInputChecked(false);
+    newDom.get(discardLegacySelector).checkInputChecked(true);
     const spy = spyOn(newComponent.viewTracesButtonClick, 'emit');
     newDom.findAndClick(viewTracesSelector);
-    expect(spy).toHaveBeenCalledWith(false);
+    expect(spy).toHaveBeenCalledWith(true);
   });
 
   it('shows warning elements for traces without visualization', async () => {

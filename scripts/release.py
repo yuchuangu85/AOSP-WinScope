@@ -465,6 +465,20 @@ def create_web_manifest(destination: Path) -> list[dict[str, Any]]:
                     "features": CORE_HIERARCHY_VIEWER_FEATURES,
                 },
             },
+            "dataLifecycle": {
+                "hostTracePersistence": "explicit-export-only",
+                "recoveryCapture": {
+                    "retention": "latest-session",
+                    "explicitDelete": True,
+                    "privacyModeDeleteAfterTransfer": True,
+                },
+            },
+            "diagnostics": {
+                "previewRequired": True,
+                "redactedExport": True,
+                "traceBytesIncluded": False,
+                "deviceIdentityIncluded": False,
+            },
             "legacyImport": {
                 "supported": True,
                 "conversion": "perfetto",

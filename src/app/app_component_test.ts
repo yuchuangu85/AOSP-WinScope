@@ -728,6 +728,24 @@ describe('AppComponent', () => {
     expect(dom.findInDocument('warning-dialog')).toBeUndefined();
   });
 
+  it('previews and exports privacy-safe diagnostics', async () => {
+    dom.findAndClick('.export-diagnostics');
+    await dom.whenStable();
+
+    const dialog = dom.getInDocument('warning-dialog');
+    dialog.get('.warning-message').checkText(
+      'Excludes trace bytes, filenames, paths, tokens, commands, device serials, and device identity.',
+    );
+    const actions = dialog.findAll('.warning-action-buttons button');
+    actions.at(-1)?.click();
+    await dom.whenStable();
+
+    expect(downloadTracesSpy).toHaveBeenCalledTimes(1);
+    expect(downloadTracesSpy.calls.mostRecent().args[1]).toEqual(
+      'aosp-winscope-diagnostics.json',
+    );
+  });
+
   describe('settings button', () => {
     let isInsideWinscopeProxyFrameSpy: jasmine.Spy;
     let getReportedParentOriginSpy: jasmine.Spy;
@@ -1131,7 +1149,7 @@ describe('AppComponent', () => {
     expect(dom.find('.app-title')).toBeTruthy();
     expect(dom.find('.shortcuts')).toBeTruthy();
     expect(dom.find('.documentation')).toBeTruthy();
-    expect(dom.find('.report-bug')).toBeTruthy();
+    expect(dom.find('.export-diagnostics')).toBeTruthy();
     expect(dom.find('.dark-mode')).toBeTruthy();
   }
 

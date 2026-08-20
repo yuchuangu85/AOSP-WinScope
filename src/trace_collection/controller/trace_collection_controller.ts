@@ -25,8 +25,8 @@ import {AdbHostConnection} from '@trace_collection/adb_host_connection';
 import {ConnectionState} from '@trace_collection/connection_state';
 import {ConnectionStateListener} from '@trace_collection/connection_state_listener';
 import {MockAdbHostConnection} from '@trace_collection/mock/mock_adb_host_connection';
-import {UserRequest} from '@trace_collection/user_request';
 import {UiTraceTarget} from '@trace_collection/ui_trace_target';
+import {UserRequest} from '@trace_collection/user_request';
 import {makeWarningProxyTracingWarnings} from '@trace_collection/warnings';
 import {WinscopeProxyHostConnection} from '@trace_collection/winscope_proxy/winscope_proxy_host_connection';
 
@@ -127,13 +127,19 @@ export class TraceCollectionController {
     this.listener.onOperationFinished(true);
   }
 
-  async endTraceAndFetch(device: AdbDeviceConnection): Promise<File[]> {
+  async endTraceAndFetch(
+    device: AdbDeviceConnection,
+    deleteAfterFetch = false,
+  ): Promise<File[]> {
     try {
       await this.stopActiveTraces(device);
       await this.listener.onConnectionStateChange(
         ConnectionState.LOADING_DATA,
       );
       const files = await this.fetchLastSessionFiles(device);
+      if (deleteAfterFetch && files.length > 0) {
+        await this.tryDeleteRecoveryCaptureFiles(device);
+      }
       this.listener.onOperationFinished(true);
       return files;
     } catch (error) {
@@ -175,10 +181,31 @@ export class TraceCollectionController {
     this.listener.onOperationFinished(true);
   }
 
-  async fetchLastSessionData(device: AdbDeviceConnection): Promise<File[]> {
+  async fetchLastSessionData(
+    device: AdbDeviceConnection,
+    deleteAfterFetch = false,
+  ): Promise<File[]> {
     const files = await this.fetchLastSessionFiles(device);
+    if (deleteAfterFetch && files.length > 0) {
+      await this.tryDeleteRecoveryCaptureFiles(device);
+    }
     this.listener.onOperationFinished(true);
     return files;
+  }
+
+  async deleteLastSessionData(device: AdbDeviceConnection): Promise<void> {
+    try {
+      await this.deleteRecoveryCaptureFiles(device);
+      this.listener.onOperationFinished(true);
+    } catch (error) {
+      UserNotifier.add(
+        makeWarningProxyTracingWarnings([
+          'Recovery Capture could not be deleted. It may still remain on the device.',
+        ]),
+      ).notify();
+      this.listener.onOperationFinished(false);
+      throw error;
+    }
   }
 
   private async fetchLastSessionFiles(
@@ -187,7 +214,9 @@ export class TraceCollectionController {
     const adbData: File[] = [];
     const paths = await device.findFiles(`${WINSCOPE_BACKUP_DIR}*`, []);
     for (const [index, filepath] of paths.entries()) {
-      this.logger.debug(`Fetching file ${filepath} from device`);
+      this.logger.debug(
+        `Fetching Recovery Capture file ${index + 1} of ${paths.length}`,
+      );
       const data = await device.pullFile(filepath);
       const filename = removeDirFromFileName(filepath);
       adbData.push(new File([data], filename));
@@ -195,9 +224,33 @@ export class TraceCollectionController {
         'Fetching files...',
         (100 * index) / paths.length,
       );
-      this.logger.debug(`Fetched ${filepath}`);
+      this.logger.debug(
+        `Fetched Recovery Capture file ${index + 1} of ${paths.length}`,
+      );
     }
     return adbData;
+  }
+
+  private async deleteRecoveryCaptureFiles(device: AdbDeviceConnection) {
+    const marker = 'WINSCOPE_RECOVERY_CAPTURE_DELETED';
+    const output = await device.runShellCommand(
+      `rm -rf ${WINSCOPE_BACKUP_DIR} && echo ${marker}`,
+    );
+    if (!output.includes(marker)) {
+      throw new Error('Recovery Capture deletion was not confirmed');
+    }
+  }
+
+  private async tryDeleteRecoveryCaptureFiles(device: AdbDeviceConnection) {
+    try {
+      await this.deleteRecoveryCaptureFiles(device);
+    } catch {
+      UserNotifier.add(
+        makeWarningProxyTracingWarnings([
+          'Privacy mode could not delete the Recovery Capture after transfer. It may still remain on the device.',
+        ]),
+      );
+    }
   }
 
   private async getSessions(
@@ -228,12 +281,10 @@ export class TraceCollectionController {
     await perfettoModerator.tryStopCurrentPerfettoSession();
     await perfettoModerator.clearPreviousConfigFiles();
     this.logger.trace('Clearing previous tracing session files from device');
-    let output = await device.runShellCommand(`rm -rf ${WINSCOPE_BACKUP_DIR}`);
-    this.logger.trace(
-      `Cleared previous tracing session files from device. Output: ${output}`,
-    );
-    output = await device.runShellCommand(`mkdir ${WINSCOPE_BACKUP_DIR}`);
-    this.logger.trace(`Created new backup dir on device. Output: ${output}`);
+    await device.runShellCommand(`rm -rf ${WINSCOPE_BACKUP_DIR}`);
+    this.logger.trace('Cleared previous tracing session files from device');
+    await device.runShellCommand(`mkdir ${WINSCOPE_BACKUP_DIR}`);
+    this.logger.trace('Created new backup directory on device');
   }
 
   private async moveFiles(

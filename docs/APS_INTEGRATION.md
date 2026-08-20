@@ -105,6 +105,10 @@ the loaded trace content; neither is inferred from an Android version label.
 `capabilities.analysisViewers` declares the stable WindowManager and
 SurfaceFlinger viewer boundary: required trace identity plus hierarchy,
 properties, 2D/3D rects, timeline, and playback features.
+`capabilities.dataLifecycle` declares explicit-export-only Host persistence and
+the Recovery Capture deletion contract. `capabilities.diagnostics` declares
+that diagnostic export is previewed, redacted, and excludes trace bytes and
+device identity.
 `web/index.html` and
 `web/runtime-config.json` are mandatory. Resolve
 all resources relative to the Web root: the application must work when mounted

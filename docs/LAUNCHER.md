@@ -38,6 +38,15 @@ CORS, direct proxy access, and a fixed proxy port are not supported.
 The Go launcher owns and stops only the Python child it starts. Closing the
 launcher also ends its loopback server and capture session.
 
+Advanced launch controls are explicit and remain loopback-only:
+
+- `--port <1-65535>` requests a fixed Web port; `0` keeps the default random
+  available port and a conflict fails without terminating another process;
+- `--open` uses the operating-system browser handler;
+- `--browser <executable>` launches that browser directly with the local URL;
+- `--offline-only` explicitly disables capture and cannot be combined with
+  `--capture`.
+
 With capture enabled, select an available Android device in Winscope, choose
 trace targets, and start the trace. Ending the trace is one managed operation:
 Winscope stops every active target, moves the resulting files into the disclosed

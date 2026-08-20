@@ -41,6 +41,7 @@ import {TimelineComponent} from '@app/shared/timeline/timeline_component';
 import {CollectTracesComponent} from '@app/trace_collection/collect_traces_component';
 import {WarningDialogComponent, WarningDialogData, WarningDialogResult,} from '@app/trace_collection/warning_dialog_component';
 import {UploadTracesComponent} from '@app/trace_loading/upload_traces_component';
+import {DIAGNOSTIC_FILENAME, DIAGNOSTIC_PREVIEW, makeDiagnosticBlob,} from '@common/diagnostics';
 import {downloadFromUrl, DownloadRequest} from '@common/download';
 import {DOWNLOAD_FILENAME_REGEX} from '@common/io';
 import {InMemoryStorage} from '@common/store/in_memory_storage';
@@ -57,7 +58,7 @@ import {Analytics} from '@logging/analytics';
 import {ProgressListener} from '@messaging/progress_listener';
 import {WinscopeEvent} from '@messaging/winscope_event';
 import {WinscopeEventListener} from '@messaging/winscope_event_listener';
-import {getRuntimeConfigDiagnostic} from '@runtime/runtime_config';
+import {getRuntimeConfig, getRuntimeConfigDiagnostic} from '@runtime/runtime_config';
 import {UserNotifier} from '@services/user_notifier';
 import {FileReader} from '@trace_api/file_reader';
 import {ActiveTraceChanged, TracePositionUpdate, TraceSearchRequest,} from '@trace_api/trace_events';
@@ -315,6 +316,39 @@ export class AppComponent implements WinscopeEventListener {
 
   clearLocalState() {
     clearPersistentState();
+  }
+
+  exportDiagnostics() {
+    this.ngZone.run(() => {
+      const data: WarningDialogData = {
+        message:
+          DIAGNOSTIC_PREVIEW,
+        actions: ['Cancel'],
+        options: [],
+        closeText: 'Export diagnostics',
+      };
+      const dialogRef = this.dialog.open(WarningDialogComponent, {
+        data,
+        disableClose: true,
+        panelClass: 'warning-panel',
+      });
+      dialogRef
+        .beforeClosed()
+        .subscribe((result: WarningDialogResult | undefined) => {
+          if (result?.closeActionText !== data.closeText) {
+            return;
+          }
+          const blob = makeDiagnosticBlob({
+            runtimeConfig: getRuntimeConfig(),
+            runtimeDiagnostic: this.runtimeConfigDiagnostic,
+            privacyMode: this.privacyMode,
+            readers: this.loadedFileData.getLoadedFileReaders(),
+            parsingErrors: this.loadedFileData.getTraceTypesWithParsingErrors(),
+            lostPerfettoPackets: this.loadedFileData.getLostPerfettoPackets(),
+          });
+          this.downloadRequest(URL.createObjectURL(blob), DIAGNOSTIC_FILENAME);
+        });
+    });
   }
 
   async onViewTracesButtonClick(discardLegacyFiles: boolean) {

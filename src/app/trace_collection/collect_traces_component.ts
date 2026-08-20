@@ -27,6 +27,7 @@ import {MatTabsModule} from '@angular/material/tabs';
 import {MatTooltipModule} from '@angular/material/tooltip';
 import {LoadProgressComponent} from '@app/trace_loading/load_progress_component';
 import {assertDefined, assertTrue, assertUnreachable} from '@common/assert';
+import {isPersistenceEnabled} from '@common/store/persistent_store';
 import {Store} from '@common/store/store';
 import {equal} from '@common/typed_array';
 import {globalConfig} from '@compat/global_config';
@@ -115,6 +116,7 @@ export class CollectTracesComponent
 
   private selectedDevice: AdbDeviceConnection | undefined;
   private emitEvent: EmitEvent = () => Promise.resolve();
+  readonly privacyMode = !isPersistenceEnabled();
 
   private readonly notConnected = [
     ConnectionState.CONNECTING,
@@ -420,7 +422,10 @@ export class CollectTracesComponent
     }
     const controller = assertDefined(this.controller);
     await this.setState(ConnectionState.ENDING_TRACE);
-    const collected = await controller.endTraceAndFetch(selectedDevice);
+    const collected = await controller.endTraceAndFetch(
+      selectedDevice,
+      this.privacyMode,
+    );
     if (this.state() === ConnectionState.LOADING_DATA) {
       this.filesCollected.emit({
         requested: this.requestedTraceTypes,
@@ -455,6 +460,18 @@ export class CollectTracesComponent
     });
     if (files.length === 0) {
       await controller.restartConnection();
+    }
+  }
+
+  async deleteRecoveryCapture() {
+    const controller = assertDefined(this.controller);
+    const selectedDevice = assertDefined(this.selectedDevice);
+    await this.setState(ConnectionState.LOADING_DATA);
+    try {
+      await controller.deleteLastSessionData(selectedDevice);
+      await this.setState(ConnectionState.IDLE);
+    } catch {
+      await this.setState(ConnectionState.IDLE);
     }
   }
 
@@ -602,6 +619,7 @@ export class CollectTracesComponent
     const startTimeMs = Date.now();
     const files = await assertDefined(this.controller).fetchLastSessionData(
       assertDefined(this.selectedDevice),
+      this.privacyMode,
     );
     if (files.length === 0) {
       Analytics.Proxy.logNoFilesFound();

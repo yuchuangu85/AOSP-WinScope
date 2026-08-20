@@ -48,6 +48,11 @@
         "path": ".github/workflows/official-release.yml"
       },
       {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": ".github/workflows/security.yml"
+      },
+      {
         "change": "modified",
         "origin": "newly-authored-clean-room",
         "path": ".gitignore"
@@ -61,6 +66,11 @@
         "change": "added",
         "origin": "newly-authored-clean-room",
         "path": ".nvmrc"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "CHANGELOG.md"
       },
       {
         "change": "added",
@@ -315,6 +325,11 @@
       {
         "change": "added",
         "origin": "newly-authored-clean-room",
+        "path": "scripts/security-scan.py"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
         "path": "scripts/support.py"
       },
       {
@@ -331,6 +346,11 @@
         "change": "added",
         "origin": "newly-authored-clean-room",
         "path": "scripts/verify-baseline.py"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "scripts/verify-feature-stages.py"
       },
       {
         "change": "added",
@@ -356,6 +376,11 @@
         "change": "modified",
         "origin": "newly-authored-clean-room",
         "path": "src/app/app_component.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/app/app_component_test.ts"
       },
       {
         "change": "modified",
@@ -405,7 +430,22 @@
       {
         "change": "modified",
         "origin": "newly-authored-clean-room",
+        "path": "src/app/trace_loading/upload_traces_component_test.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
         "path": "src/common/analytics.ts"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "src/common/diagnostics.ts"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "src/common/diagnostics_test.ts"
       },
       {
         "change": "modified",
@@ -461,6 +501,16 @@
         "change": "modified",
         "origin": "newly-authored-clean-room",
         "path": "src/trace_collection/controller/trace_collection_controller.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/trace_collection/controller/trace_collection_controller_test.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/trace_collection/controller/tracing_session.ts"
       },
       {
         "change": "modified",

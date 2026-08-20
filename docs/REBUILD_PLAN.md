@@ -679,3 +679,34 @@ implementation rather than introducing an APS-specific UI or alternate parser.
 Consumers can inspect the manifest without depending on Angular component names,
 hashed bundles, or repository paths, while runtime creation remains gated by
 the corresponding loaded trace content from Stage 24.
+
+## Stage 26 implementation evidence
+
+The remaining repository-owned privacy and operations gaps are closed. Recovery
+Capture has a visible delete action, reports unconfirmed cleanup, and is deleted
+after a successful transfer in `no-persistence` privacy mode without discarding
+the already-fetched Host bytes if device cleanup fails. Default capture logs no
+longer include full device paths, serials, shell commands, command output, or
+encoded file responses.
+
+Diagnostics are now an explicit preview-and-export flow. The preview lists the
+single `diagnostics.json` file and its safe categories before consent. The
+export contains runtime mode, trace type names, parser-error categories, and
+packet-loss counts, while declaring and enforcing exclusions for trace bytes,
+filenames, paths, tokens, commands, device serials, and device identity.
+
+The launcher adds fixed loopback `--port`, explicit `--browser`, and
+`--offline-only` controls. Port conflicts fail through normal loopback bind
+errors, browser launch uses an argument vector rather than a shell, and
+offline-only cannot be combined with capture.
+
+`security.yml` adds pinned PR, main, weekly, and manual dependency, OSV,
+CodeQL, Go vulnerability, source-secret/runtime-boundary, and hostile-input
+checks. `verify-feature-stages.py` produces commit-bound, machine-readable
+Stage 20-25 exit evidence and the official release workflow generates that
+report before packaging.
+
+The Stage 7 report also emits an explicit Android compatibility tier matrix.
+Android 15 and 16 are marked fixture-validated from the public/synthetic suite
+and remain `deviceValidated: false` until separate evidence exists; Android 17
+sets device validation only from the mandatory protected capture/import input.

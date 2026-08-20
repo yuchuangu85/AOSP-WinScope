@@ -73,10 +73,19 @@ func main() {
 	var distributionRoot string
 	var enableCapture bool
 	var openBrowser bool
+	var browser string
+	var port int
+	var offlineOnly bool
 	flag.StringVar(&distributionRoot, "root", defaultDistributionRoot(), "path to the packaged aosp-winscope distribution")
 	flag.BoolVar(&enableCapture, "capture", false, "start the launcher-managed Android device capture session")
 	flag.BoolVar(&openBrowser, "open", false, "open the local Winscope URL with the operating system browser handler")
+	flag.StringVar(&browser, "browser", "", "browser executable to launch with the local Winscope URL")
+	flag.IntVar(&port, "port", 0, "fixed loopback Web port; 0 selects a random available port")
+	flag.BoolVar(&offlineOnly, "offline-only", false, "disable device capture explicitly")
 	flag.Parse()
+	if err := validateLaunchOptions(port, enableCapture, offlineOnly); err != nil {
+		log.Fatal(err)
+	}
 
 	root, err := filepath.Abs(distributionRoot)
 	if err != nil {
@@ -87,7 +96,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -111,8 +120,8 @@ func main() {
 	}
 	url := origin + "/"
 	fmt.Println("Winscope is available at " + url)
-	if openBrowser {
-		if err := openLocalURL(url); err != nil {
+	if browser != "" || openBrowser {
+		if err := openLocalURLWithBrowser(url, browser); err != nil {
 			log.Printf("Could not open a browser: %v", err)
 		}
 	}
@@ -216,6 +225,16 @@ func validSHA256(value string) bool {
 	}
 	_, err := hex.DecodeString(value)
 	return err == nil && value == strings.ToLower(value)
+}
+
+func validateLaunchOptions(port int, capture bool, offlineOnly bool) error {
+	if port < 0 || port > 65535 {
+		return errors.New("Web port must be between 0 and 65535")
+	}
+	if offlineOnly && capture {
+		return errors.New("--offline-only and --capture cannot be used together")
+	}
+	return nil
 }
 
 func sha256File(name string) (string, error) {
@@ -491,6 +510,17 @@ func (proxy *captureProxy) stop() {
 }
 
 func openLocalURL(value string) error {
+	return openLocalURLWithBrowser(value, "")
+}
+
+func openLocalURLWithBrowser(value string, browser string) error {
+	if browser != "" {
+		command, err := exec.LookPath(browser)
+		if err != nil {
+			return fmt.Errorf("find requested browser: %w", err)
+		}
+		return exec.Command(command, value).Start()
+	}
 	var command *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":

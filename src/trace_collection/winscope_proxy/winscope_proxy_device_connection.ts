@@ -106,20 +106,15 @@ export class WinscopeProxyDeviceConnection extends AdbDeviceConnection {
         c.charCodeAt(0),
       );
     } catch (error) {
-      this.logger.error(
-        `Could not fetch file. Received: ${httpResponse.text}`,
-        error,
-      );
-      await this.listener.onError(
-        `Could not fetch file. Received: ${httpResponse.text}`,
-      );
+      this.logger.error('Could not decode a Recovery Capture file', error);
+      await this.listener.onError('Could not decode a Recovery Capture file.');
       return Uint8Array.from([]);
     }
   };
 
   override async startTrace(target: TraceTarget) {
     this.isTracing = true;
-    this.logger.debug(`Starting trace for ${target.traceName} on ${this.id}`);
+    this.logger.debug(`Starting trace for ${target.traceName}`);
     await postToProxy(
       `${Endpoint.START_TRACE}${this.encodedId}/`,
       this.securityHeader,
@@ -133,12 +128,12 @@ export class WinscopeProxyDeviceConnection extends AdbDeviceConnection {
         stopCmd: target.stopCmd,
       },
     );
-    this.logger.debug(`Started trace for ${target.traceName} on ${this.id}`);
+    this.logger.debug(`Started trace for ${target.traceName}`);
   }
 
   override async endTrace(target: TraceTarget) {
     this.isTracing = false;
-    this.logger.debug(`Ending trace for ${target.traceName} on ${this.id}`);
+    this.logger.debug(`Ending trace for ${target.traceName}`);
     await postToProxy(
       `${Endpoint.END_TRACE}${this.encodedId}/`,
       this.securityHeader,

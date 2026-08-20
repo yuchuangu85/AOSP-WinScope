@@ -385,7 +385,7 @@ Request body: undefined`,
       expect(data).toEqual(Uint8Array.from([]));
       checkFetchRequested();
       expect(listener.onError).toHaveBeenCalledOnceWith(
-        'Could not fetch file. Received: False',
+        'Could not decode a Recovery Capture file.',
       );
       listener.onError.calls.reset();
     });

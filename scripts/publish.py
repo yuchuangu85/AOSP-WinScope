@@ -29,7 +29,9 @@ PACKAGE_LOCK = ROOT / "package-lock.json"
 DEFAULT_OUTPUT = ROOT / "dist/public"
 DEFAULT_REPRODUCIBILITY = ROOT / "dist/validation/reproducibility.json"
 DEFAULT_RELEASE_IMAGE_REPORT = ROOT / "dist/validation/release-image.json"
+DEFAULT_FEATURE_STAGES_REPORT = ROOT / "dist/validation/feature-stages.json"
 DEFAULT_GUIDE = ROOT / "docs/APS_INTEGRATION.md"
+DEFAULT_CHANGELOG = ROOT / "CHANGELOG.md"
 APS_VERIFIER = ROOT / "scripts/verify-aps-release.py"
 RELEASE_VERIFIER = ROOT / "scripts/release.py"
 SECURITY_RESPONSE_POLICY = {
@@ -316,6 +318,7 @@ def frozen_inputs(
     artifact: dict[str, Any],
     build_image: str,
     release_image: dict[str, Any],
+    feature_stages: dict[str, Any],
 ) -> dict[str, Any]:
     baseline = read_json(BASELINE)
     lock = read_json(LOCK)
@@ -334,6 +337,7 @@ def frozen_inputs(
         "validationReportSha256": validation["reportSha256"],
         "reproducibilityReportSha256": reproducibility["reportSha256"],
         "releaseImageReportSha256": release_image["reportSha256"],
+        "featureStagesReportSha256": feature_stages["reportSha256"],
         "releaseArchiveSha256": artifact["sha256"],
         "buildImage": build_image,
     }
@@ -350,6 +354,7 @@ def publish(
     published_at: datetime | None = None,
     build_image: str | None = None,
     release_image_path: Path | None = None,
+    feature_stages_path: Path | None = None,
 ) -> dict[str, Any]:
     if published_at is not None:
         if published_at.tzinfo is None:
@@ -369,10 +374,32 @@ def publish(
     release_image_path = release_image_path or validation_path.with_name("release-image.json")
     release_image = verify_release_image(release_image_path, build_image)
     release_image = {**release_image, "reportSha256": sha256_file(release_image_path)}
+    feature_stages_path = feature_stages_path or validation_path.with_name("feature-stages.json")
+    feature_stages = read_json(feature_stages_path)
+    stage_entries = feature_stages.get("stages")
+    if not (
+        feature_stages.get("schemaVersion") == 1
+        and feature_stages.get("ok") is True
+        and feature_stages.get("sourceCommit") == git_commit()
+        and isinstance(stage_entries, list)
+        and {entry.get("stage") for entry in stage_entries if isinstance(entry, dict)}
+        == set(range(20, 26))
+        and all(
+            isinstance(entry, dict) and entry.get("status") == "pass"
+            for entry in stage_entries
+        )
+    ):
+        fail("feature-stage exit evidence is incomplete or stale")
+    feature_stages = {
+        **feature_stages,
+        "reportSha256": sha256_file(feature_stages_path),
+    }
     if not guide_path.is_file() or guide_path.stat().st_size == 0:
         fail(f"APS integration guide is missing: {guide_path}")
     if not APS_VERIFIER.is_file() or APS_VERIFIER.stat().st_size == 0:
         fail(f"APS release verifier is missing: {APS_VERIFIER}")
+    if not DEFAULT_CHANGELOG.is_file() or DEFAULT_CHANGELOG.stat().st_size == 0:
+        fail("release changelog is missing")
     artifact = verify_release_artifact(release_dir, version)
     target = output / version
     if target.exists():
@@ -388,14 +415,22 @@ def publish(
             validation_path,
             reproducibility_path,
             release_image_path,
+            feature_stages_path,
             guide_path,
+            DEFAULT_CHANGELOG,
         ):
             destination = staging / source.name
             shutil.copyfile(source, destination)
             copied.append(destination)
 
         frozen = frozen_inputs(
-            version, validation, reproducibility, artifact, build_image, release_image
+            version,
+            validation,
+            reproducibility,
+            artifact,
+            build_image,
+            release_image,
+            feature_stages,
         )
         frozen_path = staging / "frozen-inputs.json"
         write_json(frozen_path, frozen)
@@ -450,8 +485,12 @@ def publish(
                 "validation": validation_path.name,
                 "reproducibility": reproducibility_path.name,
                 "releaseImage": release_image_path.name,
+                "featureStages": feature_stages_path.name,
             },
-            "instructions": {"apsIntegration": guide_path.name},
+            "instructions": {
+                "apsIntegration": guide_path.name,
+                "changelog": DEFAULT_CHANGELOG.name,
+            },
             "artifacts": artifacts,
         }
         index_path = staging / "release-index.json"
@@ -568,6 +607,7 @@ def main() -> int:
     parser.add_argument("--reproducibility", type=Path, default=DEFAULT_REPRODUCIBILITY)
     parser.add_argument("--guide", type=Path, default=DEFAULT_GUIDE)
     parser.add_argument("--release-image-report", type=Path, default=DEFAULT_RELEASE_IMAGE_REPORT)
+    parser.add_argument("--feature-stages-report", type=Path, default=DEFAULT_FEATURE_STAGES_REPORT)
     parser.add_argument("--published-at")
     parser.add_argument("--build-image")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
@@ -588,6 +628,7 @@ def main() -> int:
                 datetime.fromisoformat(args.published_at.replace("Z", "+00:00")) if args.published_at else None,
                 args.build_image,
                 args.release_image_report,
+                args.feature_stages_report,
             )
         else:
             if args.index is None:

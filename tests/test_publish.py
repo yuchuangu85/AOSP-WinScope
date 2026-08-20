@@ -175,6 +175,28 @@ class PublishTest(unittest.TestCase):
             }),
             encoding="utf-8",
         )
+        (root / "feature-stages.json").write_text(
+            json.dumps({
+                "schemaVersion": 1,
+                "ok": True,
+                "sourceCommit": commit,
+                "stages": [
+                    {
+                        "stage": stage,
+                        "status": "pass",
+                        "documented": True,
+                        "missing": [],
+                        "files": [{"path": f"stage-{stage}", "sha256": str(stage)[-1] * 64}],
+                    }
+                    for stage in range(20, 26)
+                ],
+                "checks": [
+                    {"name": name, "status": "pass", "returncode": 0}
+                    for name in ("typescript", "python", "go", "angularUnit")
+                ],
+            }),
+            encoding="utf-8",
+        )
         return release_dir, validation, reproducibility
 
     def publish_fixture(self, root: Path, version: str = VERSION, tag: str | None = None):
@@ -191,7 +213,7 @@ class PublishTest(unittest.TestCase):
             index = Path(result["index"])
 
             self.assertEqual(result["channel"], "rc")
-            self.assertEqual(publish.verify(index)["artifactsVerified"], 8)
+            self.assertEqual(publish.verify(index)["artifactsVerified"], 10)
             value = json.loads(index.read_text())
             self.assertEqual(value["channel"], "rc")
             self.assertEqual(value["support"]["status"], "prerelease")
@@ -202,6 +224,8 @@ class PublishTest(unittest.TestCase):
             frozen = json.loads((index.parent / "frozen-inputs.json").read_text())
             self.assertEqual(frozen["buildImage"], BUILD_IMAGE)
             self.assertEqual(value["reports"]["releaseImage"], "release-image.json")
+            self.assertEqual(value["reports"]["featureStages"], "feature-stages.json")
+            self.assertEqual(value["instructions"]["changelog"], "CHANGELOG.md")
             self.assertEqual(
                 frozen["releaseImageReportSha256"],
                 publish.sha256_file(index.parent / "release-image.json"),
@@ -225,6 +249,8 @@ class PublishTest(unittest.TestCase):
                 str(reproducibility),
                 "--release-image-report",
                 str(root / "release-image.json"),
+                "--feature-stages-report",
+                str(root / "feature-stages.json"),
                 "--output",
                 str(output),
                 "--json",

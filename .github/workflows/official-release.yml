@@ -37,9 +37,11 @@ jobs:
             echo "Unsupported release tag: $GITHUB_REF_NAME" >&2
             exit 1
           fi
-          echo "prerelease=$([[ "$GITHUB_REF_NAME" == *-alpha.* || "$GITHUB_REF_NAME" == *-rc.* ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
-          echo "release-image=$OFFICIAL_RELEASE_IMAGE" >> "$GITHUB_OUTPUT"
-          echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          {
+            echo "prerelease=$([[ "$GITHUB_REF_NAME" == *-alpha.* || "$GITHUB_REF_NAME" == *-rc.* ]] && echo true || echo false)"
+            echo "release-image=$OFFICIAL_RELEASE_IMAGE"
+            echo "version=${GITHUB_REF_NAME#v}"
+          } >> "$GITHUB_OUTPUT"
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -139,6 +141,7 @@ jobs:
           set -euo pipefail
           npm run build:prod
           npm run build:launchers
+          npm run features:verify
           npm run release:double-build -- --version "$AOSP_WINSCOPE_VERSION"
           npm run release:package -- --version "$AOSP_WINSCOPE_VERSION"
 

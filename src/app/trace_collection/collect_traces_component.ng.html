@@ -121,6 +121,16 @@ limitations under the License.
                   >
                     Fetch traces from last session
                   </button>
+                  <button
+                    color="warn"
+                    class="delete-recovery-btn"
+                    mat-stroked-button
+                    (click)="deleteRecoveryCapture()"
+                    [disabled]="isTracingOrLoading()"
+                    matTooltip="Permanently delete the Recovery Capture retained on this device"
+                  >
+                    Delete recovery capture
+                  </button>
                 </div>
               </div>
 

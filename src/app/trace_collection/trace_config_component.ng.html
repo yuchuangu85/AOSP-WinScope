@@ -27,14 +27,9 @@ limitations under the License.
       (ngModelChange)="onTraceConfigChange()"
     >
       <span
-        [matTooltip]="
-          config[traceKey].available
-            ? ''
-            : 'Unavailable on the selected device'
-        "
+        [matTooltip]="config[traceKey].available ? '' : 'Unavailable on the selected device'"
+        >{{ config[traceKey].name }}</span
       >
-        {{ config[traceKey].name }}
-      </span>
       @if (hasAdvancedConfig(traceKey)) {
         <button
           mat-icon-button

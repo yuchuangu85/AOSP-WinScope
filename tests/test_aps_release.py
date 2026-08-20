@@ -294,6 +294,26 @@ class ApsReleaseTest(unittest.TestCase):
             "tools": list(aps_release.REQUIRED_RELEASE_IMAGE_TOOLS),
             "errors": [],
         }), encoding="utf-8")
+        feature_stages = publication / "feature-stages.json"
+        feature_stages.write_text(json.dumps({
+            "schemaVersion": 1,
+            "ok": True,
+            "sourceCommit": COMMIT,
+            "stages": [
+                {
+                    "stage": stage,
+                    "status": "pass",
+                    "documented": True,
+                    "missing": [],
+                    "files": [{"path": f"stage-{stage}", "sha256": str(stage)[-1] * 64}],
+                }
+                for stage in range(20, 26)
+            ],
+            "checks": [
+                {"name": name, "status": "pass", "returncode": 0}
+                for name in ("typescript", "python", "go", "angularUnit")
+            ],
+        }), encoding="utf-8")
         guide = publication / "APS_INTEGRATION.md"
         guide.write_text("offline integration\n", encoding="utf-8")
         frozen = publication / "frozen-inputs.json"
@@ -312,6 +332,7 @@ class ApsReleaseTest(unittest.TestCase):
             "validationReportSha256": hashlib.sha256(validation.read_bytes()).hexdigest(),
             "reproducibilityReportSha256": hashlib.sha256(reproducibility.read_bytes()).hexdigest(),
             "releaseImageReportSha256": hashlib.sha256(release_image.read_bytes()).hexdigest(),
+            "featureStagesReportSha256": hashlib.sha256(feature_stages.read_bytes()).hexdigest(),
             "releaseArchiveSha256": archive_digest,
             "buildImage": BUILD_IMAGE,
         }
@@ -352,6 +373,7 @@ class ApsReleaseTest(unittest.TestCase):
                 "validation": validation.name,
                 "reproducibility": reproducibility.name,
                 "releaseImage": release_image.name,
+                "featureStages": feature_stages.name,
             },
             "instructions": {"apsIntegration": guide.name},
             "artifacts": artifacts,

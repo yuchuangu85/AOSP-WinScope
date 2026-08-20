@@ -229,6 +229,31 @@ describe('TraceCollectionController', () => {
       expect(listener.onProgressUpdate).toHaveBeenCalledTimes(4);
       expect(listener.onOperationFinished).toHaveBeenCalledTimes(1);
     });
+
+    it('ends, fetches, and deletes recovery data in privacy mode', async () => {
+      const data = Uint8Array.from([1, 2, 3]);
+      const devicePath = `${WINSCOPE_BACKUP_DIR}trace.winscope`;
+      runShellCmdSpy.and.callFake(async (command: string) => {
+        return command.includes('WINSCOPE_RECOVERY_CAPTURE_DELETED')
+          ? 'WINSCOPE_RECOVERY_CAPTURE_DELETED\n'
+          : '';
+      });
+      spyOn(MockAdbDeviceConnection.prototype, 'findFiles').and.returnValue(
+        Promise.resolve([devicePath]),
+      );
+      spyOn(MockAdbDeviceConnection.prototype, 'pullFile').and.returnValue(
+        Promise.resolve(data),
+      );
+      await controller.startTrace(mockDevice, [mockUserRequest]);
+
+      const files = await controller.endTraceAndFetch(mockDevice, true);
+
+      expect(files).toEqual([new File([data], 'trace.winscope')]);
+      expect(runShellCmdSpy).toHaveBeenCalledWith(
+        `rm -rf ${WINSCOPE_BACKUP_DIR} && echo WINSCOPE_RECOVERY_CAPTURE_DELETED`,
+      );
+      expect(listener.onOperationFinished).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('dumps state:', () => {
@@ -362,6 +387,19 @@ echo 'Dumped perfetto'`,
         new File([data], fetchedPath),
         new File([data], fetchedPath),
       ]);
+    });
+
+    it('deletes the Recovery Capture explicitly', async () => {
+      runShellCmdSpy.and.returnValue(
+        Promise.resolve('WINSCOPE_RECOVERY_CAPTURE_DELETED\n'),
+      );
+
+      await controller.deleteLastSessionData(mockDevice);
+
+      expect(runShellCmdSpy).toHaveBeenCalledOnceWith(
+        `rm -rf ${WINSCOPE_BACKUP_DIR} && echo WINSCOPE_RECOVERY_CAPTURE_DELETED`,
+      );
+      expect(listener.onOperationFinished).toHaveBeenCalledOnceWith(true);
     });
   });
 

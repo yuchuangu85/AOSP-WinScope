@@ -385,15 +385,14 @@ describe('CollectTracesComponent', () => {
     checkTracingProgress('Tracing...', false);
 
     const controller = assertDefined(component.controller);
-    const endSpy = spyOn(controller, 'endTrace').and.callFake(async () => {
-      await component.onConnectionStateChange(ConnectionState.ENDING_TRACE);
-    });
-    const fetchSpy = spyOn(controller, 'fetchLastSessionData').and.returnValue(
-      Promise.resolve([]),
+    const endSpy = spyOn(controller, 'endTraceAndFetch').and.callFake(
+      async () => {
+        await component.onConnectionStateChange(ConnectionState.LOADING_DATA);
+        return [];
+      },
     );
     await dom.clickAndWaitStable('.end-btn button');
     expect(endSpy).toHaveBeenCalled();
-    expect(fetchSpy).toHaveBeenCalled();
   });
 
   it('displays ending trace elements', async () => {

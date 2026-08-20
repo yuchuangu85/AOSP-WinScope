@@ -97,6 +97,31 @@ func TestParseLoopbackPort(t *testing.T) {
 	}
 }
 
+func TestValidateLaunchOptions(t *testing.T) {
+	tests := []struct {
+		name        string
+		port        int
+		capture     bool
+		offlineOnly bool
+		wantError   bool
+	}{
+		{name: "random offline", port: 0, offlineOnly: true},
+		{name: "fixed capture", port: 8080, capture: true},
+		{name: "maximum port", port: 65535},
+		{name: "negative port", port: -1, wantError: true},
+		{name: "overflow port", port: 65536, wantError: true},
+		{name: "conflicting modes", capture: true, offlineOnly: true, wantError: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := validateLaunchOptions(test.port, test.capture, test.offlineOnly)
+			if (err != nil) != test.wantError {
+				t.Fatalf("validateLaunchOptions() error = %v, wantError = %t", err, test.wantError)
+			}
+		})
+	}
+}
+
 func TestStaticHandlerRejectsHostileRequests(t *testing.T) {
 	webRoot := t.TempDir()
 	if err := os.WriteFile(filepath.Join(webRoot, "index.html"), []byte("ok"), 0600); err != nil {

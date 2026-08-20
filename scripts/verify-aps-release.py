@@ -42,6 +42,7 @@ REQUIRED_ARCHIVE_FILES = {
     "dependency-bundle/manifest.json",
 }
 REQUIRED_GATES = {"release:reproducibility", "runtime:security"}
+REQUIRED_FEATURE_CHECKS = {"typescript", "python", "go", "angularUnit"}
 APPROVED_DISTRIBUTED_LICENSES = {
     "0BSD",
     "Apache-2.0",
@@ -287,6 +288,56 @@ def verify_release_image_evidence(
         and frozen.get("releaseImageReportSha256") == sha256_file(path)
     ):
         fail("Stage 16 release image evidence is invalid")
+
+
+def verify_feature_stage_evidence(
+    path: Path,
+    index: dict[str, Any],
+    frozen: dict[str, Any],
+) -> None:
+    evidence = read_json_file(path)
+    stages = evidence.get("stages")
+    checks = evidence.get("checks")
+    stage_ids = {
+        item.get("stage")
+        for item in stages or []
+        if isinstance(item, dict)
+    }
+    passing_checks = {
+        item.get("name")
+        for item in checks or []
+        if isinstance(item, dict)
+        and item.get("status") == "pass"
+        and item.get("returncode") == 0
+    }
+    if not (
+        evidence.get("schemaVersion") == 1
+        and evidence.get("ok") is True
+        and evidence.get("sourceCommit") == index.get("sourceCommit")
+        and isinstance(stages, list)
+        and stage_ids == set(range(20, 26))
+        and len(stages) == 6
+        and all(
+            isinstance(item, dict)
+            and item.get("status") == "pass"
+            and item.get("documented") is True
+            and item.get("missing") == []
+            and isinstance(item.get("files"), list)
+            and len(item["files"]) > 0
+            and all(
+                isinstance(file, dict)
+                and isinstance(file.get("path"), str)
+                and valid_sha256(file.get("sha256"))
+                for file in item["files"]
+            )
+            for item in stages
+        )
+        and isinstance(checks, list)
+        and passing_checks == REQUIRED_FEATURE_CHECKS
+        and len(checks) == len(REQUIRED_FEATURE_CHECKS)
+        and frozen.get("featureStagesReportSha256") == sha256_file(path)
+    ):
+        fail("Stage 20-25 feature evidence is invalid")
 
 
 def verify_reports(
@@ -774,6 +825,12 @@ def verify_publication(
         reports.get("releaseImage"),
         "release image report",
     )
+    feature_stages_path = required_artifact(
+        publication,
+        artifacts,
+        reports.get("featureStages"),
+        "feature stages report",
+    )
     required_artifact(publication, artifacts, instructions.get("apsIntegration"), "APS instructions")
     frozen_path = required_artifact(publication, artifacts, frozen_reference.get("path"), "frozen inputs")
     if not valid_sha256(frozen_reference.get("sha256")) or sha256_file(frozen_path) != frozen_reference["sha256"]:
@@ -808,6 +865,7 @@ def verify_publication(
         dependency_sha256,
     )
     verify_release_image_evidence(release_image_path, frozen, expected_build_image)
+    verify_feature_stage_evidence(feature_stages_path, index, frozen)
     verify_attestation(
         attestation_path,
         index,

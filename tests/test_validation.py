@@ -279,6 +279,11 @@ class ValidationGateTest(unittest.TestCase):
         )
         report = validate.report(args)
         self.assertEqual(report["repository"], "aosp-winscope")
+        self.assertTrue(report["androidCompatibility"]["15"]["fixtureValidated"])
+        self.assertFalse(report["androidCompatibility"]["15"]["deviceValidated"])
+        self.assertTrue(report["androidCompatibility"]["16"]["fixtureValidated"])
+        self.assertFalse(report["androidCompatibility"]["16"]["deviceValidated"])
+        self.assertFalse(report["androidCompatibility"]["17"]["deviceValidated"])
         self.assertNotIn(str(ROOT), json.dumps(report))
 
     def test_invalid_benchmark_metrics_do_not_leak_private_values(self):
