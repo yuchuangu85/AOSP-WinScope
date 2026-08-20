@@ -14,6 +14,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 SHA256_LENGTH = 64
+IMAGE_RE = re.compile(r"^[a-z0-9][a-z0-9._/-]*@sha256:[0-9a-f]{64}$")
 VERSION_RE = re.compile(r"^17\.\d+\.\d+(?:-(alpha|rc)\.\d+)?$")
 REQUIRED_ARCHIVE_FILES = {
     "manifest.json",
@@ -526,7 +527,13 @@ def verify_archive(
     return len(listed), sha256_bytes(release_manifest_bytes), supply_chain
 
 
-def verify_publication(publication: Path, expected_index_sha256: str) -> dict[str, Any]:
+def verify_publication(
+    publication: Path,
+    expected_index_sha256: str,
+    expected_build_image: str,
+) -> dict[str, Any]:
+    if IMAGE_RE.fullmatch(expected_build_image) is None:
+        fail("trusted build image is invalid")
     publication = publication.resolve()
     index_path = publication / "release-index.json"
     if not valid_sha256(expected_index_sha256) or sha256_file(index_path) != expected_index_sha256:
@@ -586,12 +593,15 @@ def verify_publication(publication: Path, expected_index_sha256: str) -> dict[st
     dependency_sha256 = supply_chain["dependencyLockSha256"]
 
     frozen = read_json_file(frozen_path)
+    if frozen.get("buildImage") != expected_build_image:
+        fail("trusted build image mismatch")
     if not (
         frozen.get("schemaVersion") == 1
         and frozen.get("version") == version
         and frozen.get("sourceCommit") == index.get("sourceCommit")
         and frozen.get("sourceDateEpoch") == index.get("sourceDateEpoch")
         and frozen.get("releaseArchiveSha256") == archive_sha256
+        and IMAGE_RE.fullmatch(frozen.get("buildImage", "")) is not None
         and all(frozen.get(field) == value for field, value in supply_chain.items())
     ):
         fail("frozen input lineage mismatch")
@@ -627,10 +637,13 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--publication", type=Path, required=True)
     parser.add_argument("--expected-index-sha256", required=True)
+    parser.add_argument("--expected-build-image", required=True)
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
     try:
-        report = verify_publication(args.publication, args.expected_index_sha256)
+        report = verify_publication(
+            args.publication, args.expected_index_sha256, args.expected_build_image
+        )
         print(json.dumps(report, sort_keys=True) if args.json else "APS release verified successfully.")
         return 0
     except (OSError, ValueError) as error:

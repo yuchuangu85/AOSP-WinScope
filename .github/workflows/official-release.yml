@@ -1,0 +1,256 @@
+name: Official release
+
+on:
+  push:
+    tags:
+      - 'v17.*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: official-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    environment: official-release
+    permissions:
+      contents: read
+    outputs:
+      prerelease: ${{ steps.contract.outputs.prerelease }}
+      release-image: ${{ steps.contract.outputs.release-image }}
+      version: ${{ steps.contract.outputs.version }}
+    steps:
+      - name: Verify immutable release contract
+        id: contract
+        env:
+          OFFICIAL_RELEASE_IMAGE: ${{ vars.OFFICIAL_RELEASE_IMAGE }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$OFFICIAL_RELEASE_IMAGE" =~ ^[a-z0-9][a-z0-9._/-]*@sha256:[0-9a-f]{64}$ ]]; then
+            echo "OFFICIAL_RELEASE_IMAGE must use an immutable sha256 digest" >&2
+            exit 1
+          fi
+          if [[ ! "$GITHUB_REF_NAME" =~ ^v17\.[0-9]+\.[0-9]+(-(alpha|rc)\.[0-9]+)?$ ]]; then
+            echo "Unsupported release tag: $GITHUB_REF_NAME" >&2
+            exit 1
+          fi
+          echo "prerelease=$([[ "$GITHUB_REF_NAME" == *-alpha.* || "$GITHUB_REF_NAME" == *-rc.* ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "release-image=$OFFICIAL_RELEASE_IMAGE" >> "$GITHUB_OUTPUT"
+          echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: preflight
+    runs-on: ubuntu-24.04
+    environment: official-release
+    container:
+      image: ${{ needs.preflight.outputs.release-image }}
+    env:
+      AOSP_WINSCOPE_VERSION: ${{ needs.preflight.outputs.version }}
+      OFFICIAL_RELEASE_IMAGE: ${{ needs.preflight.outputs.release-image }}
+      PUBLICATION_DIR: dist/public/${{ needs.preflight.outputs.version }}
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify tagged source and clean-room lineage
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+          python3 scripts/verify-baseline.py --json
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.26.6'
+          cache: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+          check-latest: false
+
+      - name: Verify release image tools
+        run: |
+          set -euo pipefail
+          command -v git
+          command -v gh
+          command -v google-chrome
+          npm run toolchain:verify
+
+      - name: Refuse an existing release before building
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release already exists and cannot be overwritten: $GITHUB_REF_NAME" >&2
+            exit 1
+          fi
+
+      - name: Prepare pinned dependencies
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run deps:prepare
+          npm run deps:verify
+
+      - name: Build and reproduce release
+        run: |
+          set -euo pipefail
+          npm run build:prod
+          npm run build:launchers
+          npm run release:double-build -- --version "$AOSP_WINSCOPE_VERSION"
+          npm run release:package -- --version "$AOSP_WINSCOPE_VERSION"
+
+      - name: Materialize approved external evidence
+        env:
+          ANDROID17_DEVICE_EVIDENCE_B64: ${{ secrets.ANDROID17_DEVICE_EVIDENCE_B64 }}
+          VULNERABILITY_EVIDENCE_B64: ${{ secrets.VULNERABILITY_EVIDENCE_B64 }}
+          PERFORMANCE_BASELINE_B64: ${{ secrets.PERFORMANCE_BASELINE_B64 }}
+          PERFORMANCE_BENCHMARK_B64: ${{ secrets.PERFORMANCE_BENCHMARK_B64 }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist/validation/external
+          write_evidence() {
+            local variable="$1"
+            local destination="$2"
+            local value="${!variable:-}"
+            if [[ -z "$value" ]]; then
+              echo "Missing protected environment evidence: $variable" >&2
+              exit 1
+            fi
+            printf '%s' "$value" | base64 --decode > "$destination"
+            python3 -m json.tool "$destination" >/dev/null
+          }
+          write_evidence ANDROID17_DEVICE_EVIDENCE_B64 dist/validation/external/android17-device.json
+          write_evidence VULNERABILITY_EVIDENCE_B64 dist/validation/external/vulnerability.json
+          write_evidence PERFORMANCE_BASELINE_B64 dist/validation/external/performance-baseline.json
+          write_evidence PERFORMANCE_BENCHMARK_B64 dist/validation/external/performance-benchmark.json
+
+      - name: Run complete release gate
+        run: |
+          set -euo pipefail
+          python3 scripts/validate.py gate \
+            --json \
+            --require-complete \
+            --web dist/prod \
+            --release "dist/release/aosp-winscope-$AOSP_WINSCOPE_VERSION" \
+            --reproducibility dist/validation/reproducibility.json \
+            --device-evidence dist/validation/external/android17-device.json \
+            --vulnerability-evidence dist/validation/external/vulnerability.json \
+            --baseline dist/validation/external/performance-baseline.json \
+            --benchmark dist/validation/external/performance-benchmark.json \
+            --run-unit \
+            --run-e2e \
+            --run-production-e2e \
+            --run-offline \
+            --run-security
+
+      - name: Stage immutable publication
+        run: |
+          set -euo pipefail
+          python3 scripts/publish.py publish \
+            --version "$AOSP_WINSCOPE_VERSION" \
+            --tag "$GITHUB_REF_NAME" \
+            --build-image "$OFFICIAL_RELEASE_IMAGE" \
+            --json
+          python3 scripts/publish.py verify \
+            --index "$PUBLICATION_DIR/release-index.json" \
+            --json
+
+      - name: Transfer verified publication
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: official-release-${{ needs.preflight.outputs.version }}
+          path: dist/public/${{ needs.preflight.outputs.version }}
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+  publish:
+    needs: [preflight, build]
+    runs-on: ubuntu-24.04
+    environment: official-release
+    env:
+      AOSP_WINSCOPE_VERSION: ${{ needs.preflight.outputs.version }}
+      IS_PRERELEASE: ${{ needs.preflight.outputs.prerelease }}
+      OFFICIAL_RELEASE_IMAGE: ${{ needs.preflight.outputs.release-image }}
+      PUBLICATION_DIR: dist/public/${{ needs.preflight.outputs.version }}
+    permissions:
+      artifact-metadata: write
+      attestations: write
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+          check-latest: false
+
+      - name: Download verified publication
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: official-release-${{ needs.preflight.outputs.version }}
+          path: dist/public/${{ needs.preflight.outputs.version }}
+
+      - name: Reverify publication and release availability
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+          python3 scripts/publish.py verify \
+            --index "$PUBLICATION_DIR/release-index.json" \
+            --json
+          INDEX_SHA256=$(python3 -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1], "rb").read()).hexdigest())' \
+            "$PUBLICATION_DIR/release-index.json")
+          python3 scripts/verify-aps-release.py \
+            --publication "$PUBLICATION_DIR" \
+            --expected-index-sha256 "$INDEX_SHA256" \
+            --expected-build-image "$OFFICIAL_RELEASE_IMAGE" \
+            --json
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release already exists and cannot be overwritten: $GITHUB_REF_NAME" >&2
+            exit 1
+          fi
+
+      - name: Attest complete publication
+        uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
+        with:
+          subject-path: dist/public/${{ needs.preflight.outputs.version }}/*
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          release_args=(
+            "$GITHUB_REF_NAME"
+            "$PUBLICATION_DIR"/*
+            --repo "$GITHUB_REPOSITORY"
+            --verify-tag
+            --title "AOSP-WinScope $AOSP_WINSCOPE_VERSION"
+            --notes "OIDC-attested Android 17 standalone release."
+          )
+          if [[ "$IS_PRERELEASE" == "true" ]]; then
+            release_args+=(--prerelease --latest=false)
+          fi
+          gh release create "${release_args[@]}"

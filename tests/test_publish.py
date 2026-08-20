@@ -1,6 +1,8 @@
 import hashlib
 import importlib.util
 import json
+import os
+import sys
 import tempfile
 from datetime import datetime, timezone
 import unittest
@@ -21,6 +23,7 @@ RELEASE_SPEC.loader.exec_module(release)
 
 
 VERSION = "17.0.0-rc.1"
+BUILD_IMAGE = "ghcr.io/example/release@sha256:" + "a" * 64
 MEMBERS = (
     "manifest.json",
     "release-manifest.json",
@@ -145,7 +148,7 @@ class PublishTest(unittest.TestCase):
         release_dir, validation, reproducibility = self.make_release(root, version)
         with mock.patch.object(publish, "require_clean_tree"):
             result = publish.publish(
-                version, release_dir, validation, root / "public", tag, reproducibility
+                version, release_dir, validation, root / "public", tag, reproducibility, build_image=BUILD_IMAGE
             )
         return result
 
@@ -160,8 +163,57 @@ class PublishTest(unittest.TestCase):
             self.assertEqual(value["channel"], "rc")
             self.assertEqual(value["support"]["status"], "prerelease")
             self.assertFalse(value["support"]["securityUpdates"])
+            self.assertTrue(value["publicationPolicy"]["protectedTagRequired"])
             self.assertEqual(value["support"]["track"], "prerelease")
             self.assertEqual(value["securityResponse"]["policy"], publish.SECURITY_RESPONSE_POLICY)
+            frozen = json.loads((index.parent / "frozen-inputs.json").read_text())
+            self.assertEqual(frozen["buildImage"], BUILD_IMAGE)
+
+    def test_cli_reads_build_image_from_environment(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            release_dir, validation, reproducibility = self.make_release(root)
+            output = root / "public"
+            arguments = [
+                "publish.py",
+                "publish",
+                "--version",
+                VERSION,
+                "--release-dir",
+                str(release_dir),
+                "--validation",
+                str(validation),
+                "--reproducibility",
+                str(reproducibility),
+                "--output",
+                str(output),
+                "--json",
+            ]
+            with (
+                mock.patch.object(publish, "require_clean_tree"),
+                mock.patch.object(sys, "argv", arguments),
+                mock.patch.dict(os.environ, {"OFFICIAL_RELEASE_IMAGE": BUILD_IMAGE}),
+            ):
+                self.assertEqual(publish.main(), 0)
+            frozen = json.loads((output / VERSION / "frozen-inputs.json").read_text())
+            self.assertEqual(frozen["buildImage"], BUILD_IMAGE)
+
+    def test_build_image_must_be_digest_pinned(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            release_dir, validation, reproducibility = self.make_release(root)
+            with mock.patch.object(publish, "require_clean_tree"):
+                with self.assertRaisesRegex(ValueError, "build image"):
+                    publish.publish(
+                        VERSION,
+                        release_dir,
+                        validation,
+                        root / "public",
+                        None,
+                        reproducibility,
+                        build_image="ghcr.io/example/release:latest",
+                    )
+
 
     def test_existing_publication_target_is_immutable(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -174,7 +226,7 @@ class PublishTest(unittest.TestCase):
             marker.write_text("keep", encoding="utf-8")
             with mock.patch.object(publish, "require_clean_tree"):
                 with self.assertRaisesRegex(ValueError, "immutable"):
-                    publish.publish(VERSION, release_dir, validation, output, None, reproducibility)
+                    publish.publish(VERSION, release_dir, validation, output, None, reproducibility, build_image=BUILD_IMAGE)
             self.assertEqual(marker.read_text(encoding="utf-8"), "keep")
 
     def test_failed_publication_leaves_no_final_or_staging_directory(self):
@@ -186,7 +238,7 @@ class PublishTest(unittest.TestCase):
                 publish.shutil, "copyfile", side_effect=OSError("copy failed")
             ):
                 with self.assertRaisesRegex(OSError, "copy failed"):
-                    publish.publish(VERSION, release_dir, validation, output, None, reproducibility)
+                    publish.publish(VERSION, release_dir, validation, output, None, reproducibility, build_image=BUILD_IMAGE)
             self.assertFalse((output / VERSION).exists())
             self.assertEqual(list(output.iterdir()), [])
 
@@ -199,6 +251,7 @@ class PublishTest(unittest.TestCase):
                 result = publish.publish(
                     VERSION, release_dir, validation, root / "public", None, reproducibility,
                     published_at=event_time,
+                    build_image=BUILD_IMAGE,
                 )
             index = json.loads(Path(result["index"]).read_text())
             self.assertEqual(index["publishedAt"], "2026-08-20T12:34:56Z")
@@ -228,7 +281,7 @@ class PublishTest(unittest.TestCase):
             attestation.write_text(json.dumps(value), encoding="utf-8")
             with mock.patch.object(publish, "require_clean_tree"):
                 with self.assertRaisesRegex(ValueError, "checksums"):
-                    publish.publish(VERSION, release_dir, validation, root / "public", None, reproducibility)
+                    publish.publish(VERSION, release_dir, validation, root / "public", None, reproducibility, build_image=BUILD_IMAGE)
 
     def test_missing_archive_evidence_is_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -237,7 +290,7 @@ class PublishTest(unittest.TestCase):
             with mock.patch.object(publish, "require_clean_tree"):
                 with self.assertRaisesRegex(ValueError, "omits required evidence"):
                     publish.publish(
-                        VERSION, release_dir, validation, root / "public", None, reproducibility
+                        VERSION, release_dir, validation, root / "public", None, reproducibility, build_image=BUILD_IMAGE
                     )
 
     def test_final_index_requires_reports_and_aps_instructions(self):

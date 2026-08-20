@@ -43,6 +43,11 @@
   "standaloneAdaptations": {
     "files": [
       {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": ".github/workflows/official-release.yml"
+      },
+      {
         "change": "modified",
         "origin": "newly-authored-clean-room",
         "path": ".gitignore"
@@ -75,7 +80,32 @@
       {
         "change": "added",
         "origin": "newly-authored-clean-room",
+        "path": "cmd/launcher/main.go"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "cmd/launcher/main_test.go"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "docs/APS_INTEGRATION.md"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "docs/LAUNCHER.md"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
         "path": "docs/REBUILD_PLAN.md"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "docs/SECURITY_RESPONSE.md"
       },
       {
         "change": "added",
@@ -213,6 +243,11 @@
         "path": "docs/adr/0027-support-the-current-and-previous-baseline-generations.md"
       },
       {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "go.mod"
+      },
+      {
         "change": "modified",
         "origin": "newly-authored-clean-room",
         "path": "karma.config.ci.js"
@@ -233,6 +268,11 @@
         "path": "protos/build.js"
       },
       {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "protractor.config.js"
+      },
+      {
         "change": "added",
         "origin": "newly-authored-clean-room",
         "path": "provenance/android17-baseline.json"
@@ -241,6 +281,11 @@
         "change": "added",
         "origin": "newly-authored-clean-room",
         "path": "provenance/android17-winscope-files.json"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "scripts/build-launchers.py"
       },
       {
         "change": "added",
@@ -255,7 +300,42 @@
       {
         "change": "added",
         "origin": "newly-authored-clean-room",
+        "path": "scripts/publish.py"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "scripts/release.py"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "scripts/run_e2e.js"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "scripts/support.py"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "scripts/validate.py"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "scripts/verify-aps-release.py"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
         "path": "scripts/verify-baseline.py"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/adb/winscope_proxy.py"
       },
       {
         "change": "modified",
@@ -281,6 +361,11 @@
         "change": "modified",
         "origin": "newly-authored-clean-room",
         "path": "src/app/trace_collection/collect_traces_component_test.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/app/trace_collection/winscope_proxy_setup_component.ng.html"
       },
       {
         "change": "modified",
@@ -340,12 +425,22 @@
       {
         "change": "modified",
         "origin": "newly-authored-clean-room",
+        "path": "src/test/e2e/helpers.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
         "path": "src/trace_collection/controller/trace_collection_controller.ts"
       },
       {
         "change": "modified",
         "origin": "newly-authored-clean-room",
         "path": "src/trace_collection/winscope_proxy/utils.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/trace_collection/winscope_proxy/winscope_proxy_device_connection.ts"
       },
       {
         "change": "modified",
@@ -365,12 +460,47 @@
       {
         "change": "added",
         "origin": "newly-authored-clean-room",
+        "path": "tests/test_aps_release.py"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
         "path": "tests/test_dependency_closure.py"
       },
       {
         "change": "added",
         "origin": "newly-authored-clean-room",
+        "path": "tests/test_official_release.py"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "tests/test_publish.py"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "tests/test_release.py"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "tests/test_security.py"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
         "path": "tests/test_standalone_build.py"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "tests/test_support.py"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "tests/test_validation.py"
       },
       {
         "change": "added",

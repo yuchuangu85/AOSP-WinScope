@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -36,6 +37,7 @@ SECURITY_RESPONSE_POLICY = {
     "highFixWorkingDays": 7,
 }
 VERSION_RE = re.compile(r"^17\.\d+\.\d+(?:-(?:alpha|rc)\.\d+)?$")
+IMAGE_RE = re.compile(r"^[a-z0-9][a-z0-9._/-]*@sha256:[0-9a-f]{64}$")
 
 
 def fail(message: str) -> None:
@@ -211,6 +213,7 @@ def frozen_inputs(
     validation: dict[str, Any],
     reproducibility: dict[str, Any],
     artifact: dict[str, Any],
+    build_image: str,
 ) -> dict[str, Any]:
     baseline = read_json(BASELINE)
     lock = read_json(LOCK)
@@ -229,6 +232,7 @@ def frozen_inputs(
         "validationReportSha256": validation["reportSha256"],
         "reproducibilityReportSha256": reproducibility["reportSha256"],
         "releaseArchiveSha256": artifact["sha256"],
+        "buildImage": build_image,
     }
 
 
@@ -241,12 +245,16 @@ def publish(
     reproducibility_path: Path = DEFAULT_REPRODUCIBILITY,
     guide_path: Path = DEFAULT_GUIDE,
     published_at: datetime | None = None,
+    build_image: str | None = None,
 ) -> dict[str, Any]:
     if published_at is not None:
         if published_at.tzinfo is None:
             fail("published-at must include a timezone")
         published_at = published_at.astimezone(timezone.utc)
     channel = version_channel(version)
+    build_image = build_image or os.environ.get("OFFICIAL_RELEASE_IMAGE")
+    if not isinstance(build_image, str) or IMAGE_RE.fullmatch(build_image) is None:
+        fail("build image must use an immutable sha256 digest; pass --build-image or set OFFICIAL_RELEASE_IMAGE")
     if tag not in (None, f"v{version}"):
         fail(f"release must be tagged v{version}")
     require_clean_tree()
@@ -278,7 +286,7 @@ def publish(
             shutil.copyfile(source, destination)
             copied.append(destination)
 
-        frozen = frozen_inputs(version, validation, reproducibility, artifact)
+        frozen = frozen_inputs(version, validation, reproducibility, artifact, build_image)
         frozen_path = staging / "frozen-inputs.json"
         write_json(frozen_path, frozen)
         copied.append(frozen_path)
@@ -317,7 +325,7 @@ def publish(
                 "advisories": [],
             },
             "publicationPolicy": {
-                "protectedTagRequired": channel == "stable",
+                "protectedTagRequired": True,
                 "environmentApprovalRequired": True,
                 "artifactsImmutable": True,
             },
@@ -345,6 +353,8 @@ def publish(
                 str(staging),
                 "--expected-index-sha256",
                 sha256_file(index_path),
+                "--expected-build-image",
+                build_image,
                 "--json",
             ],
             capture_output=True,
@@ -402,6 +412,8 @@ def verify(index_path: Path) -> dict[str, Any]:
         fail("release index frozen input digest is invalid")
     if not frozen_path.is_file() or sha256_file(frozen_path) != frozen["sha256"]:
         fail("frozen input evidence digest mismatch")
+    if IMAGE_RE.fullmatch(read_json(frozen_path).get("buildImage", "")) is None:
+        fail("frozen input build image is invalid")
     artifacts = index.get("artifacts")
     if not isinstance(artifacts, list) or not artifacts:
         fail("release index has no published artifacts")
@@ -436,6 +448,7 @@ def main() -> int:
     parser.add_argument("--reproducibility", type=Path, default=DEFAULT_REPRODUCIBILITY)
     parser.add_argument("--guide", type=Path, default=DEFAULT_GUIDE)
     parser.add_argument("--published-at")
+    parser.add_argument("--build-image")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--index", type=Path)
     parser.add_argument("--tag")
@@ -452,6 +465,7 @@ def main() -> int:
                 args.reproducibility,
                 args.guide,
                 datetime.fromisoformat(args.published_at.replace("Z", "+00:00")) if args.published_at else None,
+                args.build_image,
             )
         else:
             if args.index is None:

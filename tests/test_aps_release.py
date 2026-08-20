@@ -21,6 +21,7 @@ RELEASE_SPEC.loader.exec_module(release)
 VERSION = "17.0.0-rc.1"
 COMMIT = "1" * 40
 EPOCH = 1_700_000_000
+BUILD_IMAGE = "ghcr.io/example/release@sha256:" + "a" * 64
 POLICY = {
     "criticalAssessmentHours": 24,
     "criticalFixOrMitigationHours": 72,
@@ -224,6 +225,7 @@ class ApsReleaseTest(unittest.TestCase):
             "validationReportSha256": hashlib.sha256(validation.read_bytes()).hexdigest(),
             "reproducibilityReportSha256": hashlib.sha256(reproducibility.read_bytes()).hexdigest(),
             "releaseArchiveSha256": archive_digest,
+            "buildImage": BUILD_IMAGE,
         }
         frozen_value.update(frozen_overrides or {})
         frozen.write_text(json.dumps(frozen_value), encoding="utf-8")
@@ -295,7 +297,7 @@ class ApsReleaseTest(unittest.TestCase):
     def test_valid_publication_verifies_offline(self):
         with tempfile.TemporaryDirectory() as temporary:
             publication = self.make_publication(Path(temporary))
-            result = aps_release.verify_publication(publication, digest((publication / "release-index.json").read_bytes()))
+            result = aps_release.verify_publication(publication, digest((publication / "release-index.json").read_bytes()), BUILD_IMAGE)
             self.assertTrue(result["ok"])
             self.assertEqual(result["version"], VERSION)
             self.assertGreater(result["archiveFilesVerified"], 0)
@@ -312,6 +314,8 @@ class ApsReleaseTest(unittest.TestCase):
                     str(publication),
                     "--expected-index-sha256",
                     digest((publication / "release-index.json").read_bytes()),
+                    "--expected-build-image",
+                    BUILD_IMAGE,
                     "--json",
                 ],
                 cwd=root,
@@ -320,12 +324,30 @@ class ApsReleaseTest(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
             self.assertTrue(json.loads(result.stdout)["ok"])
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts/verify-aps-release.py"),
+                    "--publication",
+                    str(publication),
+                    "--expected-index-sha256",
+                    digest((publication / "release-index.json").read_bytes()),
+                    "--expected-build-image",
+                    "ghcr.io/example/other@sha256:" + "b" * 64,
+                    "--json",
+                ],
+                cwd=root,
+                capture_output=True,
+                text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("trusted build image mismatch", result.stdout)
 
     def test_expected_index_digest_is_required_as_external_trust_input(self):
         with tempfile.TemporaryDirectory() as temporary:
             publication = self.make_publication(Path(temporary))
             with self.assertRaisesRegex(ValueError, "trusted release index digest mismatch"):
-                aps_release.verify_publication(publication, "0" * 64)
+                aps_release.verify_publication(publication, "0" * 64, BUILD_IMAGE)
 
     def test_release_index_requires_android17_baseline(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -335,7 +357,7 @@ class ApsReleaseTest(unittest.TestCase):
             value["baseline"] = "android16-release"
             index.write_text(json.dumps(value), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "unsupported release index"):
-                aps_release.verify_publication(publication, digest(index.read_bytes()))
+                aps_release.verify_publication(publication, digest(index.read_bytes()), BUILD_IMAGE)
 
     def test_frozen_supply_chain_metadata_must_match_archive(self):
         for field, value in (
@@ -352,6 +374,7 @@ class ApsReleaseTest(unittest.TestCase):
                     aps_release.verify_publication(
                         publication,
                         digest((publication / "release-index.json").read_bytes()),
+                        BUILD_IMAGE,
                     )
 
     def test_license_dependency_ids_must_match_lock(self):
@@ -367,6 +390,7 @@ class ApsReleaseTest(unittest.TestCase):
                     aps_release.verify_publication(
                         publication,
                         digest((publication / "release-index.json").read_bytes()),
+                        BUILD_IMAGE,
                     )
 
     def test_publication_rejects_unindexed_files(self):
@@ -377,6 +401,7 @@ class ApsReleaseTest(unittest.TestCase):
                 aps_release.verify_publication(
                     publication,
                     digest((publication / "release-index.json").read_bytes()),
+                    BUILD_IMAGE,
                 )
 
     def test_publication_rejects_artifact_symlinks(self):
@@ -392,6 +417,7 @@ class ApsReleaseTest(unittest.TestCase):
                 aps_release.verify_publication(
                     publication,
                     digest((publication / "release-index.json").read_bytes()),
+                    BUILD_IMAGE,
                 )
 
     def test_archive_rejects_cross_platform_path_aliases(self):
@@ -411,6 +437,7 @@ class ApsReleaseTest(unittest.TestCase):
                     aps_release.verify_publication(
                         publication,
                         digest((publication / "release-index.json").read_bytes()),
+                        BUILD_IMAGE,
                     )
 
     def test_archive_rejects_extreme_compression_ratio(self):
@@ -420,6 +447,7 @@ class ApsReleaseTest(unittest.TestCase):
                 aps_release.verify_publication(
                     publication,
                     digest((publication / "release-index.json").read_bytes()),
+                    BUILD_IMAGE,
                 )
 
     def test_archive_rejects_unsupported_compression(self):
@@ -429,6 +457,7 @@ class ApsReleaseTest(unittest.TestCase):
                 aps_release.verify_publication(
                     publication,
                     digest((publication / "release-index.json").read_bytes()),
+                    BUILD_IMAGE,
                 )
 
     def test_archive_digest_tampering_is_rejected(self):
@@ -437,25 +466,25 @@ class ApsReleaseTest(unittest.TestCase):
             archive = publication / f"aosp-winscope-{VERSION}.zip"
             archive.write_bytes(archive.read_bytes() + b"tampered")
             with self.assertRaisesRegex(ValueError, "artifact digest mismatch"):
-                aps_release.verify_publication(publication, digest((publication / "release-index.json").read_bytes()))
+                aps_release.verify_publication(publication, digest((publication / "release-index.json").read_bytes()), BUILD_IMAGE)
 
     def test_web_manifest_tampering_is_rejected_after_outer_digests_match(self):
         with tempfile.TemporaryDirectory() as temporary:
             publication = self.make_publication(Path(temporary), bad_web_digest=True)
             with self.assertRaisesRegex(ValueError, "Web asset digest mismatch"):
-                aps_release.verify_publication(publication, digest((publication / "release-index.json").read_bytes()))
+                aps_release.verify_publication(publication, digest((publication / "release-index.json").read_bytes()), BUILD_IMAGE)
 
     def test_archive_path_traversal_is_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:
             publication = self.make_publication(Path(temporary), traversal=True)
             with self.assertRaisesRegex(ValueError, "invalid archive path"):
-                aps_release.verify_publication(publication, digest((publication / "release-index.json").read_bytes()))
+                aps_release.verify_publication(publication, digest((publication / "release-index.json").read_bytes()), BUILD_IMAGE)
 
     def test_archive_path_alias_is_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:
             publication = self.make_publication(Path(temporary), alias=True)
             with self.assertRaisesRegex(ValueError, "invalid archive path"):
-                aps_release.verify_publication(publication, digest((publication / "release-index.json").read_bytes()))
+                aps_release.verify_publication(publication, digest((publication / "release-index.json").read_bytes()), BUILD_IMAGE)
 
     def test_archive_root_member_is_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -464,13 +493,42 @@ class ApsReleaseTest(unittest.TestCase):
                 aps_release.verify_publication(
                     publication,
                     digest((publication / "release-index.json").read_bytes()),
+                    BUILD_IMAGE,
                 )
 
     def test_web_manifest_must_exactly_inventory_web_tree(self):
         with tempfile.TemporaryDirectory() as temporary:
             publication = self.make_publication(Path(temporary), unmanifested_web=True)
             with self.assertRaisesRegex(ValueError, "exactly inventory"):
-                aps_release.verify_publication(publication, digest((publication / "release-index.json").read_bytes()))
+                aps_release.verify_publication(publication, digest((publication / "release-index.json").read_bytes()), BUILD_IMAGE)
+
+    def test_expected_build_image_argument_cannot_be_omitted(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            publication = self.make_publication(Path(temporary))
+            with self.assertRaises(TypeError):
+                aps_release.verify_publication(
+                    publication, digest((publication / "release-index.json").read_bytes())
+                )
+
+    def test_expected_build_image_is_required_as_external_trust_input(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            publication = self.make_publication(Path(temporary))
+            with self.assertRaisesRegex(ValueError, "trusted build image mismatch"):
+                aps_release.verify_publication(
+                    publication,
+                    digest((publication / "release-index.json").read_bytes()),
+                    "ghcr.io/example/other@sha256:" + "b" * 64,
+                )
+
+    def test_build_image_must_be_digest_pinned(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            publication = self.make_publication(
+                Path(temporary), frozen_overrides={"buildImage": "ghcr.io/example/release:latest"}
+            )
+            with self.assertRaisesRegex(ValueError, "trusted build image mismatch"):
+                aps_release.verify_publication(
+                    publication, digest((publication / "release-index.json").read_bytes()), BUILD_IMAGE
+                )
 
     def test_attestation_source_mismatch_is_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -491,7 +549,7 @@ class ApsReleaseTest(unittest.TestCase):
             entry["size"] = attestation.stat().st_size
             index.write_text(json.dumps(index_value), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "attestation provenance mismatch"):
-                aps_release.verify_publication(publication, digest((publication / "release-index.json").read_bytes()))
+                aps_release.verify_publication(publication, digest((publication / "release-index.json").read_bytes()), BUILD_IMAGE)
 
 
 if __name__ == "__main__":

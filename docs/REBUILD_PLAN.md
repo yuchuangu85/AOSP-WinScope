@@ -408,8 +408,11 @@ report, frozen-input metadata, and `APS_INTEGRATION.md` together. The release
 index declares report and instruction paths, and `publish:verify` rejects an
 index that omits them or whose artifact/frozen-input digests do not match.
 Explicit `publish:alpha`, `publish:rc`, and `publish:stable` commands document
-the alpha, `17.0.0-rc.1`, and protected `v17.0.0` publication lanes; no command
-performs an external tag, network, or artifact overwrite operation.
+the alpha, `17.0.0-rc.1`, and protected `v17.0.0` publication lanes. Set
+`OFFICIAL_RELEASE_IMAGE` to the approved public `name@sha256:<digest>` image (or
+pass `--build-image`) before invoking a publication command; the digest is
+frozen into release evidence. No command performs an external tag, network, or
+artifact overwrite operation.
 
 
 ## Stage 12 implementation evidence
@@ -432,23 +435,53 @@ only the Python standard library. APS runs it from a separately trusted, pinned
 source checkout or toolchain, never from the untrusted publication being
 checked. APS supplies an externally authenticated `release-index.json` digest
 through `--expected-index-sha256`. The verifier checks every indexed artifact
-and size, `SHA256SUMS`, frozen source/dependency/report lineage, the Stage 7 and
-Stage 10
-reports, the in-toto provenance statement, safe and unique ZIP paths, the exact
-release inventory, required license/SBOM/dependency evidence, and every Web
+and size, `SHA256SUMS`, frozen source/dependency/report lineage, the Stage 7
+and Stage 10 reports, the in-toto provenance statement, safe and unique ZIP
+paths, the exact release inventory, required license/SBOM/dependency evidence,
+and every Web
 manifest asset digest before unpacking. It rejects unindexed publication
 entries and enforces portable ZIP names, stored/DEFLATE compression, and fixed
-member-count, member-size, total-size, and compression-ratio ceilings. It makes
-no Git, Node, cache, or
-network call. From the trusted checkout, use:
+member-count, member-size, total-size, and compression-ratio ceilings. It
+makes no Git, Node, cache, or network call. From the trusted checkout, use:
 
 ```sh
 npm run aps:verify -- \
   --publication <dir> \
-  --expected-index-sha256 <digest>
+  --expected-index-sha256 <digest> \
+  --expected-build-image <trusted-build-image>
 ```
 
-Self-asserted JSON does not replace the external Sigstore/OIDC trust root. The
-repository does not yet sign or attest `release-index.json`, so APS consumption
-remains blocked until the official release workflow provides that identity-bound
-digest.
+Self-asserted JSON does not replace the external Sigstore/OIDC trust root.
+
+## Stage 14 implementation evidence
+
+`.github/workflows/official-release.yml` is the only repository workflow that
+creates an official release. It runs only for Android 17 version tags and uses
+three explicit trust boundaries: a protected preflight validates the public
+release-container digest and tag, a read-only build job verifies clean-room
+lineage and replays dependency/build/reproducibility/dynamic/publication gates,
+and a narrowly privileged publish job reverifies the transferred publication
+before requesting GitHub OIDC credentials. The resolved build-image digest is
+recorded in authenticated frozen-input evidence. Alpha and RC tags are created
+as GitHub prereleases with latest-release selection disabled; stable tags use
+the normal stable release path. Both build and publish jobs refuse an existing
+release, and attestation occurs only after the final refusal check. Checkout
+does not persist credentials, every action is commit-pinned, and no workflow
+path creates or moves a tag or overwrites an artifact.
+
+Repository administration is a separate required prerequisite: protect the
+`v17.*` tag namespace, require reviewers for the `official-release`
+environment, enable GitHub release immutability, configure a publicly pullable
+`OFFICIAL_RELEASE_IMAGE` by immutable SHA-256 digest, and configure the four
+approved evidence secrets. The release image must provide Bash/coreutils, Git,
+GitHub CLI, Chrome, and native build tools; setup actions install the declared
+Node and Go versions plus the Python 3.12 CI series. The workflow remains
+non-operational until those repository settings exist; this source change does
+not mutate GitHub administration settings.
+
+APS obtains the approved release commit independently, authenticates
+`release-index.json` with `gh attestation verify` using the repository, workflow,
+tag, source digest, and signer digest, computes the verified file's SHA-256, and
+supplies that digest to the trusted offline verifier before unpacking. The
+offline verifier requires the authenticated frozen inputs to contain the
+immutable build-image digest used by the release job.
