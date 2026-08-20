@@ -335,6 +335,11 @@
       {
         "change": "added",
         "origin": "newly-authored-clean-room",
+        "path": "scripts/verify-release-image.py"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
         "path": "scripts/verify-release-settings.py"
       },
       {
@@ -486,6 +491,11 @@
         "change": "added",
         "origin": "newly-authored-clean-room",
         "path": "tests/test_release.py"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "tests/test_release_image.py"
       },
       {
         "change": "added",

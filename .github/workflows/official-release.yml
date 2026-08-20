@@ -41,6 +41,18 @@ jobs:
           echo "release-image=$OFFICIAL_RELEASE_IMAGE" >> "$GITHUB_OUTPUT"
           echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify official release image
+        env:
+          OFFICIAL_RELEASE_IMAGE: ${{ vars.OFFICIAL_RELEASE_IMAGE }}
+        run: |
+          set -euo pipefail
+          python3 scripts/verify-release-image.py --image "$OFFICIAL_RELEASE_IMAGE" --json
+
   build:
     needs: preflight
     runs-on: ubuntu-24.04

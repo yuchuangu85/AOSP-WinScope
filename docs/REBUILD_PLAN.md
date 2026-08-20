@@ -520,3 +520,26 @@ The command emits a schema-v1 machine-readable report and exits nonzero for any
 missing setting or unreadable endpoint. It never creates an environment,
 ruleset, variable, secret, tag, or release. Repository administrators remain
 responsible for applying settings through a separately authorized process.
+
+## Stage 16 implementation evidence
+
+`scripts/verify-release-image.py` proves the runtime contract of the externally
+approved `OFFICIAL_RELEASE_IMAGE` before a release tag is created. It requires
+an immutable lowercase `name@sha256:<digest>` reference, uses a temporary empty
+Docker client configuration for an anonymous `linux/amd64` pull, and verifies
+that the inspected image retains the requested digest and platform. It then
+runs a network-disabled, read-only, capability-free probe requiring Bash,
+coreutils and archive tools used by setup actions, Git, GitHub CLI, Chrome,
+and native C/C++ build tools. The probe mounts no repository data and receives no credentials.
+
+Run the non-publishing preflight with Docker available:
+
+```sh
+OFFICIAL_RELEASE_IMAGE=<name@sha256:digest> npm run release:image
+```
+
+The command emits a schema-v1 report and exits nonzero for mutable references,
+anonymous pull failures, digest/platform mismatches, missing tools, or an
+unavailable Docker daemon. It may populate the local Docker image cache, but it
+does not build or publish an image, mutate a registry, configure GitHub, or
+select which release image administrators should approve.
