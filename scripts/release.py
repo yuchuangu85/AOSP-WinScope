@@ -112,6 +112,18 @@ def git_commit() -> str:
     ).stdout.strip()
 
 
+def require_clean_tree() -> None:
+    dirty = subprocess.run(
+        ["git", "status", "--porcelain", "--untracked-files=all"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    if dirty:
+        fail("reproducibility verification requires a clean Git worktree")
+
+
 def dependency_bundle(destination: Path) -> list[dict[str, Any]]:
     bundle = destination / "dependency-bundle"
     bundle.mkdir(parents=True)
@@ -320,6 +332,7 @@ def package_distribution(
         "sbomPackages": len(json.loads((package_root / "LICENSES/sbom.spdx.json").read_text())["packages"]),
         "sourceDateEpoch": epoch,
         "attestation": attestation_path.as_posix(),
+        "attestationSha256": sha256_file(attestation_path),
     }
 
 
@@ -346,6 +359,61 @@ def safe_relative_path(value: str) -> PurePosixPath:
     if not value or path.is_absolute() or "\\" in value or ".." in path.parts:
         fail(f"invalid release path: {value!r}")
     return path
+
+
+def verify_attestation(
+    attestation_path: Path,
+    archive_name: str,
+    archive_sha256: str,
+    package_root: Path,
+) -> dict[str, Any]:
+    attestation = json.loads(attestation_path.read_text(encoding="utf-8"))
+    if not isinstance(attestation, dict):
+        fail("release attestation must be a JSON object")
+    subjects = attestation.get("subject")
+    subject = next(
+        (
+            item
+            for item in subjects
+            if isinstance(item, dict)
+            and item.get("name") == archive_name
+            and isinstance(item.get("digest"), dict)
+            and item["digest"].get("sha256") == archive_sha256
+        ),
+        None,
+    ) if isinstance(subjects, list) else None
+    predicate = attestation.get("predicate")
+    metadata = predicate.get("metadata") if isinstance(predicate, dict) else None
+    materials = predicate.get("materials") if isinstance(predicate, dict) else None
+    lock_material = next(
+        (
+            item
+            for item in materials
+            if isinstance(item, dict) and item.get("uri") == "build/dependencies.lock.json"
+        ),
+        None,
+    ) if isinstance(materials, list) else None
+    valid = (
+        attestation.get("_type") == "https://in-toto.io/Statement/v1"
+        and attestation.get("predicateType") == "https://slsa.dev/provenance/v1"
+        and subject is not None
+        and isinstance(metadata, dict)
+        and metadata.get("sourceCommit") == git_commit()
+        and metadata.get("sourceDateEpoch") == source_date_epoch()
+        and metadata.get("releaseManifestSha256") == sha256_file(package_root / "release-manifest.json")
+        and lock_material is not None
+        and isinstance(lock_material.get("digest"), dict)
+        and lock_material["digest"].get("sha256") == sha256_file(LOCK_PATH)
+    )
+    if not valid:
+        fail("release attestation does not verify source, manifest, and dependency provenance")
+    return {
+        "ok": True,
+        "sourceCommit": metadata["sourceCommit"],
+        "sourceDateEpoch": metadata["sourceDateEpoch"],
+        "releaseManifestSha256": metadata["releaseManifestSha256"],
+        "dependencyLockSha256": lock_material["digest"]["sha256"],
+    }
 
 
 def verify_package(package_root: Path) -> dict[str, Any]:
@@ -390,20 +458,58 @@ def verify_package(package_root: Path) -> dict[str, Any]:
 
 
 def double_build(version: str, web_root: Path, launchers_root: Path, proxy: Path) -> dict[str, Any]:
+    require_clean_tree()
     with tempfile.TemporaryDirectory(prefix="aosp-winscope-release-") as temporary:
         first = Path(temporary) / "first"
         second = Path(temporary) / "second"
         first_report = package_distribution(version, first, web_root, launchers_root, proxy)
         second_report = package_distribution(version, second, web_root, launchers_root, proxy)
+        first_package = Path(first_report["package"])
+        second_package = Path(second_report["package"])
+        first_verified = verify_package(first_package)
+        second_verified = verify_package(second_package)
+        first_provenance = verify_attestation(
+            Path(first_report["attestation"]),
+            Path(first_report["zip"]).name,
+            first_report["zipSha256"],
+            first_package,
+        )
+        second_provenance = verify_attestation(
+            Path(second_report["attestation"]),
+            Path(second_report["zip"]).name,
+            second_report["zipSha256"],
+            second_package,
+        )
         first_zip = Path(first_report["zip"]).read_bytes()
         second_zip = Path(second_report["zip"]).read_bytes()
         if first_zip != second_zip:
             fail("two release package builds are not byte-identical")
+        if first_provenance != second_provenance or first_report["attestationSha256"] != second_report["attestationSha256"]:
+            fail("two release package provenance records differ")
         return {
+            "schemaVersion": 1,
+            "stage": 10,
             "ok": True,
             "version": version,
-            "zipSha256": first_report["zipSha256"],
+            "sourceCommit": git_commit(),
+            "sourceDateEpoch": source_date_epoch(),
+            "dependencyLockSha256": sha256_file(LOCK_PATH),
+            "builds": [
+                {
+                    "zipSha256": first_report["zipSha256"],
+                    "attestationSha256": first_report["attestationSha256"],
+                    "filesVerified": first_verified["filesVerified"],
+                    "provenanceVerified": first_provenance["ok"],
+                },
+                {
+                    "zipSha256": second_report["zipSha256"],
+                    "attestationSha256": second_report["attestationSha256"],
+                    "filesVerified": second_verified["filesVerified"],
+                    "provenanceVerified": second_provenance["ok"],
+                },
+            ],
             "byteIdentical": True,
+            "provenanceVerified": True,
         }
 
 
@@ -420,6 +526,7 @@ def main() -> int:
     parser.add_argument("--web", type=Path, default=DEFAULT_WEB_ROOT)
     parser.add_argument("--launchers", type=Path, default=DEFAULT_LAUNCHERS_ROOT)
     parser.add_argument("--proxy", type=Path, default=DEFAULT_PROXY)
+    parser.add_argument("--evidence", type=Path)
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
     try:
@@ -430,6 +537,8 @@ def main() -> int:
         else:
             package = args.input or args.output / f"aosp-winscope-{args.version}"
             report = verify_package(package)
+        if args.evidence is not None:
+            write_json(args.evidence, report)
         emit(report, args.json)
         return 0
     except (OSError, ValueError, subprocess.SubprocessError, zipfile.BadZipFile) as error:

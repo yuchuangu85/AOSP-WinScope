@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_REPORT = ROOT / "dist/validation/report.json"
 DEFAULT_WEB = ROOT / "dist/prod"
 DEFAULT_RELEASE = ROOT / "dist/release/aosp-winscope-17.0.0"
+DEFAULT_REPRODUCIBILITY = ROOT / "dist/validation/reproducibility.json"
 LOCK = ROOT / "build/dependencies.lock.json"
 PACKAGE = ROOT / "package.json"
 FORBIDDEN_RUNTIME_MARKERS = (
@@ -342,6 +343,37 @@ def run_optional(name: str, enabled: bool, timeout: int) -> dict[str, Any]:
     )
 
 
+def reproducibility_evidence(path: Path | None) -> dict[str, Any]:
+    if path is None:
+        return result("release:reproducibility", "skipped", reason="two-build evidence not supplied")
+    if not path.is_file():
+        return result("release:reproducibility", "skipped", reason=f"missing {display_path(path)}")
+    try:
+        evidence = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        return result("release:reproducibility", "fail", reason=str(error))
+    builds = evidence.get("builds")
+    valid = (
+        evidence.get("schemaVersion") == 1
+        and evidence.get("stage") == 10
+        and evidence.get("ok") is True
+        and evidence.get("sourceCommit") == git_commit()
+        and evidence.get("dependencyLockSha256") == sha256_file(LOCK)
+        and evidence.get("byteIdentical") is True
+        and evidence.get("provenanceVerified") is True
+        and isinstance(builds, list)
+        and len(builds) == 2
+        and all(
+            isinstance(build, dict)
+            and build.get("provenanceVerified") is True
+            and isinstance(build.get("zipSha256"), str)
+            for build in builds
+        )
+        and builds[0]["zipSha256"] == builds[1]["zipSha256"]
+    )
+    return result("release:reproducibility", "pass" if valid else "fail", evidence=evidence)
+
+
 def device_evidence(path: Path | None) -> dict[str, Any]:
     if path is None:
         return result("device:android17-capture", "skipped", reason="real-device evidence not supplied")
@@ -372,6 +404,7 @@ def report(args: argparse.Namespace) -> dict[str, Any]:
     checks.append(vulnerability_gate(args.vulnerability_evidence))
     checks.append(web_contract(args.web))
     checks.append(release_evidence(args.release))
+    checks.append(reproducibility_evidence(args.reproducibility))
     checks.append(performance(args.web, args.baseline, args.benchmark, args.require_complete))
     checks.append(device_evidence(args.device_evidence))
     checks.extend((
@@ -401,6 +434,7 @@ def main() -> int:
     parser.add_argument("--output", type=Path, default=DEFAULT_REPORT)
     parser.add_argument("--web", type=Path, default=DEFAULT_WEB)
     parser.add_argument("--release", type=Path, default=DEFAULT_RELEASE)
+    parser.add_argument("--reproducibility", type=Path, default=DEFAULT_REPRODUCIBILITY)
     parser.add_argument("--baseline", type=Path)
     parser.add_argument("--benchmark", type=Path)
     parser.add_argument("--device-evidence", type=Path)

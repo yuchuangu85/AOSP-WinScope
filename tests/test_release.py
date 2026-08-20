@@ -6,6 +6,7 @@ import json
 import os
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 
@@ -66,6 +67,37 @@ class ReleaseEngineeringTest(unittest.TestCase):
             self.assertEqual(
                 hashlib.sha256(Path(first["zip"]).read_bytes()).hexdigest(), first["zipSha256"]
             )
+
+    def test_double_build_emits_verified_reproducibility_evidence(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            web, launchers, proxy = self.make_inputs(root)
+            with mock.patch.object(release, "require_clean_tree"):
+                report = release.double_build("17.0.0", web, launchers, proxy)
+            self.assertEqual(report["schemaVersion"], 1)
+            self.assertEqual(report["stage"], 10)
+            self.assertTrue(report["byteIdentical"])
+            self.assertTrue(report["provenanceVerified"])
+            self.assertEqual(len(report["builds"]), 2)
+            self.assertEqual(report["builds"][0]["zipSha256"], report["builds"][1]["zipSha256"])
+            self.assertTrue(all(build["provenanceVerified"] for build in report["builds"]))
+
+    def test_attestation_tampering_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            web, launchers, proxy = self.make_inputs(root)
+            report = release.package_distribution("17.0.0", root / "release", web, launchers, proxy)
+            attestation = Path(report["attestation"])
+            value = json.loads(attestation.read_text(encoding="utf-8"))
+            value["predicate"]["metadata"]["sourceCommit"] = "tampered"
+            attestation.write_text(json.dumps(value), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "attestation does not verify"):
+                release.verify_attestation(
+                    attestation,
+                    Path(report["zip"]).name,
+                    report["zipSha256"],
+                    Path(report["package"]),
+                )
 
     def test_package_rejects_missing_launcher(self):
         with tempfile.TemporaryDirectory() as temporary:

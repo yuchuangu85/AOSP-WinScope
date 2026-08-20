@@ -50,6 +50,26 @@ class ValidationGateTest(unittest.TestCase):
             self.assertEqual(check["status"], "fail")
             self.assertIn("webBytes", check["failures"])
 
+    def test_reproducibility_evidence_requires_two_matching_provenance_verified_builds(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "reproducibility.json"
+            path.write_text(json.dumps({
+                "schemaVersion": 1,
+                "stage": 10,
+                "ok": True,
+                "sourceCommit": validate.git_commit(),
+                "dependencyLockSha256": validate.sha256_file(validate.LOCK),
+                "byteIdentical": True,
+                "provenanceVerified": True,
+                "builds": [
+                    {"zipSha256": "same", "provenanceVerified": True},
+                    {"zipSha256": "same", "provenanceVerified": True},
+                ],
+            }), encoding="utf-8")
+            self.assertEqual(validate.reproducibility_evidence(path)["status"], "pass")
+            path.write_text(path.read_text().replace('"same"', '"different"', 1), encoding="utf-8")
+            self.assertEqual(validate.reproducibility_evidence(path)["status"], "fail")
+
     def test_android17_evidence_requires_successful_capture_and_import(self):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "device.json"

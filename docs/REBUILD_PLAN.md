@@ -314,6 +314,7 @@ The default regression budget is 10% for medians of critical startup/import/inte
 7. **Complete feature/compatibility/performance validation** — upstream unit/E2E, production-dist E2E, supported browsers/platforms, Android devices, benchmarks, vulnerability and license gates.
 8. **Publish candidate and stable release** — alpha, `17.0.0-rc.1`, frozen inputs, protected `v17.0.0`, complete evidence, APS integration guide.
 9. **Close performance and security gates** — upstream-relative benchmark baselines, vulnerability evidence, and hostile-input regression checks are complete before final release eligibility.
+10. **Prove reproducible release provenance** — two isolated package builds from a clean source tree are byte-identical and both attest the same source and dependency inputs.
 
 Every stage produces machine-readable verification evidence. Pure vendor imports, one class of adaptation, and its tests remain reviewable commits. `.deps/`, `node_modules/`, transient output, and real device traces are not committed.
 
@@ -385,3 +386,14 @@ including manifest/path traversal, query and method rejection, loopback origin
 and token validation, encoded traversal, bounded shell commands, and required
 security headers. `validate.py --run-security` records that check alongside
 the existing feature, dependency, vulnerability, release, and runtime gates.
+
+## Stage 10 implementation evidence
+
+`release:double-build` now performs two isolated package builds from the clean
+source tree, verifies both package inventories, checks each in-toto-shaped
+attestation against the current source commit, release manifest, and dependency
+lock, and requires identical ZIP bytes and provenance records. It can persist a
+schema-v1 Stage 10 report at `dist/validation/reproducibility.json`.
+`validate.py` consumes that report as `release:reproducibility`; a complete gate
+requires two matching ZIP digests, verified provenance, the current source
+commit, and the current dependency-lock digest.
