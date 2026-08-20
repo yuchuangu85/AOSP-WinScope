@@ -395,6 +395,16 @@
       {
         "change": "modified",
         "origin": "newly-authored-clean-room",
+        "path": "src/app/trace_loading/upload_traces_component.ng.html"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/app/trace_loading/upload_traces_component.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
         "path": "src/common/analytics.ts"
       },
       {

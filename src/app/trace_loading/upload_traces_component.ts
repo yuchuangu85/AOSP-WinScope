@@ -68,8 +68,8 @@ export class UploadTracesComponent
 
   readonly legacyTraceWarningTooltip =
     'This trace has a legacy format. ' +
-    'Unless "Discard legacy traces" is selected, this trace will be converted ' +
-    'to a Perfetto trace when you click "View traces".';
+    'It will be converted to a Perfetto trace when you click "View traces" ' +
+    'unless you explicitly select "Discard legacy traces".';
 
   loadedFileReaders = input.required<FileReader[]>();
   storage = input.required<Store>();
@@ -113,8 +113,7 @@ export class UploadTracesComponent
   ngOnInit() {
     const storage = this.storage();
     const storedValue = storage.get(this.discardLegacyStoreKey);
-    this.discardLegacyFiles =
-      storedValue === 'true' || storedValue === undefined;
+    this.discardLegacyFiles = storedValue === 'true';
     this.removeAllTraces.emit();
     this.clearAllWarnings();
   }

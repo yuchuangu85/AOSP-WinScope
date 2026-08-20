@@ -70,7 +70,7 @@ limitations under the License.
             color="primary"
             [checked]="!isDiscardTracesDisabled && discardLegacyFiles"
             [disabled]="isDiscardTracesDisabled"
-            matTooltip="Discard legacy traces instead of converting to Perfetto to reduce loading time"
+            matTooltip="Legacy traces are converted to Perfetto by default. Select this only to omit them."
             (change)="updateDiscardLegacyTraces()"
           >
             Discard legacy traces

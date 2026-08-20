@@ -634,3 +634,17 @@ device-specific availability explanation and are excluded from request
 construction even if a stored preference previously enabled them. Availability
 updates apply safely across both trace and dump configuration maps, allowing
 the rest of an Android 15/16 device's supported sources to remain usable.
+
+## Stage 23 implementation evidence
+
+Legacy trace import is now preserved by default. A fresh profile no longer
+preselects **Discard legacy traces**: recognized Android 17 legacy readers flow
+through the existing Legacy-to-Perfetto converter when the user opens the
+trace. Discard remains an explicit user preference for faster loading and is
+honored only after the user selects it.
+
+The schema-v1 distribution manifest now also declares
+`capabilities.legacyImport`, including the stable list of retained legacy
+families and `conversion: perfetto`. This lets standalone and APS consumers
+distinguish the supported Android 17 compatibility boundary from removed
+historical formats without depending on reader class names or source layout.
