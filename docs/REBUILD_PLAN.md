@@ -313,6 +313,7 @@ The default regression budget is 10% for medians of critical startup/import/inte
 6. **Build release engineering** — normalized ZIP, SBOM/licenses, dependency bundle, double-build equality, attestation.
 7. **Complete feature/compatibility/performance validation** — upstream unit/E2E, production-dist E2E, supported browsers/platforms, Android devices, benchmarks, vulnerability and license gates.
 8. **Publish candidate and stable release** — alpha, `17.0.0-rc.1`, frozen inputs, protected `v17.0.0`, complete evidence, APS integration guide.
+9. **Close performance and security gates** — upstream-relative benchmark baselines, vulnerability evidence, and hostile-input regression checks are complete before final release eligibility.
 
 Every stage produces machine-readable verification evidence. Pure vendor imports, one class of adaptation, and its tests remain reviewable commits. `.deps/`, `node_modules/`, transient output, and real device traces are not committed.
 
@@ -372,3 +373,15 @@ metadata, and the stable `v17.0.0` tag policy in `release-index.json`.
 published artifact digests. `docs/APS_INTEGRATION.md` defines source-checkout
 and archive consumption through the relocatable `web/` plus schema-versioned
 `manifest.json` contract; version 1 deliberately has no APS bridge.
+
+## Stage 9 implementation evidence
+
+Stage 9 closes the performance and hostile-input gates that are required before
+publication. A supplied benchmark now cannot pass without a matching
+upstream-relative baseline; missing benchmark or baseline evidence remains an
+explicit skip and blocks a complete gate. `security:hostile` runs standard
+library regression tests for the Go launcher and Python capture proxy,
+including manifest/path traversal, query and method rejection, loopback origin
+and token validation, encoded traversal, bounded shell commands, and required
+security headers. `validate.py --run-security` records that check alongside
+the existing feature, dependency, vulnerability, release, and runtime gates.

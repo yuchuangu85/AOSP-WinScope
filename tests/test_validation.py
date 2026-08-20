@@ -89,6 +89,7 @@ class ValidationGateTest(unittest.TestCase):
             baseline.write_text("{}", encoding="utf-8")
             self.assertEqual(validate.performance(root, baseline, benchmark)["status"], "fail")
             self.assertEqual(validate.performance(root, None, benchmark, require_benchmark=True)["status"], "skipped")
+            self.assertEqual(validate.performance(root, None, benchmark)["status"], "skipped")
 
 
 

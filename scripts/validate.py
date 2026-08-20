@@ -46,6 +46,7 @@ COMMANDS = {
     "e2e": ["npm", "run", "test:e2e"],
     "production-e2e": ["npm", "run", "test:e2e:prod"],
     "offline": ["npm", "run", "deps:offline-check"],
+    "security": ["npm", "run", "security:hostile"],
 }
 
 
@@ -290,7 +291,7 @@ def performance(web_root: Path, baseline: Path | None, benchmark: Path | None = 
 
     if require_benchmark and benchmark is None:
         return result("performance:benchmark", "skipped", reason="benchmark evidence not supplied", metrics=metrics)
-    if require_benchmark and baseline is None:
+    if benchmark is not None and baseline is None:
         return result("performance:benchmark", "skipped", reason="performance baseline not supplied", metrics=metrics)
     if baseline is None:
         return result(
@@ -299,8 +300,6 @@ def performance(web_root: Path, baseline: Path | None, benchmark: Path | None = 
             reason=None if benchmark is not None else "no baseline supplied",
             metrics=metrics,
         )
-    if benchmark is not None and baseline is None:
-        return result("performance:benchmark", "skipped", reason="performance baseline not supplied", metrics=metrics)
     try:
         expected = json.loads(baseline.read_text(encoding="utf-8"))
         expected_metrics = expected.get("metrics", expected)
@@ -380,6 +379,7 @@ def report(args: argparse.Namespace) -> dict[str, Any]:
         run_optional("e2e", args.run_e2e, args.timeout),
         run_optional("production-e2e", args.run_production_e2e, args.timeout),
         run_optional("offline", args.run_offline, args.timeout),
+        run_optional("security", args.run_security, args.timeout),
     ))
     return {
         "schemaVersion": 1,
@@ -389,7 +389,9 @@ def report(args: argparse.Namespace) -> dict[str, Any]:
         "repository": str(ROOT),
         "checks": checks,
         "fixtureCoverage": coverage["inventory"],
-        "dynamicChecksRequested": any((args.run_unit, args.run_e2e, args.run_production_e2e, args.run_offline)),
+        "dynamicChecksRequested": any((
+            args.run_unit, args.run_e2e, args.run_production_e2e, args.run_offline, args.run_security
+        )),
     }
 
 
@@ -407,6 +409,7 @@ def main() -> int:
     parser.add_argument("--run-e2e", action="store_true")
     parser.add_argument("--run-production-e2e", action="store_true")
     parser.add_argument("--run-offline", action="store_true")
+    parser.add_argument("--run-security", action="store_true")
     parser.add_argument("--timeout", type=int, default=1800)
     parser.add_argument("--require-complete", action="store_true")
     parser.add_argument("--json", action="store_true")

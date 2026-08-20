@@ -185,10 +185,16 @@ def parse_request_path(raw_path: str) -> list[str]:
   normalized = parsed.path.strip("/")
   if not normalized:
     raise BadRequestError("Invalid request path")
-  parts = normalized.split("/")
-  if any(not part or part in (".", "..") for part in parts):
+  parts = [parse.unquote(part) for part in normalized.split("/")]
+  if any(
+      not part
+      or part in (".", "..")
+      or "/" in part
+      or "\\" in part
+      for part in parts
+  ):
     raise BadRequestError("Invalid request path")
-  return [parse.unquote(part) for part in parts]
+  return parts
 
 
 def valid_device_id(value: str) -> bool:
