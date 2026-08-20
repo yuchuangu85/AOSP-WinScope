@@ -99,7 +99,10 @@ The consumer-visible files are:
 `manifest.json` is schema version 1 and lists the Web assets and SHA-256
 digests. Its `capabilities.legacyImport` entry declares the Android 17 legacy
 formats retained by the standalone product and the `perfetto` conversion path
-used before viewer initialization. `web/index.html` and
+used before viewer initialization. `capabilities.capabilityDiscovery` records
+that capture controls come from device probes and analysis controls come from
+the loaded trace content; neither is inferred from an Android version label.
+`web/index.html` and
 `web/runtime-config.json` are mandatory. Resolve
 all resources relative to the Web root: the application must work when mounted
 under a non-root path, and APS must not rewrite asset URLs or infer bundle

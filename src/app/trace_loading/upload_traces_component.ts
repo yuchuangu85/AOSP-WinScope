@@ -217,7 +217,18 @@ export class UploadTracesComponent
   }
 
   canVisualizeTrace(traceType: TraceType): boolean {
-    return isTraceTypeWithViewer(traceType);
+    if (isTraceTypeWithViewer(traceType)) {
+      return true;
+    }
+    const isTransitionSource =
+      traceType === TraceType.WM_TRANSITION ||
+      traceType === TraceType.SHELL_TRANSITION;
+    if (!isTransitionSource) {
+      return false;
+    }
+    return this.loadedFileReaders().some(
+      (reader) => reader.getTraceType() === TraceType.TRANSITION,
+    );
   }
 
   isLegacyTrace(reader: FileReader): boolean {

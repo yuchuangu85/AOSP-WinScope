@@ -443,6 +443,10 @@ def create_web_manifest(destination: Path) -> list[dict[str, Any]]:
     write_json(destination / "manifest.json", {
         "schemaVersion": 1,
         "capabilities": {
+            "capabilityDiscovery": {
+                "capture": "device-probe",
+                "analysis": "trace-content",
+            },
             "legacyImport": {
                 "supported": True,
                 "conversion": "perfetto",

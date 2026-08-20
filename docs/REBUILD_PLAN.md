@@ -648,3 +648,19 @@ The schema-v1 distribution manifest now also declares
 families and `conversion: perfetto`. This lets standalone and APS consumers
 distinguish the supported Android 17 compatibility boundary from removed
 historical formats without depending on reader class names or source layout.
+
+## Stage 24 implementation evidence
+
+UI capability decisions now explicitly use runtime evidence. Capture targets
+continue to come from selected-device probes, while analysis affordances come
+from the current set of loaded readers. In particular, legacy WM and Shell
+transition rows stop claiming that visualization is unavailable once their
+content has produced the combined `TRANSITION` reader consumed by the viewer.
+An isolated transition source still retains the existing missing-companion
+diagnostic.
+
+The distribution manifest records these rules through
+`capabilities.capabilityDiscovery`, with `capture: device-probe` and
+`analysis: trace-content`. Android/API version labels remain provenance and
+compatibility evidence, not substitutes for an observed device datasource or
+an observed trace entry type.
