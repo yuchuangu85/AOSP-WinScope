@@ -38,7 +38,9 @@
     "validate:report": "python3 scripts/validate.py report --json",
     "validate:gate": "python3 scripts/validate.py gate --json --require-complete",
     "validate:runtime": "python3 scripts/validate.py gate --json --run-unit --run-e2e --run-production-e2e --run-offline",
-    "test:e2e:prod": "node scripts/run_e2e.js --production"
+    "test:e2e:prod": "node scripts/run_e2e.js --production",
+    "publish:candidate": "python3 scripts/publish.py publish --json",
+    "publish:verify": "python3 scripts/publish.py verify --json"
   },
   "private": true,
   "dependencies": {

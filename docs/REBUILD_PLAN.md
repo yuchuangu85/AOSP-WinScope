@@ -357,3 +357,18 @@ The standalone Web build now ships only local assets, declares a restrictive Con
 ## Stage 7 implementation evidence
 
 `scripts/validate.py` provides the Stage 7 machine-readable validation report and gate. It inventories representative Perfetto, legacy, screenshot, screen-recording, and IME fixtures; checks the production Web CSP/runtime configuration and forbidden runtime markers; runs the existing dependency-lock verifier; validates launcher/browser support declarations; verifies release license/SBOM/dependency evidence; records Web size plus startup/import/interaction/peak-memory benchmark metrics against a regression baseline; and validates schema-bound Android 17 device and vulnerability evidence. Unit, development E2E, production-distribution E2E, and offline checks can be requested with `--run-unit`, `--run-e2e`, `--run-production-e2e`, and `--run-offline`. Missing external artifacts are reported as `skipped`, never as false passes; `--require-complete` turns those skips into a blocking gate. `validate:report` is the non-blocking local report; `validate:gate` is the strict release gate.
+
+## Stage 8 implementation evidence
+
+`scripts/publish.py` stages alpha, release-candidate, and the exact stable
+`17.0.0` publication without performing external network or tag operations. It
+requires a clean source tree, a complete Stage 7 schema-v1 passing report, and
+a Stage 6 archive containing the manifest, release manifest, license, SBOM,
+attribution, and dependency-lock evidence. Each publication records frozen
+Android 17 inputs, source revision/time, toolchain and dependency digests,
+validation and archive digests, immutable artifact hashes, support/channel
+metadata, and the stable `v17.0.0` tag policy in `release-index.json`.
+`publish:verify` rechecks release-index lineage, frozen-input evidence, and all
+published artifact digests. `docs/APS_INTEGRATION.md` defines source-checkout
+and archive consumption through the relocatable `web/` plus schema-versioned
+`manifest.json` contract; version 1 deliberately has no APS bridge.
