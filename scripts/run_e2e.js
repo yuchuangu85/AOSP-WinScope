@@ -60,6 +60,7 @@ async function checkUrl(url, timeout = 120000) {
 }
 
 async function run() {
+  const production = process.argv.includes('--production');
   const processes = [];
 
   const cleanup = () => {
@@ -77,32 +78,46 @@ async function run() {
   process.on('exit', cleanup);
 
   try {
-    // 1. Install chromedriver (sync)
-    log('Installing chromedriver...');
-    execSync('npm run install:chromedriver', { stdio: 'inherit' });
+    if (production) {
+      process.env.AOSP_WINSCOPE_E2E_PRODUCTION = '1';
+      process.env.AOSP_WINSCOPE_E2E_WINSCOPE_URL = 'http://127.0.0.1:8080';
+    }
+    // 1. Install chromedriver for the development runner; production validation
+    // intentionally uses the already-prepared offline driver.
+    if (!production) {
+      log('Installing chromedriver...');
+      execSync('npm run install:chromedriver', { stdio: 'inherit' });
+    }
 
     // 2. Build E2E tests (sync)
     log('Cleaning up E2E test output directories...');
     execSync('rm -rf dist/e2e_test && npx tsc -p ./src/test/e2e', { stdio: 'inherit' });
 
-    // 3. Start Remote Tool Mock (async)
-    log('Starting Remote Tool Mock (port 8081)...');
-    const mock = spawn('ng', ['serve', 'remote-tool-mock'], { stdio: 'inherit', shell: true });
-    processes.push(mock);
-
-    // 4. Start Angular App (async)
-    log('Starting Angular App (port 8080, remote tool proxy: 8080/mock)...');
-    const app = spawn('ng', ['serve', 'winscope'], { stdio: 'inherit', shell: true });
+    // 3. Start the application under test. Production validation serves the
+    // already-built dist/prod tree and omits the remote-tool mock.
+    const app = production
+      ? spawn('python3', ['-m', 'http.server', '8080', '--bind', '127.0.0.1', '--directory', 'dist/prod'], {
+          stdio: 'inherit',
+          env: { ...process.env, AOSP_WINSCOPE_E2E_PRODUCTION: '1', AOSP_WINSCOPE_E2E_WINSCOPE_URL: 'http://127.0.0.1:8080' },
+        })
+      : spawn('ng', ['serve', 'winscope'], { stdio: 'inherit', shell: true });
     processes.push(app);
+    if (!production) {
+      log('Starting Remote Tool Mock (port 8081)...');
+      const mock = spawn('ng', ['serve', 'remote-tool-mock'], { stdio: 'inherit', shell: true });
+      processes.push(mock);
+    }
 
     // 5. Wait for ports
     log('Waiting for services to be ready...');
     await Promise.all([
       checkPort(8080),
-      checkPort(8081),
-      checkUrl('http://localhost:8081/index.html'),
+      ...(production ? [] : [
+        checkPort(8081),
+        checkUrl('http://localhost:8081/index.html'),
+        checkUrl('http://localhost:8080/mock/index.html'),
+      ]),
       checkUrl('http://localhost:8080/index.html'),
-      checkUrl('http://localhost:8080/mock/index.html'),
     ]);
     log('Services are ready!');
 

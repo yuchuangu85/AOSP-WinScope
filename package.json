@@ -34,7 +34,11 @@
     "release:package": "python3 scripts/release.py package --json",
     "release:verify": "python3 scripts/release.py verify --json",
     "release:double-build": "python3 scripts/release.py double-build --json",
-    "build:release": "npm run build:prod && npm run build:launchers && npm run release:package"
+    "build:release": "npm run build:prod && npm run build:launchers && npm run release:package",
+    "validate:report": "python3 scripts/validate.py report --json",
+    "validate:gate": "python3 scripts/validate.py gate --json --require-complete",
+    "validate:runtime": "python3 scripts/validate.py gate --json --run-unit --run-e2e --run-production-e2e --run-offline",
+    "test:e2e:prod": "node scripts/run_e2e.js --production"
   },
   "private": true,
   "dependencies": {

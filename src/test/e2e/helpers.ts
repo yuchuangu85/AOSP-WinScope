@@ -16,8 +16,9 @@
 import * as path from 'path';
 import {browser, by, element, ElementFinder, ExpectedConditions, protractor,} from 'protractor';
 
-export const WINSCOPE_URL = 'http://localhost:8080';
-export const REMOTE_TOOL_MOCK_URL = 'http://localhost:8081';
+const E2E_ENV = typeof process === 'undefined' ? {} : process.env;
+export const WINSCOPE_URL = E2E_ENV['AOSP_WINSCOPE_E2E_WINSCOPE_URL'] ?? 'http://localhost:8080';
+export const REMOTE_TOOL_MOCK_URL = E2E_ENV['AOSP_WINSCOPE_E2E_REMOTE_TOOL_URL'] ?? 'http://localhost:8081';
 const JASMINE_DEFAULT_TIMEOUT_MS = 40000;
 
 /**

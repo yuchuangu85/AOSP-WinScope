@@ -20,8 +20,17 @@
 // node node_modules/.bin/webdriver-manager update -- versions.chrome=<NEW VERSION>
 // and change the hardcoded version here
 
+const fs = require('fs');
+const path = require('path');
+const production = process.env.AOSP_WINSCOPE_E2E_PRODUCTION === '1';
+const specs = production
+  ? fs.readdirSync('dist/e2e_test')
+      .filter((name) => name.endsWith('_test.js') && name !== 'cross_tool_protocol_test.js')
+      .map((name) => path.join('dist/e2e_test', name))
+  : ['dist/e2e_test/*_test.js'];
+
 exports.config = {
-  specs: ['dist/e2e_test/*_test.js'],
+  specs,
 
   directConnect: true,
   capabilities: {
