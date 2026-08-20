@@ -102,6 +102,9 @@ formats retained by the standalone product and the `perfetto` conversion path
 used before viewer initialization. `capabilities.capabilityDiscovery` records
 that capture controls come from device probes and analysis controls come from
 the loaded trace content; neither is inferred from an Android version label.
+`capabilities.analysisViewers` declares the stable WindowManager and
+SurfaceFlinger viewer boundary: required trace identity plus hierarchy,
+properties, 2D/3D rects, timeline, and playback features.
 `web/index.html` and
 `web/runtime-config.json` are mandatory. Resolve
 all resources relative to the Web root: the application must work when mounted

@@ -664,3 +664,18 @@ The distribution manifest records these rules through
 `analysis: trace-content`. Android/API version labels remain provenance and
 compatibility evidence, not substitutes for an observed device datasource or
 an observed trace entry type.
+
+## Stage 25 implementation evidence
+
+The schema-v1 distribution contract now makes the two core hierarchy viewers
+explicit. `capabilities.analysisViewers.windowManager` requires a
+`window-manager` trace and
+`capabilities.analysisViewers.surfaceFlinger` requires a `surface-flinger`
+trace. Both declare the retained Android 17 feature set: hierarchy, properties,
+2D rects, 3D rects, timeline, and playback.
+
+These capabilities describe the existing shared hierarchy/rect/playback viewer
+implementation rather than introducing an APS-specific UI or alternate parser.
+Consumers can inspect the manifest without depending on Angular component names,
+hashed bundles, or repository paths, while runtime creation remains gated by
+the corresponding loaded trace content from Stage 24.
