@@ -423,3 +423,32 @@ SHA-256 digests for their local evidence files. Publication indexes now record
 release time, baseline generation, support track, withdrawal metadata, and the
 Critical/High response targets. Existing publication directories are immutable;
 re-publishing the same version fails instead of deleting evidence.
+
+
+## Stage 13 implementation evidence
+
+`verify-aps-release.py` provides the APS pre-unpack verification boundary using
+only the Python standard library. APS runs it from a separately trusted, pinned
+source checkout or toolchain, never from the untrusted publication being
+checked. APS supplies an externally authenticated `release-index.json` digest
+through `--expected-index-sha256`. The verifier checks every indexed artifact
+and size, `SHA256SUMS`, frozen source/dependency/report lineage, the Stage 7 and
+Stage 10
+reports, the in-toto provenance statement, safe and unique ZIP paths, the exact
+release inventory, required license/SBOM/dependency evidence, and every Web
+manifest asset digest before unpacking. It rejects unindexed publication
+entries and enforces portable ZIP names, stored/DEFLATE compression, and fixed
+member-count, member-size, total-size, and compression-ratio ceilings. It makes
+no Git, Node, cache, or
+network call. From the trusted checkout, use:
+
+```sh
+npm run aps:verify -- \
+  --publication <dir> \
+  --expected-index-sha256 <digest>
+```
+
+Self-asserted JSON does not replace the external Sigstore/OIDC trust root. The
+repository does not yet sign or attest `release-index.json`, so APS consumption
+remains blocked until the official release workflow provides that identity-bound
+digest.

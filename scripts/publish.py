@@ -28,6 +28,7 @@ PACKAGE_LOCK = ROOT / "package-lock.json"
 DEFAULT_OUTPUT = ROOT / "dist/public"
 DEFAULT_REPRODUCIBILITY = ROOT / "dist/validation/reproducibility.json"
 DEFAULT_GUIDE = ROOT / "docs/APS_INTEGRATION.md"
+APS_VERIFIER = ROOT / "scripts/verify-aps-release.py"
 SECURITY_RESPONSE_POLICY = {
     "criticalAssessmentHours": 24,
     "criticalFixOrMitigationHours": 72,
@@ -174,6 +175,14 @@ def verify_release_artifact(release_dir: Path, version: str) -> dict[str, Any]:
         for subject in subjects
     ):
         fail("release attestation does not match the release archive")
+    if not any(
+        isinstance(subject, dict)
+        and subject.get("name") == sums.name
+        and isinstance(subject.get("digest"), dict)
+        and subject["digest"].get("sha256") == sha256_file(sums)
+        for subject in subjects
+    ):
+        fail("release attestation does not match the checksums")
     with zipfile.ZipFile(archive) as package:
         names = set(package.namelist())
     required = {
@@ -238,8 +247,8 @@ def publish(
             fail("published-at must include a timezone")
         published_at = published_at.astimezone(timezone.utc)
     channel = version_channel(version)
-    if channel == "stable" and tag not in (None, "v17.0.0"):
-        fail("stable release must be tagged v17.0.0")
+    if tag not in (None, f"v{version}"):
+        fail(f"release must be tagged v{version}")
     require_clean_tree()
     validation = verify_validation(validation_path)
     validation = {**validation, "reportSha256": sha256_file(validation_path)}
@@ -247,6 +256,8 @@ def publish(
     reproducibility = {**reproducibility, "reportSha256": sha256_file(reproducibility_path)}
     if not guide_path.is_file() or guide_path.stat().st_size == 0:
         fail(f"APS integration guide is missing: {guide_path}")
+    if not APS_VERIFIER.is_file() or APS_VERIFIER.stat().st_size == 0:
+        fail(f"APS release verifier is missing: {APS_VERIFIER}")
     artifact = verify_release_artifact(release_dir, version)
     target = output / version
     if target.exists():
@@ -326,6 +337,21 @@ def publish(
         }
         index_path = staging / "release-index.json"
         write_json(index_path, index)
+        aps_check = subprocess.run(
+            [
+                sys.executable,
+                str(APS_VERIFIER),
+                "--publication",
+                str(staging),
+                "--expected-index-sha256",
+                sha256_file(index_path),
+                "--json",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if aps_check.returncode != 0:
+            fail(f"APS release verification failed: {aps_check.stdout.strip() or aps_check.stderr.strip()}")
         staging.rename(target)
     except Exception:
         shutil.rmtree(staging, ignore_errors=True)

@@ -27,6 +27,8 @@ PROVENANCE_FILES = (
     ROOT / "provenance/android17-baseline.json",
     ROOT / "provenance/android17-winscope-files.json",
 )
+BUILD_TYPE = "https://android.googlesource.com/aosp-winscope/release"
+BUILDER_ID = "https://android.googlesource.com/aosp-winscope/release-builder"
 LAUNCHER_TARGETS = (
     ("windows", "amd64", "winscope-launcher.exe"),
     ("windows", "arm64", "winscope-launcher.exe"),
@@ -298,25 +300,40 @@ def package_distribution(
     zip_digest = sha256_file(zip_path)
     sums_path = output_root / "SHA256SUMS"
     sums_path.write_text(f"{zip_digest}  {zip_path.name}\n", encoding="utf-8")
+    sums_digest = sha256_file(sums_path)
     release_manifest_digest = sha256_file(package_root / "release-manifest.json")
     dependency_lock_digest = sha256_file(package_root / "dependency-bundle/dependencies.lock.json")
     commit = git_commit()
     attestation = {
         "_type": "https://in-toto.io/Statement/v1",
-        "subject": [{"name": zip_path.name, "digest": {"sha256": zip_digest}}],
+        "subject": [
+            {"name": zip_path.name, "digest": {"sha256": zip_digest}},
+            {"name": sums_path.name, "digest": {"sha256": sums_digest}},
+        ],
         "predicateType": "https://slsa.dev/provenance/v1",
         "predicate": {
-            "buildType": "https://android.googlesource.com/aosp-winscope/release",
-            "invocation": {"parameters": {"version": version}},
-            "metadata": {
-                "sourceDateEpoch": epoch,
-                "sourceCommit": commit,
-                "releaseManifestSha256": release_manifest_digest,
+            "buildDefinition": {
+                "buildType": BUILD_TYPE,
+                "externalParameters": {"version": version},
+                "internalParameters": {"sourceDateEpoch": epoch},
+                "resolvedDependencies": [
+                    {"uri": "git:repository", "digest": {"sha1": commit}},
+                    {
+                        "uri": "build/dependencies.lock.json",
+                        "digest": {"sha256": dependency_lock_digest},
+                    },
+                ],
             },
-            "materials": [
-                {"uri": "git:repository", "digest": {"sha1": commit}},
-                {"uri": "build/dependencies.lock.json", "digest": {"sha256": dependency_lock_digest}},
-            ],
+            "runDetails": {
+                "builder": {"id": BUILDER_ID},
+                "metadata": {},
+                "byproducts": [
+                    {
+                        "name": "release-manifest.json",
+                        "digest": {"sha256": release_manifest_digest},
+                    },
+                ],
+            },
         },
     }
     attestation_path = output_root / f"aosp-winscope-{version}.attestation.json"
@@ -382,37 +399,87 @@ def verify_attestation(
         ),
         None,
     ) if isinstance(subjects, list) else None
+    sums_path = attestation_path.parent / "SHA256SUMS"
+    sums_subject = next(
+        (
+            item
+            for item in subjects
+            if isinstance(item, dict)
+            and item.get("name") == sums_path.name
+            and isinstance(item.get("digest"), dict)
+            and sums_path.is_file()
+            and item["digest"].get("sha256") == sha256_file(sums_path)
+        ),
+        None,
+    ) if isinstance(subjects, list) else None
     predicate = attestation.get("predicate")
-    metadata = predicate.get("metadata") if isinstance(predicate, dict) else None
-    materials = predicate.get("materials") if isinstance(predicate, dict) else None
+    build_definition = predicate.get("buildDefinition") if isinstance(predicate, dict) else None
+    run_details = predicate.get("runDetails") if isinstance(predicate, dict) else None
+    external_parameters = (
+        build_definition.get("externalParameters") if isinstance(build_definition, dict) else None
+    )
+    internal_parameters = (
+        build_definition.get("internalParameters") if isinstance(build_definition, dict) else None
+    )
+    dependencies = (
+        build_definition.get("resolvedDependencies") if isinstance(build_definition, dict) else None
+    )
+    builder = run_details.get("builder") if isinstance(run_details, dict) else None
+    byproducts = run_details.get("byproducts") if isinstance(run_details, dict) else None
+    git_material = next(
+        (item for item in dependencies if isinstance(item, dict) and item.get("uri") == "git:repository"),
+        None,
+    ) if isinstance(dependencies, list) else None
     lock_material = next(
         (
             item
-            for item in materials
+            for item in dependencies
             if isinstance(item, dict) and item.get("uri") == "build/dependencies.lock.json"
         ),
         None,
-    ) if isinstance(materials, list) else None
+    ) if isinstance(dependencies, list) else None
+    manifest_byproduct = next(
+        (
+            item
+            for item in byproducts
+            if isinstance(item, dict) and item.get("name") == "release-manifest.json"
+        ),
+        None,
+    ) if isinstance(byproducts, list) else None
+    release_manifest = json.loads((package_root / "release-manifest.json").read_text(encoding="utf-8"))
     valid = (
         attestation.get("_type") == "https://in-toto.io/Statement/v1"
         and attestation.get("predicateType") == "https://slsa.dev/provenance/v1"
         and subject is not None
-        and isinstance(metadata, dict)
-        and metadata.get("sourceCommit") == git_commit()
-        and metadata.get("sourceDateEpoch") == source_date_epoch()
-        and metadata.get("releaseManifestSha256") == sha256_file(package_root / "release-manifest.json")
-        and lock_material is not None
+        and sums_subject is not None
+        and isinstance(build_definition, dict)
+        and build_definition.get("buildType") == BUILD_TYPE
+        and isinstance(external_parameters, dict)
+        and external_parameters.get("version") == release_manifest.get("version")
+        and isinstance(internal_parameters, dict)
+        and internal_parameters.get("sourceDateEpoch") == source_date_epoch()
+        and isinstance(builder, dict)
+        and builder.get("id") == BUILDER_ID
+        and isinstance(git_material, dict)
+        and isinstance(git_material.get("digest"), dict)
+        and git_material["digest"].get("sha1") == git_commit()
+        and isinstance(lock_material, dict)
         and isinstance(lock_material.get("digest"), dict)
         and lock_material["digest"].get("sha256") == sha256_file(LOCK_PATH)
+        and isinstance(manifest_byproduct, dict)
+        and isinstance(manifest_byproduct.get("digest"), dict)
+        and manifest_byproduct["digest"].get("sha256")
+        == sha256_file(package_root / "release-manifest.json")
     )
     if not valid:
         fail("release attestation does not verify source, manifest, and dependency provenance")
     return {
         "ok": True,
-        "sourceCommit": metadata["sourceCommit"],
-        "sourceDateEpoch": metadata["sourceDateEpoch"],
-        "releaseManifestSha256": metadata["releaseManifestSha256"],
+        "sourceCommit": git_material["digest"]["sha1"],
+        "sourceDateEpoch": internal_parameters["sourceDateEpoch"],
+        "releaseManifestSha256": manifest_byproduct["digest"]["sha256"],
         "dependencyLockSha256": lock_material["digest"]["sha256"],
+        "checksumsSha256": sha256_file(sums_path),
     }
 
 

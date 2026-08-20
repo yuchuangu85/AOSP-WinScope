@@ -67,6 +67,17 @@ class ReleaseEngineeringTest(unittest.TestCase):
             self.assertEqual(
                 hashlib.sha256(Path(first["zip"]).read_bytes()).hexdigest(), first["zipSha256"]
             )
+            attestation = json.loads(Path(first["attestation"]).read_text())
+            subjects = {item["name"]: item["digest"]["sha256"] for item in attestation["subject"]}
+            self.assertEqual(subjects["SHA256SUMS"], release.sha256_file(Path(first["zip"]).parent / "SHA256SUMS"))
+            self.assertEqual(
+                attestation["predicate"]["buildDefinition"]["buildType"],
+                release.BUILD_TYPE,
+            )
+            self.assertEqual(
+                attestation["predicate"]["runDetails"]["builder"]["id"],
+                release.BUILDER_ID,
+            )
 
     def test_double_build_emits_verified_reproducibility_evidence(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -89,7 +100,30 @@ class ReleaseEngineeringTest(unittest.TestCase):
             report = release.package_distribution("17.0.0", root / "release", web, launchers, proxy)
             attestation = Path(report["attestation"])
             value = json.loads(attestation.read_text(encoding="utf-8"))
-            value["predicate"]["metadata"]["sourceCommit"] = "tampered"
+            dependency = next(
+                item
+                for item in value["predicate"]["buildDefinition"]["resolvedDependencies"]
+                if item["uri"] == "git:repository"
+            )
+            dependency["digest"]["sha1"] = "tampered"
+            attestation.write_text(json.dumps(value), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "attestation does not verify"):
+                release.verify_attestation(
+                    attestation,
+                    Path(report["zip"]).name,
+                    report["zipSha256"],
+                    Path(report["package"]),
+                )
+
+    def test_attestation_checksum_subject_tampering_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            web, launchers, proxy = self.make_inputs(root)
+            report = release.package_distribution("17.0.0", root / "release", web, launchers, proxy)
+            attestation = Path(report["attestation"])
+            value = json.loads(attestation.read_text(encoding="utf-8"))
+            subject = next(item for item in value["subject"] if item["name"] == "SHA256SUMS")
+            subject["digest"]["sha256"] = "0" * 64
             attestation.write_text(json.dumps(value), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "attestation does not verify"):
                 release.verify_attestation(

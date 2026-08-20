@@ -14,6 +14,10 @@ SPEC = importlib.util.spec_from_file_location("publish", ROOT / "scripts/publish
 publish = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
 SPEC.loader.exec_module(publish)
+RELEASE_SPEC = importlib.util.spec_from_file_location("release", ROOT / "scripts/release.py")
+release = importlib.util.module_from_spec(RELEASE_SPEC)
+assert RELEASE_SPEC.loader is not None
+RELEASE_SPEC.loader.exec_module(release)
 
 
 VERSION = "17.0.0-rc.1"
@@ -32,19 +36,75 @@ class PublishTest(unittest.TestCase):
     def make_release(self, root: Path, version: str = VERSION, missing: str | None = None):
         release_dir = root / "release"
         release_dir.mkdir()
-        archive = release_dir / f"aosp-winscope-{version}.zip"
-        with zipfile.ZipFile(archive, "w") as package:
-            for name in MEMBERS:
-                if name != missing:
-                    content = b"{}" if name.endswith(".json") else b"license evidence\n"
-                    package.writestr(name, content)
-
-        digest = hashlib.sha256(archive.read_bytes()).hexdigest()
-        (release_dir / "SHA256SUMS").write_text(
-            f"{digest}  {archive.name}\n", encoding="utf-8"
+        package_root = root / "package"
+        web = package_root / "web"
+        web.mkdir(parents=True)
+        (web / "index.html").write_text("<html>offline</html>\n", encoding="utf-8")
+        (web / "runtime-config.json").write_text(
+            '{"schemaVersion":1,"capture":{"provider":"none"}}\n',
+            encoding="utf-8",
         )
+        commit = publish.git_commit()
+        epoch = publish.git_epoch()
+        release.make_license_evidence(package_root)
+        release.make_sbom(package_root, version, epoch)
+        release.dependency_bundle(package_root)
+        release.create_web_manifest(package_root)
+        if missing is not None:
+            (package_root / missing).unlink(missing_ok=True)
+        release_manifest = {
+            "schemaVersion": 1,
+            "version": version,
+            "sourceCommit": commit,
+            "sourceDateEpoch": epoch,
+            "files": [
+                {
+                    "path": path.relative_to(package_root).as_posix(),
+                    "sha256": release.sha256_file(path),
+                    "size": path.stat().st_size,
+                }
+                for path in release.files_under(package_root)
+            ],
+        }
+        release.write_json(package_root / "release-manifest.json", release_manifest)
+        release_manifest_path = package_root / "release-manifest.json"
+        archive = release_dir / f"aosp-winscope-{version}.zip"
+        release.write_deterministic_zip(package_root, archive, epoch)
+        archive_digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+        sums = release_dir / "SHA256SUMS"
+        sums.write_text(f"{archive_digest}  {archive.name}\n", encoding="utf-8")
+        lock_digest = publish.sha256_file(publish.LOCK)
         (release_dir / f"aosp-winscope-{version}.attestation.json").write_text(
-            json.dumps({"subject": [{"name": archive.name, "digest": {"sha256": digest}}]}),
+            json.dumps({
+                "_type": "https://in-toto.io/Statement/v1",
+                "subject": [
+                    {"name": archive.name, "digest": {"sha256": archive_digest}},
+                    {"name": sums.name, "digest": {"sha256": hashlib.sha256(sums.read_bytes()).hexdigest()}},
+                ],
+                "predicateType": "https://slsa.dev/provenance/v1",
+                "predicate": {
+                    "buildDefinition": {
+                        "buildType": release.BUILD_TYPE,
+                        "externalParameters": {"version": version},
+                        "internalParameters": {"sourceDateEpoch": epoch},
+                        "resolvedDependencies": [
+                            {"uri": "git:repository", "digest": {"sha1": commit}},
+                            {
+                                "uri": "build/dependencies.lock.json",
+                                "digest": {"sha256": lock_digest},
+                            },
+                        ],
+                    },
+                    "runDetails": {
+                        "builder": {"id": release.BUILDER_ID},
+                        "metadata": {},
+                        "byproducts": [{
+                            "name": "release-manifest.json",
+                            "digest": {"sha256": release.sha256_file(release_manifest_path)},
+                        }],
+                    },
+                },
+            }, sort_keys=True),
             encoding="utf-8",
         )
         validation = root / "validation.json"
@@ -68,13 +128,13 @@ class PublishTest(unittest.TestCase):
                 "stage": 10,
                 "ok": True,
                 "version": version,
-                "sourceCommit": publish.git_commit(),
-                "dependencyLockSha256": publish.sha256_file(publish.LOCK),
+                "sourceCommit": commit,
+                "dependencyLockSha256": lock_digest,
                 "byteIdentical": True,
                 "provenanceVerified": True,
                 "builds": [
-                    {"zipSha256": "same", "provenanceVerified": True},
-                    {"zipSha256": "same", "provenanceVerified": True},
+                    {"zipSha256": archive_digest, "provenanceVerified": True},
+                    {"zipSha256": archive_digest, "provenanceVerified": True},
                 ],
             }),
             encoding="utf-8",
@@ -154,6 +214,21 @@ class PublishTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             with self.assertRaisesRegex(ValueError, "must be tagged v17.0.0"):
                 self.publish_fixture(Path(temporary), "17.0.0", "wrong-tag")
+        with tempfile.TemporaryDirectory() as temporary:
+            with self.assertRaisesRegex(ValueError, f"must be tagged v{VERSION}"):
+                self.publish_fixture(Path(temporary), VERSION, "candidate")
+
+    def test_attestation_must_cover_checksum_set(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            release_dir, validation, reproducibility = self.make_release(root)
+            attestation = release_dir / f"aosp-winscope-{VERSION}.attestation.json"
+            value = json.loads(attestation.read_text())
+            value["subject"] = [item for item in value["subject"] if item["name"] != "SHA256SUMS"]
+            attestation.write_text(json.dumps(value), encoding="utf-8")
+            with mock.patch.object(publish, "require_clean_tree"):
+                with self.assertRaisesRegex(ValueError, "checksums"):
+                    publish.publish(VERSION, release_dir, validation, root / "public", None, reproducibility)
 
     def test_missing_archive_evidence_is_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:
