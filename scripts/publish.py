@@ -31,6 +31,7 @@ DEFAULT_REPRODUCIBILITY = ROOT / "dist/validation/reproducibility.json"
 DEFAULT_RELEASE_IMAGE_REPORT = ROOT / "dist/validation/release-image.json"
 DEFAULT_GUIDE = ROOT / "docs/APS_INTEGRATION.md"
 APS_VERIFIER = ROOT / "scripts/verify-aps-release.py"
+RELEASE_VERIFIER = ROOT / "scripts/release.py"
 SECURITY_RESPONSE_POLICY = {
     "criticalAssessmentHours": 24,
     "criticalFixOrMitigationHours": 72,
@@ -275,11 +276,30 @@ def verify_release_artifact(release_dir: Path, version: str) -> dict[str, Any]:
         "LICENSES/NOTICE",
         "LICENSES/sbom.spdx.json",
         "LICENSES/attribution.json",
+        "LICENSES/compliance.json",
         "dependency-bundle/dependencies.lock.json",
     }
     missing = sorted(required - names)
     if missing:
         fail(f"release archive omits required evidence: {', '.join(missing)}")
+    package_check = subprocess.run(
+        [
+            sys.executable,
+            str(RELEASE_VERIFIER),
+            "verify",
+            "--input",
+            str(archive),
+            "--json",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if package_check.returncode != 0:
+        fail(
+            "release package verification failed: "
+            + (package_check.stdout.strip() or package_check.stderr.strip())
+        )
     return {
         "archive": archive,
         "sums": sums,

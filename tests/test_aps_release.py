@@ -47,13 +47,22 @@ class ApsReleaseTest(unittest.TestCase):
         sbom_dependency_id: str | None = None,
         attribution_dependency_id: str | None = None,
         duplicate_sbom_dependency: bool = False,
+        dependency_license: str = "MIT",
+        dependency_origin: str = "https://registry.npmjs.org/dependency/-/dependency-1.0.0.tgz",
         extra_members: dict[str, bytes] | None = None,
         compressed_bomb: bool = False,
         unsupported_compression: bool = False,
     ) -> Path:
         publication = root / "publication"
         publication.mkdir()
-        dependency = {"id": "test:dependency", "name": "dependency"}
+        dependency = {
+            "id": "test:dependency",
+            "name": "dependency",
+            "version": "1.0.0",
+            "origin": dependency_origin,
+            "license": dependency_license,
+            "distribution": "runtime",
+        }
         lock = {"schemaVersion": 1, "dependencies": [dependency]}
         baseline = {
             "schemaVersion": 1,
@@ -62,18 +71,49 @@ class ApsReleaseTest(unittest.TestCase):
             "toolchain": {"python": "3.12"},
         }
         inventory = {"fileCount": 0, "files": []}
-        files = {
+        runtime_files = {
             "web/index.html": b"<html>offline</html>\n",
             "web/runtime-config.json": b'{"schemaVersion":1,"capture":{"provider":"none"}}\n',
+            "web/3rdpartylicenses.txt": b"dependency\nMIT\nlicense text\n",
+        }
+        files = {
+            **runtime_files,
             "LICENSES/LICENSE": b"license\n",
             "LICENSES/NOTICE": b"notice\n",
+            "LICENSES/third-party/web-third-party-licenses.txt": runtime_files["web/3rdpartylicenses.txt"],
             "LICENSES/sbom.spdx.json": (json.dumps({
                 "spdxVersion": "SPDX-2.3",
                 "packages": [{
+                    "licenseConcluded": dependency["license"],
+                    "licenseDeclared": dependency["license"],
+                    "downloadLocation": dependency["origin"],
+                    "primaryPackagePurpose": "LIBRARY",
+                    "comment": "distribution=runtime",
                     "externalRefs": [{"referenceLocator": dependency["id"]}],
                 }],
+                "files": [
+                    {
+                        "fileName": name,
+                        "checksums": [{"algorithm": "SHA256", "checksumValue": digest(data)}],
+                    }
+                    for name, data in sorted(runtime_files.items())
+                ],
             }) + "\n").encode(),
-            "LICENSES/attribution.json": (json.dumps([{"id": dependency["id"]}]) + "\n").encode(),
+            "LICENSES/attribution.json": (json.dumps([{
+                "id": dependency["id"],
+                "name": dependency["name"],
+                "version": dependency["version"],
+                "license": dependency["license"],
+                "origin": dependency["origin"],
+                "distribution": dependency["distribution"],
+            }]) + "\n").encode(),
+            "LICENSES/compliance.json": (json.dumps({
+                "schemaVersion": 1,
+                "ok": True,
+                "distributedDependencies": 1,
+                "buildOnlyDependencies": 0,
+                "approvedLicenses": [dependency["license"]],
+            }) + "\n").encode(),
             "dependency-bundle/dependencies.lock.json": (json.dumps(lock) + "\n").encode(),
             "dependency-bundle/package-lock.json": b'{"lockfileVersion":3}\n',
             "dependency-bundle/package.json": b'{"name":"test"}\n',
@@ -83,11 +123,32 @@ class ApsReleaseTest(unittest.TestCase):
         if sbom_dependency_id is not None:
             files["LICENSES/sbom.spdx.json"] = (json.dumps({
                 "spdxVersion": "SPDX-2.3",
-                "packages": [{"externalRefs": [{"referenceLocator": sbom_dependency_id}]}],
+                "packages": [{
+                    "licenseConcluded": dependency["license"],
+                    "licenseDeclared": dependency["license"],
+                    "downloadLocation": dependency["origin"],
+                    "primaryPackagePurpose": "LIBRARY",
+                    "comment": "distribution=runtime",
+                    "externalRefs": [{"referenceLocator": sbom_dependency_id}],
+                }],
+                "files": [
+                    {
+                        "fileName": name,
+                        "checksums": [{"algorithm": "SHA256", "checksumValue": digest(data)}],
+                    }
+                    for name, data in sorted(runtime_files.items())
+                ],
             }) + "\n").encode()
         if attribution_dependency_id is not None:
             files["LICENSES/attribution.json"] = (
-                json.dumps([{"id": attribution_dependency_id}]) + "\n"
+                json.dumps([{
+                    "id": attribution_dependency_id,
+                    "name": dependency["name"],
+                    "version": dependency["version"],
+                    "license": dependency["license"],
+                    "origin": dependency["origin"],
+                    "distribution": dependency["distribution"],
+                }]) + "\n"
             ).encode()
         if duplicate_sbom_dependency:
             sbom = json.loads(files["LICENSES/sbom.spdx.json"])
@@ -306,6 +367,9 @@ class ApsReleaseTest(unittest.TestCase):
             (web / "index.html").write_text('<base href="./">\n', encoding="utf-8")
             (web / "runtime-config.json").write_text('{"schemaVersion":1}\n', encoding="utf-8")
             (web / "main.js").write_text("ok\n", encoding="utf-8")
+            (web / "3rdpartylicenses.txt").write_text(
+                "dependency\nMIT\nlicense text\n", encoding="utf-8"
+            )
             launchers = root / "launchers"
             for operating_system, architecture, filename in release.LAUNCHER_TARGETS:
                 launcher = launchers / f"{operating_system}-{architecture}" / filename
@@ -407,6 +471,40 @@ class ApsReleaseTest(unittest.TestCase):
                         digest((publication / "release-index.json").read_bytes()),
                         BUILD_IMAGE,
                     )
+
+    def test_license_policy_matches_release_packager(self):
+        self.assertEqual(
+            aps_release.APPROVED_DISTRIBUTED_LICENSES,
+            release.APPROVED_DISTRIBUTED_LICENSES,
+        )
+        self.assertEqual(
+            aps_release.DISTRIBUTION_PURPOSES,
+            release.DISTRIBUTION_PURPOSES,
+        )
+
+    def test_unapproved_distributed_license_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            publication = self.make_publication(
+                Path(temporary), dependency_license="NOASSERTION"
+            )
+            with self.assertRaisesRegex(ValueError, "unapproved distributed license"):
+                aps_release.verify_publication(
+                    publication,
+                    digest((publication / "release-index.json").read_bytes()),
+                    BUILD_IMAGE,
+                )
+
+    def test_runtime_origin_without_host_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            publication = self.make_publication(
+                Path(temporary), dependency_origin="https://user@"
+            )
+            with self.assertRaisesRegex(ValueError, "invalid distributed dependency origin"):
+                aps_release.verify_publication(
+                    publication,
+                    digest((publication / "release-index.json").read_bytes()),
+                    BUILD_IMAGE,
+                )
 
     def test_license_dependency_ids_must_match_lock(self):
         cases = (

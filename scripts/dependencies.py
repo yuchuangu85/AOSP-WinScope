@@ -50,7 +50,7 @@ PYTHON_VERSIONS = {"3.11", "3.12", "3.13"}
 PUBLIC_NPM_REGISTRY = "https://registry.npmjs.org/"
 # This is the clean-checkout trust anchor for the complete generated closure.
 # Updating the lock deliberately requires updating this reviewable constant.
-DEPENDENCY_LOCK_SHA256 = "fb4624cc8a99656a7fc3bd505b68d221baff7785a5b70171c5509009f594a3b7"
+DEPENDENCY_LOCK_SHA256 = "b14789721ef5cbdd05263807bd688699ab862cce1186ddf5bbceb62c3b6c5743"
 
 ALLOWED_ORIGINS = {
     "android.googlesource.com",
@@ -61,6 +61,18 @@ ALLOWED_ORIGINS = {
     "registry.npmjs.org",
     "storage.googleapis.com",
 }
+APPROVED_DISTRIBUTED_LICENSES = {
+    "0BSD",
+    "Apache-2.0",
+    "Apache-2.0 AND MIT",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "(BSD-3-Clause AND Apache-2.0)",
+    "ISC",
+    "MIT",
+    "(MIT AND Zlib)",
+}
+DEPENDENCY_DISTRIBUTIONS = {"build-only", "build-only-source", "runtime"}
 
 GRPC_TOOLS_VERSION = "1.13.1"
 GRPC_TOOLS_ARTIFACTS = {
@@ -286,6 +298,7 @@ def npm_dependencies() -> list[dict[str, Any]]:
     license_overrides = {
         "exit@0.1.2": "MIT",
         "grpc-tools@1.13.1": "Apache-2.0",
+        "jszip@3.10.1": "MIT",
         "saucelabs@1.5.0": "Apache-2.0",
     }
     dependencies = []
@@ -332,7 +345,7 @@ def npm_dependencies() -> list[dict[str, Any]]:
                 "distribution": (
                     "build-only"
                     if package.get("dev") is True
-                    else "runtime-dependency-pending-ticket-12"
+                    else "runtime"
                 ),
             }
         )
@@ -475,6 +488,21 @@ def validate_dependency(entry: dict[str, Any]) -> tuple[int, int]:
         "distribution",
     }
     require(required <= set(entry), f"dependency entry is incomplete: {entry.get('id')}")
+    distribution = entry["distribution"]
+    require(
+        distribution in DEPENDENCY_DISTRIBUTIONS,
+        f"invalid dependency distribution: {entry['id']}",
+    )
+    if distribution == "runtime":
+        require(
+            entry["license"] in APPROVED_DISTRIBUTED_LICENSES,
+            f"unapproved distributed license: {entry['id']}",
+        )
+        origin = urllib.parse.urlparse(entry["origin"])
+        require(
+            origin.scheme == "https" and origin.hostname is not None,
+            f"invalid distributed dependency origin: {entry['id']}",
+        )
     unapproved = int(origin_host(entry["origin"]) not in ALLOWED_ORIGINS)
     integrity = entry["integrity"]
     require(integrity.get("algorithm") in {"sha256", "sha512-sri", "git-commit"}, f"invalid integrity: {entry['id']}")
@@ -560,6 +588,9 @@ def verify_lock(*, require_cache: bool = False) -> dict[str, Any]:
         "dependenciesVerified": len(entries),
         "floatingDependencies": floating,
         "unapprovedOrigins": unapproved,
+        "distributedDependencies": sum(
+            entry["distribution"] == "runtime" for entry in entries
+        ),
         "cacheCompared": PERFETTO_ROOT.exists(),
     }
 

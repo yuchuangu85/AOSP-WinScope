@@ -8,8 +8,11 @@ import hashlib
 import json
 import os
 import shutil
+import stat
 import subprocess
 import tempfile
+import unicodedata
+import urllib.parse
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
@@ -37,6 +40,22 @@ LAUNCHER_TARGETS = (
     ("linux", "amd64", "winscope-launcher"),
     ("linux", "arm64", "winscope-launcher"),
 )
+APPROVED_DISTRIBUTED_LICENSES = {
+    "0BSD",
+    "Apache-2.0",
+    "Apache-2.0 AND MIT",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "(BSD-3-Clause AND Apache-2.0)",
+    "ISC",
+    "MIT",
+    "(MIT AND Zlib)",
+}
+DISTRIBUTION_PURPOSES = {
+    "build-only": "OTHER",
+    "build-only-source": "SOURCE",
+    "runtime": "LIBRARY",
+}
 APACHE_LICENSE = """Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\nTERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION\n\n1. Definitions.\n\n   \"License\" shall mean the terms and conditions for use, reproduction,\n   and distribution as defined by Sections 1 through 9 of this document.\n\n   \"Licensor\" shall mean the copyright owner or entity authorized by\n   the copyright owner that is granting the License.\n\n   \"Legal Entity\" shall mean the union of the acting entity and all\n   other entities that control, are controlled by, or are under common\n   control with that entity. For the purposes of this definition,\n   \"control\" means (i) the power, direct or indirect, to cause the\n   direction or management of such entity, whether by contract or\n   otherwise, or (ii) ownership of fifty percent (50%) or more of the\n   outstanding shares, or (iii) beneficial ownership of such entity.\n\n   \"You\" (or \"Your\") shall mean an individual or Legal Entity\n   exercising permissions granted by this License.\n\n   \"Source\" form shall mean the preferred form for making modifications,\n   including but not limited to software source code, documentation\n   source, and configuration files.\n\n   \"Object\" form shall mean any form resulting from mechanical\n   transformation or translation of a Source form, including but\n   not limited to compiled object code, generated documentation,\n   and conversions to other media types.\n\n   \"Work\" shall mean the work of authorship, whether in Source or\n   Object form, made available under the License, as indicated by a\n   copyright notice that is included in or attached to the work\n   (an example is provided in the Appendix below).\n\n   \"Derivative Works\" shall mean any work, whether in Source or Object\n   form, that is based on (or derived from) the Work and for which the\n   editorial revisions, annotations, elaborations, or other modifications\n   represent, as a whole, an original work of authorship. For the purposes\n   of this License, Derivative Works shall not include works that remain\n   separable from, or merely link (or bind by name) to the interfaces of,\n   the Work and Derivative Works thereof.\n\n   \"Contribution\" shall mean any work of authorship, including\n   the original version of the Work and any modifications or additions\n   to that Work or Derivative Works thereof, that is intentionally\n   submitted to Licensor for inclusion in the Work by the copyright owner\n   or by an individual or Legal Entity authorized to submit on behalf of\n   the copyright owner.\n\n   \"Contributor\" shall mean Licensor and any individual or Legal Entity\n   on behalf of whom a Contribution has been received by Licensor and\n   subsequently incorporated within the Work.\n\n2. Grant of Copyright License. Subject to the terms and conditions of\n   this License, each Contributor hereby grants to You a perpetual,\n   worldwide, non-exclusive, no-charge, royalty-free, irrevocable\n   copyright license to reproduce, prepare Derivative Works of,\n   publicly display, publicly perform, sublicense, and distribute the\n   Work and such Derivative Works in Source or Object form.\n\n3. Grant of Patent License. Subject to the terms and conditions of\n   this License, each Contributor hereby grants to You a perpetual,\n   worldwide, non-exclusive, no-charge, royalty-free, irrevocable\n   (except as stated in this section) patent license to make, have made,\n   use, offer to sell, sell, import, and otherwise transfer the Work,\n   where such license applies only to those patent claims licensable\n   by such Contributor that are necessarily infringed by their\n   Contribution(s) alone or by combination of their Contribution(s)\n   with the Work to which such Contribution(s) was submitted.\n\nThis package also contains material whose complete license text and notice\nare carried in the source/dependency bundle.\n"""
 
 
@@ -126,6 +145,155 @@ def require_clean_tree() -> None:
         fail("reproducibility verification requires a clean Git worktree")
 
 
+def license_compliance(dependencies: Any) -> dict[str, Any]:
+    if not isinstance(dependencies, list) or not dependencies:
+        fail("dependency closure is empty")
+    identifiers: set[str] = set()
+    distributed = 0
+    approved: set[str] = set()
+    for dependency in dependencies:
+        if not isinstance(dependency, dict) or not isinstance(dependency.get("id"), str):
+            fail("dependency entry is invalid")
+        identifier = dependency["id"]
+        if identifier in identifiers:
+            fail("dependency closure has duplicate IDs")
+        identifiers.add(identifier)
+        distribution = dependency.get("distribution")
+        if distribution not in DISTRIBUTION_PURPOSES:
+            fail(f"invalid dependency distribution: {identifier}")
+        if distribution != "runtime":
+            continue
+        distributed += 1
+        license_name = dependency.get("license")
+        if license_name not in APPROVED_DISTRIBUTED_LICENSES:
+            fail(f"unapproved distributed license: {identifier}")
+        origin = dependency.get("origin")
+        parsed_origin = urllib.parse.urlparse(origin) if isinstance(origin, str) else None
+        if parsed_origin is None or parsed_origin.scheme != "https" or parsed_origin.hostname is None:
+            fail(f"invalid distributed dependency origin: {identifier}")
+        approved.add(license_name)
+    return {
+        "schemaVersion": 1,
+        "ok": True,
+        "distributedDependencies": distributed,
+        "buildOnlyDependencies": len(dependencies) - distributed,
+        "approvedLicenses": sorted(approved),
+    }
+
+
+def attribution_entries(dependencies: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
+            "id": entry["id"],
+            "name": entry["name"],
+            "version": entry.get("version", entry.get("revision")),
+            "license": entry.get("license", "NOASSERTION"),
+            "origin": entry.get("origin", "NOASSERTION"),
+            "distribution": entry["distribution"],
+        }
+        for entry in dependencies
+    ]
+
+
+def verify_license_evidence(package_root: Path) -> dict[str, Any]:
+    required = {
+        "LICENSES/LICENSE",
+        "LICENSES/NOTICE",
+        "LICENSES/sbom.spdx.json",
+        "LICENSES/attribution.json",
+        "LICENSES/compliance.json",
+        "LICENSES/third-party/web-third-party-licenses.txt",
+        "dependency-bundle/dependencies.lock.json",
+    }
+    missing = sorted(path for path in required if not (package_root / path).is_file())
+    if missing:
+        fail(f"release license evidence is incomplete: {', '.join(missing)}")
+    lock = json.loads(
+        (package_root / "dependency-bundle/dependencies.lock.json").read_text(encoding="utf-8")
+    )
+    dependencies = lock.get("dependencies") if isinstance(lock, dict) else None
+    compliance = license_compliance(dependencies)
+    recorded_compliance = json.loads(
+        (package_root / "LICENSES/compliance.json").read_text(encoding="utf-8")
+    )
+    if recorded_compliance != compliance:
+        fail("license compliance evidence is inconsistent")
+
+    attribution = json.loads(
+        (package_root / "LICENSES/attribution.json").read_text(encoding="utf-8")
+    )
+    if attribution != attribution_entries(dependencies):
+        fail("attribution evidence is inconsistent")
+
+    sbom = json.loads(
+        (package_root / "LICENSES/sbom.spdx.json").read_text(encoding="utf-8")
+    )
+    packages = sbom.get("packages") if isinstance(sbom, dict) else None
+    if not isinstance(sbom, dict) or sbom.get("spdxVersion") != "SPDX-2.3" or not isinstance(packages, list):
+        fail("SPDX evidence is invalid")
+    by_id: dict[str, dict[str, Any]] = {}
+    for package in packages:
+        refs = package.get("externalRefs") if isinstance(package, dict) else None
+        identifiers = [
+            ref.get("referenceLocator")
+            for ref in refs or []
+            if isinstance(ref, dict) and isinstance(ref.get("referenceLocator"), str)
+        ]
+        if len(identifiers) != 1 or identifiers[0] in by_id:
+            fail("SPDX evidence is invalid")
+        by_id[identifiers[0]] = package
+    if set(by_id) != {entry["id"] for entry in dependencies}:
+        fail("SPDX evidence is inconsistent")
+    for dependency in dependencies:
+        package = by_id[dependency["id"]]
+        expected_license = dependency.get("license", "NOASSERTION")
+        if (
+            package.get("licenseConcluded") != expected_license
+            or package.get("licenseDeclared") != expected_license
+            or package.get("downloadLocation") != dependency.get("origin", "NOASSERTION")
+            or package.get("primaryPackagePurpose")
+            != DISTRIBUTION_PURPOSES[dependency["distribution"]]
+            or package.get("comment") != f"distribution={dependency['distribution']}"
+        ):
+            fail("SPDX evidence is inconsistent")
+    sbom_files = sbom.get("files")
+    if not isinstance(sbom_files, list):
+        fail("SPDX file evidence is invalid")
+    recorded_files: dict[str, str] = {}
+    for item in sbom_files:
+        checksums = item.get("checksums") if isinstance(item, dict) else None
+        sha256 = next(
+            (
+                checksum.get("checksumValue")
+                for checksum in checksums or []
+                if isinstance(checksum, dict) and checksum.get("algorithm") == "SHA256"
+            ),
+            None,
+        )
+        name = item.get("fileName") if isinstance(item, dict) else None
+        if not isinstance(name, str) or not isinstance(sha256, str) or name in recorded_files:
+            fail("SPDX file evidence is invalid")
+        recorded_files[name] = sha256
+    expected_files = {
+        path.relative_to(package_root).as_posix(): sha256_file(path)
+        for path in runtime_payload_files(package_root)
+    }
+    if recorded_files != expected_files:
+        fail("SPDX file evidence is inconsistent")
+    generated_licenses = package_root / "web/3rdpartylicenses.txt"
+    packaged_licenses = package_root / "LICENSES/third-party/web-third-party-licenses.txt"
+    if (
+        not generated_licenses.read_bytes().strip()
+        or packaged_licenses.read_bytes() != generated_licenses.read_bytes()
+    ):
+        fail("third-party license evidence is inconsistent")
+    if not (package_root / "LICENSES/LICENSE").read_bytes().strip() or not (
+        package_root / "LICENSES/NOTICE"
+    ).read_bytes().strip():
+        fail("license evidence is empty")
+    return compliance
+
+
 def dependency_bundle(destination: Path) -> list[dict[str, Any]]:
     bundle = destination / "dependency-bundle"
     bundle.mkdir(parents=True)
@@ -147,8 +315,17 @@ def dependency_bundle(destination: Path) -> list[dict[str, Any]]:
     return copied
 
 
+def runtime_payload_files(destination: Path) -> list[Path]:
+    return [
+        path
+        for path in files_under(destination)
+        if path.relative_to(destination).parts[0] in {"bin", "proxy", "web"}
+    ]
+
+
 def make_sbom(destination: Path, version: str, epoch: int) -> Path:
     lock = json.loads(LOCK_PATH.read_text(encoding="utf-8"))
+    license_compliance(lock.get("dependencies"))
     packages = []
     relationships = []
     for index, dependency in enumerate(lock["dependencies"], start=1):
@@ -163,6 +340,8 @@ def make_sbom(destination: Path, version: str, epoch: int) -> Path:
             "licenseConcluded": license_name,
             "licenseDeclared": license_name,
             "copyrightText": "NOASSERTION",
+            "primaryPackagePurpose": DISTRIBUTION_PURPOSES[dependency["distribution"]],
+            "comment": f"distribution={dependency['distribution']}",
             "externalRefs": [{
                 "referenceCategory": "PACKAGE-MANAGER",
                 "referenceLocator": dependency["id"],
@@ -173,6 +352,23 @@ def make_sbom(destination: Path, version: str, epoch: int) -> Path:
             "spdxElementId": "SPDXRef-DOCUMENT",
             "relationshipType": "DESCRIBES",
             "relatedSpdxElement": package_id,
+        })
+    files = []
+    for index, artifact in enumerate(runtime_payload_files(destination), start=1):
+        file_id = f"SPDXRef-File-{index:04d}"
+        files.append({
+            "SPDXID": file_id,
+            "fileName": artifact.relative_to(destination).as_posix(),
+            "checksums": [{"algorithm": "SHA256", "checksumValue": sha256_file(artifact)}],
+            "licenseConcluded": "NOASSERTION",
+            "licenseInfoInFiles": ["NOASSERTION"],
+            "copyrightText": "NOASSERTION",
+            "comment": "Generated runtime artifact; component licenses are recorded by the package entries.",
+        })
+        relationships.append({
+            "spdxElementId": "SPDXRef-DOCUMENT",
+            "relationshipType": "DESCRIBES",
+            "relatedSpdxElement": file_id,
         })
     document = {
         "spdxVersion": "SPDX-2.3",
@@ -185,6 +381,7 @@ def make_sbom(destination: Path, version: str, epoch: int) -> Path:
             "creators": ["Tool: aosp-winscope-release"],
         },
         "packages": packages,
+        "files": files,
         "relationships": relationships,
     }
     path = destination / "LICENSES/sbom.spdx.json"
@@ -192,35 +389,32 @@ def make_sbom(destination: Path, version: str, epoch: int) -> Path:
     return path
 
 
-def make_license_evidence(destination: Path) -> None:
+def make_license_evidence(destination: Path) -> dict[str, Any]:
     licenses = destination / "LICENSES"
     licenses.mkdir(parents=True, exist_ok=True)
     (licenses / "LICENSE").write_text(APACHE_LICENSE, encoding="utf-8")
     (licenses / "NOTICE").write_text(
         "AOSP-WinScope standalone distribution.\n"
         "This distribution contains Android Open Source Project and Perfetto material.\n"
-        "See sbom.spdx.json, attribution.json, and dependency-bundle/ for component evidence.\n",
+        "See sbom.spdx.json, attribution.json, third-party/, and dependency-bundle/ for component evidence.\n",
         encoding="utf-8",
     )
     lock = json.loads(LOCK_PATH.read_text(encoding="utf-8"))
-    attribution = [
-        {
-            "id": entry["id"],
-            "name": entry["name"],
-            "version": entry.get("version", entry.get("revision")),
-            "license": entry.get("license", "NOASSERTION"),
-            "origin": entry.get("origin", "NOASSERTION"),
-        }
-        for entry in lock["dependencies"]
-    ]
-    write_json(licenses / "attribution.json", attribution)
-    (licenses / "third-party").mkdir(exist_ok=True)
-    (licenses / "third-party/README.txt").write_text(
-        "Component license texts are represented by the SPDX and attribution records;\n"
-        "the dependency bundle preserves the complete lock and reconstruction inputs.\n",
+    compliance = license_compliance(lock.get("dependencies"))
+    write_json(licenses / "attribution.json", attribution_entries(lock["dependencies"]))
+    write_json(licenses / "compliance.json", compliance)
+    third_party = licenses / "third-party"
+    third_party.mkdir(exist_ok=True)
+    generated_licenses = destination / "web/3rdpartylicenses.txt"
+    if not generated_licenses.is_file() or not generated_licenses.read_bytes().strip():
+        fail("production Web third-party license evidence is missing")
+    shutil.copyfile(generated_licenses, third_party / "web-third-party-licenses.txt")
+    (third_party / "README.txt").write_text(
+        "web-third-party-licenses.txt is generated by the production Angular build;\n"
+        "the SPDX and attribution records map its components to the locked dependency closure.\n",
         encoding="utf-8",
     )
-
+    return compliance
 
 def create_web_manifest(destination: Path) -> list[dict[str, Any]]:
     assets = []
@@ -268,7 +462,7 @@ def package_distribution(
     shutil.copyfile(proxy, target_proxy)
     target_proxy.chmod(0o755)
 
-    make_license_evidence(package_root)
+    compliance = make_license_evidence(package_root)
     make_sbom(package_root, version, epoch)
     dependency_files = dependency_bundle(package_root)
     create_web_manifest(package_root)
@@ -347,6 +541,7 @@ def package_distribution(
         "files": len(files),
         "dependencyFiles": len(dependency_files),
         "sbomPackages": len(json.loads((package_root / "LICENSES/sbom.spdx.json").read_text())["packages"]),
+        "distributedDependencies": compliance["distributedDependencies"],
         "sourceDateEpoch": epoch,
         "attestation": attestation_path.as_posix(),
         "attestationSha256": sha256_file(attestation_path),
@@ -488,8 +683,22 @@ def verify_package(package_root: Path) -> dict[str, Any]:
         with tempfile.TemporaryDirectory(prefix="aosp-winscope-verify-") as temporary:
             extracted = Path(temporary) / "package"
             with zipfile.ZipFile(package_root) as archive:
+                names: set[str] = set()
+                portable_names: set[str] = set()
                 for member in archive.infolist():
-                    safe_relative_path(member.filename)
+                    path = safe_relative_path(member.filename)
+                    portable_name = "/".join(
+                        unicodedata.normalize("NFC", part).casefold() for part in path.parts
+                    )
+                    if (
+                        member.filename in names
+                        or portable_name in portable_names
+                        or member.is_dir()
+                        or stat.S_ISLNK(member.external_attr >> 16)
+                    ):
+                        fail(f"invalid release archive member: {member.filename}")
+                    names.add(member.filename)
+                    portable_names.add(portable_name)
                 archive.extractall(extracted)
             report = verify_package(extracted)
             report["zipSha256"] = sha256_file(package_root)
@@ -521,7 +730,13 @@ def verify_package(package_root: Path) -> dict[str, Any]:
         if not path.is_file() or sha256_file(path) != item["sha256"]:
             fail(f"release asset digest mismatch: {item.get('path')}")
         checked += 1
-    return {"ok": True, "package": package_root.as_posix(), "filesVerified": checked}
+    compliance = verify_license_evidence(package_root)
+    return {
+        "ok": True,
+        "package": package_root.as_posix(),
+        "filesVerified": checked,
+        "distributedDependencies": compliance["distributedDependencies"],
+    }
 
 
 def double_build(version: str, web_root: Path, launchers_root: Path, proxy: Path) -> dict[str, Any]:

@@ -45,6 +45,7 @@ class DependencyClosureTest(unittest.TestCase):
         self.assertGreater(report["dependenciesVerified"], 1_000)
         self.assertEqual(report["floatingDependencies"], 0)
         self.assertEqual(report["unapprovedOrigins"], 0)
+        self.assertEqual(report["distributedDependencies"], 222)
 
         grpc_platforms = {
             entry["platforms"][0]
@@ -57,6 +58,16 @@ class DependencyClosureTest(unittest.TestCase):
             grpc_platforms,
             {"darwin-arm64", "darwin-x64", "linux-arm64", "linux-x64"},
         )
+        entries = json.loads(
+            (REPOSITORY_ROOT / "build/dependencies.lock.json").read_text(encoding="utf-8")
+        )["dependencies"]
+        runtime_by_name = {
+            entry["name"]: entry
+            for entry in entries
+            if entry["distribution"] == "runtime"
+        }
+        self.assertEqual(runtime_by_name["jszip"]["license"], "MIT")
+        self.assertEqual(runtime_by_name["mp4box"]["license"], "BSD-3-Clause")
 
     def test_complete_lock_digest_rejects_non_npm_drift_without_a_cache(self):
         def mutate(lock):
@@ -131,6 +142,42 @@ class DependencyClosureTest(unittest.TestCase):
 
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("unapproved origins", result.stdout)
+
+    def test_unapproved_runtime_license_is_rejected(self):
+        def mutate(lock):
+            dependency = next(
+                entry
+                for entry in lock["dependencies"]
+                if entry["distribution"] == "runtime"
+            )
+            dependency["license"] = "NOASSERTION"
+
+        result = self.run_command(
+            "verify-lock",
+            "--json",
+            env={"AOSP_WINSCOPE_DEPENDENCY_LOCK": self.write_lock_copy(mutate)},
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("unapproved distributed license", result.stdout)
+
+    def test_non_https_runtime_origin_is_rejected(self):
+        def mutate(lock):
+            dependency = next(
+                entry
+                for entry in lock["dependencies"]
+                if entry["distribution"] == "runtime"
+            )
+            dependency["origin"] = dependency["origin"].replace("https://", "http://", 1)
+
+        result = self.run_command(
+            "verify-lock",
+            "--json",
+            env={"AOSP_WINSCOPE_DEPENDENCY_LOCK": self.write_lock_copy(mutate)},
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("invalid distributed dependency origin", result.stdout)
 
     def test_floating_git_revision_is_rejected(self):
         def mutate(lock):

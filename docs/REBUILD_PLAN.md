@@ -101,7 +101,7 @@ npm run deps:offline-check
 
 `deps:prepare` is the only network-enabled step. It checks out the fixed Perfetto commit and tree, fills the ignored `.deps/` cache from declared origins, forces npm and pnpm to the public npm registry, records the platform-specific `grpc-tools` build binary, and prepares complete (non-partial) Perfetto Git repositories plus its archive and pnpm inputs. A first `build:prod` delegates to this same preparation operation when `.deps/` is entirely absent; a partial or corrupt cache fails closed rather than being repaired implicitly. `deps:verify` rechecks the committed whole-lock digest, Git object completeness, content-addressed downloads, npm cache, and prepared Perfetto UI dependency tree. `deps:offline-check` enters an OS-enforced network namespace/sandbox, confirms external sockets are denied, performs fresh offline npm and pnpm installs, rebuilds the complete production output from an empty Perfetto output tree, and runs the imported WinScope browser test suite without `ANDROID_BUILD_TOP`.
 
-The current lock contains 2,362 sorted entries and fixes Perfetto at commit `ece66975738007dd0978b911d8a2077e49b8f31e`, tree `201a16e409911aa016522a95143af2e5d52a3662`. Cache contents are deliberately excluded from Git. Missing, corrupt, floating, or undeclared inputs fail closed. License values that remain `NOASSERTION` are not a redistribution approval; final license/SBOM classification remains a later release gate.
+The current lock contains 2,362 sorted entries and fixes Perfetto at commit `ece66975738007dd0978b911d8a2077e49b8f31e`, tree `201a16e409911aa016522a95143af2e5d52a3662`. Cache contents are deliberately excluded from Git. Missing, corrupt, floating, or undeclared inputs fail closed. Runtime dependencies use the final `runtime` classification and must carry an explicitly approved permissive SPDX expression; `NOASSERTION` remains permitted only for non-distributed build inputs.
 
 The standalone build-integration stage is executable with:
 
@@ -175,7 +175,8 @@ aosp-winscope/
     ├── NOTICE
     ├── third-party/
     ├── sbom.spdx.json
-    └── attribution.json
+    ├── attribution.json
+    └── compliance.json
 ```
 
 APS relies only on `web/` and the schema-versioned `manifest.json`. It cannot depend on hashed bundle names or source paths. All Web resource URLs are relative, non-root mounting is validated, and no static-server port is embedded.
@@ -355,7 +356,7 @@ The standalone Web build now ships only local assets, declares a restrictive Con
 
 ## Stage 6 implementation evidence
 
-`scripts/release.py` provides the release boundary without additional runtime dependencies. `package` copies the verified Web tree, all six CGO-free launchers, and the launcher-managed proxy into the stable distribution layout; emits a Web manifest, normalized release inventory, SPDX 2.3 SBOM, attribution/license evidence, dependency reconstruction bundle, `SHA256SUMS`, and an in-toto/SLSA-shaped attestation. `verify` checks manifest and release-file digests, and `double-build` packages the same inputs twice and requires byte-identical ZIP output. `SOURCE_DATE_EPOCH` or the selected Git commit timestamp controls all generated timestamps.
+`scripts/release.py` provides the release boundary without additional runtime dependencies. `package` copies the verified Web tree, all six CGO-free launchers, and the launcher-managed proxy into the stable distribution layout; emits a Web manifest, normalized release inventory, SPDX 2.3 SBOM, attribution/license evidence, dependency reconstruction bundle, `SHA256SUMS`, and an in-toto/SLSA-shaped attestation. `verify` checks manifest, release-file digests, and the Stage 19 license classification, and `double-build` packages the same inputs twice and requires byte-identical ZIP output. `SOURCE_DATE_EPOCH` or the selected Git commit timestamp controls all generated timestamps.
 
 ## Stage 7 implementation evidence
 
@@ -577,3 +578,23 @@ device fingerprints, serials, paths, and raw scanner details are excluded from
 validation JSON and workflow logs. Stage 18 does not publish the raw protected
 evidence or change the separately authorized Stage 15 repository-settings
 audit.
+
+## Stage 19 implementation evidence
+
+The dependency lock now distinguishes final `runtime`, `build-only`, and
+`build-only-source` classifications. Runtime dependencies must use the
+reviewed permissive SPDX allowlist and an absolute HTTPS origin; unknown,
+`NOASSERTION`, custom, restrictive, or copyleft runtime classifications fail
+the dependency gate. Build-only inputs remain recorded for reproducibility but
+may retain unresolved license metadata because they are not redistributed as
+runtime components. Production imports such as `jszip` and `mp4box` are declared
+as runtime npm dependencies; the JSZip dual-license is distributed under its MIT
+option, while `(MIT AND Zlib)` is accepted as a reviewed permissive expression.
+
+Each release now carries `LICENSES/compliance.json`. The release packager
+recomputes that schema-v1 report from the locked dependency closure, records
+distribution in attribution, and records matching SPDX package purposes.
+`release.py verify`, `publish.py`, and the trusted APS verifier reject missing,
+malformed, inconsistent, or unapproved license/SBOM evidence. No restrictive
+license exception is approved by this stage; adding one requires a separate
+reviewed policy change.

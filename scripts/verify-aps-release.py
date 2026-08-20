@@ -9,6 +9,7 @@ import json
 import re
 import stat
 import unicodedata
+import urllib.parse
 import zipfile
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -31,6 +32,8 @@ REQUIRED_ARCHIVE_FILES = {
     "LICENSES/NOTICE",
     "LICENSES/sbom.spdx.json",
     "LICENSES/attribution.json",
+    "LICENSES/compliance.json",
+    "LICENSES/third-party/web-third-party-licenses.txt",
     "dependency-bundle/dependencies.lock.json",
     "dependency-bundle/package-lock.json",
     "dependency-bundle/package.json",
@@ -39,6 +42,22 @@ REQUIRED_ARCHIVE_FILES = {
     "dependency-bundle/manifest.json",
 }
 REQUIRED_GATES = {"release:reproducibility", "runtime:security"}
+APPROVED_DISTRIBUTED_LICENSES = {
+    "0BSD",
+    "Apache-2.0",
+    "Apache-2.0 AND MIT",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "(BSD-3-Clause AND Apache-2.0)",
+    "ISC",
+    "MIT",
+    "(MIT AND Zlib)",
+}
+DISTRIBUTION_PURPOSES = {
+    "build-only": "OTHER",
+    "build-only-source": "SOURCE",
+    "runtime": "LIBRARY",
+}
 REQUIRED_RELEASE_IMAGE_TOOLS = (
     "bash",
     "base64",
@@ -420,6 +439,36 @@ def verify_supply_chain(members: dict[str, bytes]) -> dict[str, Any]:
     }
     if len(dependency_ids) != len(dependencies):
         fail("dependency lock evidence is invalid")
+    distributed = 0
+    approved_licenses: set[str] = set()
+    for dependency in dependencies:
+        identifier = dependency["id"]
+        distribution = dependency.get("distribution")
+        if distribution not in DISTRIBUTION_PURPOSES:
+            fail(f"invalid dependency distribution: {identifier}")
+        if distribution != "runtime":
+            continue
+        distributed += 1
+        license_name = dependency.get("license")
+        if license_name not in APPROVED_DISTRIBUTED_LICENSES:
+            fail(f"unapproved distributed license: {identifier}")
+        origin = dependency.get("origin")
+        parsed_origin = urllib.parse.urlparse(origin) if isinstance(origin, str) else None
+        if parsed_origin is None or parsed_origin.scheme != "https" or parsed_origin.hostname is None:
+            fail(f"invalid distributed dependency origin: {identifier}")
+        approved_licenses.add(license_name)
+    expected_compliance = {
+        "schemaVersion": 1,
+        "ok": True,
+        "distributedDependencies": distributed,
+        "buildOnlyDependencies": len(dependencies) - distributed,
+        "approvedLicenses": sorted(approved_licenses),
+    }
+    compliance = read_json_bytes(
+        members["LICENSES/compliance.json"], "LICENSES/compliance.json"
+    )
+    if compliance != expected_compliance:
+        fail("license compliance evidence is inconsistent")
 
     baseline = read_json_bytes(
         members["dependency-bundle/android17-baseline.json"],
@@ -476,32 +525,89 @@ def verify_supply_chain(members: dict[str, bytes]) -> dict[str, Any]:
     packages = sbom.get("packages")
     if sbom.get("spdxVersion") != "SPDX-2.3" or not isinstance(packages, list):
         fail("SPDX evidence is invalid")
-    sbom_ids: set[str] = set()
+    sbom_by_id: dict[str, dict[str, Any]] = {}
     for package in packages:
         refs = package.get("externalRefs") if isinstance(package, dict) else None
         if not isinstance(refs, list):
             fail("SPDX evidence is invalid")
-        ids = {
+        identifiers = [
             ref.get("referenceLocator")
             for ref in refs
             if isinstance(ref, dict) and isinstance(ref.get("referenceLocator"), str)
-        }
-        if len(ids) != 1:
+        ]
+        if len(identifiers) != 1:
             fail("SPDX evidence is invalid")
-        sbom_ids.update(ids)
+        if identifiers[0] in sbom_by_id:
+            fail("license and dependency evidence are inconsistent")
+        sbom_by_id[identifiers[0]] = package
+    sbom_files = sbom.get("files")
+    if not isinstance(sbom_files, list):
+        fail("SPDX file evidence is invalid")
+    recorded_files: dict[str, str] = {}
+    for item in sbom_files:
+        checksums = item.get("checksums") if isinstance(item, dict) else None
+        checksum = next(
+            (
+                value.get("checksumValue")
+                for value in checksums or []
+                if isinstance(value, dict) and value.get("algorithm") == "SHA256"
+            ),
+            None,
+        )
+        name = item.get("fileName") if isinstance(item, dict) else None
+        if not isinstance(name, str) or not valid_sha256(checksum) or name in recorded_files:
+            fail("SPDX file evidence is invalid")
+        recorded_files[name] = checksum
+    expected_files = {
+        name: sha256_bytes(data)
+        for name, data in members.items()
+        if name.startswith(("bin/", "proxy/", "web/"))
+    }
+    if recorded_files != expected_files:
+        fail("SPDX file evidence is inconsistent")
+
     attribution = read_json_value(members["LICENSES/attribution.json"], "LICENSES/attribution.json")
     if not isinstance(attribution, list):
         fail("attribution evidence is invalid")
-    attribution_ids = {
-        item.get("id") for item in attribution if isinstance(item, dict) and isinstance(item.get("id"), str)
+    attribution_by_id = {
+        item.get("id"): item
+        for item in attribution
+        if isinstance(item, dict) and isinstance(item.get("id"), str)
     }
     if (
-        sbom_ids != dependency_ids
-        or attribution_ids != dependency_ids
+        set(sbom_by_id) != dependency_ids
+        or set(attribution_by_id) != dependency_ids
         or len(packages) != len(dependencies)
         or len(attribution) != len(dependencies)
     ):
         fail("license and dependency evidence are inconsistent")
+    for dependency in dependencies:
+        identifier = dependency["id"]
+        license_name = dependency.get("license", "NOASSERTION")
+        origin = dependency.get("origin", "NOASSERTION")
+        distribution = dependency["distribution"]
+        package = sbom_by_id[identifier]
+        attribution_item = attribution_by_id[identifier]
+        if (
+            package.get("licenseConcluded") != license_name
+            or package.get("licenseDeclared") != license_name
+            or package.get("downloadLocation") != origin
+            or package.get("primaryPackagePurpose") != DISTRIBUTION_PURPOSES[distribution]
+            or package.get("comment") != f"distribution={distribution}"
+            or attribution_item.get("name") != dependency.get("name")
+            or attribution_item.get("version")
+            != dependency.get("version", dependency.get("revision"))
+            or attribution_item.get("license") != license_name
+            or attribution_item.get("origin") != origin
+            or attribution_item.get("distribution") != distribution
+        ):
+            fail("license and dependency evidence are inconsistent")
+    if (
+        not members["LICENSES/third-party/web-third-party-licenses.txt"].strip()
+        or members["LICENSES/third-party/web-third-party-licenses.txt"]
+        != members.get("web/3rdpartylicenses.txt")
+    ):
+        fail("third-party license evidence is inconsistent")
     if not members["LICENSES/LICENSE"].strip() or not members["LICENSES/NOTICE"].strip():
         fail("license evidence is empty")
 

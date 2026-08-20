@@ -2,6 +2,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import subprocess
 import sys
 import tempfile
 from datetime import datetime, timezone
@@ -46,6 +47,9 @@ class PublishTest(unittest.TestCase):
         (web / "runtime-config.json").write_text(
             '{"schemaVersion":1,"capture":{"provider":"none"}}\n',
             encoding="utf-8",
+        )
+        (web / "3rdpartylicenses.txt").write_text(
+            "dependency\nMIT\nlicense text\n", encoding="utf-8"
         )
         commit = publish.git_commit()
         epoch = publish.git_epoch()
@@ -378,6 +382,37 @@ class PublishTest(unittest.TestCase):
             with mock.patch.object(publish, "require_clean_tree"):
                 with self.assertRaisesRegex(ValueError, "checksums"):
                     publish.publish(VERSION, release_dir, validation, root / "public", None, reproducibility, build_image=BUILD_IMAGE)
+
+    def test_release_package_verification_failure_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            release_dir, validation, reproducibility = self.make_release(root)
+            failed = subprocess.CompletedProcess(
+                args=[], returncode=1, stdout='{"ok":false}', stderr=""
+            )
+            real_run = subprocess.run
+
+            def run(command, *args, **kwargs):
+                if "release.py" in str(command[1]) and "verify" in command:
+                    return failed
+                return real_run(command, *args, **kwargs)
+
+            with (
+                mock.patch.object(publish, "require_clean_tree"),
+                mock.patch.object(publish.subprocess, "run", side_effect=run),
+            ):
+                with self.assertRaisesRegex(
+                    ValueError, "release package verification failed"
+                ):
+                    publish.publish(
+                        VERSION,
+                        release_dir,
+                        validation,
+                        root / "public",
+                        None,
+                        reproducibility,
+                        build_image=BUILD_IMAGE,
+                    )
 
     def test_missing_archive_evidence_is_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:
