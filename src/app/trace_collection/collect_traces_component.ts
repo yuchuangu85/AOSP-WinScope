@@ -420,11 +420,11 @@ export class CollectTracesComponent
     }
     const controller = assertDefined(this.controller);
     await this.setState(ConnectionState.ENDING_TRACE);
-    await controller.endTrace(selectedDevice);
-    if (this.state() === ConnectionState.ENDING_TRACE) {
+    const collected = await controller.endTraceAndFetch(selectedDevice);
+    if (this.state() === ConnectionState.LOADING_DATA) {
       this.filesCollected.emit({
         requested: this.requestedTraceTypes,
-        collected: await this.fetchLastSessionData(),
+        collected,
       });
     }
   }

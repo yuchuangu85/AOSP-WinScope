@@ -38,6 +38,13 @@ CORS, direct proxy access, and a fixed proxy port are not supported.
 The Go launcher owns and stops only the Python child it starts. Closing the
 launcher also ends its loopback server and capture session.
 
+With capture enabled, select an available Android device in Winscope, choose
+trace targets, and start the trace. Ending the trace is one managed operation:
+Winscope stops every active target, moves the resulting files into the disclosed
+Recovery Capture directory, pulls that session, and immediately imports the
+files into the existing viewers. **Fetch traces from last session** repeats the
+pull-and-import portion after a page reload or interrupted browser session.
+
 ## Cross compilation
 
 `npm run build:launchers` invokes `scripts/build-launchers.py`, which uses

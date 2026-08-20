@@ -22,6 +22,7 @@ import {UserNotifier} from '@services/user_notifier';
 import {AdbConnectionType} from '@trace_collection/adb_connection_type';
 import {AdbDeviceConnection} from '@trace_collection/adb_device_connection';
 import {AdbHostConnection} from '@trace_collection/adb_host_connection';
+import {ConnectionState} from '@trace_collection/connection_state';
 import {ConnectionStateListener} from '@trace_collection/connection_state_listener';
 import {MockAdbHostConnection} from '@trace_collection/mock/mock_adb_host_connection';
 import {UserRequest} from '@trace_collection/user_request';
@@ -100,6 +101,26 @@ export class TraceCollectionController {
   }
 
   async endTrace(device: AdbDeviceConnection) {
+    await this.stopActiveTraces(device);
+    this.listener.onOperationFinished(true);
+  }
+
+  async endTraceAndFetch(device: AdbDeviceConnection): Promise<File[]> {
+    try {
+      await this.stopActiveTraces(device);
+      await this.listener.onConnectionStateChange(
+        ConnectionState.LOADING_DATA,
+      );
+      const files = await this.fetchLastSessionFiles(device);
+      this.listener.onOperationFinished(true);
+      return files;
+    } catch (error) {
+      this.listener.onOperationFinished(false);
+      throw error;
+    }
+  }
+
+  private async stopActiveTraces(device: AdbDeviceConnection) {
     for (const [index, session] of this.activeTracingSessions.entries()) {
       await session.stop(device);
       this.listener.onProgressUpdate(
@@ -109,7 +130,6 @@ export class TraceCollectionController {
     }
     await this.moveFiles(device, this.activeTracingSessions);
     this.activeTracingSessions = [];
-    this.listener.onOperationFinished(true);
   }
 
   async dumpState(
@@ -134,6 +154,14 @@ export class TraceCollectionController {
   }
 
   async fetchLastSessionData(device: AdbDeviceConnection): Promise<File[]> {
+    const files = await this.fetchLastSessionFiles(device);
+    this.listener.onOperationFinished(true);
+    return files;
+  }
+
+  private async fetchLastSessionFiles(
+    device: AdbDeviceConnection,
+  ): Promise<File[]> {
     const adbData: File[] = [];
     const paths = await device.findFiles(`${WINSCOPE_BACKUP_DIR}*`, []);
     for (const [index, filepath] of paths.entries()) {
@@ -147,7 +175,6 @@ export class TraceCollectionController {
       );
       this.logger.debug(`Fetched ${filepath}`);
     }
-    this.listener.onOperationFinished(true);
     return adbData;
   }
 

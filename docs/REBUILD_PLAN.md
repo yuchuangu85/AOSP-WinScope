@@ -609,3 +609,16 @@ instead of being silently ignored. Additional valid Perfetto candidates are
 reported as overridden, while unrecognized candidates retain their own
 filename-specific diagnostic. If classification ends on a rejected candidate,
 the selected Perfetto trace is restored before loading continues.
+
+## Stage 21 implementation evidence
+
+Android device capture now exposes a controller-level `endTraceAndFetch`
+operation for the complete Stop -> Recovery Capture move -> pull boundary.
+The collection UI no longer composes stop and transfer as separate calls: it
+receives the completed file set from that operation and emits it through the
+existing collected-file event, which immediately reuses the normal file loader
+and viewer initialization path. Transfer state changes to `LOADING_DATA` before
+the pull begins, successful completion is reported once after all files arrive,
+and a failed combined operation closes the progress lifecycle before preserving
+the original error. The separate recovery-session fetch remains available for
+reload and interruption recovery.
