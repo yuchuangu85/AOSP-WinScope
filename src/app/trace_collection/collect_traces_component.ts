@@ -463,14 +463,24 @@ export class CollectTracesComponent
     removedTraces: UiTraceTarget[],
   ) {
     const traceConfig = this.traceConfig();
+    const dumpConfig = this.dumpConfig();
+    const getConfig = (target: UiTraceTarget) =>
+      traceConfig[target] ?? dumpConfig[target];
     newTraces.forEach((trace) => {
-      const config = traceConfig[trace];
-      config.available = true;
+      const config = getConfig(trace);
+      if (config) {
+        config.available = true;
+      }
     });
     removedTraces.forEach((trace) => {
-      const config = traceConfig[trace];
-      config.available = false;
+      const config = getConfig(trace);
+      if (config) {
+        config.available = false;
+      }
     });
+    this.traceConfig.set({...traceConfig});
+    this.dumpConfig.set({...dumpConfig});
+    this.changeDetectorRef.detectChanges();
   }
 
   onDevicesChange(devices: AdbDeviceConnection[]) {
@@ -608,7 +618,11 @@ export class CollectTracesComponent
   private getRequests(configMap: TraceConfigurationMap): UiTraceTarget[] {
     return Object.keys(configMap)
       .filter((dumpKey: string) => {
-        return configMap[dumpKey].config.enabled && dumpKey in UiTraceTarget;
+        return (
+          configMap[dumpKey].available &&
+          configMap[dumpKey].config.enabled &&
+          dumpKey in UiTraceTarget
+        );
       })
       .map((key) => Number(key)) as UiTraceTarget[];
   }
@@ -754,7 +768,9 @@ export class CollectTracesComponent
         return;
 
       case ConnectionState.IDLE: {
-        await this.selectedDevice?.updateAvailableTraces();
+        if (this.selectedDevice) {
+          await controller.updateAvailableTraces(this.selectedDevice);
+        }
         return;
       }
       default:

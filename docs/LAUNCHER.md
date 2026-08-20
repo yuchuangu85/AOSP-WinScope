@@ -45,6 +45,12 @@ Recovery Capture directory, pulls that session, and immediately imports the
 files into the existing viewers. **Fetch traces from last session** repeats the
 pull-and-import portion after a page reload or interrupted browser session.
 
+Target availability is refreshed from the selected device rather than inferred
+from its Android version. Targets with a legacy capture path remain selectable
+when their Perfetto datasource is absent. Perfetto-only targets are disabled
+individually when the datasource is missing, so the remaining Android 15/16
+capture capabilities continue to work.
+
 ## Cross compilation
 
 `npm run build:launchers` invokes `scripts/build-launchers.py`, which uses

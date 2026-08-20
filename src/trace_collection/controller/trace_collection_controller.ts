@@ -26,6 +26,7 @@ import {ConnectionState} from '@trace_collection/connection_state';
 import {ConnectionStateListener} from '@trace_collection/connection_state_listener';
 import {MockAdbHostConnection} from '@trace_collection/mock/mock_adb_host_connection';
 import {UserRequest} from '@trace_collection/user_request';
+import {UiTraceTarget} from '@trace_collection/ui_trace_target';
 import {makeWarningProxyTracingWarnings} from '@trace_collection/warnings';
 import {WinscopeProxyHostConnection} from '@trace_collection/winscope_proxy/winscope_proxy_host_connection';
 
@@ -33,6 +34,10 @@ import {PerfettoSessionModerator} from './perfetto_session_moderator';
 import {TracingSession} from './tracing_session';
 import {UserRequestParser} from './user_request_parser';
 import {WINSCOPE_BACKUP_DIR} from './winscope_backup_dir';
+
+const PERFETTO_ONLY_TRACE_TARGETS = new Map<UiTraceTarget, string>([
+  [UiTraceTarget.INPUT, 'android.input.inputevent'],
+]);
 
 export class TraceCollectionController {
   private activeTracingSessions: TracingSession[] = [];
@@ -72,6 +77,23 @@ export class TraceCollectionController {
 
   async requestDevices() {
     this.host.requestDevices();
+  }
+
+  async updateAvailableTraces(device: AdbDeviceConnection) {
+    await device.updateAvailableTraces();
+
+    const perfettoModerator = new PerfettoSessionModerator(device, false);
+    const available: UiTraceTarget[] = [];
+    const unavailable: UiTraceTarget[] = [];
+    for (const [target, dataSource] of PERFETTO_ONLY_TRACE_TARGETS) {
+      const destination = (await perfettoModerator.isDataSourceAvailable(
+        dataSource,
+      ))
+        ? available
+        : unavailable;
+      destination.push(target);
+    }
+    this.listener.onAvailableTracesChange(available, unavailable);
   }
 
   async onDestroy(device: AdbDeviceConnection) {

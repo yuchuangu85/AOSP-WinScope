@@ -375,6 +375,11 @@
       {
         "change": "modified",
         "origin": "newly-authored-clean-room",
+        "path": "src/app/trace_collection/trace_config_component.ng.html"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
         "path": "src/app/trace_collection/winscope_proxy_setup_component.ng.html"
       },
       {

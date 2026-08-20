@@ -622,3 +622,15 @@ the pull begins, successful completion is reported once after all files arrive,
 and a failed combined operation closes the progress lifecycle before preserving
 the original error. The separate recovery-session fetch remains available for
 reload and interruption recovery.
+
+## Stage 22 implementation evidence
+
+Trace-target availability is now refreshed from the selected device's actual
+Perfetto datasource inventory instead of from an Android API-level assumption.
+Targets with a legacy path continue to use the existing per-target fallback;
+Perfetto-only Input capture is disabled independently when
+`android.input.inputevent` is missing. Disabled targets remain visible with a
+device-specific availability explanation and are excluded from request
+construction even if a stored preference previously enabled them. Availability
+updates apply safely across both trace and dump configuration maps, allowing
+the rest of an Android 15/16 device's supported sources to remain usable.
