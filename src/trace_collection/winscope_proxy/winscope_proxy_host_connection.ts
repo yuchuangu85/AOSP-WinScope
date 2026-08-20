@@ -33,6 +33,8 @@ export class WinscopeProxyHostConnection extends AdbHostConnection<WinscopeProxy
   private refreshDevicesWorker: number | undefined;
   private cancelDeviceRequest = false;
 
+  protected override initializeExtraParameters() {}
+
   protected override destroyHost() {
     this.cancelDeviceRequests();
   }

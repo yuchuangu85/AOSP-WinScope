@@ -15,13 +15,9 @@
  */
 import {CommonModule} from '@angular/common';
 import {TestBed} from '@angular/core/testing';
-import {FormsModule} from '@angular/forms';
 import {MatButtonModule} from '@angular/material/button';
-import {MatFormFieldModule} from '@angular/material/form-field';
 import {MatIconModule} from '@angular/material/icon';
-import {MatInputModule} from '@angular/material/input';
-import {BrowserAnimationsModule, NoopAnimationsModule,} from '@angular/platform-browser/animations';
-import {DownloadRequest} from '@common/download';
+import {NoopAnimationsModule} from '@angular/platform-browser/animations';
 import {DOMTestHelper} from '@common/testing/dom_test_helpers';
 import {ConnectionState} from '@trace_collection/connection_state';
 
@@ -37,14 +33,9 @@ describe('WinscopeProxySetupComponent', () => {
         NoopAnimationsModule,
         CommonModule,
         MatIconModule,
-        MatFormFieldModule,
-        MatInputModule,
-        BrowserAnimationsModule,
         MatButtonModule,
-        FormsModule,
         WinscopeProxySetupComponent,
       ],
-      schemas: [],
     }).compileComponents();
     const fixture = TestBed.createComponent(WinscopeProxySetupComponent);
     component = fixture.componentInstance;
@@ -52,93 +43,45 @@ describe('WinscopeProxySetupComponent', () => {
     dom.setComponentInput('state', ConnectionState.CONNECTING);
   });
 
-  it('can be created', () => {
-    expect(component).toBeTruthy();
-  });
-
-  it('correct connecting message', () => {
+  it('shows the launcher-managed connecting state', () => {
     dom.detectChanges();
-    dom.get('.connecting-message').checkText('Connecting...');
+    dom
+      .get('.connecting-message')
+      .checkText('Connecting to the launcher-managed capture session...');
+    expect(dom.find('.retry')).toBeUndefined();
   });
 
-  it('correct icon and message displays if no proxy', () => {
+  it('offers retry when the launcher-managed session is unavailable', () => {
     dom.setComponentInput('state', ConnectionState.NOT_FOUND);
     dom.detectChanges();
     dom
       .get('.further-adb-info-text')
-      .checkText('Launch the Winscope ADB Connect proxy');
+      .checkText('The launcher-managed capture session is unavailable.');
+
+    const spy = spyOn(component.retryConnection, 'emit');
+    dom.findAndClick('.retry');
+    expect(spy).toHaveBeenCalledWith();
   });
 
-  it('correct icon and message displays if invalid proxy', () => {
+  it('shows matching-distribution guidance for an incompatible session', () => {
     dom.setComponentInput('state', ConnectionState.INVALID_VERSION);
     dom.detectChanges();
-    const infoText = dom.get('.further-adb-info-text');
-    infoText.checkText(
-      'Your local proxy version is incompatible with Winscope.',
-    );
-    infoText.checkText(
-      `Please update the proxy to version ${component.proxyVersion}`,
-    );
-    dom.get('.adb-icon').checkTextExact('update');
+    dom
+      .get('.further-adb-info-text')
+      .checkText('Restart Winscope from a matching distribution.');
+    dom.get('.adb-icon').checkTextExact('error');
+    expect(dom.find('.retry')).toBeUndefined();
   });
 
-  it('correct icon and message displays if unauthorized proxy', () => {
+  it('shows restart guidance when the browser request is rejected', () => {
     dom.setComponentInput('state', ConnectionState.UNAUTH);
     dom.detectChanges();
-    dom.get('.adb-info').checkText('Proxy authorization required.');
+    dom
+      .get('.adb-info')
+      .checkTextExact(
+        'The launcher-managed capture session rejected this browser request.',
+      );
     dom.get('.adb-icon').checkTextExact('lock');
-  });
-
-  it('download proxy button downloads proxy', () => {
-    dom.setComponentInput('state', ConnectionState.NOT_FOUND);
-    const spy: DownloadRequest = jasmine.createSpy('fromUrl');
-    dom.setComponentInput(
-      'downloadRequest',
-      (url: string, fileName: string) => {
-        spy(url, fileName);
-      },
-    );
-    dom.detectChanges();
-    dom.findAndClick('.download-proxy-btn');
-    expect(spy).toHaveBeenCalledWith(
-      component.downloadProxyUrl,
-      'winscope_proxy.py',
-    );
-  });
-
-  it('retry button emits event', () => {
-    dom.setComponentInput('state', ConnectionState.NOT_FOUND);
-    dom.detectChanges();
-
-    const spy = spyOn(component.retryConnection, 'emit');
-    dom.findAndClick('.retry');
-    expect(spy).toHaveBeenCalledWith('');
-  });
-
-  it('input proxy token saved as expected', () => {
-    const spy = spyOn(component.retryConnection, 'emit');
-    dom.setComponentInput('state', ConnectionState.UNAUTH);
-    dom.detectChanges();
-
-    dom.findAndClick('.retry');
-    expect(spy).not.toHaveBeenCalled();
-
-    dom.findAndDispatchInput('.proxy-token-input-field', '12345');
-    expect(spy).not.toHaveBeenCalled();
-
-    dom.findAndClick('.retry');
-    expect(spy).toHaveBeenCalledWith('12345');
-  });
-
-  it('emits event on enter key', () => {
-    const spy = spyOn(component.retryConnection, 'emit');
-    dom.setComponentInput('state', ConnectionState.UNAUTH);
-    dom.detectChanges();
-
-    dom.findAndDispatchInput('.proxy-token-input-field', '12345');
-    expect(spy).not.toHaveBeenCalled();
-
-    dom.get('.proxy-token-input-field').keydownEnter();
-    expect(spy).toHaveBeenCalledWith('12345');
+    expect(dom.find('.retry')).toBeUndefined();
   });
 });

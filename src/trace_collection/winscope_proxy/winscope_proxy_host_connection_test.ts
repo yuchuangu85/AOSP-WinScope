@@ -89,24 +89,17 @@ describe('WinscopeProxyHostConnection', () => {
     it('does not persist a security token between connection instances', async () => {
       connection.setSecurityToken('test_initial_token');
       expect(localStorage.getItem('adb.proxyKey')).toBeNull();
+      connection.onDestroy();
       connection = new WinscopeProxyHostConnection(listener);
       await connection.requestDevices();
       checkDevicesRequested();
     });
 
-    it('sets security token and sends as header', async () => {
+    it('ignores browser-provided security tokens', async () => {
       resetSpies();
       connection.setSecurityToken('test_token');
       await connection.requestDevices();
-      checkDevicesRequested('test_token');
-    });
-
-    it('does not set empty token', async () => {
-      connection.setSecurityToken('test_initial_token');
-      resetSpies();
-      connection.setSecurityToken('');
-      await connection.requestDevices();
-      checkDevicesRequested('test_initial_token');
+      checkDevicesRequested();
     });
 
     function resetSpies() {

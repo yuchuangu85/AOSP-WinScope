@@ -654,13 +654,14 @@ describe('CollectTracesComponent', () => {
       expect(dom.find('winscope-proxy-setup')).toBeTruthy();
     });
 
-    it('adds security token and restarts host', async () => {
+    it('restarts the launcher-managed connection without a browser token', async () => {
       const controller = assertDefined(component.controller);
       const securityTokenSpy = spyOn(controller, 'setSecurityToken');
       const restartSpy = spyOn(controller, 'restartConnection');
-      dom.findAndDispatchInput('.proxy-token-input-field', '12345');
+      component.state.set(ConnectionState.NOT_FOUND);
+      dom.detectChanges();
       await dom.clickAndWaitStable('.retry');
-      expect(securityTokenSpy).toHaveBeenCalledOnceWith('12345');
+      expect(securityTokenSpy).not.toHaveBeenCalled();
       expect(restartSpy).toHaveBeenCalledTimes(1);
     });
 
