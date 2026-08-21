@@ -278,3 +278,10 @@
   max-height: calc(100% - 2px);
   border: 1px solid var(--default-text-color);
 }
+
+.hover-video {
+  width: 150px;
+  max-height: min(240px, 35vh);
+  object-fit: contain;
+  background: black;
+}

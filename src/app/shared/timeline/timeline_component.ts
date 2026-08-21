@@ -261,11 +261,19 @@ export class TimelineComponent
   }
 
   getVideoCurrentTime(): number | undefined {
-    const videoCurrTime =
-      this.timelineData().searchCorrespondingScreenRecordingTimeSeconds(
-        this.getCurrentTracePosition(),
-      );
-    return videoCurrTime;
+    return this.timelineData().searchCorrespondingScreenRecordingTimeSeconds(
+      this.getCurrentTracePosition(),
+    );
+  }
+
+  getHoverVideoCurrentTime(): number | undefined {
+    const timestamp = this.hoverPosition()?.ts;
+    if (timestamp === undefined) {
+      return undefined;
+    }
+    return this.timelineData().searchCorrespondingScreenRecordingTimeSeconds(
+      TracePosition.fromTimestamp(timestamp),
+    );
   }
 
   getCurrentTracePosition(): TracePosition {
@@ -705,7 +713,7 @@ export class TimelineComponent
     this.hoverPosition.set(update);
     this.expandedTimelineScrollEvent = undefined;
     this.changeDetectorRef.detectChanges();
-    if (update?.ts !== undefined) {
+    if (update?.ts !== undefined && this.videoUrl === undefined) {
       this.drawThumbnail(update.ts);
     }
   }

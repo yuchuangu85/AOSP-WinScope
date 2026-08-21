@@ -1123,14 +1123,22 @@ describe('TimelineComponent', () => {
     expect(dom.find('#thumbnail-video')).toBeUndefined();
   });
 
-  it('shows hover video thumbnail', async () => {
-    const thumbnail = new Thumbnail(10, 2, 4, new Blob(), 2, 40);
-    const entry = new VideoEntry(new Blob(), 0, thumbnail);
+  it('shows hover video at the hovered recording time', async () => {
+    const second = 1_000_000_000n;
+    const thumbnail = new Thumbnail(1, 2, 4, new Blob(), 2, 4);
+    const entries = [
+      new VideoEntry(new Blob(), 0, thumbnail),
+      new VideoEntry(new Blob(), 1, thumbnail),
+    ];
+    const hoverTimestamp = converter.makeTimestampFromRealNs(11n * second);
     const srTrace = new TraceBuilder<MediaBasedTraceEntry>()
       .setType(TraceType.SCREEN_RECORDING)
       .setDescriptors(['mock_screen_recording'])
-      .setTimestamps([time100, time105, time110])
-      .setEntries([entry, entry, entry])
+      .setTimestamps([
+        converter.makeTimestampFromRealNs(10n * second),
+        hoverTimestamp,
+      ])
+      .setEntries(entries)
       .build();
     loadAllTraces(undefined, srTrace);
     await dom.whenStable();
@@ -1140,16 +1148,15 @@ describe('TimelineComponent', () => {
     const miniTimeline = assertDefined(component.miniTimeline());
     miniTimeline.onHoverPositionUpdate.emit({
       posX: 10,
-      ts: time105,
+      ts: hoverTimestamp,
       xRatio: 0.5,
     });
     dom.detectChanges();
 
     expect(hoverPreview.style.display).not.toBe('none');
     const thumbnailVideo = dom.get('#thumbnail-video').getHTMLElement();
-    expect(thumbnailVideo.style.backgroundImage).toMatch(/url\("blob:.*"\)/);
-    expect(thumbnailVideo.style.backgroundSize).toEqual('1500px 75px');
-    expect(thumbnailVideo.style.backgroundPosition).toEqual('-450px 0px');
+    expect(thumbnailVideo.tagName).toEqual('VIDEO');
+    expect((thumbnailVideo as HTMLVideoElement).currentTime).toBeCloseTo(1.00001);
 
     openExpandedTimeline();
     expect(dom.find('#thumbnail-video')).toBeUndefined();

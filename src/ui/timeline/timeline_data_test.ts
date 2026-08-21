@@ -25,7 +25,7 @@ import {TracesBuilder} from '@trace_api/testing/traces_builder';
 import {TracePosition} from '@trace_api/trace_position';
 import {TraceType} from '@trace_api/trace_type';
 import {Traces} from '@trace_api/traces';
-import {MediaBasedTraceEntry} from '@trace/media_based/media_based_trace_entry';
+import {MediaBasedTraceEntry, VideoEntry,} from '@trace/media_based/media_based_trace_entry';
 import {HierarchyTreeNode} from '@tree_node/hierarchy_tree_node';
 import {HierarchyTreeBuilder} from '@tree_node/testing/hierarchy_tree_builder';
 import {makeWarningCannotParseAllTransitions} from '@ui/trace_loading/warnings';
@@ -99,6 +99,48 @@ describe('TimelineData', () => {
     expect(timelineData.getCurrentScreenRecordingTrace()).toEqual(traceSr);
     timelineData.updateCurrentScreenRecordingTrace(traceSr2);
     expect(timelineData.getCurrentScreenRecordingTrace()).toEqual(traceSr2);
+  });
+
+  it('maps video time using the current screen recording trace', () => {
+    const second = 1_000_000_000n;
+    const defaultScreenRecording = new TraceBuilder<MediaBasedTraceEntry>()
+      .setType(TraceType.SCREEN_RECORDING)
+      .setTimestamps([
+        converter.makeTimestampFromRealNs(0n),
+        converter.makeTimestampFromRealNs(second),
+        converter.makeTimestampFromRealNs(2n * second),
+      ])
+      .setEntries([
+        new VideoEntry(new Blob(), 0),
+        new VideoEntry(new Blob(), 1),
+        new VideoEntry(new Blob(), 2),
+      ])
+      .build();
+    const currentScreenRecording = new TraceBuilder<MediaBasedTraceEntry>()
+      .setType(TraceType.SCREEN_RECORDING)
+      .setTimestamps([
+        converter.makeTimestampFromRealNs(10n * second),
+        converter.makeTimestampFromRealNs(11n * second),
+      ])
+      .setEntries([
+        new VideoEntry(new Blob(), 0),
+        new VideoEntry(new Blob(), 1),
+      ])
+      .build();
+    const screenRecordings = new Traces();
+    screenRecordings.addTrace(defaultScreenRecording);
+    screenRecordings.addTrace(currentScreenRecording);
+
+    timelineData.initialize(screenRecordings, undefined, converter);
+    timelineData.updateCurrentScreenRecordingTrace(currentScreenRecording);
+
+    expect(
+      timelineData.searchCorrespondingScreenRecordingTimeSeconds(
+        TracePosition.fromTimestamp(
+          converter.makeTimestampFromRealNs(11n * second),
+        ),
+      ),
+    ).toBeCloseTo(1.00001);
   });
 
   it('can only be initialized once', async () => {

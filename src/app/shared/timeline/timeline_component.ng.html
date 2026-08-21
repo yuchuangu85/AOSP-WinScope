@@ -72,7 +72,21 @@ limitations under the License.
     #hoverPreview
   >
     @let hasVideo = hasVideoThumbnail();
-    @if (!expanded && hasVideo) {
+    @let hoverVideoTime = getHoverVideoCurrentTime();
+    @if (!expanded && videoUrl !== undefined && hoverVideoTime !== undefined) {
+      <div class="thumbnail-content">
+        <div class="thumbnail-wrapper">
+          <video
+            class="thumbnail hover-video"
+            id="thumbnail-video"
+            [src]="videoUrl"
+            [currentTime]="hoverVideoTime"
+            preload="auto"
+            muted
+          ></video>
+        </div>
+      </div>
+    } @else if (!expanded && hasVideo) {
       <div class="thumbnail-content">
         <div class="thumbnail-wrapper">
           <div

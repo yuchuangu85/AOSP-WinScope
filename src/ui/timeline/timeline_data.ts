@@ -271,7 +271,7 @@ export class TimelineData {
   searchCorrespondingScreenRecordingTimeSeconds(
     position: TracePosition,
   ): number | undefined {
-    const trace = this.traces.getTrace(TraceType.SCREEN_RECORDING);
+    const trace = this.currentScreenRecordingTrace;
     if (!trace) {
       return undefined;
     }
