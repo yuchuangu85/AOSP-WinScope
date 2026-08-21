@@ -1162,6 +1162,47 @@ describe('TimelineComponent', () => {
     expect(dom.find('#thumbnail-video')).toBeUndefined();
   });
 
+  it('re-applies the seek once the hover video metadata is loaded', async () => {
+    const second = 1_000_000_000n;
+    const thumbnail = new Thumbnail(1, 2, 4, new Blob(), 2, 4);
+    const entries = [
+      new VideoEntry(new Blob(), 0, thumbnail),
+      new VideoEntry(new Blob(), 1, thumbnail),
+    ];
+    const hoverTimestamp = converter.makeTimestampFromRealNs(11n * second);
+    const srTrace = new TraceBuilder<MediaBasedTraceEntry>()
+      .setType(TraceType.SCREEN_RECORDING)
+      .setDescriptors(['mock_screen_recording'])
+      .setTimestamps([
+        converter.makeTimestampFromRealNs(10n * second),
+        hoverTimestamp,
+      ])
+      .setEntries(entries)
+      .build();
+    loadAllTraces(undefined, srTrace);
+    await dom.whenStable();
+
+    const miniTimeline = assertDefined(component.miniTimeline());
+    miniTimeline.onHoverPositionUpdate.emit({
+      posX: 10,
+      ts: hoverTimestamp,
+      xRatio: 0.5,
+    });
+    dom.detectChanges();
+
+    const thumbnailVideo = dom
+      .get('#thumbnail-video')
+      .getHTMLElement() as HTMLVideoElement;
+    // Simulate the browser not having seeked yet: before metadata is loaded,
+    // assigning currentTime only sets the default playback start position.
+    thumbnailVideo.currentTime = 0;
+    // When metadata finishes loading, the handler must force the seek to the
+    // frame matching the hovered timeline position.
+    thumbnailVideo.dispatchEvent(new Event('loadedmetadata'));
+    dom.detectChanges();
+    expect(thumbnailVideo.currentTime).toBeCloseTo(1.00001);
+  });
+
   describe('playback controls', () => {
     let emitEventSpy: jasmine.Spy;
 

@@ -291,9 +291,24 @@ export class TimelineData {
       return undefined;
     }
 
+    // Use the exact timestamp of the screen recording frame closest to the
+    // requested position. `findCorrespondingEntry` only establishes whether the
+    // position falls within the screen recording range (and, when the active
+    // trace is a screen recording, returns its own entry). For timeline clicks
+    // the active trace is usually a non-screen-recording trace, so falling back
+    // to `position.timestamp` would quantize the video time to the timeline's
+    // pixel grid (up to tens of ms), while using the corresponding entry above
+    // would bias the frame one step into the future. `findClosestEntry` returns
+    // the nearest screen recording frame's exact timestamp, which is both
+    // pixel-independent and unbiased.
+    const closest = trace.findClosestEntry(position.timestamp);
+    if (!closest) {
+      return undefined;
+    }
+
     return timestampToVideoTimeSeconds(
       firstTimestamp.getValueNs(),
-      entry.getTimestamp().getValueNs(),
+      closest.getTimestamp().getValueNs(),
     );
   }
 

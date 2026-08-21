@@ -47,7 +47,13 @@ limitations under the License.
           @if (frameCanvasEntry !== undefined) {
             <canvas id="frameCanvasElementTimeline" #frameCanvasElementTimeline></canvas>
           } @else if (videoUrl !== undefined && getVideoCurrentTime() !== undefined) {
-            <video id="video" [currentTime]="getVideoCurrentTime()" [src]="videoUrl"></video>
+            <video
+              id="video"
+              #expandedVideo
+              [currentTime]="getVideoCurrentTime()"
+              (loadedmetadata)="onExpandedVideoLoadedMetadata()"
+              [src]="videoUrl"
+            ></video>
           } @else {
             <div class="no-video-message">
               <p>No screen recording frame to show.</p>
@@ -79,8 +85,10 @@ limitations under the License.
           <video
             class="thumbnail hover-video"
             id="thumbnail-video"
+            #hoverVideo
             [src]="videoUrl"
             [currentTime]="hoverVideoTime"
+            (loadedmetadata)="onHoverVideoLoadedMetadata()"
             preload="auto"
             muted
           ></video>

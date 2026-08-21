@@ -105,6 +105,9 @@ export class TimelineComponent
   miniTimeline = viewChild<MiniTimelineComponent>('miniTimeline');
   private thumbnailVideo =
     viewChild<ElementRef<HTMLCanvasElement>>('thumbnailVideo');
+  private hoverVideo = viewChild<ElementRef<HTMLVideoElement>>('hoverVideo');
+  private expandedVideo =
+    viewChild<ElementRef<HTMLVideoElement>>('expandedVideo');
   private frameCanvasElement = viewChild<ElementRef<HTMLCanvasElement>>(
     'frameCanvasElementTimeline',
   );
@@ -274,6 +277,30 @@ export class TimelineComponent
     return this.timelineData().searchCorrespondingScreenRecordingTimeSeconds(
       TracePosition.fromTimestamp(timestamp),
     );
+  }
+
+  onHoverVideoLoadedMetadata() {
+    // Setting currentTime before metadata is loaded only sets the default
+    // playback start position without seeking. Re-apply the seek once the
+    // media is ready so the hover thumbnail shows the frame matching the
+    // hovered timeline position.
+    const video = this.hoverVideo()?.nativeElement;
+    const time = this.getHoverVideoCurrentTime();
+    if (video && time !== undefined && Number.isFinite(time)) {
+      video.currentTime = time;
+    }
+  }
+
+  onExpandedVideoLoadedMetadata() {
+    // Same rationale as onHoverVideoLoadedMetadata, applied to the expanded
+    // timeline video. Without this, seeking to the position selected by a
+    // timeline click does not take effect until the media is fully ready,
+    // which makes the frame diverge from the clicked timestamp.
+    const video = this.expandedVideo()?.nativeElement;
+    const time = this.getVideoCurrentTime();
+    if (video && time !== undefined && Number.isFinite(time)) {
+      video.currentTime = time;
+    }
   }
 
   getCurrentTracePosition(): TracePosition {

@@ -143,6 +143,53 @@ describe('TimelineData', () => {
     ).toBeCloseTo(1.00001);
   });
 
+  it('maps video time to the closest screen recording frame', () => {
+    const second = 1_000_000_000n;
+    const frameIntervalMs = 100n * 1_000_000n;
+    const currentScreenRecording = new TraceBuilder<MediaBasedTraceEntry>()
+      .setType(TraceType.SCREEN_RECORDING)
+      .setTimestamps([
+        converter.makeTimestampFromRealNs(10n * second),
+        converter.makeTimestampFromRealNs(10n * second + frameIntervalMs),
+        converter.makeTimestampFromRealNs(10n * second + 2n * frameIntervalMs),
+      ])
+      .setEntries([
+        new VideoEntry(new Blob(), 0),
+        new VideoEntry(new Blob(), 1),
+        new VideoEntry(new Blob(), 2),
+      ])
+      .build();
+    const screenRecordings = new Traces();
+    screenRecordings.addTrace(currentScreenRecording);
+
+    timelineData.initialize(screenRecordings, undefined, converter);
+    timelineData.updateCurrentScreenRecordingTrace(currentScreenRecording);
+
+    // A position 60ms into a 100ms frame interval is closest to the second
+    // frame, so the video time must snap to that frame's exact timestamp
+    // rather than the (pixel-quantized) requested position.
+    expect(
+      timelineData.searchCorrespondingScreenRecordingTimeSeconds(
+        TracePosition.fromTimestamp(
+          converter.makeTimestampFromRealNs(
+            10n * second + (60n * 1_000_000n),
+          ),
+        ),
+      ),
+    ).toBeCloseTo(0.10001);
+
+    // A position only 30ms into the interval is closest to the first frame.
+    expect(
+      timelineData.searchCorrespondingScreenRecordingTimeSeconds(
+        TracePosition.fromTimestamp(
+          converter.makeTimestampFromRealNs(
+            10n * second + (30n * 1_000_000n),
+          ),
+        ),
+      ),
+    ).toBeCloseTo(0.00001);
+  });
+
   it('can only be initialized once', async () => {
     timelineData.initialize(traces, undefined, converter);
     await expectAsync(
