@@ -118,6 +118,16 @@ describe('TraceViewComponent', () => {
     tabs[1].checkText('Title1 Dump');
   });
 
+  it('uses a compact height for the trace tabs row', () => {
+    const navigationBar = dom.get('.tabs-navigation-bar').getHTMLElement();
+    const tabs = getTabs();
+
+    expect(navigationBar.getBoundingClientRect().height).toBe(32);
+    tabs.forEach((tab) => {
+      expect(tab.getHTMLElement().getBoundingClientRect().height).toBe(32);
+    });
+  });
+
   it('vertically centers tab icons and titles', () => {
     const tabContent = getTabs()[0].get('.tab-content');
     const icon = tabContent.get('.icon').getHTMLElement();

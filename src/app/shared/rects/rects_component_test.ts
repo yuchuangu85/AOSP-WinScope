@@ -719,6 +719,38 @@ describe('RectsComponent', () => {
     expect(newBoundingBox).toEqual(boundingBox);
   });
 
+  it('applies the configured default zoom after initialization', () => {
+    setRectAndDisplayGroup0();
+    expect(
+      component.largeRectsMapper3d.computeScene(false).camera.zoomFactor,
+    ).toBe(1);
+
+    dom.setComponentInput('zoomFactor', 2.3);
+    dom.detectChanges();
+
+    expect(
+      component.largeRectsMapper3d.computeScene(false).camera.zoomFactor,
+    ).toBeCloseTo(1.26);
+  });
+
+  it('restores the configured default zoom factor', () => {
+    dom.setComponentInput('zoomFactor', 4);
+    setRectAndDisplayGroup0();
+    const initialZoom =
+      updateViewPositionSpy.calls.mostRecent().args[0].zoomFactor;
+
+    dom.findAndClick(zoomInSelector);
+    expect(
+      updateViewPositionSpy.calls.mostRecent().args[0].zoomFactor,
+    ).toBeGreaterThan(initialZoom);
+    resetSpies();
+
+    dom.findAndClick('.reset-button');
+    expect(updateViewPositionSpy.calls.mostRecent().args[0].zoomFactor).toBe(
+      initialZoom,
+    );
+  });
+
   it('handles change in highlighted item', () => {
     setRectAndDisplayGroup0();
     expect(updateRectsSpy.calls.mostRecent().args[0][0].colorType).toEqual(

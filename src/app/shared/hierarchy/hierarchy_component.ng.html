@@ -91,7 +91,7 @@ limitations under the License.
 @let rows = nodeRows();
 @if (rows.length > 0) {
   <tree-view
-    class="tree"
+    class="tree horizontal-scroll"
     [nodeRows]="rows"
     [heightPredictor]="heightPredictor"
     [isFlattened]="isFlattened()"

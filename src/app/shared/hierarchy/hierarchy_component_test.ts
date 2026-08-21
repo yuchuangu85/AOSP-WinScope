@@ -132,6 +132,16 @@ describe('HierarchyComponent', () => {
     treeView.checkText('Child node');
   });
 
+  it('allows horizontal scrolling for wide hierarchy content', () => {
+    const treeView = dom.get('tree-view');
+    const viewport = treeView.get('.tree-scroll').getHTMLElement();
+    const treeNode = treeView.get('tree-node').getHTMLElement();
+
+    expect(treeView.getHTMLElement().classList).toContain('horizontal-scroll');
+    expect(getComputedStyle(viewport).overflowX).toBe('scroll');
+    expect(getComputedStyle(treeNode).whiteSpace).toBe('nowrap');
+  });
+
   it('renders pinned nodes', () => {
     expect(dom.find('.pinned-items')).toBeUndefined();
     dom.setComponentInput('pinnedItems', [component.nodeRows()[0].node]);

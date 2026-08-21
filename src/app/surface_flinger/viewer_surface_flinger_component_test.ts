@@ -51,6 +51,15 @@ class ViewerSurfaceFlingerComponentTest extends AbstractHierarchyViewerComponent
         dom.checkSectionCollapseAndExpand('.property-groups', 'PROPERTIES');
       });
 
+      it('fits the layers view to the default panel size', () => {
+        const rects = assertDefined(dom.findByDirective(RectsComponent));
+
+        expect(rects.zoomFactor()).toBe(2.3);
+        expect(
+          rects.largeRectsMapper3d.computeScene(false).camera.zoomFactor,
+        ).toBeCloseTo(1.26);
+      });
+
       it('binds rects view events to output signals', () => {
         const rects = assertDefined(dom.findByDirective(RectsComponent));
 

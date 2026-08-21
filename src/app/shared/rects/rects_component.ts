@@ -113,6 +113,7 @@ export class RectsComponent implements OnInit, OnDestroy {
   private mouseMoveListener = (event: MouseEvent) => this.onMouseMove(event);
   private mouseUpListener = () => this.onMouseUp();
   private panning = false;
+  private appliedDefaultZoomFactor = 1;
 
   private readonly defaultRectType = signal<TraceRectType | undefined>(
     undefined,
@@ -152,6 +153,19 @@ export class RectsComponent implements OnInit, OnDestroy {
       this.storeKeyZSpacingFactor = `rectsView.${title}.zSpacingFactor`;
       this.storeKeyShadingMode = `rectsView.${title}.shadingMode`;
       initialStoreKeysEffect.destroy();
+    });
+
+    effect(() => {
+      const defaultZoomFactor = this.zoomFactor();
+      const zoomFactorDifference =
+        defaultZoomFactor - this.appliedDefaultZoomFactor;
+      if (zoomFactorDifference === 0) {
+        return;
+      }
+
+      this.appliedDefaultZoomFactor = defaultZoomFactor;
+      this.largeRectsMapper3d.increaseZoomFactor(zoomFactorDifference);
+      this.updateLargeRectsPositionAndLabels();
     });
 
     effect(() => {
@@ -272,8 +286,6 @@ export class RectsComponent implements OnInit, OnDestroy {
       this.onCanvasMouseDown(),
     );
 
-    this.largeRectsMapper3d.increaseZoomFactor(this.zoomFactor() - 1);
-
     this.miniRectsCanvasElement = canvasContainer.querySelector(
       '.mini-rects-canvas',
     )! as HTMLCanvasElement;
@@ -390,7 +402,12 @@ export class RectsComponent implements OnInit, OnDestroy {
   resetCamera() {
     Analytics.Navigation.logZoom('reset', 'rects');
     this.largeRectsMapper3d.resetCamera();
+    this.applyDefaultZoomFactor();
     this.redrawLargeRectsAndLabels(true);
+  }
+
+  private applyDefaultZoomFactor() {
+    this.largeRectsMapper3d.increaseZoomFactor(this.zoomFactor() - 1);
   }
 
   @HostListener('wheel', ['$event'])
