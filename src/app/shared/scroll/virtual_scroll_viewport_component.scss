@@ -24,6 +24,8 @@
 :host .content-wrapper {
   position: absolute;
   inset: 0;
+  width: var(--virtual-scroll-content-width, auto);
+  min-width: var(--virtual-scroll-content-min-width, 0);
   overflow-anchor: none;
 }
 

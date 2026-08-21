@@ -38,6 +38,9 @@
 }
 
 :host(.horizontal-scroll) .tree-scroll {
+  --virtual-scroll-content-width: max-content;
+  --virtual-scroll-content-min-width: 100%;
+
   overflow-x: scroll;
   scrollbar-gutter: stable;
 }
@@ -62,6 +65,7 @@
 }
 
 :host(.horizontal-scroll) .tree-scroll .node {
+  box-sizing: border-box;
   min-width: 100%;
   width: max-content;
   white-space: nowrap;

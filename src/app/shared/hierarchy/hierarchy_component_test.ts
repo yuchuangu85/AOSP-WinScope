@@ -25,7 +25,10 @@ import {MatInputModule} from '@angular/material/input';
 import {MatTooltipModule} from '@angular/material/tooltip';
 import {BrowserAnimationsModule} from '@angular/platform-browser/animations';
 import {CollapsibleSectionTitleComponent} from '@app/shared/collapsible_sections/collapsible_section_title_component';
-import {VirtualRow, VirtualScrollViewportComponent,} from '@app/shared/scroll/virtual_scroll_viewport_component';
+import {
+  VirtualRow,
+  VirtualScrollViewportComponent,
+} from '@app/shared/scroll/virtual_scroll_viewport_component';
 import {SearchBoxComponent} from '@app/shared/search_box/search_box_component';
 import {TreeComponent} from '@app/shared/tree/tree_component';
 import {TreeNodeComponent} from '@app/shared/tree/tree_node_component';
@@ -34,7 +37,10 @@ import {assertDefined} from '@common/assert';
 import {FilterFlag} from '@common/filter_flag';
 import {PersistentStore} from '@common/store/persistent_store';
 import {checkTooltips, DOMTestHelper} from '@common/testing/dom_test_helpers';
-import {makeWarningDuplicateLayerIds, makeWarningMissingLayerIds,} from '@parsers/helpers/warnings';
+import {
+  makeWarningDuplicateLayerIds,
+  makeWarningMissingLayerIds,
+} from '@parsers/helpers/warnings';
 import {TRACE_INFO} from '@trace_api/trace_info';
 import {TraceType} from '@trace_api/trace_type';
 import {HierarchyTreeBuilder} from '@tree_node/testing/hierarchy_tree_builder';
@@ -140,6 +146,42 @@ describe('HierarchyComponent', () => {
     expect(treeView.getHTMLElement().classList).toContain('horizontal-scroll');
     expect(getComputedStyle(viewport).overflowX).toBe('scroll');
     expect(getComputedStyle(treeNode).whiteSpace).toBe('nowrap');
+  });
+
+  it('renders selected rows across the full horizontal scroll width', async () => {
+    const wideRows = flattenNodesToRows(
+      [
+        UiHierarchyTreeNode.from(
+          new HierarchyTreeBuilder()
+            .setId('WideRoot')
+            .setName('Root')
+            .setChildren([
+              {id: 'WidestChild', name: 'Widest hierarchy node '.repeat(30)},
+              {id: 'SelectedChild', name: 'Selected hierarchy node '.repeat(8)},
+            ])
+            .build(),
+        ),
+      ],
+      false,
+      false,
+      '',
+    );
+    const selectedRow = assertDefined(
+      wideRows.find((row) => row.node.name.startsWith('Selected hierarchy')),
+    );
+    dom.getHTMLElement().style.width = '240px';
+    dom.setComponentInput('nodeRows', wideRows);
+    dom.setComponentInput('highlightedItem', selectedRow.node.id);
+    await dom.detectChangesAndWaitStable();
+
+    const treeView = dom.get('tree-view');
+    const viewport = treeView.get('.tree-scroll').getHTMLElement();
+    const selectedNode = treeView.get('tree-node.selected').getHTMLElement();
+
+    expect(viewport.scrollWidth).toBeGreaterThan(viewport.clientWidth);
+    expect(
+      selectedNode.getBoundingClientRect().width + 1,
+    ).toBeGreaterThanOrEqual(viewport.scrollWidth);
   });
 
   it('renders pinned nodes', () => {
