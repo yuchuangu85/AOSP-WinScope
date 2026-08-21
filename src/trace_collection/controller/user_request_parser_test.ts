@@ -114,6 +114,17 @@ describe('UserRequestParser', () => {
     ]);
   });
 
+  it('skips root-only legacy sessions on non-root devices', async () => {
+    const req: UserRequest[] = [
+      {target: UiTraceTarget.SURFACE_FLINGER_TRACE, config: []},
+    ];
+    spyOn(moderator, 'isDataSourceAvailable').and.returnValue(
+      Promise.resolve(false),
+    );
+
+    expect(await parseRequests(req, moderator, false)).toEqual([]);
+  });
+
   it('makes combination of perfetto and legacy sessions', async () => {
     const req: UserRequest[] = [
       {target: UiTraceTarget.WINDOW_MANAGER_TRACE, config: []},
@@ -644,7 +655,7 @@ describe('UserRequestParser', () => {
     const expectedTargetActive = new TraceTarget(
       'ScreenRecordingactive',
       [
-        'settings put system show_touches 0 && settings put system pointer_location 0',
+        'input keyevent KEYCODE_WAKEUP && sleep 1 && settings put system show_touches 0 && settings put system pointer_location 0',
       ],
       `
       screenrecord --bugreport --bit-rate 8M /data/local/tmp/screen_active.mp4 & \
@@ -652,12 +663,12 @@ describe('UserRequestParser', () => {
       `,
       'settings put system pointer_location 0 && \
       settings put system show_touches 0 && \
-      pkill -l SIGINT screenrecord >/dev/null 2>&1',
+      pkill -l SIGINT screenrecord >/dev/null 2>&1 || true',
       [
         new AdbFileIdentifier(
           `/data/local/tmp/screen_active.mp4`,
           [],
-          `screen_recording_active`,
+          `screen_recording_active.mp4`,
         ),
       ],
       true,
@@ -677,7 +688,7 @@ describe('UserRequestParser', () => {
           new AdbFileIdentifier(
             `/data/local/tmp/screen_d1.mp4`,
             [],
-            `screen_recording_d1`,
+            `screen_recording_d1.mp4`,
           ),
         ],
         true,
@@ -699,7 +710,7 @@ describe('UserRequestParser', () => {
       const expectedTargetWithPointerAndTouches = new TraceTarget(
         expectedTargetActive.traceName,
         [
-          'settings put system show_touches 1 && settings put system pointer_location 1',
+          'input keyevent KEYCODE_WAKEUP && sleep 1 && settings put system show_touches 1 && settings put system pointer_location 1',
         ],
         expectedTargetActive.startCmd,
         expectedTargetActive.stopCmd,
@@ -740,7 +751,7 @@ describe('UserRequestParser', () => {
           new AdbFileIdentifier(
             `/data/local/tmp/screen_d2.mp4`,
             [],
-            `screen_recording_d2`,
+            `screen_recording_d2.mp4`,
           ),
         ],
         true,
@@ -954,10 +965,12 @@ describe('UserRequestParser', () => {
   async function parseRequests(
     req: UserRequest[],
     perfettoModerator = moderator,
+    isRoot = true,
   ): Promise<TracingSession[]> {
     return await new UserRequestParser()
       .setPerfettoModerator(perfettoModerator)
       .setRequests(req)
+      .setIsRoot(isRoot)
       .parse();
   }
 

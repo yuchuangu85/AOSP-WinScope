@@ -2,6 +2,7 @@ import argparse
 import importlib.util
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -27,6 +28,20 @@ class HostileInputSecurityTest(unittest.TestCase):
                 with self.assertRaises(proxy.BadRequestError):
                     proxy.parse_request_path(path)
         self.assertEqual(proxy.parse_request_path("/devices"), ["devices"])
+
+    def test_optional_protolog_probe_degrades_when_service_is_missing(self):
+        with mock.patch.object(proxy, "call_adb_shell", side_effect=proxy.AdbError("missing")):
+            self.assertEqual(
+                proxy.call_optional_adb_shell(
+                    "cmd protolog_configuration groups list", "serial_01"
+                ),
+                "",
+            )
+
+    def test_non_optional_adb_errors_are_preserved(self):
+        with mock.patch.object(proxy, "call_adb_shell", side_effect=proxy.AdbError("failed")):
+            with self.assertRaises(proxy.AdbError):
+                proxy.call_optional_adb_shell("settings get system user_setup_complete", "serial_01")
 
     def test_shell_and_device_inputs_remain_bounded(self):
         proxy.validate_shell_command("atrace --async_start -b 4096")

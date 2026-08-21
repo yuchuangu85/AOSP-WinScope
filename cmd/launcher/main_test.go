@@ -180,3 +180,35 @@ func TestHandlerAddsSecurityHeaders(t *testing.T) {
 		}
 	}
 }
+
+func TestCaptureRequestOrigin(t *testing.T) {
+	origin := "http://127.0.0.1:1234"
+
+	tests := []struct {
+		name   string
+		method string
+		host   string
+		origin string
+		want   bool
+	}{
+		{name: "same-origin GET without browser Origin header", method: http.MethodGet, host: "127.0.0.1:1234", want: true},
+		{name: "same-origin GET with Origin header", method: http.MethodGet, host: "127.0.0.1:1234", origin: origin, want: true},
+		{name: "same-origin POST requires Origin header", method: http.MethodPost, host: "127.0.0.1:1234", want: false},
+		{name: "same-origin POST with Origin header", method: http.MethodPost, host: "127.0.0.1:1234", origin: origin, want: true},
+		{name: "wrong Origin", method: http.MethodGet, host: "127.0.0.1:1234", origin: "http://localhost:1234", want: false},
+		{name: "wrong Host", method: http.MethodGet, host: "localhost:1234", want: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequest(test.method, origin+"/capture/status", nil)
+			request.Host = test.host
+			if test.origin != "" {
+				request.Header.Set("Origin", test.origin)
+			}
+			if got := authorizedCaptureRequest(request, origin); got != test.want {
+				t.Fatalf("authorizedCaptureRequest() = %t, want %t", got, test.want)
+			}
+		})
+	}
+}

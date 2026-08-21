@@ -19,6 +19,9 @@ import {ConnectionState} from '@trace_collection/connection_state';
 import {TraceTarget} from '@trace_collection/trace_target';
 import {UiTraceTarget} from '@trace_collection/ui_trace_target';
 
+export const ROOT_CHECK_COMMAND =
+  'if command -v su >/dev/null 2>&1; then su root id -u; fi';
+
 export interface AdbDeviceConnectionListener {
   onError(errorText: string): Promise<void>;
   onConnectionStateChange(newState: ConnectionState): Promise<void>;
@@ -72,8 +75,8 @@ export abstract class AdbDeviceConnection {
   }
 
   async checkRoot(): Promise<boolean> {
-    const root = await this.runShellCommand('su root id -u');
-    return root === '0';
+    const root = await this.runShellCommand(ROOT_CHECK_COMMAND);
+    return (root ?? '').trim() === '0';
   }
 
   async updateAvailableTraces() {
@@ -184,9 +187,18 @@ export abstract class AdbDeviceConnection {
       this.protologGroups = [];
       return;
     }
-    const groups = (
-      await this.runShellCommand('cmd protolog_configuration groups list')
-    ).trim();
+    let groups: string;
+    try {
+      groups = (
+        await this.runShellCommand('cmd protolog_configuration groups list')
+      ).trim();
+    } catch (error) {
+      // ProtoLog is optional on some devices. Its absence must not prevent
+      // device discovery or the remaining capture targets from being used.
+      this.logger.debug(`ProtoLog groups are unavailable: ${String(error)}`);
+      this.protologGroups = [];
+      return;
+    }
 
     if (!groups.startsWith('ProtoLog groups registered with service')) {
       this.protologGroups = [];

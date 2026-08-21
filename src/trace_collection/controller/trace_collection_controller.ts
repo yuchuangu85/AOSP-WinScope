@@ -32,12 +32,8 @@ import {WinscopeProxyHostConnection} from '@trace_collection/winscope_proxy/wins
 
 import {PerfettoSessionModerator} from './perfetto_session_moderator';
 import {TracingSession} from './tracing_session';
-import {UserRequestParser} from './user_request_parser';
+import {PERFETTO_DATA_SOURCE_BY_TARGET, ROOT_REQUIRED_LEGACY_TARGETS, UserRequestParser,} from './user_request_parser';
 import {WINSCOPE_BACKUP_DIR} from './winscope_backup_dir';
-
-const PERFETTO_ONLY_TRACE_TARGETS = new Map<UiTraceTarget, string>([
-  [UiTraceTarget.INPUT, 'android.input.inputevent'],
-]);
 
 export class TraceCollectionController {
   private activeTracingSessions: TracingSession[] = [];
@@ -83,14 +79,16 @@ export class TraceCollectionController {
     await device.updateAvailableTraces();
 
     const perfettoModerator = new PerfettoSessionModerator(device, false);
+    const isRoot = await device.checkRoot();
     const available: UiTraceTarget[] = [];
     const unavailable: UiTraceTarget[] = [];
-    for (const [target, dataSource] of PERFETTO_ONLY_TRACE_TARGETS) {
-      const destination = (await perfettoModerator.isDataSourceAvailable(
-        dataSource,
-      ))
-        ? available
-        : unavailable;
+    for (const [target, dataSource] of PERFETTO_DATA_SOURCE_BY_TARGET) {
+      const dataSourceAvailable =
+        await perfettoModerator.isDataSourceAvailable(dataSource);
+      const legacyAvailable =
+        isRoot && ROOT_REQUIRED_LEGACY_TARGETS.has(target);
+      const destination =
+        dataSourceAvailable || legacyAvailable ? available : unavailable;
       destination.push(target);
     }
     this.listener.onAvailableTracesChange(available, unavailable);
@@ -108,7 +106,11 @@ export class TraceCollectionController {
     requestedTraces: UserRequest[],
   ): Promise<void> {
     const perfettoModerator = new PerfettoSessionModerator(device, false);
-    const sessions = await this.getSessions(perfettoModerator, requestedTraces);
+    const sessions = await this.getSessions(
+      perfettoModerator,
+      requestedTraces,
+      requestedTraces.length > 0 && (await device.checkRoot()),
+    );
     this.activeTracingSessions = [];
     if (sessions.length === 0) {
       return;
@@ -163,7 +165,11 @@ export class TraceCollectionController {
     requestedDumps: UserRequest[],
   ): Promise<void> {
     const perfettoModerator = new PerfettoSessionModerator(device, true);
-    const sessions = await this.getSessions(perfettoModerator, requestedDumps);
+    const sessions = await this.getSessions(
+      perfettoModerator,
+      requestedDumps,
+      requestedDumps.length > 0 && (await device.checkRoot()),
+    );
     if (sessions.length === 0) {
       return;
     }
@@ -256,10 +262,12 @@ export class TraceCollectionController {
   private async getSessions(
     perfettoModerator: PerfettoSessionModerator,
     req: UserRequest[],
+    isRoot: boolean,
   ): Promise<TracingSession[]> {
     const sessions = await new UserRequestParser()
       .setPerfettoModerator(perfettoModerator)
       .setRequests(req)
+      .setIsRoot(isRoot)
       .parse();
 
     if (sessions.length === 0) {

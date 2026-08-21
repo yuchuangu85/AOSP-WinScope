@@ -360,7 +360,7 @@ func serveCapture(writer http.ResponseWriter, request *http.Request, origin stri
 		http.Error(writer, "capture request is too large", http.StatusRequestEntityTooLarge)
 		return
 	}
-	if request.Header.Get("Origin") != origin || request.Host != strings.TrimPrefix(origin, "http://") {
+	if !authorizedCaptureRequest(request, origin) {
 		http.Error(writer, "capture request origin is not authorized", http.StatusForbidden)
 		return
 	}
@@ -372,6 +372,10 @@ func serveCapture(writer http.ResponseWriter, request *http.Request, origin stri
 	} else {
 		cloned.URL.Path = "/" + cloned.URL.Path
 	}
+	// Preserve the browser-facing origin through the reverse-proxy hop. The
+	// Python proxy validates both fields independently of the session token.
+	cloned.Host = request.Host
+	cloned.Header.Set("Origin", origin)
 	cloned.Header.Set("Winscope-Token", proxy.secret)
 	cloned.Header.Del("Cookie")
 	cloned.Header.Del("Authorization")
@@ -382,6 +386,20 @@ func serveCapture(writer http.ResponseWriter, request *http.Request, origin stri
 		http.Error(response, "launcher-managed capture service is unavailable", http.StatusBadGateway)
 	}
 	reverse.ServeHTTP(writer, cloned)
+}
+
+func authorizedCaptureRequest(request *http.Request, origin string) bool {
+	if request.Host != strings.TrimPrefix(origin, "http://") {
+		return false
+	}
+	requestOrigin := request.Header.Get("Origin")
+	if requestOrigin == "" {
+		// Browsers commonly omit Origin on same-origin GET requests. Read-only
+		// capture endpoints remain protected by the exact loopback Host check;
+		// state-changing POST requests must include the same-origin header.
+		return request.Method == http.MethodGet
+	}
+	return requestOrigin == origin
 }
 
 func validCapturePath(value string) bool {

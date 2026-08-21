@@ -14,6 +14,29 @@
  * limitations under the License.
  */
 
+@font-face {
+  font-family: 'Material Symbols Sharp';
+  font-style: normal;
+  font-weight: 100 700;
+  font-display: block;
+  src: url('../assets/MaterialSymbolsOutlined.woff2') format('woff2');
+}
+
+// Keep Material icons local so standalone and offline builds do not depend on
+// an external Google Fonts request.
+.mat-icon,
+.material-symbols-outlined {
+  font-family: 'Material Symbols Sharp' !important;
+  font-weight: normal;
+  font-style: normal;
+  font-feature-settings: 'liga';
+  font-variation-settings:
+    'FILL' 0,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 24;
+}
+
 html,
 body,
 app-root {
@@ -103,7 +126,7 @@ body.dark-mode
 .menu-item {
   cursor: pointer;
   font:
-    14px "Roboto",
+    14px 'Roboto',
     sans-serif;
   min-width: 64px;
   line-height: 36px;
@@ -220,8 +243,8 @@ log-view .headers .mat-mdc-form-field-infix {
   line-height: 24px;
 }
 
-.mat-button-toggle-standalone:not([class*="mat-elevation-z"]),
-.mat-button-toggle-group:not([class*="mat-elevation-z"]) {
+.mat-button-toggle-standalone:not([class*='mat-elevation-z']),
+.mat-button-toggle-group:not([class*='mat-elevation-z']) {
   box-shadow: none !important;
 }
 

@@ -32,9 +32,11 @@ interface TraceWorker {
   worker: number;
 }
 
+const PROTOLOG_GROUPS_COMMAND = 'cmd protolog_configuration groups list';
+
 export class WinscopeProxyDeviceConnection extends AdbDeviceConnection {
   private readonly encodedId: string;
-  private isTracing = true;
+  private activeTraceTargets = new Set<string>();
   private keepTraceAliveWorkers: TraceWorker[] = [];
 
   constructor(
@@ -48,7 +50,7 @@ export class WinscopeProxyDeviceConnection extends AdbDeviceConnection {
   }
 
   override onDestroy() {
-    this.isTracing = false;
+    this.activeTraceTargets.clear();
     this.keepTraceAliveWorkers.forEach((it) => {
       window.clearInterval(it.worker);
     });
@@ -64,7 +66,17 @@ export class WinscopeProxyDeviceConnection extends AdbDeviceConnection {
       `${Endpoint.RUN_ADB_CMD}${this.encodedId}/`,
       this.securityHeader,
       () => {}, // onSuccess - no-op
-      (newState, errorText) => this.setState(newState, errorText),
+      async (newState, errorText) => {
+        // ProtoLog is optional. Some devices return a non-zero ADB status for
+        // this capability probe, which must not make device discovery fail.
+        if (
+          cmd === PROTOLOG_GROUPS_COMMAND &&
+          newState === ConnectionState.ERROR
+        ) {
+          return;
+        }
+        return this.setState(newState, errorText);
+      },
       {cmd: 'shell ' + cmd},
     );
   }
@@ -113,7 +125,7 @@ export class WinscopeProxyDeviceConnection extends AdbDeviceConnection {
   };
 
   override async startTrace(target: TraceTarget) {
-    this.isTracing = true;
+    this.activeTraceTargets.add(target.traceName);
     this.logger.debug(`Starting trace for ${target.traceName}`);
     await postToProxy(
       `${Endpoint.START_TRACE}${this.encodedId}/`,
@@ -132,7 +144,8 @@ export class WinscopeProxyDeviceConnection extends AdbDeviceConnection {
   }
 
   override async endTrace(target: TraceTarget) {
-    this.isTracing = false;
+    this.activeTraceTargets.delete(target.traceName);
+    this.clearTraceAliveWorker(target.traceName);
     this.logger.debug(`Ending trace for ${target.traceName}`);
     await postToProxy(
       `${Endpoint.END_TRACE}${this.encodedId}/`,
@@ -181,7 +194,7 @@ export class WinscopeProxyDeviceConnection extends AdbDeviceConnection {
   }
 
   private async keepTraceAlive(targetName: string) {
-    if (!this.isTracing) {
+    if (!this.activeTraceTargets.has(targetName)) {
       this.clearTraceAliveWorker(targetName);
       return;
     }
@@ -200,7 +213,7 @@ export class WinscopeProxyDeviceConnection extends AdbDeviceConnection {
           const workerExists = this.keepTraceAliveWorkers.some(
             ({name}) => name === targetName,
           );
-          if (!workerExists && this.isTracing) {
+          if (!workerExists && this.activeTraceTargets.has(targetName)) {
             const worker = window.setInterval(
               () => this.keepTraceAlive(targetName),
               1000,

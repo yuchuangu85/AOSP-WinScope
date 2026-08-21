@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {AdbDeviceConnectionListener, AdbDeviceState,} from '@trace_collection/adb_device_connection';
+import {AdbDeviceConnectionListener, AdbDeviceState, ROOT_CHECK_COMMAND,} from '@trace_collection/adb_device_connection';
 import {MockAdbDeviceConnection} from '@trace_collection/mock/mock_adb_device_connection';
 import {AdbFileIdentifier, TraceTarget} from '@trace_collection/trace_target';
 
@@ -104,7 +104,7 @@ describe('TracingSession', () => {
       ['test path 2', ['matcher']],
     ]);
     expect(runShellCmdSpy.calls.allArgs()).toEqual([
-      ['su root id -u'],
+      [ROOT_CHECK_COMMAND],
       [
         `[ -f file ] && cp -p file ${WINSCOPE_BACKUP_DIR}saved_file_1 && rm -f file`,
       ],
@@ -123,7 +123,7 @@ describe('TracingSession', () => {
       ['test path 2', ['matcher']],
     ]);
     expect(runShellCmdSpy.calls.allArgs()).toEqual([
-      ['su root id -u'],
+      [ROOT_CHECK_COMMAND],
       [
         `su root [ -f file ] && su root cp -p file ${WINSCOPE_BACKUP_DIR}saved_file_1 && su root rm -f file`,
       ],
@@ -157,7 +157,7 @@ describe('TracingSession', () => {
 
   function setDeviceAsRoot() {
     runShellCmdSpy
-      .withArgs('su root id -u')
+      .withArgs(ROOT_CHECK_COMMAND)
       .and.returnValue(Promise.resolve('0'));
   }
 });

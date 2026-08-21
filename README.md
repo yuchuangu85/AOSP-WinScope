@@ -10,7 +10,20 @@ contain the proto definitions for their internal states.
 ### Checking out code and setting up environment
 * [Download Android source](https://source.android.com/setup/build/downloading)
 * Navigate to `development/tools/winscope`
-* Run `npm install`
+* Install dependencies:
+  ```bash
+  npm ci
+  ```
+
+### Running the project locally
+From the repository root, start the Angular development server:
+
+```bash
+npm start
+```
+
+The development server opens the browser automatically. If dependencies are already
+installed, `npm start` can be run directly.
 
 ### Build & test & deploy changes
 * Navigate to `development/tools/winscope`

@@ -179,6 +179,25 @@ describe('WinscopeProxyDeviceConnection', () => {
       expect(output).toBe('123');
     });
 
+    it('ignores unavailable ProtoLog service errors', async () => {
+      const errorResponse: HttpResponse = {
+        status: HttpRequestStatus.ERROR,
+        type: '',
+        text: 'ADB command failed',
+        body: 'ADB command failed',
+        getHeader: getVersionHeader,
+      };
+      await setHttpSpies(errorResponse);
+
+      const output = await connection.runShellCommand(
+        'cmd protolog_configuration groups list',
+      );
+
+      expect(output).toBe('ADB command failed');
+      expect(listener.onError).not.toHaveBeenCalled();
+      expect(listener.onConnectionStateChange).not.toHaveBeenCalled();
+    });
+
     it('handles undefined output', async () => {
       const successfulResponse: HttpResponse = {
         status: HttpRequestStatus.SUCCESS,

@@ -17,7 +17,7 @@
 import {ProgressListener} from '@messaging/progress_listener';
 import {UserNotifierChecker} from '@services/testing/user_notifier_checker';
 import {AdbConnectionType} from '@trace_collection/adb_connection_type';
-import {AdbDeviceState} from '@trace_collection/adb_device_connection';
+import {AdbDeviceState, ROOT_CHECK_COMMAND,} from '@trace_collection/adb_device_connection';
 import {ConnectionState} from '@trace_collection/connection_state';
 import {ConnectionStateListener} from '@trace_collection/connection_state_listener';
 import {MockAdbDeviceConnection} from '@trace_collection/mock/mock_adb_device_connection';
@@ -67,6 +67,7 @@ describe('TraceCollectionController', () => {
     ).and.callThrough();
     moveSpy = spyOn(TracingSession.prototype, 'moveFiles');
     runShellCmdSpy = spyOn(mockDevice, 'runShellCommand');
+    runShellCmdSpy.withArgs(ROOT_CHECK_COMMAND).and.returnValue('0');
     controller = new TraceCollectionController(
       AdbConnectionType.MOCK,
       listener,
@@ -203,7 +204,7 @@ describe('TraceCollectionController', () => {
 
       expect(stopCurrentSession).toHaveBeenCalledTimes(1);
       expect(clearPreviousConfigFiles).toHaveBeenCalledTimes(1);
-      expect(runShellCmdSpy.calls.allArgs().slice(1, 3).flat()).toEqual([
+      expect(runShellCmdSpy.calls.allArgs().slice(2, 4).flat()).toEqual([
         `rm -rf ${WINSCOPE_BACKUP_DIR}`,
         `mkdir ${WINSCOPE_BACKUP_DIR}`,
       ]);
@@ -348,6 +349,7 @@ echo 'Dumped perfetto'`,
       expect(clearPreviousConfigFiles).toHaveBeenCalledTimes(1);
 
       const expectedCommands = [
+        ROOT_CHECK_COMMAND,
         'perfetto --query',
         `rm -rf ${WINSCOPE_BACKUP_DIR}`,
         `mkdir ${WINSCOPE_BACKUP_DIR}`,

@@ -18,7 +18,7 @@ import {UserNotifierChecker} from '@services/testing/user_notifier_checker';
 import {MockAdbDeviceConnection} from '@trace_collection/mock/mock_adb_device_connection';
 import {UiTraceTarget} from '@trace_collection/ui_trace_target';
 
-import {AdbDeviceConnectionListener, AdbDeviceState,} from './adb_device_connection';
+import {AdbDeviceConnectionListener, AdbDeviceState, ROOT_CHECK_COMMAND,} from './adb_device_connection';
 
 describe('AdbDeviceConnection', () => {
   const listener = jasmine.createSpyObj<AdbDeviceConnectionListener>(
@@ -235,9 +235,18 @@ describe('AdbDeviceConnection', () => {
     expect(await connection.checkRoot()).toBeTrue();
   });
 
-  it('checks root and returns false for non "0" output', async () => {
-    setDeviceAsRoot();
-    expect(await connection.checkRoot()).toBeTrue();
+  it('checks root and returns false for non-root output', async () => {
+    runShellCmdSpy.withArgs(ROOT_CHECK_COMMAND).and.returnValue('');
+    expect(await connection.checkRoot()).toBeFalse();
+  });
+
+  it('ignores unavailable protolog service', async () => {
+    runShellCmdSpy
+      .withArgs(protologCmd)
+      .and.rejectWith(new Error('ADB command failed'));
+
+    await expectAsync(connection.updateProperties({})).toBeResolved();
+    expect(connection.getProtologGroups()).toEqual([]);
   });
 
   it('updates protolog groups depending on device state change', async () => {
@@ -255,6 +264,6 @@ describe('AdbDeviceConnection', () => {
   });
 
   function setDeviceAsRoot() {
-    runShellCmdSpy.withArgs('su root id -u').and.returnValue('0');
+    runShellCmdSpy.withArgs(ROOT_CHECK_COMMAND).and.returnValue('0\n');
   }
 });

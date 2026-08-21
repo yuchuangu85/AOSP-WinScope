@@ -27,27 +27,40 @@ const WINSCOPE_EXT_LEGACY = '.pb';
 const WINSCOPE_EXTS = [WINSCOPE_EXT, WINSCOPE_EXT_LEGACY];
 const WINSCOPE_DIR = '/data/misc/wmtrace/';
 
+export const PERFETTO_DATA_SOURCE_BY_TARGET = new Map<UiTraceTarget, string>([
+  [UiTraceTarget.SURFACE_FLINGER_TRACE, 'android.surfaceflinger.layers'],
+  [UiTraceTarget.WINDOW_MANAGER_TRACE, 'android.windowmanager'],
+  [UiTraceTarget.IME, 'android.inputmethod'],
+  [UiTraceTarget.TRANSACTIONS, 'android.surfaceflinger.transactions'],
+  [UiTraceTarget.PROTO_LOG, 'android.protolog'],
+  [UiTraceTarget.TRANSITIONS, 'com.android.wm.shell.transition'],
+  [UiTraceTarget.VIEW_CAPTURE, 'android.viewcapture'],
+  [UiTraceTarget.INPUT, 'android.input.inputevent'],
+  [UiTraceTarget.SURFACE_FLINGER_DUMP, 'android.surfaceflinger.layers'],
+  [UiTraceTarget.WINDOW_MANAGER_DUMP, 'android.windowmanager'],
+  [UiTraceTarget.EVENTLOG, 'linux.ftrace'],
+]);
+
+export const ROOT_REQUIRED_LEGACY_TARGETS = new Set<UiTraceTarget>([
+  UiTraceTarget.SURFACE_FLINGER_TRACE,
+  UiTraceTarget.WINDOW_MANAGER_TRACE,
+  UiTraceTarget.IME,
+  UiTraceTarget.TRANSACTIONS,
+  UiTraceTarget.PROTO_LOG,
+  UiTraceTarget.TRANSITIONS,
+  UiTraceTarget.VIEW_CAPTURE,
+  UiTraceTarget.SURFACE_FLINGER_DUMP,
+  UiTraceTarget.WINDOW_MANAGER_DUMP,
+]);
+
 function makeMatchersWithWinscopeExts(matcher: string) {
   return WINSCOPE_EXTS.map((ext) => `${matcher}${ext}`);
 }
 
 export class UserRequestParser {
-  private readonly targetPerfettoDsMap = new Map([
-    [UiTraceTarget.SURFACE_FLINGER_TRACE, 'android.surfaceflinger.layers'],
-    [UiTraceTarget.WINDOW_MANAGER_TRACE, 'android.windowmanager'],
-    [UiTraceTarget.IME, 'android.inputmethod'],
-    [UiTraceTarget.TRANSACTIONS, 'android.surfaceflinger.transactions'],
-    [UiTraceTarget.PROTO_LOG, 'android.protolog'],
-    [UiTraceTarget.TRANSITIONS, 'com.android.wm.shell.transition'],
-    [UiTraceTarget.VIEW_CAPTURE, 'android.viewcapture'],
-    [UiTraceTarget.INPUT, 'android.input.inputevent'],
-    [UiTraceTarget.SURFACE_FLINGER_DUMP, 'android.surfaceflinger.layers'],
-    [UiTraceTarget.WINDOW_MANAGER_DUMP, 'android.windowmanager'],
-    [UiTraceTarget.EVENTLOG, 'linux.ftrace'],
-  ]);
-
   private perfettoModerator: PerfettoSessionModerator | undefined;
   private requests: UserRequest[] | undefined;
+  private isRoot = false;
 
   setPerfettoModerator(value: PerfettoSessionModerator) {
     this.perfettoModerator = value;
@@ -59,13 +72,18 @@ export class UserRequestParser {
     return this;
   }
 
+  setIsRoot(value: boolean) {
+    this.isRoot = value;
+    return this;
+  }
+
   async parse(): Promise<TracingSession[]> {
     const traceTargets: TraceTarget[] = [];
     const perfettoConfigDataSources: string[] = [];
     const perfettoModerator = assertDefined(this.perfettoModerator);
 
     for (const req of assertDefined(this.requests)) {
-      const ds = this.targetPerfettoDsMap.get(req.target);
+      const ds = PERFETTO_DATA_SOURCE_BY_TARGET.get(req.target);
       const dataSourceAvailable =
         ds !== undefined && (await perfettoModerator.isDataSourceAvailable(ds));
 
@@ -78,6 +96,9 @@ export class UserRequestParser {
           perfettoConfigDataSources.push(configFileDs);
         }
       } else {
+        if (ROOT_REQUIRED_LEGACY_TARGETS.has(req.target) && !this.isRoot) {
+          continue;
+        }
         const targets = this.getNonPerfettoTargets(req);
         if (targets) {
           traceTargets.push(...targets);
@@ -439,10 +460,10 @@ export class UserRequestParser {
       new ScreenRecordingConfigParser().parse(req.config);
 
     const val = showPointerAndTouches ? '1' : '0';
-    const setupCmd = `settings put system show_touches ${val} && settings put system pointer_location ${val}`;
+    const setupCmd = `input keyevent KEYCODE_WAKEUP && sleep 1 && settings put system show_touches ${val} && settings put system pointer_location ${val}`;
     const stopCmd = `settings put system pointer_location 0 && \
       settings put system show_touches 0 && \
-      pkill -l SIGINT screenrecord >/dev/null 2>&1`;
+      pkill -l SIGINT screenrecord >/dev/null 2>&1 || true`;
 
     return identifiers.map((id, index) => {
       const startArgs = id === 'active' ? '' : ` --display-id ${id}`;
@@ -460,7 +481,7 @@ export class UserRequestParser {
           new AdbFileIdentifier(
             `/data/local/tmp/screen_${id}.mp4`,
             [],
-            `screen_recording_${id}`,
+            `screen_recording_${id}.mp4`,
           ),
         ],
         true,

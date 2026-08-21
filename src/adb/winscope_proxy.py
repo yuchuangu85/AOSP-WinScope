@@ -69,6 +69,9 @@ MAX_COMMAND_BYTES = 64 << 10
 MAX_FETCH_BYTES = 128 << 20
 DEVICE_ID_RE = re.compile(r"[A-Za-z0-9._:/\\-]+")
 TARGET_ID_RE = re.compile(r"[A-Za-z0-9._-]{1,128}")
+OPTIONAL_ADB_SHELL_COMMANDS = frozenset({
+  "cmd protolog_configuration groups list",
+})
 
 
 def create_argument_parser() -> argparse.ArgumentParser:
@@ -230,6 +233,16 @@ def call_adb_shell(command: str, device: str) -> str:
   # execution remains an argument vector regardless of shell syntax in Android
   # trace commands.
   return call_adb(["shell", command], device)
+
+
+def call_optional_adb_shell(command: str, device: str) -> str:
+  try:
+    return call_adb_shell(command, device)
+  except AdbError:
+    if command in OPTIONAL_ADB_SHELL_COMMANDS:
+      log.info("Optional ADB capability is unavailable: %s", command)
+      return ""
+    raise
 
 
 def validate_shell_command(command: str):
@@ -498,7 +511,7 @@ class RunAdbCmdEndpoint(DeviceRequestEndpoint):
     command = request.get("cmd", "")
     if not isinstance(command, str) or not command.startswith("shell "):
       raise BadRequestError("Only Android shell commands are supported")
-    output = call_adb_shell(command[6:], device_id)
+    output = call_optional_adb_shell(command[6:], device_id)
     http_server.respond(
         HTTPStatus.OK,
         json.dumps(output).encode("utf-8"),
