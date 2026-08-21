@@ -19,7 +19,6 @@ import {MediaBasedTraceEntry} from '@trace/media_based/media_based_trace_entry';
 export class UiData {
   readonly titles: string[];
   currentTraceEntries: MediaBasedTraceEntry[] = [];
-  forceMinimize = false;
   isFetchingEntries = false;
   isInPlaybackMode = false;
 
