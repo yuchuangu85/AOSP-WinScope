@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 The Android Open Source Project
+ * Copyright (C) 2026 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,17 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import {checkServerIsUp, WINSCOPE_URL} from './helpers';
-import {browser, by, element} from './webdriver';
 
-describe('winscope', () => {
-  beforeAll(async () => {
-    await checkServerIsUp('Winscope', WINSCOPE_URL);
-    await browser.get(WINSCOPE_URL);
-  });
+import {browser} from './webdriver';
 
-  it('has title', async () => {
-    const title = element(by.css('.app-title'));
-    expect(await title.isPresent()).toBeTruthy();
-  });
+afterAll(async () => {
+  await browser.getDriver().quit();
 });

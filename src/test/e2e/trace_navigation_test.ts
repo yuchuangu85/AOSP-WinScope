@@ -14,9 +14,8 @@
  * limitations under the License.
  */
 
-import {browser, by, element, ElementFinder} from 'protractor';
-
 import {clickUploadNewButton, clickViewTracesButton, closeSnackBar, setTimeouts, uploadFixture, WINSCOPE_URL,} from './helpers';
+import {browser, by, element, ElementFinder} from './webdriver';
 
 describe('Trace navigation', () => {
   const DEFAULT_TIMEOUT_MS = 5000;
@@ -39,7 +38,7 @@ describe('Trace navigation', () => {
 
   it('discards legacy traces', async () => {
     await uploadFixture('archives/deployment_full_trace_phone_legacy.zip');
-    await clickViewTracesButton(false);
+    await clickViewTracesButton(true);
     const screenRecording = element(by.css('viewer-media-based'));
     expect(await screenRecording.isPresent()).toBeTruthy();
     const tabs = await element.all(by.css('.tab'));
@@ -48,7 +47,7 @@ describe('Trace navigation', () => {
 
   it('converts legacy traces', async () => {
     await uploadFixture('archives/deployment_full_trace_phone_legacy.zip');
-    await clickViewTracesButton(true);
+    await clickViewTracesButton(false);
     const screenRecording = element(by.css('viewer-media-based'));
     expect(await screenRecording.isPresent()).toBeTruthy();
     const tabs = await element.all(by.css('.tab'));
@@ -60,10 +59,12 @@ describe('Trace navigation', () => {
     const elements = [
       toolbar.element(by.css('.app-title')),
       toolbar.element(by.css('.documentation')),
-      toolbar.element(by.css('.report-bug')),
+      toolbar.element(by.css('.export-diagnostics')),
       toolbar.element(by.css('.dark-mode')),
       element(by.css('.welcome-info')),
-      element(by.css('collect-traces')),
+      ...(process.env['AOSP_WINSCOPE_E2E_PRODUCTION'] === '1'
+        ? []
+        : [element(by.css('collect-traces'))]),
       element(by.css('upload-traces')),
     ];
     await checkElementsPresent(elements);
@@ -77,7 +78,7 @@ describe('Trace navigation', () => {
       toolbar.element(by.css('.upload-new')),
       toolbar.element(by.css('.save-button')),
       toolbar.element(by.css('.documentation')),
-      toolbar.element(by.css('.report-bug')),
+      toolbar.element(by.css('.export-diagnostics')),
       toolbar.element(by.css('.dark-mode')),
       element(by.css('viewer-surface-flinger')),
       element(by.css('timeline')),

@@ -331,8 +331,13 @@ def verify_product_delta(vendor_commit: str, product_commit: str, metadata: dict
     for record in recorded_files:
         require(isinstance(record, dict), "standalone adaptation entry must be an object")
         require(set(record) == {"path", "change", "origin"}, "invalid standalone adaptation entry fields")
-        require(record["change"] in {"added", "modified"}, "invalid standalone adaptation change")
-        require(record["origin"] == "newly-authored-clean-room", "standalone adaptation origin mismatch")
+        require(record["change"] in {"added", "modified", "deleted"}, "invalid standalone adaptation change")
+        expected_origin = (
+            "android17-release-removed"
+            if record["change"] == "deleted"
+            else "newly-authored-clean-room"
+        )
+        require(record["origin"] == expected_origin, "standalone adaptation origin mismatch")
         normalized_records.append(record)
     require(
         normalized_records == sorted(normalized_records, key=lambda record: record["path"]),
@@ -344,7 +349,7 @@ def verify_product_delta(vendor_commit: str, product_commit: str, metadata: dict
     )
 
     output = git("diff", "--name-status", "--no-renames", vendor_commit, product_commit)
-    change_names = {"A": "added", "M": "modified"}
+    change_names = {"A": "added", "M": "modified", "D": "deleted"}
     actual_records = []
     for line in output.splitlines():
         status, path = line.split("\t", 1)
@@ -353,7 +358,11 @@ def verify_product_delta(vendor_commit: str, product_commit: str, metadata: dict
             {
                 "path": path,
                 "change": change_names[status],
-                "origin": "newly-authored-clean-room",
+                "origin": (
+                    "android17-release-removed"
+                    if change_names[status] == "deleted"
+                    else "newly-authored-clean-room"
+                ),
             }
         )
     require(

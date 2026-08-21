@@ -14,9 +14,8 @@
  * limitations under the License.
  */
 
-import {browser} from 'protractor';
-
 import {checkFinalRealTimestamp, checkInitialRealTimestamp, checkScrollPresent, checkSelectFilter, checkTimelineTraceSelector, checkTotalScrollEntries, loadTraceAndCheckViewer, setTimeouts, updateInputField, WINSCOPE_URL,} from './helpers';
+import {browser} from './webdriver';
 
 describe('Viewer Protolog', () => {
   const viewerSelector = 'viewer-protolog';

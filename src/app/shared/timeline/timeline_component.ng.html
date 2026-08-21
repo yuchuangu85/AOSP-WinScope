@@ -244,6 +244,7 @@ limitations under the License.
                       class="trace-icon"
                       [style]="{color: TRACE_INFO[selectedTrace.type].color}"
                       [matTooltip]="getTraceTooltip(selectedTrace)"
+                      [attr.aria-label]="getTraceTooltip(selectedTrace)"
                       #tooltip="matTooltip"
                       (mouseenter)="tooltip.disabled = false"
                       (mouseleave)="tooltip.disabled = true"

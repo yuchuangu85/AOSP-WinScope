@@ -42,6 +42,7 @@ export class DOMTestHelper<T> {
   async detectChangesAndWaitStable() {
     this.detectChanges();
     await this.whenStable();
+    await this.whenRenderingDone();
   }
 
   async detectChangesAndRenderingDone() {
@@ -131,20 +132,20 @@ export class DOMTestHelper<T> {
   async clickAndWaitStable(selector: string) {
     const element = this.get(selector);
     element.click();
-    await this.whenStable();
+    await this.detectChangesAndWaitStable();
   }
 
   async clickByIndexAndWaitStable(selector: string, index: number) {
     const element = this.findAll(selector)[index];
     element.click();
-    await this.whenStable();
+    await this.detectChangesAndWaitStable();
   }
 
   async clickLastAndWaitStable(selector: string) {
     const elements = this.findAll(selector);
     const element = elements[elements.length - 1];
     element.click();
-    await this.whenStable();
+    await this.detectChangesAndWaitStable();
   }
 
   clickBackdrop() {
@@ -200,7 +201,8 @@ export class DOMTestHelper<T> {
   findMatTooltipPanel(): DOMTestHelper<T> | undefined {
     return (
       this.findInDocument('.mat-tooltip-panel') ??
-      this.findInDocument('.mat-mdc-tooltip-panel')
+      this.findInDocument('.mat-mdc-tooltip-panel') ??
+      this.findInDocument('.mat-mdc-tooltip')
     );
   }
 
@@ -409,7 +411,6 @@ export class DOMTestHelper<T> {
   async checkTooltip(text: string | undefined) {
     this.dispatchEvent(new Event('mouseenter'));
     await this.detectChangesAndWaitStable();
-    await this.whenRenderingDone();
 
     const panel = this.findMatTooltipPanel();
     if (text !== undefined) {
@@ -427,7 +428,11 @@ export class DOMTestHelper<T> {
       const animationEnd = new AnimationEvent('animationend', {
         animationName: 'mat-mdc-tooltip-hide',
       });
-      panel.get('.mat-mdc-tooltip-hide').dispatchEvent(animationEnd);
+      (
+        panel.find('.mat-mdc-tooltip-hide') ??
+        panel.find('.mat-mdc-tooltip') ??
+        panel
+      ).dispatchEvent(animationEnd);
       await this.detectChangesAndWaitStable();
       await this.whenRenderingDone();
       expect(this.findMatTooltipPanel()).toBeUndefined();

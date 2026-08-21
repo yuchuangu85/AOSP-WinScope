@@ -203,7 +203,7 @@ describe('TraceConfigComponent', () => {
   it('disables checkbox for disabled checkbox config', () => {
     const traceKey = 'disabled_checkbox_trace';
     const box = getCheckboxConfigSectionForKey(traceKey);
-    box.checkInnerHTML('disabled="true"');
+    box.get('input').checkDisabled(true);
     box.get('mat-checkbox').checkText('extra');
   });
 

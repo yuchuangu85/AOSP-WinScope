@@ -14,9 +14,8 @@
  * limitations under the License.
  */
 
-import {browser, by, element, ElementFinder} from 'protractor';
-
 import {checkFinalRealTimestamp, checkInitialRealTimestamp, checkScrollPresent, checkTimelineTraceSelector, checkTotalScrollEntries, checkWinscopeRealTimestamp, loadTraceAndCheckViewer, setTimeouts, WINSCOPE_URL,} from './helpers';
+import {browser, by, element, ElementFinder} from './webdriver';
 
 describe('Viewer Jank CUJs', () => {
   const viewerSelector = 'viewer-jank-cujs';

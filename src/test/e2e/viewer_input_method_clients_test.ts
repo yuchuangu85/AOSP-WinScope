@@ -14,9 +14,8 @@
  * limitations under the License.
  */
 
-import {browser, by, element} from 'protractor';
-
 import {applyStateToHierarchyOptions, changeRealTimestampInWinscope, checkFinalRealTimestamp, checkInitialRealTimestamp, checkItemInPropertiesTreeByName, checkTimelineTraceSelector, checkWinscopeRealTimestamp, collapseAdditionalProperties, loadTraceAndCheckViewer, scrollDown, selectItemInHierarchy, setTimeouts, WINSCOPE_URL,} from './helpers';
+import {browser, by, element} from './webdriver';
 
 describe('Viewer Input Method Clients', () => {
   const viewerSelector = 'viewer-input-method';

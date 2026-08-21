@@ -216,6 +216,11 @@ export class TraceConfigComponent extends AbstractSelectComponent<SelectionConfi
     this.changeDetectorRef.detectChanges();
   }
 
+  onCheckboxConfigChange(config: AdvancedConfiguration, enabled: boolean) {
+    this.asCheckboxConfiguration(config).enabled = enabled;
+    this.onTraceConfigChange();
+  }
+
   isMultipleSelect(config: SelectionConfiguration): boolean {
     return Array.isArray(config.value);
   }

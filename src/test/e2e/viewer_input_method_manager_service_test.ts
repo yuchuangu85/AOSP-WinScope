@@ -14,9 +14,8 @@
  * limitations under the License.
  */
 
-import {browser, by, element} from 'protractor';
-
-import {applyStateToHierarchyOptions, changeRealTimestampInWinscope, checkFinalRealTimestamp, checkInitialRealTimestamp, checkItemInPropertiesTreeByName, checkTimelineTraceSelector, checkWinscopeRealTimestamp, collapseAdditionalProperties, loadTraceAndCheckViewer, selectItemInHierarchy, setTimeouts, WINSCOPE_URL,} from './helpers';
+import {applyStateToHierarchyOptions, changeRealTimestampInWinscope, checkFinalRealTimestamp, checkInitialRealTimestamp, checkItemInPropertiesTreeByName, checkTimelineTraceSelector, checkWinscopeRealTimestamp, collapseAdditionalProperties, filterHierarchy, loadTraceAndCheckViewer, selectItemInHierarchy, setTimeouts, WINSCOPE_URL,} from './helpers';
+import {browser, by, element} from './webdriver';
 
 describe('Viewer Input Method Manager Service', () => {
   const viewerSelector = 'viewer-input-method';
@@ -48,6 +47,7 @@ describe('Viewer Input Method Manager Service', () => {
 
     await applyStateToHierarchyOptions(viewerSelector, false);
     await collapseAdditionalProperties(viewerSelector);
+    await filterHierarchy(viewerSelector, 'inputMethodManagerService');
     await selectItemInHierarchy(viewerSelector, 'inputMethodManagerService');
     await checkManagerServiceProperties();
   });

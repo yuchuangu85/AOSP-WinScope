@@ -50,7 +50,7 @@ jobs:
       - name: Audit dependency and source boundaries
         run: |
           set -euo pipefail
-          npm audit --audit-level=high
+          npm run security:audit
           go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
           python3 scripts/security-scan.py --json
 

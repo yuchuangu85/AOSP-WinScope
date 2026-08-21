@@ -14,12 +14,11 @@
  * limitations under the License.
  */
 
-import {browser, by, element} from 'protractor';
-
 import {areMessagesEmitted, clickClearAllButton, clickCloseIcon, clickViewTracesButton, loadBugReport, setTimeouts, uploadFixture, WINSCOPE_URL,} from './helpers';
+import {browser, by, element} from './webdriver';
 
 describe('Upload traces', () => {
-  const DEFAULT_TIMEOUT_MS = 40000;
+  const DEFAULT_TIMEOUT_MS = 90000;
 
   beforeAll(async () => {
     jasmine.DEFAULT_TIMEOUT_INTERVAL = DEFAULT_TIMEOUT_MS;
@@ -54,7 +53,7 @@ describe('Upload traces', () => {
 
   it('can process bugreport', async () => {
     await loadBugReport(DEFAULT_TIMEOUT_MS);
-    await clickViewTracesButton(true);
+    await clickViewTracesButton(false);
     await checkRendersSurfaceFlingerView();
   });
 

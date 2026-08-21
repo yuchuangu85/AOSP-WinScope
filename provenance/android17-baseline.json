@@ -100,6 +100,11 @@
       {
         "change": "added",
         "origin": "newly-authored-clean-room",
+        "path": "configs/npm-audit-exceptions.json"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
         "path": "docs/APS_INTEGRATION.md"
       },
       {
@@ -255,6 +260,11 @@
       {
         "change": "added",
         "origin": "newly-authored-clean-room",
+        "path": "e2e.jasmine.json"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
         "path": "go.mod"
       },
       {
@@ -278,8 +288,8 @@
         "path": "protos/build.js"
       },
       {
-        "change": "modified",
-        "origin": "newly-authored-clean-room",
+        "change": "deleted",
+        "origin": "android17-release-removed",
         "path": "protractor.config.js"
       },
       {
@@ -306,6 +316,11 @@
         "change": "added",
         "origin": "newly-authored-clean-room",
         "path": "scripts/dependencies.py"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "scripts/npm_audit_policy.py"
       },
       {
         "change": "added",
@@ -385,6 +400,26 @@
       {
         "change": "modified",
         "origin": "newly-authored-clean-room",
+        "path": "src/app/search/viewer_search_component.ng.html"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/app/search/viewer_search_component_test.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/app/shared/timeline/timeline_component.ng.html"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/app/shared/timeline/timeline_component.scss"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
         "path": "src/app/trace_collection/collect_traces_component.ng.html"
       },
       {
@@ -401,6 +436,16 @@
         "change": "modified",
         "origin": "newly-authored-clean-room",
         "path": "src/app/trace_collection/trace_config_component.ng.html"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/app/trace_collection/trace_config_component.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/app/trace_collection/trace_config_component_test.ts"
       },
       {
         "change": "modified",
@@ -460,6 +505,11 @@
       {
         "change": "modified",
         "origin": "newly-authored-clean-room",
+        "path": "src/common/testing/dom_test_helpers.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
         "path": "src/index.html"
       },
       {
@@ -495,7 +545,107 @@
       {
         "change": "modified",
         "origin": "newly-authored-clean-room",
+        "path": "src/test/e2e/cross_tool_protocol_test.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
         "path": "src/test/e2e/helpers.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/test/e2e/playback_test.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/test/e2e/trace_navigation_test.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/test/e2e/upload_traces_test.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/test/e2e/viewer_input_method_clients_test.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/test/e2e/viewer_input_method_manager_service_test.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/test/e2e/viewer_input_method_service_test.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/test/e2e/viewer_input_test.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/test/e2e/viewer_jank_cujs_test.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/test/e2e/viewer_protolog_test.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/test/e2e/viewer_screen_recording_test.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/test/e2e/viewer_screenshot_test.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/test/e2e/viewer_surface_flinger_test.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/test/e2e/viewer_transactions_test.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/test/e2e/viewer_transitions_test.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/test/e2e/viewer_view_capture_test.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/test/e2e/viewer_window_manager_test.ts"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "src/test/e2e/webdriver.ts"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "src/test/e2e/webdriver_setup.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/test/e2e/winscope_test.ts"
       },
       {
         "change": "modified",
@@ -570,6 +720,11 @@
       {
         "change": "added",
         "origin": "newly-authored-clean-room",
+        "path": "tests/test_npm_audit_policy.py"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
         "path": "tests/test_official_release.py"
       },
       {
@@ -631,7 +786,11 @@
     "npm": "11.17.0",
     "python": {
       "ci": "3.12",
-      "supported": ["3.11", "3.12", "3.13"]
+      "supported": [
+        "3.11",
+        "3.12",
+        "3.13"
+      ]
     }
   },
   "vendor": {

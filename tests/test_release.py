@@ -66,8 +66,8 @@ class ReleaseEngineeringTest(unittest.TestCase):
                 (package / "LICENSES/compliance.json").read_text(encoding="utf-8")
             )
             self.assertTrue(compliance["ok"])
-            self.assertEqual(compliance["distributedDependencies"], 222)
-            self.assertEqual(first["distributedDependencies"], 222)
+            self.assertEqual(compliance["distributedDependencies"], 223)
+            self.assertEqual(first["distributedDependencies"], 223)
             self.assertTrue((package / "dependency-bundle/dependencies.lock.json").is_file())
             sbom = json.loads((package / "LICENSES/sbom.spdx.json").read_text())
             self.assertEqual(

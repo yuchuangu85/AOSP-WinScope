@@ -14,9 +14,8 @@
  * limitations under the License.
  */
 
-import {browser, by, element} from 'protractor';
-
 import {applyStateToHierarchyOptions, changeRealTimestampInWinscope, checkFinalRealTimestamp, checkInitialRealTimestamp, checkTimelineTraceSelector, checkWinscopeRealTimestamp, filterHierarchy, loadTraceAndCheckViewer, selectItemInHierarchy, setTimeouts, WINSCOPE_URL,} from './helpers';
+import {browser, by, element} from './webdriver';
 
 describe('Viewer Surface Flinger', () => {
   const viewerSelector = 'viewer-surface-flinger';

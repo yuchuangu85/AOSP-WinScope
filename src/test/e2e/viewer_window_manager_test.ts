@@ -14,9 +14,8 @@
  * limitations under the License.
  */
 
-import {browser} from 'protractor';
-
 import {changeRealTimestampInWinscope, checkFinalRealTimestamp, checkInitialRealTimestamp, checkItemInPropertiesTreeByName, checkRectLabel, checkTimelineTraceSelector, checkWinscopeRealTimestamp, filterHierarchy, loadTraceAndCheckViewer, selectItemInHierarchy, setTimeouts, WINSCOPE_URL,} from './helpers';
+import {browser} from './webdriver';
 
 describe('Viewer Window Manager', () => {
   const viewerSelector = 'viewer-window-manager';

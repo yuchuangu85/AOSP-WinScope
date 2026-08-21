@@ -133,9 +133,7 @@ export class TraceCollectionController {
   ): Promise<File[]> {
     try {
       await this.stopActiveTraces(device);
-      await this.listener.onConnectionStateChange(
-        ConnectionState.LOADING_DATA,
-      );
+      await this.listener.onConnectionStateChange(ConnectionState.LOADING_DATA);
       const files = await this.fetchLastSessionFiles(device);
       if (deleteAfterFetch && files.length > 0) {
         await this.tryDeleteRecoveryCaptureFiles(device);
@@ -219,7 +217,9 @@ export class TraceCollectionController {
       );
       const data = await device.pullFile(filepath);
       const filename = removeDirFromFileName(filepath);
-      adbData.push(new File([data], filename));
+      const ownedData = new Uint8Array(data.byteLength);
+      ownedData.set(data);
+      adbData.push(new File([ownedData.buffer], filename));
       this.listener.onProgressUpdate(
         'Fetching files...',
         (100 * index) / paths.length,

@@ -14,9 +14,8 @@
  * limitations under the License.
  */
 
-import {browser, by, element, ElementFinder} from 'protractor';
-
 import {changeNsTimestampInWinscope, checkServerIsUp, checkWinscopeNsTimestamp, clickViewTracesButton, closeSnackBar, getFixturePath, REMOTE_TOOL_MOCK_URL, setTimeouts,} from './helpers';
+import {browser, by, element, ElementFinder} from './webdriver';
 
 describe('Cross-Tool Protocol', () => {
   const TIMESTAMP_IN_FILES_MESSAGE_REALTIME = '1659107090327674405';
@@ -140,9 +139,9 @@ describe('Cross-Tool Protocol', () => {
     expect(isPresent).toBeTruthy();
   }
 
-  async function clickWinscopeViewTracesButton(forceKeepLegacy: boolean) {
+  async function clickWinscopeViewTracesButton(discardLegacy: boolean) {
     await browser.switchTo().window(await getWindowHandleWinscope());
-    await clickViewTracesButton(forceKeepLegacy);
+    await clickViewTracesButton(discardLegacy);
   }
 
   async function closeWinscopeSnackBar() {

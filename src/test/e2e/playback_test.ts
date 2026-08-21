@@ -14,9 +14,8 @@
  * limitations under the License.
  */
 
-import {browser, by, element, ExpectedConditions} from 'protractor';
-
 import {areMessagesEmitted, changeRealTimestampInWinscope, getWinscopeRealTimestamp, loadTraceAndCheckViewer, setTimeouts, WINSCOPE_URL,} from './helpers';
+import {browser, by, element, ExpectedConditions} from './webdriver';
 
 describe('Playback', () => {
   beforeEach(async () => {

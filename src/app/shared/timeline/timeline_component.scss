@@ -201,7 +201,7 @@
 
 :has(> .select-traces-panel) {
   max-height: unset !important;
-  font-family: "Roboto", sans-serif;
+  font-family: 'Roboto', sans-serif;
   position: relative;
   bottom: 120px;
 }
@@ -227,7 +227,7 @@
 
 .no-video-message {
   padding: 1rem;
-  font-family: "Roboto", sans-serif;
+  font-family: 'Roboto', sans-serif;
   width: 100%;
 }
 
@@ -261,8 +261,8 @@
 
 .hover-timestamp {
   border-radius: 4px;
-  color: var(--mdc-plain-tooltip-supporting-text-color);
-  background-color: var(--mdc-plain-tooltip-container-color);
+  color: var(--mat-tooltip-supporting-text-color);
+  background-color: var(--mat-tooltip-container-color);
   padding: 4px 8px;
 }
 

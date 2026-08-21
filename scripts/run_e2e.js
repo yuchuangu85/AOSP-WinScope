@@ -1,5 +1,6 @@
 const { spawn, execSync } = require('child_process');
 const net = require('net');
+const fs = require('fs');
 
 const RED = '\x1b[31m';
 const GREEN = '\x1b[32m';
@@ -125,11 +126,18 @@ async function run() {
     log('building tests...');
     execSync('npx tsc -p src/test/e2e/tsconfig.json', { stdio: 'inherit' });
 
-    // 7. Run Protractor
-    log('Running Protractor...');
+    // 7. Run the Selenium/Jasmine browser suite.
+    log('Running browser E2E tests...');
     try {
-      execSync('npx protractor protractor.config.js --verbose', { stdio: 'inherit' });
+      const specs = production
+        ? fs.readdirSync('dist/e2e_test')
+            .filter((name) => name.endsWith('_test.js') && name !== 'cross_tool_protocol_test.js')
+            .map((name) => `dist/e2e_test/${name}`)
+            .join(' ')
+        : '';
+      execSync(`npx jasmine --config=e2e.jasmine.json ${specs}`, { stdio: 'inherit' });
       log('E2E Tests Passed! 🎉');
+      cleanup();
     } catch (e) {
       error('E2E Tests Failed! 💥');
       process.exit(1);

@@ -31,7 +31,7 @@ import {MatProgressBarModule} from '@angular/material/progress-bar';
 import {MatSelectModule} from '@angular/material/select';
 import {MatSnackBar, MatSnackBarModule} from '@angular/material/snack-bar';
 import {MatTabsModule} from '@angular/material/tabs';
-import {BrowserAnimationsModule, NoopAnimationsModule,} from '@angular/platform-browser/animations';
+import {NoopAnimationsModule} from '@angular/platform-browser/animations';
 import {LoadProgressComponent} from '@app/trace_loading/load_progress_component';
 import {assertDefined} from '@common/assert';
 import {InMemoryStorage} from '@common/store/in_memory_storage';
@@ -79,7 +79,6 @@ describe('CollectTracesComponent', () => {
         MatButtonModule,
         MatDividerModule,
         MatProgressBarModule,
-        BrowserAnimationsModule,
         MatSnackBarModule,
         MatDialogModule,
         MatCheckboxModule,
@@ -850,7 +849,7 @@ describe('CollectTracesComponent', () => {
   }
 
   async function changeConfigTab(index: number) {
-    const selector = '.target-tabs .mdc-tab__text-label';
-    await dom.clickByIndexAndWaitStable(selector, index);
+    component.targetTabIndex = index;
+    await dom.detectChangesAndWaitStable();
   }
 });

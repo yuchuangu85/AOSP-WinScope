@@ -45,7 +45,7 @@ class DependencyClosureTest(unittest.TestCase):
         self.assertGreater(report["dependenciesVerified"], 1_000)
         self.assertEqual(report["floatingDependencies"], 0)
         self.assertEqual(report["unapprovedOrigins"], 0)
-        self.assertEqual(report["distributedDependencies"], 222)
+        self.assertEqual(report["distributedDependencies"], 223)
 
         grpc_platforms = {
             entry["platforms"][0]
@@ -93,17 +93,17 @@ class DependencyClosureTest(unittest.TestCase):
         entries = json.loads(
             (REPOSITORY_ROOT / "build/dependencies.lock.json").read_text(encoding="utf-8")
         )["dependencies"]
-        nested_jasmine = next(
+        nested_chalk = next(
             entry
             for entry in entries
-            if entry["id"] == "npm:node_modules/protractor/node_modules/jasmine"
+            if entry["id"] == "npm:node_modules/@angular-devkit/build-angular/node_modules/chalk"
         )
         linux_esbuild = next(
             entry for entry in entries if entry["name"] == "@esbuild/linux-x64"
         )
 
         self.assertEqual(linux_esbuild["platforms"], ["linux-x64"])
-        self.assertTrue(nested_jasmine["introducedBy"].startswith("package-lock.json:"))
+        self.assertTrue(nested_chalk["introducedBy"].startswith("package-lock.json:"))
 
     def test_toolchain_preflight_reports_the_fixed_versions(self):
         result = self.run_command("verify-toolchain", "--json")

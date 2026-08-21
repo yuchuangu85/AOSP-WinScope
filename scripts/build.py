@@ -155,8 +155,12 @@ def materialize_perfetto_build_inputs() -> int:
 
 def build_environment() -> tuple[dict[str, str], dict[str, Any]]:
     toolchain = dependencies.verify_toolchain()
-    environment = dependencies.environment_for_node(toolchain["commands"]["node"])
-    environment["PATH"] = f"{PERFETTO_ROOT / 'tools'}{os.pathsep}{environment['PATH']}"
+    node_command = toolchain["commands"]["node"]
+    environment = dependencies.environment_for_node(node_command)
+    node_bin = Path(node_command).resolve().parent
+    environment["PATH"] = os.pathsep.join(
+        (str(node_bin), str(PERFETTO_ROOT / "tools"), environment["PATH"])
+    )
     environment["AOSP_WINSCOPE_PERFETTO"] = str(PERFETTO_ROOT)
     return environment, toolchain
 

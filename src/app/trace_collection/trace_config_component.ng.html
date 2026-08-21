@@ -26,10 +26,9 @@ limitations under the License.
       [(ngModel)]="config[traceKey].config.enabled"
       (ngModelChange)="onTraceConfigChange()"
     >
-      <span
-        [matTooltip]="config[traceKey].available ? '' : 'Unavailable on the selected device'"
-        >{{ config[traceKey].name }}</span
-      >
+      <span [matTooltip]="config[traceKey].available ? '' : 'Unavailable on the selected device'">{{
+        config[traceKey].name
+      }}</span>
       @if (hasAdvancedConfig(traceKey)) {
         <button
           mat-icon-button
@@ -70,8 +69,8 @@ limitations under the License.
                       color="primary"
                       class="enable-config"
                       [disabled]="asCheckboxConfiguration(checkboxConfig).disabled ?? false"
-                      [(ngModel)]="asCheckboxConfiguration(checkboxConfig).enabled"
-                      (ngModelChange)="onTraceConfigChange()"
+                      [checked]="asCheckboxConfiguration(checkboxConfig).enabled"
+                      (change)="onCheckboxConfigChange(checkboxConfig, $event.checked)"
                       >{{ checkboxConfig.name }}</mat-checkbox
                     >
                   }

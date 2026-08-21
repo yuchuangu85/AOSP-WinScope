@@ -28,7 +28,7 @@ import {MatInputModule} from '@angular/material/input';
 import {MatProgressSpinnerModule} from '@angular/material/progress-spinner';
 import {MatTabsModule} from '@angular/material/tabs';
 import {MatTooltipModule} from '@angular/material/tooltip';
-import {BrowserAnimationsModule} from '@angular/platform-browser/animations';
+import {NoopAnimationsModule} from '@angular/platform-browser/animations';
 import {CollapsedSectionsComponent} from '@app/shared/collapsible_sections/collapsed_sections_component';
 import {CollapsibleSectionTitleComponent} from '@app/shared/collapsible_sections/collapsible_section_title_component';
 import {LogComponent} from '@app/shared/log_view/log_component';
@@ -97,7 +97,7 @@ describe('ViewerSearchComponent', () => {
         CommonModule,
         MatFormFieldModule,
         MatInputModule,
-        BrowserAnimationsModule,
+        NoopAnimationsModule,
         FormsModule,
         ReactiveFormsModule,
         MatButtonModule,
@@ -336,6 +336,7 @@ describe('ViewerSearchComponent', () => {
     newData.currentSearches.shift();
     updateInputDataAndDetectChanges(newData);
     await dom.whenStable();
+    await dom.whenRenderingDone();
 
     resultTabs = dom.findAll('.result-tabs .mdc-tab__text-label');
     activeSections = dom.findAll('active-search');
@@ -464,9 +465,7 @@ describe('ViewerSearchComponent', () => {
   }
 
   async function changeTab(index: number) {
-    const matTabGroups = component.matTabGroups();
-    matTabGroups[0].selectedIndex = index;
-    await dom.detectChangesAndWaitStable();
+    await dom.clickByIndexAndWaitStable('.search-tabs .mdc-tab', index);
   }
 
   async function checkRunQueryFromOptionsWhenResultPresent(tabIndex: number) {
@@ -529,7 +528,7 @@ describe('ViewerSearchComponent', () => {
     await changeTab(tabIndex);
     const listedSearchButton = dom.findAll('.listed-search-option');
     listedSearchButton[1].click();
-    await dom.whenStable();
+    await dom.detectChangesAndWaitStable();
   }
 
   function addCurrentSearchWithResult(q = testQuery, uid = 2) {

@@ -1,0 +1,7 @@
+{
+  "spec_dir": "dist/e2e_test",
+  "spec_files": ["**/*_test.js"],
+  "helpers": ["webdriver_setup.js"],
+  "stopSpecOnExpectationFailure": false,
+  "random": false
+}

@@ -21,5 +21,8 @@ AndroidPerformanceStudio must explicitly repin that version.
   removed.
 - PR, main, weekly, and release security gates cover dependencies, source,
   runtime boundaries, hostile inputs, Go, Python, JavaScript, and CodeQL.
+- Angular is updated to the patched 20.x line; the retired Protractor runner is
+  replaced by a Selenium/Jasmine runner. Runtime high/critical npm findings are
+  blocked, while build-only exceptions are machine-checked and expire.
 
 Release-specific sections are added before creating a protected `v17.*` tag.

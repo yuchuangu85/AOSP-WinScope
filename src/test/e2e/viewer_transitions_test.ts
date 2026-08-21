@@ -13,9 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import {browser, by, element, ElementFinder} from 'protractor';
-
 import {changeRealTimestampInWinscope, checkFinalNsTimestamp, checkInitialRealTimestamp, checkItemInPropertiesTreeByIndex, checkItemInPropertiesTreeByName, checkSelectFilter, checkWinscopeRealTimestamp, loadTraceAndCheckViewer, setTimeouts, WINSCOPE_URL,} from './helpers';
+import {browser, by, element, ElementFinder} from './webdriver';
 
 describe('Viewer Transitions', () => {
   const viewerSelector = 'viewer-transitions';

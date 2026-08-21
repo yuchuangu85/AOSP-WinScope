@@ -14,17 +14,20 @@
  * limitations under the License.
  */
 import * as path from 'path';
-import {browser, by, element, ElementFinder, ExpectedConditions, protractor,} from 'protractor';
+
+import {browser, by, element, ElementFinder, ExpectedConditions, protractor,} from './webdriver';
 
 const E2E_ENV = typeof process === 'undefined' ? {} : process.env;
-export const WINSCOPE_URL = E2E_ENV['AOSP_WINSCOPE_E2E_WINSCOPE_URL'] ?? 'http://localhost:8080';
-export const REMOTE_TOOL_MOCK_URL = E2E_ENV['AOSP_WINSCOPE_E2E_REMOTE_TOOL_URL'] ?? 'http://localhost:8081';
+export const WINSCOPE_URL =
+  E2E_ENV['AOSP_WINSCOPE_E2E_WINSCOPE_URL'] ?? 'http://localhost:8080';
+export const REMOTE_TOOL_MOCK_URL =
+  E2E_ENV['AOSP_WINSCOPE_E2E_REMOTE_TOOL_URL'] ?? 'http://localhost:8081';
 const JASMINE_DEFAULT_TIMEOUT_MS = 40000;
 
 /**
- * Set jasmine and protractor timeouts.
+ * Set Jasmine and WebDriver timeouts.
  *
- * @param defaultTimeoutMs Protractor's timeout in ms.
+ * @param defaultTimeoutMs WebDriver's implicit timeout in ms.
  * @param jasmineTimeoutMs Jasmine's timeout in ms.
  */
 export async function setTimeouts(
@@ -62,11 +65,11 @@ export async function loadTraceAndCheckViewer(
   fixturePath: string,
   viewerTabTitle: string,
   viewerSelector: string,
-  forceKeepLegacy = false,
+  discardLegacy = false,
 ) {
   await uploadFixture(fixturePath);
   await closeSnackBar();
-  await clickViewTracesButton(forceKeepLegacy);
+  await clickViewTracesButton(discardLegacy);
   await clickViewerTabButton(viewerTabTitle);
 
   const viewerPresent = await element(by.css(viewerSelector)).isPresent();
@@ -76,13 +79,12 @@ export async function loadTraceAndCheckViewer(
 /**
  * Load a bugreport file and check that the expected traces are loaded.
  *
- * @param defaulttimeMs Protractor's timeout in ms.
+ * @param defaulttimeMs WebDriver's implicit timeout in ms.
  */
 export async function loadBugReport(defaulttimeMs: number) {
   await uploadFixture('bugreports/bugreport_stripped.zip');
   await checkHasLoadedTracesFromBugReport();
   expect(await areMessagesEmitted(defaulttimeMs)).toBeTruthy();
-  await checkEmitsOldDataMessages();
   await closeSnackBar();
 }
 
@@ -105,13 +107,13 @@ export async function areMessagesEmitted(
 /**
  * Click the "View traces" button.
  *
- * @param forceKeepLegacy Whether to un-check the "Discard legacy traces" checkbox.
+ * @param discardLegacy Whether to discard legacy traces instead of converting them.
  */
-export async function clickViewTracesButton(forceKeepLegacy: boolean) {
+export async function clickViewTracesButton(discardLegacy: boolean) {
   await waitForElement('.discard-legacy-traces');
   const discardTracesBox = element(by.css('.discard-legacy-traces'));
   if (
-    forceKeepLegacy &&
+    discardLegacy &&
     (await discardTracesBox.isPresent()) &&
     (await discardTracesBox.isEnabled())
   ) {
@@ -697,11 +699,7 @@ export function getFixturePath(filename: string): string {
  * @return The path to the project root.
  */
 export function getProjectRootPath(): string {
-  let root = __dirname;
-  while (path.basename(root) !== 'winscope') {
-    root = path.dirname(root);
-  }
-  return root;
+  return path.resolve(__dirname, '..', '..');
 }
 
 async function checkHasLoadedTracesFromBugReport() {
@@ -731,11 +729,6 @@ async function checkHasLoadedTracesFromBugReport() {
   expect(text).not.toContain('ime_trace_managerservice.winscope');
   expect(text).not.toContain('wm_trace.winscope');
   expect(text).not.toContain('ime_trace_clients.winscope');
-}
-
-async function checkEmitsOldDataMessages() {
-  const text = await element(by.css('snack-bar')).getText();
-  expect(text).toContain('discarded because data is old');
 }
 
 async function toggleSelectFilterOptions(

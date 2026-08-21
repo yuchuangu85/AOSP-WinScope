@@ -14,9 +14,8 @@
  * limitations under the License.
  */
 
-import {browser, by, element} from 'protractor';
-
 import {changeRealTimestampInWinscope, checkFinalRealTimestamp, checkInitialRealTimestamp, checkItemInPropertiesTreeByName, checkScrollPresent, checkSelectFilter, checkTimelineTraceSelector, checkTotalScrollEntries, checkWinscopeRealTimestamp, loadTraceAndCheckViewer, setTimeouts, WINSCOPE_URL,} from './helpers';
+import {browser, by, element} from './webdriver';
 
 describe('Viewer Transactions', () => {
   const viewerSelector = 'viewer-transactions';

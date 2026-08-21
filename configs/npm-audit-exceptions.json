@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "exceptions": [
+    {
+      "source": 1138808,
+      "package": "image-size",
+      "severity": "high",
+      "expires": "2026-11-19",
+      "reason": "Build-only transitive dependency of Less in Angular Devkit. This repository has no Less sources, so the vulnerable ICNS parser is unreachable. Remove when Angular Devkit updates Less."
+    },
+    {
+      "source": 1138809,
+      "package": "image-size",
+      "severity": "high",
+      "expires": "2026-11-19",
+      "reason": "Build-only transitive dependency of Less in Angular Devkit. This repository has no Less sources, so the vulnerable JXL and HEIF parsers are unreachable. Remove when Angular Devkit updates Less."
+    }
+  ]
+}

@@ -14,9 +14,8 @@
  * limitations under the License.
  */
 
-import {browser, by, element, ElementFinder} from 'protractor';
-
 import {checkFinalRealTimestamp, checkInitialRealTimestamp, checkItemInPropertiesTreeByIndex, checkItemInPropertiesTreeByName, checkSelectFilter, checkTimelineTraceSelector, loadTraceAndCheckViewer, setTimeouts, WINSCOPE_URL,} from './helpers';
+import {browser, by, element, ElementFinder} from './webdriver';
 
 describe('Viewer Input', () => {
   const viewerSelector = 'viewer-input';
