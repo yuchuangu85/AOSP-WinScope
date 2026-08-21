@@ -35,6 +35,7 @@ CSP_DIRECTIVES = (
     "object-src 'none'",
     "frame-ancestors 'none'",
     "script-src 'self' 'wasm-unsafe-eval'",
+    "media-src 'self' blob:",
     "connect-src 'self'",
 )
 FEATURE_FIXTURES = {

@@ -43,6 +43,7 @@ REQUIRED_CSP_DIRECTIVES = (
     "object-src 'none'",
     "frame-ancestors 'none'",
     "script-src 'self' 'wasm-unsafe-eval'",
+    "media-src 'self' blob:",
     "connect-src 'self'",
 )
 FORBIDDEN_WEB_RUNTIME_MARKERS = (

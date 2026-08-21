@@ -23,6 +23,7 @@ import {ActiveTraceChanged, ScreenRecordingChange, TracePositionUpdate,} from '@
 import {MediaBasedTraceEntry} from '@trace/media_based/media_based_trace_entry';
 import {PlaybackStateChangeHandled} from '@ui/shared/playback/events';
 import {PlaybackState} from '@ui/shared/playback/playback_state';
+import {ExpandedTimelineToggled} from '@ui/timeline/timeline_events';
 
 import {UiData} from './ui_data';
 
@@ -63,6 +64,8 @@ export class Presenter {
     switch (event.constructor) {
       case TracePositionUpdate:
         return await this.onTracePositionUpdate(event as TracePositionUpdate);
+      case ExpandedTimelineToggled:
+        return this.onExpandedTimelineToggled(event as ExpandedTimelineToggled);
       case PlaybackStateChangeHandled:
         return this.onPlaybackStateChangeHandled(
           event as PlaybackStateChangeHandled,
@@ -87,6 +90,9 @@ export class Presenter {
   }
 
   private async onTracePositionUpdate(event: TracePositionUpdate) {
+    if (this.uiData.forceMinimize) {
+      return;
+    }
     const traceEntries = this.traces
       .map((trace) => {
         if (
@@ -111,6 +117,11 @@ export class Presenter {
     if (this.shouldUpdateTraceEntries(entries)) {
       this.uiData.currentTraceEntries = entries;
     }
+    this.notifyViewChanged();
+  }
+
+  private onExpandedTimelineToggled(event: ExpandedTimelineToggled) {
+    this.uiData.forceMinimize = event.isTimelineExpanded;
     this.notifyViewChanged();
   }
 

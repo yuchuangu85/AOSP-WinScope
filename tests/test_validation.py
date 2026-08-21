@@ -111,7 +111,7 @@ class ValidationGateTest(unittest.TestCase):
             (root / "index.html").write_text(
                 "<base href=\"./\"><meta http-equiv=\"Content-Security-Policy\" "
                 "content=\"default-src 'self'; base-uri 'self'; object-src 'none'; "
-                "frame-ancestors 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'\">",
+                "frame-ancestors 'none'; script-src 'self' 'wasm-unsafe-eval'; media-src 'self' blob:; connect-src 'self'\">",
                 encoding="utf-8",
             )
             (root / "runtime-config.json").write_text(

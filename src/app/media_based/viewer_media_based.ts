@@ -58,6 +58,7 @@ export abstract class ViewerMediaBased extends AbstractViewer<
       }
       component.setInput('titles', uiData.titles);
       component.setInput('currentTraceEntries', uiData.currentTraceEntries);
+      component.setInput('forceMinimize', uiData.forceMinimize);
       component.setInput('isFetchingEntries', uiData.isFetchingEntries);
       component.setInput('isInPlaybackMode', uiData.isInPlaybackMode);
       component.changeDetectorRef.detectChanges();

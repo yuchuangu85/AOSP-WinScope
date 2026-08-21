@@ -38,6 +38,7 @@ describe('Viewer ScreenRecording', () => {
     expect(await video.isPresent()).toBeTruthy();
     expect(await video.getAttribute('src')).toContain('blob:');
     expect(await video.getAttribute('currentTime')).toBeCloseTo(0, 0.001);
+    await expectVideoFrameToBeDecoded(video);
   });
 
   it('processes files and renders view with multiple recordings', async () => {
@@ -73,5 +74,26 @@ describe('Viewer ScreenRecording', () => {
     const newSrc = await video.getAttribute('src');
     expect(newSrc).toContain('blob:');
     expect(newSrc).not.toEqual(src);
+    await expectVideoFrameToBeDecoded(video);
   });
+
+  async function expectVideoFrameToBeDecoded(
+    video: ReturnType<typeof element>,
+  ) {
+    await browser.wait(
+      async () =>
+        (await browser.executeScript<number>(
+          'return arguments[0].videoWidth',
+          video,
+        )) > 0,
+      5000,
+      'screen recording video did not decode a visible frame',
+    );
+    expect(await video.getSize()).toEqual(
+      jasmine.objectContaining({
+        width: jasmine.any(Number),
+        height: jasmine.any(Number),
+      }),
+    );
+  }
 });

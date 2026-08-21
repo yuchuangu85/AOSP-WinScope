@@ -108,10 +108,18 @@ describe('PresenterMediaBased', () => {
     expect(uiData.isInPlaybackMode).toBeFalse();
   });
 
-  it('keeps processing trace positions while the expanded timeline is open', async () => {
+  it('updates force minimize state on expanded timeline toggle', async () => {
+    expect(uiData.forceMinimize).toBeFalse();
+    await presenter.onAppEvent(new ExpandedTimelineToggled(true));
+    expect(uiData.forceMinimize).toBeTrue();
+    await presenter.onAppEvent(new ExpandedTimelineToggled(false));
+    expect(uiData.forceMinimize).toBeFalse();
+  });
+
+  it('does not process trace position update if force minimize set', async () => {
     await presenter.onAppEvent(new ExpandedTimelineToggled(true));
     await presenter.onAppEvent(positionUpdate1);
-    expect(uiData.currentTraceEntries).toEqual([entries[1], entries[1]]);
+    expect(uiData.currentTraceEntries).toEqual([]);
   });
 
   it('does not update uiData entries in playback mode if no CanvasEntries present', async () => {
