@@ -58,6 +58,22 @@
   align-items: center;
 }
 
+.tab-content .icon {
+  display: flex;
+  flex: 0 0 18px;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  font-size: 18px;
+  line-height: 18px;
+}
+
+.tab-content .tab-title {
+  height: 18px;
+  line-height: 18px;
+}
+
 .filter-presets {
   line-height: 24px;
   padding: 0 10px;

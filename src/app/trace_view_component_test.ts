@@ -118,6 +118,21 @@ describe('TraceViewComponent', () => {
     tabs[1].checkText('Title1 Dump');
   });
 
+  it('vertically centers tab icons and titles', () => {
+    const tabContent = getTabs()[0].get('.tab-content');
+    const icon = tabContent.get('.icon').getHTMLElement();
+    const title = tabContent.get('.tab-title').getHTMLElement();
+    const iconStyle = getComputedStyle(icon);
+    const titleStyle = getComputedStyle(title);
+
+    expect(iconStyle.display).toBe('flex');
+    expect(iconStyle.alignItems).toBe('center');
+    expect(iconStyle.lineHeight).toBe(titleStyle.lineHeight);
+    expect(icon.getBoundingClientRect().height).toBe(
+      title.getBoundingClientRect().height,
+    );
+  });
+
   it('explicitly triggers on show for first tab to be shown', () => {
     resetDom();
     viewers[0].onShow = jasmine.createSpy();
