@@ -609,10 +609,11 @@ def verify_supply_chain(members: dict[str, bytes]) -> dict[str, Any]:
         if not isinstance(name, str) or not valid_sha256(checksum) or name in recorded_files:
             fail("SPDX file evidence is invalid")
         recorded_files[name] = checksum
+    root_entry_points = {"AOSP-WinScope.exe", "AOSP-WinScope-ARM64.exe"}
     expected_files = {
         name: sha256_bytes(data)
         for name, data in members.items()
-        if name.startswith(("bin/", "proxy/", "web/"))
+        if name.startswith(("bin/", "proxy/", "web/")) or name in root_entry_points
     }
     if recorded_files != expected_files:
         fail("SPDX file evidence is inconsistent")

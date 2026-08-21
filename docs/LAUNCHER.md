@@ -3,7 +3,11 @@
 `cmd/launcher` is the no-CGO, standard-library desktop host for one packaged
 Winscope distribution. It listens only on `127.0.0.1:0`, prints the resulting
 local URL, and does not automatically start a browser unless `--open` is
-specified. It does not download software, change Host configuration, elevate
+specified. On Windows, double-clicking `AOSP-WinScope.exe` at the package root
+with no arguments enables device capture and opens the default browser
+automatically; this is equivalent to `--capture --open`.
+`AOSP-WinScope-ARM64.exe` provides the same entry point on Windows on ARM. The
+launcher does not download software, change Host configuration, elevate
 privileges, or run a caller-provided command.
 
 ## Distribution inputs

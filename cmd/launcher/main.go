@@ -71,14 +71,13 @@ type captureProxy struct {
 
 func main() {
 	var distributionRoot string
-	var enableCapture bool
-	var openBrowser bool
+	enableCapture, openBrowser := defaultLaunchFlags(runtime.GOOS, os.Args[1:])
 	var browser string
 	var port int
 	var offlineOnly bool
 	flag.StringVar(&distributionRoot, "root", defaultDistributionRoot(), "path to the packaged aosp-winscope distribution")
-	flag.BoolVar(&enableCapture, "capture", false, "start the launcher-managed Android device capture session")
-	flag.BoolVar(&openBrowser, "open", false, "open the local Winscope URL with the operating system browser handler")
+	flag.BoolVar(&enableCapture, "capture", enableCapture, "start the launcher-managed Android device capture session")
+	flag.BoolVar(&openBrowser, "open", openBrowser, "open the local Winscope URL with the operating system browser handler")
 	flag.StringVar(&browser, "browser", "", "browser executable to launch with the local Winscope URL")
 	flag.IntVar(&port, "port", 0, "fixed loopback Web port; 0 selects a random available port")
 	flag.BoolVar(&offlineOnly, "offline-only", false, "disable device capture explicitly")
@@ -144,11 +143,30 @@ func main() {
 	}
 }
 
+func defaultLaunchFlags(goos string, arguments []string) (capture bool, openBrowser bool) {
+	// A Windows executable launched from Explorer receives no arguments. Make
+	// that common distribution path immediately useful for device capture while
+	// preserving the existing explicit command-line behavior on every platform.
+	autoStartCapture := goos == "windows" && len(arguments) == 0
+	return autoStartCapture, autoStartCapture
+}
+
 func defaultDistributionRoot() string {
 	executable, err := os.Executable()
-	if err == nil {
-		// Packaged launchers live at bin/<os>-<arch>/winscope-launcher.
-		candidate := filepath.Clean(filepath.Join(filepath.Dir(executable), "..", ".."))
+	if err != nil {
+		return "."
+	}
+	return distributionRootForExecutable(executable)
+}
+
+func distributionRootForExecutable(executable string) string {
+	executableDirectory := filepath.Dir(executable)
+	candidates := []string{
+		executableDirectory,
+		// Platform launchers live at bin/<os>-<arch>/winscope-launcher.
+		filepath.Clean(filepath.Join(executableDirectory, "..", "..")),
+	}
+	for _, candidate := range candidates {
 		if _, err := os.Stat(filepath.Join(candidate, "manifest.json")); err == nil {
 			return candidate
 		}

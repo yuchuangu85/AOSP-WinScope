@@ -61,6 +61,18 @@ class ReleaseEngineeringTest(unittest.TestCase):
             self.assertEqual(verified_zip["zipSha256"], first["zipSha256"])
 
             package = Path(first["package"])
+            self.assertEqual(
+                (package / "AOSP-WinScope.exe").read_bytes(),
+                (package / "bin/windows-amd64/winscope-launcher.exe").read_bytes(),
+            )
+            self.assertEqual(
+                (package / "AOSP-WinScope-ARM64.exe").read_bytes(),
+                (package / "bin/windows-arm64/winscope-launcher.exe").read_bytes(),
+            )
+            self.assertIn(
+                "double-click AOSP-WinScope.exe",
+                (package / "README.txt").read_text(encoding="utf-8"),
+            )
             self.assertTrue((package / "LICENSES/sbom.spdx.json").is_file())
             compliance = json.loads(
                 (package / "LICENSES/compliance.json").read_text(encoding="utf-8")

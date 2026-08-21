@@ -40,6 +40,10 @@ LAUNCHER_TARGETS = (
     ("linux", "amd64", "winscope-launcher"),
     ("linux", "arm64", "winscope-launcher"),
 )
+WINDOWS_ENTRY_POINTS = (
+    ("amd64", "AOSP-WinScope.exe"),
+    ("arm64", "AOSP-WinScope-ARM64.exe"),
+)
 APPROVED_DISTRIBUTED_LICENSES = {
     "0BSD",
     "Apache-2.0",
@@ -337,10 +341,12 @@ def dependency_bundle(destination: Path) -> list[dict[str, Any]]:
 
 
 def runtime_payload_files(destination: Path) -> list[Path]:
+    root_entry_points = {filename for _, filename in WINDOWS_ENTRY_POINTS}
     return [
         path
         for path in files_under(destination)
         if path.relative_to(destination).parts[0] in {"bin", "proxy", "web"}
+        or path.relative_to(destination).as_posix() in root_entry_points
     ]
 
 
@@ -514,6 +520,11 @@ def package_distribution(
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source, target)
         target.chmod(0o755)
+    for architecture, filename in WINDOWS_ENTRY_POINTS:
+        source = launchers_root / f"windows-{architecture}" / "winscope-launcher.exe"
+        target = package_root / filename
+        shutil.copyfile(source, target)
+        target.chmod(0o755)
     if not proxy.is_file():
         fail(f"missing capture proxy: {proxy}")
     target_proxy = package_root / "proxy/winscope_proxy.py"
@@ -527,7 +538,10 @@ def package_distribution(
     create_web_manifest(package_root)
     (package_root / "README.txt").write_text(
         f"AOSP-WinScope {version}\n\n"
-        "Run the platform launcher from its bin/<os>-<arch>/ directory.\n"
+        "Windows: double-click AOSP-WinScope.exe to start device capture and open the browser.\n"
+        "Windows on ARM: double-click AOSP-WinScope-ARM64.exe instead.\n"
+        "Other platforms: run the launcher from its bin/<os>-<arch>/ directory.\n"
+        "Device capture requires adb and Python 3.10+ in PATH.\n"
         "The distribution is local-only and contains no automatic external runtime requests.\n",
         encoding="utf-8",
     )

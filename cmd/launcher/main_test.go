@@ -97,6 +97,59 @@ func TestParseLoopbackPort(t *testing.T) {
 	}
 }
 
+func TestDefaultLaunchFlags(t *testing.T) {
+	tests := []struct {
+		name        string
+		goos        string
+		arguments   []string
+		wantCapture bool
+		wantOpen    bool
+	}{
+		{name: "Windows Explorer double click", goos: "windows", wantCapture: true, wantOpen: true},
+		{name: "Windows explicit arguments", goos: "windows", arguments: []string{"--port", "56745"}},
+		{name: "macOS no arguments", goos: "darwin"},
+		{name: "Linux no arguments", goos: "linux"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			capture, openBrowser := defaultLaunchFlags(test.goos, test.arguments)
+			if capture != test.wantCapture || openBrowser != test.wantOpen {
+				t.Fatalf(
+					"defaultLaunchFlags(%q, %v) = (%t, %t), want (%t, %t)",
+					test.goos,
+					test.arguments,
+					capture,
+					openBrowser,
+					test.wantCapture,
+					test.wantOpen,
+				)
+			}
+		})
+	}
+}
+
+func TestDistributionRootForExecutable(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "manifest.json"), []byte("{}"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name       string
+		executable string
+	}{
+		{name: "root Windows entry point", executable: filepath.Join(root, "AOSP-WinScope.exe")},
+		{name: "nested platform launcher", executable: filepath.Join(root, "bin", "windows-amd64", "winscope-launcher.exe")},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := distributionRootForExecutable(test.executable); got != root {
+				t.Fatalf("distributionRootForExecutable(%q) = %q, want %q", test.executable, got, root)
+			}
+		})
+	}
+}
+
 func TestValidateLaunchOptions(t *testing.T) {
 	tests := []struct {
 		name        string
