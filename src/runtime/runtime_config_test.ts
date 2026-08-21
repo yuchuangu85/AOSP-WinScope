@@ -1,4 +1,4 @@
-import {DEFAULT_RUNTIME_CONFIG, getRuntimeConfig, loadRuntimeConfig, parseRuntimeConfig, resetRuntimeConfigForTest,} from './runtime_config';
+import {DEFAULT_RUNTIME_CONFIG, getRuntimeConfig, getRuntimeConfigDiagnostic, loadRuntimeConfig, parseRuntimeConfig, resetRuntimeConfigForTest,} from './runtime_config';
 
 describe('Runtime configuration', () => {
   afterEach(() => resetRuntimeConfigForTest());
@@ -12,6 +12,25 @@ describe('Runtime configuration', () => {
         optionalFutureField: true,
       }),
     ).toEqual(DEFAULT_RUNTIME_CONFIG);
+  });
+
+  it('exposes a bounded launcher capture startup diagnostic', async () => {
+    const diagnostic =
+      'Device capture could not start because Android Platform Tools was not found.';
+    const fetcher = jasmine.createSpy('fetcher').and.resolveTo(
+      new Response(
+        JSON.stringify({
+          schemaVersion: 1,
+          host: {kind: 'standalone'},
+          capture: {provider: 'none', diagnostic},
+        }),
+        {headers: {'content-type': 'application/json'}},
+      ),
+    );
+
+    await loadRuntimeConfig(fetcher);
+
+    expect(getRuntimeConfigDiagnostic()).toEqual(diagnostic);
   });
 
   it('accepts only clean relative loopback endpoints', () => {

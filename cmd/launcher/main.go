@@ -71,7 +71,9 @@ type captureProxy struct {
 
 func main() {
 	var distributionRoot string
-	enableCapture, openBrowser := defaultLaunchFlags(runtime.GOOS, os.Args[1:])
+	arguments := os.Args[1:]
+	automaticLaunch := automaticWindowsLaunch(runtime.GOOS, arguments)
+	enableCapture, openBrowser := defaultLaunchFlags(runtime.GOOS, arguments)
 	var browser string
 	var port int
 	var offlineOnly bool
@@ -103,16 +105,23 @@ func main() {
 
 	origin := "http://" + listener.Addr().String()
 	var proxy *captureProxy
+	var captureDiagnostic string
 	if enableCapture {
 		proxy, err = startCaptureProxy(root, origin)
 		if err != nil {
-			log.Fatal(err)
+			var fatalError error
+			captureDiagnostic, fatalError = captureStartupOutcome(automaticLaunch, err)
+			if fatalError != nil {
+				log.Fatal(fatalError)
+			}
+			log.Print(captureDiagnostic)
+		} else {
+			defer proxy.stop()
 		}
-		defer proxy.stop()
 	}
 
 	server := &http.Server{
-		Handler:      newHandler(webRoot, staticAssets, origin, proxy),
+		Handler:      newHandler(webRoot, staticAssets, origin, proxy, captureDiagnostic),
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 60 * time.Second,
 		IdleTimeout:  60 * time.Second,
@@ -143,12 +152,29 @@ func main() {
 	}
 }
 
+func automaticWindowsLaunch(goos string, arguments []string) bool {
+	return goos == "windows" && len(arguments) == 0
+}
+
 func defaultLaunchFlags(goos string, arguments []string) (capture bool, openBrowser bool) {
 	// A Windows executable launched from Explorer receives no arguments. Make
 	// that common distribution path immediately useful for device capture while
 	// preserving the existing explicit command-line behavior on every platform.
-	autoStartCapture := goos == "windows" && len(arguments) == 0
+	autoStartCapture := automaticWindowsLaunch(goos, arguments)
 	return autoStartCapture, autoStartCapture
+}
+
+func captureStartupOutcome(automaticLaunch bool, startupError error) (diagnostic string, fatalError error) {
+	if startupError == nil {
+		return "", nil
+	}
+	if !automaticLaunch {
+		return "", startupError
+	}
+	return fmt.Sprintf(
+		"Device capture could not start: %v. Winscope is open in file-only mode. Install Android Platform Tools and Python 3.10+ to enable capture.",
+		startupError,
+	), nil
 }
 
 func defaultDistributionRoot() string {
@@ -268,7 +294,13 @@ func sha256File(name string) (string, error) {
 	return hex.EncodeToString(digest.Sum(nil)), nil
 }
 
-func newHandler(webRoot string, staticAssets map[string]bool, origin string, proxy *captureProxy) http.Handler {
+func newHandler(
+	webRoot string,
+	staticAssets map[string]bool,
+	origin string,
+	proxy *captureProxy,
+	captureDiagnostic string,
+) http.Handler {
 	static := newStaticHandler(webRoot, staticAssets)
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		addSecurityHeaders(writer.Header())
@@ -277,7 +309,7 @@ func newHandler(webRoot string, staticAssets map[string]bool, origin string, pro
 				methodNotAllowed(writer)
 				return
 			}
-			writeRuntimeConfig(writer, proxy != nil)
+			writeRuntimeConfig(writer, proxy != nil, captureDiagnostic)
 			return
 		}
 		if strings.HasPrefix(request.URL.Path, capturePrefix) {
@@ -351,14 +383,24 @@ func newStaticHandler(webRoot string, staticAssets map[string]bool) http.Handler
 	})
 }
 
-func writeRuntimeConfig(writer http.ResponseWriter, captureEnabled bool) {
+func writeRuntimeConfig(writer http.ResponseWriter, captureEnabled bool, captureDiagnostic string) {
 	writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 	writer.Header().Set("Cache-Control", "no-store")
-	config := `{"schemaVersion":1,"host":{"kind":"standalone"},"capture":{"provider":"none"}}`
+	capture := map[string]string{"provider": "none"}
 	if captureEnabled {
-		config = `{"schemaVersion":1,"host":{"kind":"standalone"},"capture":{"provider":"loopback-proxy-v1","endpoint":"./capture/"}}`
+		capture = map[string]string{
+			"provider": "loopback-proxy-v1",
+			"endpoint": "./capture/",
+		}
+	} else if captureDiagnostic != "" {
+		capture["diagnostic"] = captureDiagnostic
 	}
-	_, _ = io.WriteString(writer, config+"\n")
+	config := map[string]any{
+		"schemaVersion": 1,
+		"host":          map[string]string{"kind": "standalone"},
+		"capture":       capture,
+	}
+	_ = json.NewEncoder(writer).Encode(config)
 }
 
 func serveCapture(writer http.ResponseWriter, request *http.Request, origin string, proxy *captureProxy) {
@@ -451,10 +493,11 @@ func addSecurityHeaders(header http.Header) {
 }
 
 func startCaptureProxy(root, origin string) (*captureProxy, error) {
-	if _, err := exec.LookPath("adb"); err != nil {
-		return nil, errors.New("device capture requires adb in PATH")
+	adb, err := adbCommand(root, runtime.GOOS)
+	if err != nil {
+		return nil, err
 	}
-	python, err := pythonCommand()
+	python, err := pythonCommand(runtime.GOOS, exec.LookPath)
 	if err != nil {
 		return nil, err
 	}
@@ -466,7 +509,10 @@ func startCaptureProxy(root, origin string) (*captureProxy, error) {
 	if err != nil {
 		return nil, err
 	}
-	command := exec.Command(python, proxyPath, "--port", "0", "--token", secret, "--allowed-origin", origin)
+	arguments := append([]string{}, python.prefixArguments...)
+	arguments = append(arguments, proxyPath, "--port", "0", "--token", secret, "--allowed-origin", origin)
+	command := exec.Command(python.path, arguments...)
+	command.Env = environmentWithValue(os.Environ(), "WINSCOPE_ADB", adb)
 	command.Stderr = os.Stderr
 	stdout, err := command.StdoutPipe()
 	if err != nil {
@@ -513,13 +559,76 @@ func parseLoopbackPort(value string) (string, error) {
 	return value, nil
 }
 
-func pythonCommand() (string, error) {
-	for _, candidate := range []string{"python3", "python"} {
-		if command, err := exec.LookPath(candidate); err == nil {
-			return command, nil
+type executableCommand struct {
+	path            string
+	prefixArguments []string
+}
+
+func adbCommand(distributionRoot string, goos string) (string, error) {
+	if command, err := exec.LookPath("adb"); err == nil {
+		return command, nil
+	}
+	filename := "adb"
+	if goos == "windows" {
+		filename = "adb.exe"
+	}
+	candidates := []string{filepath.Join(distributionRoot, "platform-tools", filename)}
+	for _, environmentVariable := range []string{"ANDROID_SDK_ROOT", "ANDROID_HOME"} {
+		if sdkRoot := os.Getenv(environmentVariable); sdkRoot != "" {
+			candidates = append(candidates, filepath.Join(sdkRoot, "platform-tools", filename))
 		}
 	}
-	return "", errors.New("device capture requires Python 3.10+ in PATH")
+	if goos == "windows" {
+		if localAppData := os.Getenv("LOCALAPPDATA"); localAppData != "" {
+			candidates = append(candidates, filepath.Join(localAppData, "Android", "Sdk", "platform-tools", filename))
+		}
+		if userProfile := os.Getenv("USERPROFILE"); userProfile != "" {
+			candidates = append(candidates, filepath.Join(userProfile, "AppData", "Local", "Android", "Sdk", "platform-tools", filename))
+		}
+	}
+	for _, candidate := range candidates {
+		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+			return candidate, nil
+		}
+	}
+	return "", errors.New("device capture requires Android Platform Tools (adb)")
+}
+
+func pythonCommand(
+	goos string,
+	lookPath func(string) (string, error),
+) (executableCommand, error) {
+	candidates := []executableCommand{
+		{path: "python3"},
+		{path: "python"},
+	}
+	if goos == "windows" {
+		candidates = []executableCommand{
+			{path: "py", prefixArguments: []string{"-3"}},
+			{path: "python"},
+			{path: "python3"},
+		}
+	}
+	for _, candidate := range candidates {
+		if command, err := lookPath(candidate.path); err == nil {
+			candidate.path = command
+			return candidate, nil
+		}
+	}
+	return executableCommand{}, errors.New("device capture requires Python 3.10+")
+}
+
+func environmentWithValue(environment []string, key string, value string) []string {
+	prefix := key + "="
+	updated := make([]string, 0, len(environment)+1)
+	for _, entry := range environment {
+		name, _, found := strings.Cut(entry, "=")
+		if found && strings.EqualFold(name, key) {
+			continue
+		}
+		updated = append(updated, entry)
+	}
+	return append(updated, prefix+value)
 }
 
 func randomSecret() (string, error) {

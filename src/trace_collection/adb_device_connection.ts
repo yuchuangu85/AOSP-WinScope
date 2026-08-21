@@ -110,12 +110,15 @@ export abstract class AdbDeviceConnection {
       if (isRoot) {
         findCmd = 'su root ' + findCmd;
       }
+      findCmd += ' 2>/dev/null || true';
       const matchingFiles = await this.runShellCommand(findCmd);
       const files = matchingFiles
         .split('\n')
+        .map((maybeFile) => maybeFile.trim())
         .filter(
           (maybeFile) =>
-            !errors.includes(maybeFile) && maybeFile.trim().length > 0,
+            !errors.some((error) => maybeFile.includes(error)) &&
+            maybeFile.length > 0,
         );
       if (files.length > 0) {
         return files;
@@ -217,7 +220,9 @@ export abstract class AdbDeviceConnection {
 
   private async isWaylandAvailable(): Promise<boolean> {
     const serviceCheck = await this.runShellCommand('service check Wayland');
-    return !serviceCheck.includes('not found');
+    return (
+      serviceCheck.trim().length > 0 && !serviceCheck.includes('not found')
+    );
   }
 
   abstract tryAuthorize(): Promise<void>;

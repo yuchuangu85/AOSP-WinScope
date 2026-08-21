@@ -15,10 +15,15 @@
 package main
 
 import (
+	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -150,6 +155,57 @@ func TestDistributionRootForExecutable(t *testing.T) {
 	}
 }
 
+func TestCaptureStartupOutcome(t *testing.T) {
+	startupError := errors.New("device capture requires adb")
+	diagnostic, fatalError := captureStartupOutcome(true, startupError)
+	if fatalError != nil || !strings.Contains(diagnostic, "device capture requires adb") {
+		t.Fatalf("automatic Windows launch outcome = (%q, %v)", diagnostic, fatalError)
+	}
+
+	diagnostic, fatalError = captureStartupOutcome(false, startupError)
+	if diagnostic != "" || !errors.Is(fatalError, startupError) {
+		t.Fatalf("explicit capture outcome = (%q, %v)", diagnostic, fatalError)
+	}
+}
+
+func TestADBCommandFindsWindowsAndroidStudioSDK(t *testing.T) {
+	root := t.TempDir()
+	localAppData := filepath.Join(t.TempDir(), "LocalAppData")
+	adb := filepath.Join(localAppData, "Android", "Sdk", "platform-tools", "adb.exe")
+	if err := os.MkdirAll(filepath.Dir(adb), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(adb, []byte("adb"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", "")
+	t.Setenv("ANDROID_SDK_ROOT", "")
+	t.Setenv("ANDROID_HOME", "")
+	t.Setenv("LOCALAPPDATA", localAppData)
+	t.Setenv("USERPROFILE", "")
+
+	got, err := adbCommand(root, "windows")
+	if err != nil || got != adb {
+		t.Fatalf("adbCommand() = (%q, %v), want (%q, nil)", got, err, adb)
+	}
+}
+
+func TestPythonCommandUsesWindowsLauncher(t *testing.T) {
+	lookup := func(name string) (string, error) {
+		if name == "py" {
+			return `C:\Windows\py.exe`, nil
+		}
+		return "", exec.ErrNotFound
+	}
+	command, err := pythonCommand("windows", lookup)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if command.path != `C:\Windows\py.exe` || !reflect.DeepEqual(command.prefixArguments, []string{"-3"}) {
+		t.Fatalf("pythonCommand() = %#v", command)
+	}
+}
+
 func TestValidateLaunchOptions(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -180,7 +236,7 @@ func TestStaticHandlerRejectsHostileRequests(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(webRoot, "index.html"), []byte("ok"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	handler := newHandler(webRoot, map[string]bool{"index.html": true}, "http://127.0.0.1:1234", nil)
+	handler := newHandler(webRoot, map[string]bool{"index.html": true}, "http://127.0.0.1:1234", nil, "")
 
 	tests := []struct {
 		name   string
@@ -211,12 +267,47 @@ func TestStaticHandlerRejectsHostileRequests(t *testing.T) {
 	}
 }
 
+func TestRuntimeConfigReportsAutomaticCaptureStartupFailure(t *testing.T) {
+	webRoot := t.TempDir()
+	if err := os.WriteFile(filepath.Join(webRoot, "index.html"), []byte("ok"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	diagnostic := "Device capture could not start because adb was not found."
+	handler := newHandler(
+		webRoot,
+		map[string]bool{"index.html": true},
+		"http://127.0.0.1:1234",
+		nil,
+		diagnostic,
+	)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(
+		recorder,
+		httptest.NewRequest(http.MethodGet, "http://127.0.0.1:1234/runtime-config.json", nil),
+	)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("runtime config status = %d", recorder.Code)
+	}
+	var config struct {
+		Capture struct {
+			Provider   string `json:"provider"`
+			Diagnostic string `json:"diagnostic"`
+		} `json:"capture"`
+	}
+	if err := json.NewDecoder(recorder.Body).Decode(&config); err != nil {
+		t.Fatal(err)
+	}
+	if config.Capture.Provider != "none" || config.Capture.Diagnostic != diagnostic {
+		t.Fatalf("runtime capture config = %#v", config.Capture)
+	}
+}
+
 func TestHandlerAddsSecurityHeaders(t *testing.T) {
 	webRoot := t.TempDir()
 	if err := os.WriteFile(filepath.Join(webRoot, "index.html"), []byte("ok"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	handler := newHandler(webRoot, map[string]bool{"index.html": true}, "http://127.0.0.1:1234", nil)
+	handler := newHandler(webRoot, map[string]bool{"index.html": true}, "http://127.0.0.1:1234", nil, "")
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "http://example.test/", nil))
 

@@ -541,7 +541,8 @@ def package_distribution(
         "Windows: double-click AOSP-WinScope.exe to start device capture and open the browser.\n"
         "Windows on ARM: double-click AOSP-WinScope-ARM64.exe instead.\n"
         "Other platforms: run the launcher from its bin/<os>-<arch>/ directory.\n"
-        "Device capture requires adb and Python 3.10+ in PATH.\n"
+        "The launcher checks PATH, Android Studio's default SDK directory, and py -3 automatically.\n"
+        "If adb or Python 3.10+ is unavailable, the browser still opens and shows the capture startup error.\n"
         "The distribution is local-only and contains no automatic external runtime requests.\n",
         encoding="utf-8",
     )

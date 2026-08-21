@@ -83,6 +83,9 @@ describe('AdbDeviceConnection', () => {
   });
 
   it('updates availability of wayland trace if available', async () => {
+    runShellCmdSpy
+      .withArgs('service check Wayland')
+      .and.returnValue('Service Wayland: found');
     await connection.updateAvailableTraces();
     expect(listener.onAvailableTracesChange).toHaveBeenCalledOnceWith(
       [UiTraceTarget.WAYLAND],
@@ -94,6 +97,15 @@ describe('AdbDeviceConnection', () => {
     runShellCmdSpy
       .withArgs('service check Wayland')
       .and.returnValue('not found');
+    await connection.updateAvailableTraces();
+    expect(listener.onAvailableTracesChange).toHaveBeenCalledOnceWith(
+      [],
+      [UiTraceTarget.WAYLAND],
+    );
+  });
+
+  it('treats an unavailable Wayland capability probe as not available', async () => {
+    runShellCmdSpy.withArgs('service check Wayland').and.returnValue('');
     await connection.updateAvailableTraces();
     expect(listener.onAvailableTracesChange).toHaveBeenCalledOnceWith(
       [],
@@ -169,18 +181,18 @@ describe('AdbDeviceConnection', () => {
   });
 
   it('finds files via exact filepath', async () => {
-    runShellCmdSpy.withArgs('find filepath').and.returnValue('file');
+    runShellCmdSpy.withArgs('find filepath 2>/dev/null || true').and.returnValue('file');
     expect(await connection.findFiles('filepath', [])).toEqual(['file']);
   });
 
   it('finds files via exact filepath as root', async () => {
     setDeviceAsRoot();
-    runShellCmdSpy.withArgs('su root find filepath').and.returnValue('file');
+    runShellCmdSpy.withArgs('su root find filepath 2>/dev/null || true').and.returnValue('file');
     expect(await connection.findFiles('filepath', [])).toEqual(['file']);
   });
 
   it('finds files via first matcher', async () => {
-    runShellCmdSpy.withArgs('find filepath -name m1').and.returnValue('file');
+    runShellCmdSpy.withArgs('find filepath -name m1 2>/dev/null || true').and.returnValue('file');
     expect(await connection.findFiles('filepath', ['m1', 'm2'])).toEqual([
       'file',
     ]);
@@ -189,7 +201,7 @@ describe('AdbDeviceConnection', () => {
   it('finds files via first matcher as root', async () => {
     setDeviceAsRoot();
     runShellCmdSpy
-      .withArgs('su root find filepath -name m1')
+      .withArgs('su root find filepath -name m1 2>/dev/null || true')
       .and.returnValue('file');
     expect(await connection.findFiles('filepath', ['m1', 'm2'])).toEqual([
       'file',
@@ -197,7 +209,7 @@ describe('AdbDeviceConnection', () => {
   });
 
   it('finds files via second matcher', async () => {
-    runShellCmdSpy.withArgs('find filepath -name m2').and.returnValue('file');
+    runShellCmdSpy.withArgs('find filepath -name m2 2>/dev/null || true').and.returnValue('file');
     expect(await connection.findFiles('filepath', ['m1', 'm2'])).toEqual([
       'file',
     ]);
@@ -206,27 +218,58 @@ describe('AdbDeviceConnection', () => {
   it('finds files via second matcher as root', async () => {
     setDeviceAsRoot();
     runShellCmdSpy
-      .withArgs('su root find filepath -name m2')
+      .withArgs('su root find filepath -name m2 2>/dev/null || true')
       .and.returnValue('file');
     expect(await connection.findFiles('filepath', ['m1', 'm2'])).toEqual([
       'file',
     ]);
   });
 
+  it('treats missing wildcard paths as an empty file list', async () => {
+    runShellCmdSpy
+      .withArgs('find /data/local/tmp/last_winscope_tracing_session/* 2>/dev/null || true')
+      .and.returnValue('');
+    expect(
+      await connection.findFiles(
+        '/data/local/tmp/last_winscope_tracing_session/*',
+        [],
+      ),
+    ).toEqual([]);
+  });
+
+  it('does not treat find diagnostics as file paths', async () => {
+    runShellCmdSpy
+      .withArgs('find filepath 2>/dev/null || true')
+      .and.returnValue(
+        "find: '/data/local/tmp/last_winscope_tracing_session/*': No such file or directory",
+      );
+    expect(await connection.findFiles('filepath', [])).toEqual([]);
+  });
+
   it('handles "No such file" error', async () => {
-    runShellCmdSpy.withArgs('find filepath').and.returnValue('No such file');
+    runShellCmdSpy.withArgs('find filepath 2>/dev/null || true').and.returnValue('No such file');
     expect(await connection.findFiles('filepath', [])).toEqual([]);
   });
 
   it('handles "Permission denied" error', async () => {
     runShellCmdSpy
-      .withArgs('su root find filepath')
+      .withArgs('su root find filepath 2>/dev/null || true')
       .and.returnValue('Permission denied');
     expect(await connection.findFiles('filepath', [])).toEqual([]);
   });
 
+  it('removes Windows carriage returns from discovered file paths', async () => {
+    runShellCmdSpy
+      .withArgs('find filepath 2>/dev/null || true')
+      .and.returnValue('first\r\nsecond\r\n');
+    expect(await connection.findFiles('filepath', [])).toEqual([
+      'first',
+      'second',
+    ]);
+  });
+
   it('ignores whitespace', async () => {
-    runShellCmdSpy.withArgs('find filepath').and.returnValue('file\n  ');
+    runShellCmdSpy.withArgs('find filepath 2>/dev/null || true').and.returnValue('file\n  ');
     expect(await connection.findFiles('filepath', [])).toEqual(['file']);
   });
 

@@ -32,6 +32,7 @@ import http
 from http import server
 import json
 import logging
+import os
 import re
 import signal
 import subprocess
@@ -56,7 +57,7 @@ allowed_origin = ""
 allowed_host = ""
 
 # Keep in sync with VERSION in src/trace_collection/winscope_proxy/utils.ts
-VERSION = "6.0.2"
+VERSION = "6.0.5"
 WINSCOPE_VERSION_HEADER = "Winscope-Proxy-Version"
 WINSCOPE_TOKEN_HEADER = "Winscope-Token"
 
@@ -67,10 +68,15 @@ COMMAND_TIMEOUT_S = 15
 MAX_REQUEST_BYTES = 1 << 20
 MAX_COMMAND_BYTES = 64 << 10
 MAX_FETCH_BYTES = 128 << 20
+MAX_ADB_DIAGNOSTIC_CHARS = 2048
 DEVICE_ID_RE = re.compile(r"[A-Za-z0-9._:/\\-]+")
 TARGET_ID_RE = re.compile(r"[A-Za-z0-9._-]{1,128}")
 OPTIONAL_ADB_SHELL_COMMANDS = frozenset({
   "cmd protolog_configuration groups list",
+  "dumpsys SurfaceFlinger --display-id",
+  "screenrecord --help",
+  "screenrecord --version",
+  "service check Wayland",
 })
 
 
@@ -169,10 +175,11 @@ class RequestRouter:
     except KeyError:
       self._bad_request("Unknown endpoint")
     except AdbError as error:
-      log.warning("ADB command failed: %s", error)
+      message = safe_adb_diagnostic(str(error))
+      log.warning("ADB command failed: %s", message)
       self.request.respond(
           HTTPStatus.BAD_GATEWAY,
-          b"ADB command failed",
+          message.encode("utf-8"),
           "text/plain; charset=utf-8",
       )
     except BadRequestError as error:
@@ -204,11 +211,39 @@ def valid_device_id(value: str) -> bool:
   return bool(DEVICE_ID_RE.fullmatch(value))
 
 
-def call_adb(args: list[str], device: str | None = None, timeout: int = COMMAND_TIMEOUT_S) -> str:
+def adb_executable() -> str:
+  """Returns the launcher-selected ADB executable as one process argument."""
+  return os.environ.get("WINSCOPE_ADB", "adb")
+
+
+def safe_adb_diagnostic(output: bytes | str | None) -> str:
+  """Returns a bounded, single-line ADB diagnostic safe for the local UI."""
+  if isinstance(output, bytes):
+    text = output.decode("utf-8", errors="replace")
+  else:
+    text = output or ""
+  text = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", text)
+  text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", " ", text)
+  if secret_token:
+    text = text.replace(secret_token, "<redacted>")
+  text = " ".join(text.split())
+  if not text:
+    return "no diagnostic output"
+  if len(text) > MAX_ADB_DIAGNOSTIC_CHARS:
+    return text[: MAX_ADB_DIAGNOSTIC_CHARS - 3] + "..."
+  return text
+
+
+def call_adb(
+    args: list[str],
+    device: str | None = None,
+    timeout: int = COMMAND_TIMEOUT_S,
+    operation: str = "command",
+) -> str:
   """Executes ADB with an argument vector, never a shell command string."""
   if device is not None and not valid_device_id(device):
     raise BadRequestError("Invalid device id")
-  command = ["adb"] + (["-s", device] if device else []) + args
+  command = [adb_executable()] + (["-s", device] if device else []) + args
   try:
     completed = subprocess.run(
         command,
@@ -218,21 +253,54 @@ def call_adb(args: list[str], device: str | None = None, timeout: int = COMMAND_
         timeout=timeout,
     )
   except OSError as error:
-    raise AdbError("ADB could not be started") from error
+    raise AdbError(
+        f"ADB {operation} could not be started: {safe_adb_diagnostic(str(error))}"
+    ) from error
   except subprocess.TimeoutExpired as error:
-    raise AdbError("ADB command timed out") from error
+    diagnostic = safe_adb_diagnostic(error.output)
+    raise AdbError(
+        f"ADB {operation} timed out after {timeout}s: {diagnostic}"
+    ) from error
   output = completed.stdout.decode("utf-8", errors="replace")
+  output = output.replace("\r\n", "\n").replace("\r", "\n")
   if completed.returncode:
-    raise AdbError("ADB command returned a non-zero status")
+    raise AdbError(
+        f"ADB {operation} failed with status {completed.returncode}: "
+        f"{safe_adb_diagnostic(output)}"
+    )
   return output
 
 
+def shell_operation(command: str) -> str:
+  if command == "cmd protolog_configuration groups list":
+    return "ProtoLog capability probe"
+  if command.startswith("screenrecord --"):
+    return "screen recording capability probe"
+  if command == "dumpsys SurfaceFlinger --display-id":
+    return "display capability query"
+  if command == "perfetto --query":
+    return "Perfetto capability query"
+  if command == "service check Wayland":
+    return "Wayland capability probe"
+  if command.startswith("cat " + WINSCOPE_STATUS):
+    return "trace status read"
+  if command.startswith("rm " + WINSCOPE_STATUS):
+    return "trace status cleanup"
+  if command.startswith("if command -v su "):
+    return "root capability probe"
+  return "device shell command"
+
+
 def call_adb_shell(command: str, device: str) -> str:
-  validate_shell_command(command)
+  command = normalize_shell_command(command)
   # The remote Android shell intentionally receives one argument. Host process
   # execution remains an argument vector regardless of shell syntax in Android
   # trace commands.
-  return call_adb(["shell", command], device)
+  return call_adb(
+      ["shell", command],
+      device,
+      operation=shell_operation(command),
+  )
 
 
 def call_optional_adb_shell(command: str, device: str) -> str:
@@ -240,19 +308,25 @@ def call_optional_adb_shell(command: str, device: str) -> str:
     return call_adb_shell(command, device)
   except AdbError:
     if command in OPTIONAL_ADB_SHELL_COMMANDS:
-      log.info("Optional ADB capability is unavailable: %s", command)
+      log.info("Optional ADB capability is unavailable; continuing without it: %s", command)
       return ""
     raise
 
 
-def validate_shell_command(command: str):
+def normalize_shell_command(command: str) -> str:
   if not isinstance(command, str) or not command:
     raise BadRequestError("Missing shell command")
+  command = command.replace("\r\n", "\n").replace("\r", "\n")
   encoded = command.encode("utf-8")
   if len(encoded) > MAX_COMMAND_BYTES:
     raise BadRequestError("Shell command exceeds the size limit")
   if "\x00" in command or any(ord(char) < 32 and char not in "\n\t" for char in command):
     raise BadRequestError("Shell command contains unsupported control characters")
+  return command
+
+
+def validate_shell_command(command: str):
+  normalize_shell_command(command)
 
 
 class ListDevicesEndpoint(RequestEndpoint):
@@ -261,7 +335,7 @@ class ListDevicesEndpoint(RequestEndpoint):
   def process(self, http_server, path: list[str]):
     if path:
       raise BadRequestError("Invalid devices path")
-    lines = list(filter(None, call_adb(["devices", "-l"]).splitlines()))
+    lines = list(filter(None, call_adb(["devices", "-l"], operation="device discovery").splitlines()))
     devices = []
     for match in [self.ADB_INFO_RE.match(device) for device in lines[1:]]:
       if match:
@@ -329,7 +403,7 @@ class FetchEndpoint(DeviceRequestEndpoint):
     )
 
   def fetch_existing_file(self, filepath: str, device_id: str):
-    command = ["adb", "-s", device_id, "exec-out", "cat", filepath]
+    command = [adb_executable(), "-s", device_id, "exec-out", "cat", filepath]
     try:
       completed = subprocess.run(
           command,
@@ -338,10 +412,20 @@ class FetchEndpoint(DeviceRequestEndpoint):
           stderr=subprocess.PIPE,
           timeout=COMMAND_TIMEOUT_S,
       )
-    except (OSError, subprocess.TimeoutExpired) as error:
-      raise AdbError("Unable to fetch capture file") from error
+    except OSError as error:
+      raise AdbError(
+          f"ADB capture file fetch could not be started: {safe_adb_diagnostic(str(error))}"
+      ) from error
+    except subprocess.TimeoutExpired as error:
+      raise AdbError(
+          f"ADB capture file fetch timed out after {COMMAND_TIMEOUT_S}s: "
+          f"{safe_adb_diagnostic(error.stderr)}"
+      ) from error
     if completed.returncode:
-      raise AdbError("Unable to fetch capture file")
+      raise AdbError(
+          f"ADB capture file fetch failed with status {completed.returncode}: "
+          f"{safe_adb_diagnostic(completed.stderr)}"
+      )
     if len(completed.stdout) > MAX_FETCH_BYTES:
       raise BadRequestError("Capture file exceeds the size limit")
     return {filepath: base64.encodebytes(gzip.compress(completed.stdout)).decode("utf-8")}
@@ -358,16 +442,20 @@ class TraceThread(threading.Thread):
     self.err = b""
     self._command_timed_out = False
     self._success = False
+    self._failure_message = ""
     try:
       self.process = subprocess.Popen(
-          ["adb", "-s", self._device_id, "shell"],
+          [adb_executable(), "-s", self._device_id, "shell"],
           stdout=subprocess.PIPE,
           stderr=subprocess.PIPE,
           stdin=subprocess.PIPE,
           start_new_session=True,
       )
     except OSError as error:
-      raise AdbError("Unable to start capture shell") from error
+      raise AdbError(
+          "ADB trace shell could not be started: "
+          + safe_adb_diagnostic(str(error))
+      ) from error
     super().__init__()
 
   def timeout(self):
@@ -396,18 +484,45 @@ class TraceThread(threading.Thread):
   def run(self):
     self.reset_timer()
     self.out, self.err = self.process.communicate(self.trace_command.encode("utf-8"))
+    status_error = ""
     for _ in range(int(COMMAND_TIMEOUT_S / 0.1)):
-      if call_adb_shell("cat " + self.status_filename, self._device_id) == "TRACE_OK\n":
+      try:
+        status = call_adb_shell("cat " + self.status_filename, self._device_id)
+      except AdbError as error:
+        status_error = str(error)
+        break
+      if status == "TRACE_OK\n":
         self._success = self.target_id == "PerfettoTrace" or not self.err
+        if not self._success:
+          self._failure_message = (
+              "ADB trace shell reported an error: "
+              + safe_adb_diagnostic(self.err or self.out)
+          )
         return
+      if self.process.returncode is not None:
+        break
       time.sleep(0.1)
-    self._command_timed_out = True
+    else:
+      self._command_timed_out = True
+
+    diagnostics = []
+    shell_output = safe_adb_diagnostic(self.err or self.out)
+    if shell_output != "no diagnostic output":
+      diagnostics.append("trace shell output: " + shell_output)
+    if status_error:
+      diagnostics.append(status_error)
+    if not diagnostics:
+      diagnostics.append("trace shell exited before reporting TRACE_OK")
+    self._failure_message = "; ".join(diagnostics)
 
   def success(self):
     return self._success
 
   def timed_out(self):
     return self._command_timed_out
+
+  def failure(self):
+    return self._failure_message
 
 
 TRACE_THREADS: dict[str, dict[str, TraceThread]] = {}
@@ -441,11 +556,11 @@ while true; do sleep 0.1; done
     stop_cmd = request.get("stopCmd", "")
     if not isinstance(target_id, str) or not TARGET_ID_RE.fullmatch(target_id):
       raise BadRequestError("Invalid trace target")
-    validate_shell_command(start_cmd)
+    start_cmd = normalize_shell_command(start_cmd)
     if not isinstance(stop_cmd, str):
       raise BadRequestError("Invalid trace stop command")
     if stop_cmd:
-      validate_shell_command(stop_cmd)
+      stop_cmd = normalize_shell_command(stop_cmd)
     status_filename = WINSCOPE_STATUS + "_" + target_id
     command = self.COMMAND.format(
         winscope_status=status_filename,
@@ -476,12 +591,14 @@ class EndTraceEndpoint(DeviceRequestEndpoint):
     errors = []
     if thread.timed_out():
       errors.append("Trace timed out during cleanup")
-    if not thread.success():
+    if thread.failure():
+      errors.append(thread.failure())
+    elif not thread.success():
       errors.append("Trace did not complete successfully")
     try:
       call_adb_shell("rm " + thread.status_filename, device_id)
-    except AdbError:
-      errors.append("Trace status cleanup failed")
+    except AdbError as error:
+      errors.append(str(error))
     threads.pop(target_id, None)
     if not threads:
       TRACE_THREADS.pop(device_id, None)
@@ -499,8 +616,12 @@ class StatusEndpoint(DeviceRequestEndpoint):
     thread = TRACE_THREADS.get(device_id, {}).get(path[0])
     if thread is None:
       raise BadRequestError("No matching trace is in progress")
-    thread.reset_timer()
-    http_server.respond(HTTPStatus.OK, str(thread.is_alive()).encode("utf-8"), "text/plain; charset=utf-8")
+    alive = thread.is_alive()
+    if not alive and thread.failure():
+      raise AdbError(thread.failure())
+    if alive:
+      thread.reset_timer()
+    http_server.respond(HTTPStatus.OK, str(alive).encode("utf-8"), "text/plain; charset=utf-8")
 
 
 class RunAdbCmdEndpoint(DeviceRequestEndpoint):

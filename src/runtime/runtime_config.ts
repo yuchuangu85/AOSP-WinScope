@@ -9,7 +9,7 @@ export interface RuntimeConfig {
   readonly schemaVersion: 1;
   readonly host: {readonly kind: 'standalone'};
   readonly capture:
-    | {readonly provider: 'none'}
+    | {readonly provider: 'none'; readonly diagnostic?: string}
     | {readonly provider: 'loopback-proxy-v1'; readonly endpoint: string};
 }
 
@@ -65,7 +65,10 @@ export async function loadRuntimeConfig(
       throw new Error('configuration exceeds size limit');
     }
     activeConfig = parseRuntimeConfig(JSON.parse(text));
-    configDiagnostic = undefined;
+    configDiagnostic =
+      activeConfig.capture.provider === 'none'
+        ? activeConfig.capture.diagnostic
+        : undefined;
   } catch (error) {
     activeConfig = DEFAULT_RUNTIME_CONFIG;
     configDiagnostic =
@@ -88,7 +91,18 @@ export function parseRuntimeConfig(value: unknown): RuntimeConfig {
   }
   const capture = value['capture'];
   if (!isRecord(capture)) throw new Error('missing capture configuration');
-  if (capture['provider'] === 'none') return DEFAULT_RUNTIME_CONFIG;
+  if (capture['provider'] === 'none') {
+    const diagnostic = capture['diagnostic'];
+    if (diagnostic === undefined) return DEFAULT_RUNTIME_CONFIG;
+    if (typeof diagnostic !== 'string' || diagnostic.length > 512) {
+      throw new Error('capture diagnostic must be a bounded string');
+    }
+    return {
+      schemaVersion: 1,
+      host: {kind: 'standalone'},
+      capture: {provider: 'none', diagnostic},
+    };
+  }
   if (capture['provider'] !== 'loopback-proxy-v1') {
     throw new Error('unsupported capture provider');
   }

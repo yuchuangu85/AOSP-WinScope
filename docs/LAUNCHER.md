@@ -7,8 +7,13 @@ specified. On Windows, double-clicking `AOSP-WinScope.exe` at the package root
 with no arguments enables device capture and opens the default browser
 automatically; this is equivalent to `--capture --open`.
 `AOSP-WinScope-ARM64.exe` provides the same entry point on Windows on ARM. The
-launcher does not download software, change Host configuration, elevate
-privileges, or run a caller-provided command.
+launcher discovers `adb.exe` from `PATH`, Android SDK environment variables,
+and Android Studio's default `%LOCALAPPDATA%\Android\Sdk` directory. It also
+supports the Windows Python launcher through `py -3`. If automatic capture
+startup fails, the browser still opens in file-only mode and displays the
+startup diagnostic instead of silently exiting. The launcher does not download
+software, change Host configuration, elevate privileges, or run a
+caller-provided command.
 
 ## Distribution inputs
 
@@ -40,7 +45,13 @@ private proxy hop. Browser credentials, URL parameters, persistent tokens,
 CORS, direct proxy access, and a fixed proxy port are not supported.
 
 The Go launcher owns and stops only the Python child it starts. Closing the
-launcher also ends its loopback server and capture session.
+launcher also ends its loopback server and capture session. Optional capability
+probes such as ProtoLog, screen recording version, display metadata, and Wayland
+do not block capture when absent. Windows CRLF command text and ADB text output are normalized before use, and an
+empty Recovery Capture directory is treated as an empty result
+rather than as a file path. Fatal ADB failures are shown with the failing
+operation, exit status, and a bounded device diagnostic so Windows device,
+authorization, permission, and missing-command problems can be distinguished.
 
 Advanced launch controls are explicit and remain loopback-only:
 
