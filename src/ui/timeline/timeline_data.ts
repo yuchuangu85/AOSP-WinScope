@@ -192,6 +192,17 @@ export class TimelineData {
     return TracePosition.fromTraceEntry(entry, timestamp);
   }
 
+  snapPositionToClosestScreenRecordingFrame(
+    position: TracePosition,
+  ): TracePosition {
+    const closest = this.findClosestScreenRecordingEntry(position);
+    if (!closest) {
+      return position;
+    }
+
+    return this.makePositionFromActiveTrace(closest.getTimestamp());
+  }
+
   trySetActiveTrace(trace: Trace<unknown>): boolean {
     const isTraceWithValidTimestamps = this.traces.hasTrace(trace);
     if (this.activeTrace !== trace && isTraceWithValidTimestamps) {
@@ -277,6 +288,25 @@ export class TimelineData {
     }
 
     const firstTimestamp = trace.getEntry(0).getTimestamp();
+    const closest = this.findClosestScreenRecordingEntry(position);
+    if (!closest) {
+      return undefined;
+    }
+
+    return timestampToVideoTimeSeconds(
+      firstTimestamp.getValueNs(),
+      closest.getTimestamp().getValueNs(),
+    );
+  }
+
+  private findClosestScreenRecordingEntry(
+    position: TracePosition,
+  ): TraceEntry<MediaBasedTraceEntry> | undefined {
+    const trace = this.currentScreenRecordingTrace;
+    if (!trace) {
+      return undefined;
+    }
+
     const logger = getLogger('TimelineData');
     let entry;
     try {
@@ -291,25 +321,7 @@ export class TimelineData {
       return undefined;
     }
 
-    // Use the exact timestamp of the screen recording frame closest to the
-    // requested position. `findCorrespondingEntry` only establishes whether the
-    // position falls within the screen recording range (and, when the active
-    // trace is a screen recording, returns its own entry). For timeline clicks
-    // the active trace is usually a non-screen-recording trace, so falling back
-    // to `position.timestamp` would quantize the video time to the timeline's
-    // pixel grid (up to tens of ms), while using the corresponding entry above
-    // would bias the frame one step into the future. `findClosestEntry` returns
-    // the nearest screen recording frame's exact timestamp, which is both
-    // pixel-independent and unbiased.
-    const closest = trace.findClosestEntry(position.timestamp);
-    if (!closest) {
-      return undefined;
-    }
-
-    return timestampToVideoTimeSeconds(
-      firstTimestamp.getValueNs(),
-      closest.getTimestamp().getValueNs(),
-    );
+    return trace.findClosestEntry(position.timestamp);
   }
 
   hasTimestamps(): boolean {

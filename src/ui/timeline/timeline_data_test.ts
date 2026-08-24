@@ -398,6 +398,29 @@ describe('TimelineData', () => {
     }
   });
 
+  it('snaps a position to the closest screen recording frame timestamp', () => {
+    timelineData.initialize(traces, undefined, converter);
+
+    const position = timelineData.snapPositionToClosestScreenRecordingFrame(
+      TracePosition.fromTimestamp(timestamp9),
+    );
+
+    expect(position.timestamp).toEqual(timestamp5);
+    expect(position.entry).toEqual(traceSf.getEntry(0));
+  });
+
+  it('keeps a position unchanged when no screen recording is available', () => {
+    const tracesWithoutScreenRecording = new TracesBuilder()
+      .setTimestamps(TraceType.SURFACE_FLINGER, [timestamp10])
+      .build();
+    timelineData.initialize(tracesWithoutScreenRecording, undefined, converter);
+    const position = TracePosition.fromTimestamp(timestamp9);
+
+    expect(
+      timelineData.snapPositionToClosestScreenRecordingFrame(position),
+    ).toBe(position);
+  });
+
   it('getFullTimeRange() returns same object if no change to range', () => {
     timelineData.initialize(traces, undefined, converter);
 

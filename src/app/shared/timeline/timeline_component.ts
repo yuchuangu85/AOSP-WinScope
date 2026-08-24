@@ -378,6 +378,12 @@ export class TimelineComponent
     await this.emitEvent(new TracePositionUpdate(position));
   }
 
+  async updatePositionFromTimeline(position: TracePosition) {
+    const snappedPosition =
+      this.timelineData().snapPositionToClosestScreenRecordingFrame(position);
+    await this.updatePosition(snappedPosition);
+  }
+
   updateSeekTimestamp(timestamp: Timestamp | undefined) {
     if (timestamp) {
       this.seekTracePosition =
@@ -711,7 +717,7 @@ export class TimelineComponent
   async onMiniTimelineTraceClicked(eventData: [Trace<unknown>, Timestamp]) {
     const [trace, timestamp] = eventData;
     await this.emitEvent(new ActiveTraceChanged(trace));
-    await this.updatePosition(
+    await this.updatePositionFromTimeline(
       this.timelineData().makePositionFromActiveTrace(timestamp),
     );
     this.changeDetectorRef.detectChanges();

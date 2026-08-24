@@ -934,6 +934,27 @@ describe('TimelineComponent', () => {
     expect(position).toBeDefined();
   });
 
+  it('snaps a mini timeline position update to the displayed screen recording frame', async () => {
+    loadAllTraces();
+    const emitEventSpy = jasmine.createSpy('emitEvent');
+    component.setEmitEvent(emitEventSpy);
+
+    assertDefined(component.miniTimeline()).onTracePositionUpdate.emit(
+      position105,
+    );
+    await dom.detectChangesAndWaitStable();
+
+    const currentPosition = assertDefined(
+      component.timelineData().getCurrentPosition(),
+    );
+    expect(currentPosition.timestamp).toEqual(time110);
+    expect(component.getVideoCurrentTime()).toBeCloseTo(0.00001);
+
+    const update = emitEventSpy.calls.mostRecent().args[0];
+    expect(update).toBeInstanceOf(TracePositionUpdate);
+    expect(update.position.timestamp).toEqual(time110);
+  });
+
   it('adds/removes trace and redraws timeline', async () => {
     loadSfWmTraces();
     const initialTraces = component.sortedTraces.slice();

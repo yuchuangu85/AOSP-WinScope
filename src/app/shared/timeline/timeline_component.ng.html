@@ -64,7 +64,7 @@ limitations under the License.
       }
       <expanded-timeline
         [timelineData]="tData"
-        (onTracePositionUpdate)="updatePosition($event)"
+        (onTracePositionUpdate)="updatePositionFromTimeline($event)"
         (onScrollEvent)="updateScrollEvent($event)"
         (onTraceClicked)="onExpandedTimelineTraceClicked($event)"
         (onMouseXRatioUpdate)="updateExpandedTimelineMouseXRatio($event)"
@@ -292,7 +292,7 @@ limitations under the License.
             [expandedTimelineMouseXRatio]="expandedTimelineMouseXRatio"
             [bookmarks]="bookmarks"
             [store]="store()"
-            (onTracePositionUpdate)="updatePosition($event)"
+            (onTracePositionUpdate)="updatePositionFromTimeline($event)"
             (onSeekTimestampUpdate)="updateSeekTimestamp($event)"
             (onRemoveAllBookmarks)="removeAllBookmarks()"
             (onToggleBookmark)="toggleBookmarkRange($event.range, $event.rangeContainsBookmark)"
