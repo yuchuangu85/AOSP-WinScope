@@ -52,7 +52,8 @@
     "security:advisory-verify": "python3 scripts/support.py verify-advisory --json",
     "aps:verify": "python3 scripts/verify-aps-release.py --json",
     "release:settings": "python3 scripts/verify-release-settings.py --repository yuchuangu85/AOSP-WinScope --json",
-    "release:image": "python3 scripts/verify-release-image.py --json"
+    "release:image": "python3 scripts/verify-release-image.py --json",
+    "installers:package": "python3 scripts/package-installers.py"
   },
   "private": true,
   "dependencies": {
