@@ -691,7 +691,7 @@ def download(origin: str, digest: str) -> Path:
         def fetch_part(index: int) -> Path:
             start = index * chunk_size
             end = min(content_length - 1, start + chunk_size - 1)
-            part = temporary.with_suffix(f".part-{index}")
+            part = partial_download_path(destination, index)
             request = urllib.request.Request(origin, headers={"Range": f"bytes={start}-{end}"})
             with urllib.request.build_opener(OriginCheckingRedirect()).open(request) as response, part.open("wb") as output:
                 require(response.status == 206, f"server ignored range request for {origin}")
@@ -713,9 +713,7 @@ def download(origin: str, digest: str) -> Path:
             temporary.replace(destination)
             return destination
         finally:
-            for part in temporary.parent.glob(f"{temporary.name}.part-*"):
-                part.unlink(missing_ok=True)
-            temporary.unlink(missing_ok=True)
+            cleanup_download_temporaries(destination)
 
     last_error: Exception | None = None
     for attempt in range(1, 4):
@@ -734,6 +732,16 @@ def download(origin: str, digest: str) -> Path:
                 time.sleep(attempt)
     assert last_error is not None
     raise last_error
+
+
+def partial_download_path(destination: Path, index: int) -> Path:
+    return destination.parent / f"{destination.name}.part-{index}"
+
+
+def cleanup_download_temporaries(destination: Path) -> None:
+    for part in destination.parent.glob(f"{destination.name}.part-*"):
+        part.unlink(missing_ok=True)
+    destination.with_suffix(".tmp").unlink(missing_ok=True)
 
 
 def extract_archive(archive: Path, destination: Path) -> None:

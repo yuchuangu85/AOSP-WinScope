@@ -8,6 +8,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from scripts import dependencies
+
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 
@@ -32,6 +34,21 @@ class DependencyClosureTest(unittest.TestCase):
         json.dump(lock, temporary)
         temporary.close()
         return temporary.name
+
+    def test_parallel_download_cleanup_removes_every_part_file(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            destination = Path(temporary) / ("a" * 64)
+            part_paths = [
+                dependencies.partial_download_path(destination, index)
+                for index in range(8)
+            ]
+            for path in [destination.with_suffix(".tmp"), *part_paths]:
+                path.touch()
+
+            dependencies.cleanup_download_temporaries(destination)
+
+            self.assertFalse(destination.with_suffix(".tmp").exists())
+            self.assertTrue(all(not path.exists() for path in part_paths))
 
     def test_committed_dependency_closure_matches_immutable_inputs(self):
         result = self.run_command("verify-lock", "--json")
