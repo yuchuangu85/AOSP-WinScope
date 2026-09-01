@@ -510,13 +510,20 @@ describe('CollectTracesComponent', () => {
     const newDom = new DOMTestHelper(newFixture, newFixture.nativeElement);
     newDom.setComponentInput('store', storage);
     await newDom.detectChangesAndWaitStable();
+    newComponent.onAvailableTracesChange(
+      [
+        UiTraceTarget.WINDOW_MANAGER_DUMP,
+        UiTraceTarget.SURFACE_FLINGER_DUMP,
+      ],
+      [],
+    );
     const controller = assertDefined(newComponent.controller);
     const spy = spyOn(controller, 'dumpState');
     await newComponent.onWinscopeEvent(new AppRefreshDumpsRequest());
-    dom.detectChanges();
+    newDom.detectChanges();
 
     await newComponent.onConnectionStateChange(ConnectionState.CONNECTING);
-    await dom.detectChangesAndWaitStable();
+    await newDom.detectChangesAndWaitStable();
     const newDevice = new MockAdbDeviceConnection(
       '35562',
       'Pixel 6',
