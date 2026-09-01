@@ -37926,7 +37926,7 @@
     }
   ],
   "generatedFrom": {
-    "packageLockSha256": "2f103cbe8d85a258aee47203711596242ae26a84ae436c530f1889f4746b7f4d",
+    "packageLockSha256": "89348f8f9407662d2fea504c647ace1868f12590d414222b70790ceab5107fc9",
     "perfetto": {
       "installBuildDepsSha256": "ace319b1a21f24e1279be614b2c81f91420ff39e0a69ce0ee2dcbb2b1293f822",
       "pnpmLockSha256": "c65ae3153784300a5da03a02ed000759077e661c33f1a797b9000731fc28ca5a",

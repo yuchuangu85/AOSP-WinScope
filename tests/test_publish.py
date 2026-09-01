@@ -23,7 +23,7 @@ assert RELEASE_SPEC.loader is not None
 RELEASE_SPEC.loader.exec_module(release)
 
 
-VERSION = "17.0.0-rc.1"
+VERSION = "17.0.1-rc.1"
 BUILD_IMAGE = "ghcr.io/example/release@sha256:" + "a" * 64
 MEMBERS = (
     "manifest.json",
@@ -384,9 +384,11 @@ class PublishTest(unittest.TestCase):
 
     def test_stable_and_version_validation(self):
         self.assertEqual(publish.version_channel("17.0.0"), "stable")
+        self.assertEqual(publish.version_channel("17.0.1"), "stable")
+        self.assertEqual(publish.version_channel("17.1.0"), "stable")
         self.assertEqual(publish.version_channel("17.2.3-alpha.1"), "alpha")
         self.assertEqual(publish.version_channel("17.2.3-rc.4"), "rc")
-        for version in ("16.0.0", "17.1.0", "17.0", "17.0.0-beta.1"):
+        for version in ("16.0.0", "17.0", "17.0.0-beta.1"):
             with self.assertRaises(ValueError):
                 publish.version_channel(version)
 

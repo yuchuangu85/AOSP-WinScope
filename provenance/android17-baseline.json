@@ -45,6 +45,11 @@
       {
         "change": "added",
         "origin": "newly-authored-clean-room",
+        "path": ".github/workflows/ci.yml"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
         "path": ".github/workflows/official-release.yml"
       },
       {
@@ -76,6 +81,11 @@
         "change": "added",
         "origin": "newly-authored-clean-room",
         "path": "CONTEXT.md"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "README.md"
       },
       {
         "change": "modified",
@@ -325,6 +335,11 @@
       {
         "change": "added",
         "origin": "newly-authored-clean-room",
+        "path": "scripts/package-installers.py"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
         "path": "scripts/publish.py"
       },
       {
@@ -410,12 +425,92 @@
       {
         "change": "modified",
         "origin": "newly-authored-clean-room",
+        "path": "src/app/shared/collapsible_sections/collapsible_section_title_component.scss"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/app/shared/hierarchy/hierarchy_component.ng.html"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/app/shared/hierarchy/hierarchy_component.scss"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/app/shared/hierarchy/hierarchy_component_test.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/app/shared/properties/properties_component.ng.html"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/app/shared/properties/properties_component.scss"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/app/shared/rects/rects_component.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/app/shared/rects/rects_component_test.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/app/shared/scroll/virtual_scroll_viewport_component.scss"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/app/shared/search_box/search_box_component.scss"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/app/shared/styles/viewer_card_inner.scss"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
         "path": "src/app/shared/timeline/timeline_component.ng.html"
       },
       {
         "change": "modified",
         "origin": "newly-authored-clean-room",
         "path": "src/app/shared/timeline/timeline_component.scss"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/app/shared/timeline/timeline_component.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/app/shared/timeline/timeline_component_test.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/app/shared/tree/tree_component.scss"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/app/surface_flinger/viewer_surface_flinger_component.ng.html"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/app/surface_flinger/viewer_surface_flinger_component_test.ts"
       },
       {
         "change": "modified",
@@ -476,6 +571,21 @@
         "change": "modified",
         "origin": "newly-authored-clean-room",
         "path": "src/app/trace_loading/upload_traces_component_test.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/app/trace_view_component.scss"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/app/trace_view_component_test.ts"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "src/assets/MaterialSymbolsOutlined.woff2"
       },
       {
         "change": "modified",
@@ -541,6 +651,11 @@
         "change": "modified",
         "origin": "newly-authored-clean-room",
         "path": "src/styles/material-theme.scss"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/styles/styles.scss"
       },
       {
         "change": "modified",
@@ -650,6 +765,16 @@
       {
         "change": "modified",
         "origin": "newly-authored-clean-room",
+        "path": "src/trace_collection/adb_device_connection.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/trace_collection/adb_device_connection_test.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
         "path": "src/trace_collection/controller/trace_collection_controller.ts"
       },
       {
@@ -661,6 +786,21 @@
         "change": "modified",
         "origin": "newly-authored-clean-room",
         "path": "src/trace_collection/controller/tracing_session.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/trace_collection/controller/tracing_session_test.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/trace_collection/controller/user_request_parser.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/trace_collection/controller/user_request_parser_test.ts"
       },
       {
         "change": "modified",
@@ -686,6 +826,16 @@
         "change": "modified",
         "origin": "newly-authored-clean-room",
         "path": "src/trace_collection/winscope_proxy/winscope_proxy_host_connection_test.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/ui/timeline/timeline_data.ts"
+      },
+      {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/ui/timeline/timeline_data_test.ts"
       },
       {
         "change": "modified",
@@ -720,12 +870,22 @@
       {
         "change": "added",
         "origin": "newly-authored-clean-room",
+        "path": "tests/test_icons.py"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
         "path": "tests/test_npm_audit_policy.py"
       },
       {
         "change": "added",
         "origin": "newly-authored-clean-room",
         "path": "tests/test_official_release.py"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "tests/test_package_installers.py"
       },
       {
         "change": "added",

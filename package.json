@@ -1,6 +1,6 @@
 {
   "name": "winscope",
-  "version": "0.0.0",
+  "version": "17.0.1",
   "scripts": {
     "toolchain:verify": "python3 scripts/dependencies.py verify-toolchain --json",
     "deps:generate-lock": "python3 scripts/dependencies.py generate-lock",
@@ -45,9 +45,9 @@
     "security:hostile": "python3 -m unittest tests/test_security.py && go test ./cmd/launcher",
     "security:scan": "python3 scripts/security-scan.py --json",
     "security:audit": "python3 scripts/npm_audit_policy.py --json",
-    "publish:alpha": "python3 scripts/publish.py publish --version 17.0.0-alpha.1 --json",
-    "publish:rc": "python3 scripts/publish.py publish --version 17.0.0-rc.1 --json",
-    "publish:stable": "python3 scripts/publish.py publish --version 17.0.0 --tag v17.0.0 --json",
+    "publish:alpha": "python3 scripts/publish.py publish --version 17.0.1-alpha.1 --json",
+    "publish:rc": "python3 scripts/publish.py publish --version 17.0.1-rc.1 --json",
+    "publish:stable": "python3 scripts/publish.py publish --version 17.0.1 --tag v17.0.1 --json",
     "support:verify": "python3 scripts/support.py verify --json",
     "security:advisory-verify": "python3 scripts/support.py verify-advisory --json",
     "aps:verify": "python3 scripts/verify-aps-release.py --json",

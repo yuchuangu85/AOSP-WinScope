@@ -876,7 +876,7 @@ def emit(report: dict[str, Any], as_json: bool) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("package", "verify", "double-build"))
-    parser.add_argument("--version", default=os.environ.get("AOSP_WINSCOPE_VERSION", "17.0.0"))
+    parser.add_argument("--version", default=os.environ.get("AOSP_WINSCOPE_VERSION", "17.0.1"))
     parser.add_argument("--input", type=Path)
     parser.add_argument("--output", type=Path, default=DEFAULT_RELEASE_ROOT)
     parser.add_argument("--web", type=Path, default=DEFAULT_WEB_ROOT)

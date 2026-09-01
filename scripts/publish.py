@@ -138,8 +138,6 @@ def version_channel(version: str) -> str:
         return "alpha"
     if "-rc." in version:
         return "rc"
-    if version != "17.0.0":
-        fail("the first stable release must be exactly 17.0.0")
     return "stable"
 
 
@@ -589,8 +587,8 @@ def verify(index_path: Path) -> dict[str, Any]:
         path = root / artifact["name"]
         if not path.is_file() or sha256_file(path) != artifact["sha256"] or path.stat().st_size != artifact["size"]:
             fail(f"published artifact digest mismatch: {artifact.get('name')}")
-    if channel == "stable" and index.get("tag") != "v17.0.0":
-        fail("stable release must be tagged v17.0.0")
+    if channel == "stable" and index.get("tag") != f"v{version}":
+        fail(f"stable release must be tagged v{version}")
     return {"ok": True, "version": version, "channel": channel, "artifactsVerified": len(index.get("artifacts", []))}
 
 
@@ -601,7 +599,7 @@ def emit(payload: dict[str, Any], as_json: bool) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("publish", "verify"))
-    parser.add_argument("--version", default="17.0.0-rc.1")
+    parser.add_argument("--version", default="17.0.1-rc.1")
     parser.add_argument("--release-dir", type=Path, default=ROOT / "dist/release")
     parser.add_argument("--validation", type=Path, default=ROOT / "dist/validation/report.json")
     parser.add_argument("--reproducibility", type=Path, default=DEFAULT_REPRODUCIBILITY)

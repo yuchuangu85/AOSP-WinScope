@@ -4,6 +4,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/official-release.yml"
+CI_WORKFLOW = ROOT / ".github/workflows/ci.yml"
+SECURITY_WORKFLOW = ROOT / ".github/workflows/security.yml"
 
 
 class OfficialReleaseWorkflowTest(unittest.TestCase):
@@ -148,6 +150,37 @@ class OfficialReleaseWorkflowTest(unittest.TestCase):
         self.assertIn("## Stage 14 implementation evidence", plan)
         self.assertIn("release immutability", plan)
         self.assertIn("publicly pullable", plan)
+
+
+class SupportingWorkflowTest(unittest.TestCase):
+    def test_production_assets_are_built_before_unit_tests(self):
+        workflow = CI_WORKFLOW.read_text(encoding="utf-8")
+        self.assertLess(
+            workflow.index("npm run build:prod"),
+            workflow.index("npm run test:presubmit"),
+        )
+
+    def test_security_uses_the_pinned_go_toolchain(self):
+        workflow = SECURITY_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("go-version: '1.26.6'", workflow)
+        self.assertNotIn("go-version-file: go.mod", workflow)
+        self.assertRegex(
+            (ROOT / "go.mod").read_text(encoding="utf-8"),
+            re.compile(r"^go 1\.26\.6$", re.MULTILINE),
+        )
+
+    def test_codeql_uses_a_supported_build_mode_for_each_language(self):
+        workflow = SECURITY_WORKFLOW.read_text(encoding="utf-8")
+        for language, build_mode in (
+            ("javascript-typescript", "none"),
+            ("python", "none"),
+            ("go", "autobuild"),
+        ):
+            self.assertIn(
+                f"- language: {language}\n            build-mode: {build_mode}",
+                workflow,
+            )
+        self.assertIn("build-mode: ${{ matrix.build-mode }}", workflow)
 
 
 if __name__ == "__main__":

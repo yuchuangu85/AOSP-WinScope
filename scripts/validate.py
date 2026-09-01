@@ -17,7 +17,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_REPORT = ROOT / "dist/validation/report.json"
 DEFAULT_WEB = ROOT / "dist/prod"
-DEFAULT_RELEASE = ROOT / "dist/release/aosp-winscope-17.0.0"
+DEFAULT_RELEASE = ROOT / "dist/release/aosp-winscope-17.0.1"
 DEFAULT_REPRODUCIBILITY = ROOT / "dist/validation/reproducibility.json"
 LOCK = ROOT / "build/dependencies.lock.json"
 PACKAGE = ROOT / "package.json"

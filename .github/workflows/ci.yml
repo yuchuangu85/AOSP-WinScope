@@ -59,13 +59,15 @@ jobs:
           npm run deps:prepare
           npm run deps:verify
 
+      - name: Build production distribution
+        run: npm run build:prod
+
       - name: Run presubmit checks
         run: npm run test:presubmit
 
-      - name: Build and verify production distribution
+      - name: Build launchers and verify production distribution
         run: |
           set -euo pipefail
-          npm run build:prod
           npm run build:launchers
           npm run build:verify
           npm run features:verify
@@ -159,7 +161,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/package-installers.py \
-            --input dist/release/aosp-winscope-17.0.0 \
+            --input dist/release/aosp-winscope-17.0.1 \
             --platform '${{ matrix.platform }}' \
             --architecture '${{ matrix.architecture }}' \
             --formats '${{ matrix.formats }}' \
@@ -171,7 +173,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           python scripts/package-installers.py `
-            --input dist/release/aosp-winscope-17.0.0 `
+            --input dist/release/aosp-winscope-17.0.1 `
             --platform '${{ matrix.platform }}' `
             --architecture '${{ matrix.architecture }}' `
             --formats '${{ matrix.formats }}' `
