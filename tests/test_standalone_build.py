@@ -5,12 +5,44 @@ import subprocess
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+SCRIPTS_ROOT = REPOSITORY_ROOT / "scripts"
+sys.path.insert(0, str(SCRIPTS_ROOT))
+import build as standalone_build
 
 
 class StandaloneBuildContractTest(unittest.TestCase):
+    def test_build_environment_resolves_a_bare_node_command_before_perfetto_tools(self):
+        runner_node = Path("/opt/hostedtoolcache/node/24.19.0/x64/bin/node")
+        base_environment = {"PATH": f"{runner_node.parent}:/usr/bin"}
+        toolchain = {"commands": {"node": "node"}}
+
+        with (
+            mock.patch.object(
+                standalone_build.dependencies,
+                "verify_toolchain",
+                return_value=toolchain,
+            ),
+            mock.patch.object(
+                standalone_build.dependencies,
+                "environment_for_node",
+                return_value=base_environment,
+            ),
+            mock.patch.object(
+                standalone_build.shutil,
+                "which",
+                return_value=str(runner_node),
+            ),
+        ):
+            environment, _ = standalone_build.build_environment()
+
+        path_entries = environment["PATH"].split(standalone_build.os.pathsep)
+        self.assertEqual(path_entries[0], str(runner_node.parent))
+        self.assertEqual(path_entries[1], str(standalone_build.PERFETTO_ROOT / "tools"))
+
     def test_package_build_contract_has_no_aosp_checkout_assumption(self):
         package = json.loads((REPOSITORY_ROOT / "package.json").read_text(encoding="utf-8"))
 

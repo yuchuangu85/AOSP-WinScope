@@ -283,6 +283,11 @@
         "path": "karma.config.ci.js"
       },
       {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
+        "path": "osv-scanner.toml"
+      },
+      {
         "change": "modified",
         "origin": "newly-authored-clean-room",
         "path": "package-lock.json"

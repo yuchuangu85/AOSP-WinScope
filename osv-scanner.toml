@@ -1,0 +1,14 @@
+[[IgnoredVulns]]
+id = "GHSA-5p2g-fcmc-qvqq"
+ignoreUntil = 2026-11-19
+reason = "Build-only image-size dependency of Less; this repository has no Less or ICNS inputs."
+
+[[IgnoredVulns]]
+id = "GHSA-w3rx-r6r6-pgpr"
+ignoreUntil = 2026-11-19
+reason = "Build-only image-size dependency of Less; this repository has no Less, JXL, or HEIF inputs."
+
+[[IgnoredVulns]]
+id = "GHSA-w5hq-g745-h8pq"
+ignoreUntil = 2026-11-19
+reason = "Build-only SockJS dependency; the vulnerable UUID v3, v5, and v6 buffer APIs are not used."

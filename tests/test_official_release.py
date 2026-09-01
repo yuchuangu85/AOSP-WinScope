@@ -182,6 +182,19 @@ class SupportingWorkflowTest(unittest.TestCase):
             )
         self.assertIn("build-mode: ${{ matrix.build-mode }}", workflow)
 
+    def test_osv_scan_uses_expiring_reachability_exceptions(self):
+        workflow = SECURITY_WORKFLOW.read_text(encoding="utf-8")
+        config = (ROOT / "osv-scanner.toml").read_text(encoding="utf-8")
+        self.assertIn("--config=./osv-scanner.toml", workflow)
+        for advisory in (
+            "GHSA-5p2g-fcmc-qvqq",
+            "GHSA-w3rx-r6r6-pgpr",
+            "GHSA-w5hq-g745-h8pq",
+        ):
+            self.assertIn(f'id = "{advisory}"', config)
+        self.assertEqual(config.count("ignoreUntil = 2026-11-19"), 3)
+        self.assertNotIn("ignore = true", config)
+
 
 if __name__ == "__main__":
     unittest.main()

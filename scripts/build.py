@@ -158,7 +158,7 @@ def build_environment() -> tuple[dict[str, str], dict[str, Any]]:
     toolchain = dependencies.verify_toolchain()
     node_command = toolchain["commands"]["node"]
     environment = dependencies.environment_for_node(node_command)
-    node_bin = Path(node_command).resolve().parent
+    node_bin = Path(shutil.which(node_command) or node_command).resolve().parent
     environment["PATH"] = os.pathsep.join(
         (str(node_bin), str(PERFETTO_ROOT / "tools"), environment["PATH"])
     )

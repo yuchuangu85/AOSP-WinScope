@@ -355,34 +355,136 @@
       "id": "npm:node_modules/@angular-devkit/architect",
       "integrity": {
         "algorithm": "sha512-sri",
-        "value": "sha512-JX68qGFvv8Duy5UL21IJCived83tOZBVCxNcOS2XCII0CS8Z5nCEndRre73JfDsleTNkeS3fo2P5tjqN+/S80A=="
+        "value": "sha512-fuiccQamG0SBfuKRSA8uAoALI4VprZAWZbwwOGmpMaYrxoN9E4CgicR5hQUEEsp9IzMtuRvFpJPorudv2xzGMw=="
       },
       "introducedBy": "package-lock.json:node_modules/@angular-devkit/architect",
       "kind": "npm-package",
       "license": "MIT",
       "name": "@angular-devkit/architect",
-      "origin": "https://registry.npmjs.org/@angular-devkit/architect/-/architect-0.2003.34.tgz",
+      "origin": "https://registry.npmjs.org/@angular-devkit/architect/-/architect-0.2003.35.tgz",
       "platforms": [
         "all"
       ],
-      "version": "0.2003.34"
+      "version": "0.2003.35"
     },
     {
       "distribution": "build-only",
       "id": "npm:node_modules/@angular-devkit/build-angular",
       "integrity": {
         "algorithm": "sha512-sri",
-        "value": "sha512-0pkzrPfFurAJdVzOi3xrsdv4Hraz/G+RrO7SXlwEGpvu/DUy/lZvsnk0kcg2/eZttoQfOLTMwnM8I6TeZx/IcQ=="
+        "value": "sha512-7gq/5pdQnJG5KGIoDuP1u7isv0jTEKQiR7RPLmuNSfLyHlx5FyEeZVdLBL+LSi13qfZlVHLDSqGITuJL+WoyhA=="
       },
       "introducedBy": "package.json:devDependencies",
       "kind": "npm-package",
       "license": "MIT",
       "name": "@angular-devkit/build-angular",
-      "origin": "https://registry.npmjs.org/@angular-devkit/build-angular/-/build-angular-20.3.34.tgz",
+      "origin": "https://registry.npmjs.org/@angular-devkit/build-angular/-/build-angular-20.3.35.tgz",
       "platforms": [
         "all"
       ],
-      "version": "20.3.34"
+      "version": "20.3.35"
+    },
+    {
+      "distribution": "build-only",
+      "id": "npm:node_modules/@angular-devkit/build-angular/node_modules/@angular/build",
+      "integrity": {
+        "algorithm": "sha512-sri",
+        "value": "sha512-NwVaMXFZRfmpwodXwwoPXJw6eDZtG+HuBEjGMwyvGoGSMUc12MxKvgTash94pXqhe9SiwZTRgm3oVwrjG//2OA=="
+      },
+      "introducedBy": "package-lock.json:node_modules/@angular-devkit/build-angular",
+      "kind": "npm-package",
+      "license": "MIT",
+      "name": "@angular/build",
+      "origin": "https://registry.npmjs.org/@angular/build/-/build-20.3.35.tgz",
+      "platforms": [
+        "all"
+      ],
+      "version": "20.3.35"
+    },
+    {
+      "distribution": "build-only",
+      "id": "npm:node_modules/@angular-devkit/build-angular/node_modules/@angular/build/node_modules/@vitejs/plugin-basic-ssl",
+      "integrity": {
+        "algorithm": "sha512-sri",
+        "value": "sha512-dOxxrhgyDIEUADhb/8OlV9JIqYLgos03YorAueTIeOUskLJSEsfwCByjbu98ctXitUN3znXKp0bYD/WHSudCeA=="
+      },
+      "introducedBy": "package-lock.json:node_modules/@angular-devkit/build-angular/node_modules/@angular/build",
+      "kind": "npm-package",
+      "license": "MIT",
+      "name": "@vitejs/plugin-basic-ssl",
+      "origin": "https://registry.npmjs.org/@vitejs/plugin-basic-ssl/-/plugin-basic-ssl-2.1.0.tgz",
+      "platforms": [
+        "all"
+      ],
+      "version": "2.1.0"
+    },
+    {
+      "distribution": "build-only",
+      "id": "npm:node_modules/@angular-devkit/build-angular/node_modules/@angular/build/node_modules/tinyglobby",
+      "integrity": {
+        "algorithm": "sha512-sri",
+        "value": "sha512-tX5e7OM1HnYr2+a2C/4V0htOcSQcoSTH9KgJnVvNm5zm/cyEWKJ7j7YutsH9CxMdtOkkLFy2AHrMci9IM8IPZQ=="
+      },
+      "introducedBy": "package-lock.json:node_modules/@angular-devkit/build-angular/node_modules/@angular/build",
+      "kind": "npm-package",
+      "license": "MIT",
+      "name": "tinyglobby",
+      "origin": "https://registry.npmjs.org/tinyglobby/-/tinyglobby-0.2.14.tgz",
+      "platforms": [
+        "all"
+      ],
+      "version": "0.2.14"
+    },
+    {
+      "distribution": "build-only",
+      "id": "npm:node_modules/@angular-devkit/build-angular/node_modules/@angular/build/node_modules/vite",
+      "integrity": {
+        "algorithm": "sha512-sri",
+        "value": "sha512-4XP60spRGjSZFf1qYH+dJIkK2znL3zQfl9KkOV9MkkRR/3Dls0dxaBsQPTloEc5BLXWPL9vsOxopxyKoMmDueg=="
+      },
+      "introducedBy": "package-lock.json:node_modules/@angular-devkit/build-angular/node_modules/@angular/build",
+      "kind": "npm-package",
+      "license": "MIT",
+      "name": "vite",
+      "origin": "https://registry.npmjs.org/vite/-/vite-7.3.6.tgz",
+      "platforms": [
+        "all"
+      ],
+      "version": "7.3.6"
+    },
+    {
+      "distribution": "build-only",
+      "id": "npm:node_modules/@angular-devkit/build-angular/node_modules/@angular/build/node_modules/vite/node_modules/tinyglobby",
+      "integrity": {
+        "algorithm": "sha512-sri",
+        "value": "sha512-wXR/dYpcqKmfWpEdZjiKJOwCNFndD0DMnrW/cYjVGttEkBfVgcLFHoNrlj47mjOVic9yyNu65alsgF4NQyTa2g=="
+      },
+      "introducedBy": "package-lock.json:node_modules/@angular-devkit/build-angular/node_modules/@angular/build/node_modules/vite",
+      "kind": "npm-package",
+      "license": "MIT",
+      "name": "tinyglobby",
+      "origin": "https://registry.npmjs.org/tinyglobby/-/tinyglobby-0.2.17.tgz",
+      "platforms": [
+        "all"
+      ],
+      "version": "0.2.17"
+    },
+    {
+      "distribution": "build-only",
+      "id": "npm:node_modules/@angular-devkit/build-angular/node_modules/@inquirer/confirm",
+      "integrity": {
+        "algorithm": "sha512-sri",
+        "value": "sha512-5yR4IBfe0kXe59r1YCTG8WXkUbl7Z35HK87Sw+WUyGD8wNUx7JvY7laahzeytyE1oLn74bQnL7hstctQxisQ8Q=="
+      },
+      "introducedBy": "package-lock.json:node_modules/@angular-devkit/build-angular",
+      "kind": "npm-package",
+      "license": "MIT",
+      "name": "@inquirer/confirm",
+      "origin": "https://registry.npmjs.org/@inquirer/confirm/-/confirm-5.1.14.tgz",
+      "platforms": [
+        "all"
+      ],
+      "version": "5.1.14"
     },
     {
       "distribution": "build-only",
@@ -539,54 +641,71 @@
     },
     {
       "distribution": "build-only",
+      "id": "npm:node_modules/@angular-devkit/build-angular/node_modules/watchpack",
+      "integrity": {
+        "algorithm": "sha512-sri",
+        "value": "sha512-c5EGNOiyxxV5qmTtAB7rbiXxi1ooX1pQKMLX/MIabJjRA0SJBQOjKF+KSVfHkr9U1cADPon0mRiVe/riyaiDUA=="
+      },
+      "introducedBy": "package-lock.json:node_modules/@angular-devkit/build-angular",
+      "kind": "npm-package",
+      "license": "MIT",
+      "name": "watchpack",
+      "origin": "https://registry.npmjs.org/watchpack/-/watchpack-2.4.4.tgz",
+      "platforms": [
+        "all"
+      ],
+      "version": "2.4.4"
+    },
+    {
+      "distribution": "build-only",
       "id": "npm:node_modules/@angular-devkit/build-webpack",
       "integrity": {
         "algorithm": "sha512-sri",
-        "value": "sha512-IHl8e5dClTfzpqeqanBi4s5dti6i+kueIlfASl/cfyBYW7ASr+FDLbffIonpLYvb3uyucFdo22ND9+/HZZdrKQ=="
+        "value": "sha512-RrWsGWaomLFcWYFWKxCrIXkh6ka4R+TRFpDrrJqZXp72GYb3XYW+lmH1Si6I9HKd8drtAe1uftKQszI7qKN3yw=="
       },
       "introducedBy": "package-lock.json:node_modules/@angular-devkit/build-webpack",
       "kind": "npm-package",
       "license": "MIT",
       "name": "@angular-devkit/build-webpack",
-      "origin": "https://registry.npmjs.org/@angular-devkit/build-webpack/-/build-webpack-0.2003.34.tgz",
+      "origin": "https://registry.npmjs.org/@angular-devkit/build-webpack/-/build-webpack-0.2003.35.tgz",
       "platforms": [
         "all"
       ],
-      "version": "0.2003.34"
+      "version": "0.2003.35"
     },
     {
       "distribution": "build-only",
       "id": "npm:node_modules/@angular-devkit/core",
       "integrity": {
         "algorithm": "sha512-sri",
-        "value": "sha512-vcDaXzF3E+gGD62gdPa0AZlEertqB3raufEjT5Y0bl9MO4t2CCanEbbIfIyPtpLp22SJOyOErx/39weeEbfmjQ=="
+        "value": "sha512-RefMFJA7qRBxEDu3a6bVNK9o5vcHXxN8xKaCzENBrOIO6XamthoGMZIJrIT213KpHoEbLTcJjESqGFCpYmY6oA=="
       },
       "introducedBy": "package-lock.json:node_modules/@angular-devkit/core",
       "kind": "npm-package",
       "license": "MIT",
       "name": "@angular-devkit/core",
-      "origin": "https://registry.npmjs.org/@angular-devkit/core/-/core-20.3.34.tgz",
+      "origin": "https://registry.npmjs.org/@angular-devkit/core/-/core-20.3.35.tgz",
       "platforms": [
         "all"
       ],
-      "version": "20.3.34"
+      "version": "20.3.35"
     },
     {
       "distribution": "build-only",
       "id": "npm:node_modules/@angular-devkit/schematics",
       "integrity": {
         "algorithm": "sha512-sri",
-        "value": "sha512-JW+RmDOeCGrzcdiTthw/ZlYMmsI3n2akWAdOUeczMdnbWfygMcbft3r8D+k1uefuxfAhJ4PgTtvECKhDqLN67g=="
+        "value": "sha512-7lzrY5pYCTvL9dR/pi4fzAl1BS8PdiplTd+QNFEJv7/rZWTmqt+7rmDHm/8vEl1aYEFmBckzb3PMK+NBMuQkaw=="
       },
       "introducedBy": "package-lock.json:node_modules/@angular-devkit/schematics",
       "kind": "npm-package",
       "license": "MIT",
       "name": "@angular-devkit/schematics",
-      "origin": "https://registry.npmjs.org/@angular-devkit/schematics/-/schematics-20.3.34.tgz",
+      "origin": "https://registry.npmjs.org/@angular-devkit/schematics/-/schematics-20.3.35.tgz",
       "platforms": [
         "all"
       ],
-      "version": "20.3.34"
+      "version": "20.3.35"
     },
     {
       "distribution": "build-only",
@@ -742,91 +861,6 @@
       "version": "20.3.29"
     },
     {
-      "distribution": "build-only",
-      "id": "npm:node_modules/@angular/build",
-      "integrity": {
-        "algorithm": "sha512-sri",
-        "value": "sha512-uV7zgmvbLwaT/blpYqVVWkrJnHBGSjkuB+ADCruIou7j+/kmo9k/dXCnXVAlP22nR/gdKi24NBahDBNXxrBpzg=="
-      },
-      "introducedBy": "package-lock.json:node_modules/@angular/build",
-      "kind": "npm-package",
-      "license": "MIT",
-      "name": "@angular/build",
-      "origin": "https://registry.npmjs.org/@angular/build/-/build-20.3.34.tgz",
-      "platforms": [
-        "all"
-      ],
-      "version": "20.3.34"
-    },
-    {
-      "distribution": "build-only",
-      "id": "npm:node_modules/@angular/build/node_modules/@inquirer/confirm",
-      "integrity": {
-        "algorithm": "sha512-sri",
-        "value": "sha512-5yR4IBfe0kXe59r1YCTG8WXkUbl7Z35HK87Sw+WUyGD8wNUx7JvY7laahzeytyE1oLn74bQnL7hstctQxisQ8Q=="
-      },
-      "introducedBy": "package-lock.json:node_modules/@angular/build",
-      "kind": "npm-package",
-      "license": "MIT",
-      "name": "@inquirer/confirm",
-      "origin": "https://registry.npmjs.org/@inquirer/confirm/-/confirm-5.1.14.tgz",
-      "platforms": [
-        "all"
-      ],
-      "version": "5.1.14"
-    },
-    {
-      "distribution": "build-only",
-      "id": "npm:node_modules/@angular/build/node_modules/sass",
-      "integrity": {
-        "algorithm": "sha512-sri",
-        "value": "sha512-9GUyuksjw70uNpb1MTYWsH9MQHOHY6kwfnkafC24+7aOMZn9+rVMBxRbLvw756mrBFbIsFg6Xw9IkR2Fnn3k+Q=="
-      },
-      "introducedBy": "package-lock.json:node_modules/@angular/build",
-      "kind": "npm-package",
-      "license": "MIT",
-      "name": "sass",
-      "origin": "https://registry.npmjs.org/sass/-/sass-1.90.0.tgz",
-      "platforms": [
-        "all"
-      ],
-      "version": "1.90.0"
-    },
-    {
-      "distribution": "build-only",
-      "id": "npm:node_modules/@angular/build/node_modules/tinyglobby",
-      "integrity": {
-        "algorithm": "sha512-sri",
-        "value": "sha512-tX5e7OM1HnYr2+a2C/4V0htOcSQcoSTH9KgJnVvNm5zm/cyEWKJ7j7YutsH9CxMdtOkkLFy2AHrMci9IM8IPZQ=="
-      },
-      "introducedBy": "package-lock.json:node_modules/@angular/build",
-      "kind": "npm-package",
-      "license": "MIT",
-      "name": "tinyglobby",
-      "origin": "https://registry.npmjs.org/tinyglobby/-/tinyglobby-0.2.14.tgz",
-      "platforms": [
-        "all"
-      ],
-      "version": "0.2.14"
-    },
-    {
-      "distribution": "build-only",
-      "id": "npm:node_modules/@angular/build/node_modules/watchpack",
-      "integrity": {
-        "algorithm": "sha512-sri",
-        "value": "sha512-c5EGNOiyxxV5qmTtAB7rbiXxi1ooX1pQKMLX/MIabJjRA0SJBQOjKF+KSVfHkr9U1cADPon0mRiVe/riyaiDUA=="
-      },
-      "introducedBy": "package-lock.json:node_modules/@angular/build",
-      "kind": "npm-package",
-      "license": "MIT",
-      "name": "watchpack",
-      "origin": "https://registry.npmjs.org/watchpack/-/watchpack-2.4.4.tgz",
-      "platforms": [
-        "all"
-      ],
-      "version": "2.4.4"
-    },
-    {
       "distribution": "runtime",
       "id": "npm:node_modules/@angular/cdk",
       "integrity": {
@@ -848,17 +882,17 @@
       "id": "npm:node_modules/@angular/cli",
       "integrity": {
         "algorithm": "sha512-sri",
-        "value": "sha512-Q/6dR2TmVTt9GT4tczREqg3DOlqkkMWI+5AVXgM1EcJRbt91XVlbooXw1GKr6gefxCtbdIi1fXjY4Yled/r23A=="
+        "value": "sha512-pKzfR4FslcKDELiUQD2zu1obx5A7pTZC3l2/TgFtVdx0N/cUZz5TlFTa6CQaq8r6P6/4ZchzCIVNGUjkkLfjxw=="
       },
       "introducedBy": "package.json:devDependencies",
       "kind": "npm-package",
       "license": "MIT",
       "name": "@angular/cli",
-      "origin": "https://registry.npmjs.org/@angular/cli/-/cli-20.3.34.tgz",
+      "origin": "https://registry.npmjs.org/@angular/cli/-/cli-20.3.35.tgz",
       "platforms": [
         "all"
       ],
-      "version": "20.3.34"
+      "version": "20.3.35"
     },
     {
       "distribution": "runtime",
@@ -4299,136 +4333,136 @@
       "id": "npm:node_modules/@jsonjoy.com/fs-core",
       "integrity": {
         "algorithm": "sha512-sri",
-        "value": "sha512-V5oZ4Gt9WJKyQef0n9cAd0N9qjSkIBm3E4MYsgNIWBk5aINCDPKxMPo1i29rBxqiT4Ixf1epklqV9VJMKIxwlw=="
+        "value": "sha512-PoBeUNEbjyLKKwCap2z8LkkqdhdfttS4rTHCALVuP65BdF+sAoyBqHo1m+uGTRBiQWv3H7MGfr8f7lY4pDwanw=="
       },
       "introducedBy": "package-lock.json:node_modules/@jsonjoy.com/fs-core",
       "kind": "npm-package",
       "license": "Apache-2.0",
       "name": "@jsonjoy.com/fs-core",
-      "origin": "https://registry.npmjs.org/@jsonjoy.com/fs-core/-/fs-core-4.68.1.tgz",
+      "origin": "https://registry.npmjs.org/@jsonjoy.com/fs-core/-/fs-core-4.68.2.tgz",
       "platforms": [
         "all"
       ],
-      "version": "4.68.1"
+      "version": "4.68.2"
     },
     {
       "distribution": "build-only",
       "id": "npm:node_modules/@jsonjoy.com/fs-fsa",
       "integrity": {
         "algorithm": "sha512-sri",
-        "value": "sha512-HCG72UioncuO7Gw09XNVG+S85e3cq2hrUC/mexBrsWsa3mI7eePkkqWie3uVYbtsb64OR9YGQs5SqaufDRYBcg=="
+        "value": "sha512-h6eGXlLGGMyPfNliDQrbuHKTB9Z29ksCLjreAmdBqrDOBdfrTrHssi+b9WLfrF+J2KzAbIt9OMjJu6AEpTnYkg=="
       },
       "introducedBy": "package-lock.json:node_modules/@jsonjoy.com/fs-fsa",
       "kind": "npm-package",
       "license": "Apache-2.0",
       "name": "@jsonjoy.com/fs-fsa",
-      "origin": "https://registry.npmjs.org/@jsonjoy.com/fs-fsa/-/fs-fsa-4.68.1.tgz",
+      "origin": "https://registry.npmjs.org/@jsonjoy.com/fs-fsa/-/fs-fsa-4.68.2.tgz",
       "platforms": [
         "all"
       ],
-      "version": "4.68.1"
+      "version": "4.68.2"
     },
     {
       "distribution": "build-only",
       "id": "npm:node_modules/@jsonjoy.com/fs-node",
       "integrity": {
         "algorithm": "sha512-sri",
-        "value": "sha512-R5D9mWtqdURzcOWj1vdXr3APCwX0xchtFT+kmW7fXLNDifWdDrnh26jSID8pdnUfFBxTyfHtFtTL/NWKzIH7kQ=="
+        "value": "sha512-Kpj519Qk4OXG4+mZ8vTf9BEflliJrPueIDEVcbx8tAOufMJJ8IxR0WwdbcEvJol2KQog3PJjtALXVclorE+xbQ=="
       },
       "introducedBy": "package-lock.json:node_modules/@jsonjoy.com/fs-node",
       "kind": "npm-package",
       "license": "Apache-2.0",
       "name": "@jsonjoy.com/fs-node",
-      "origin": "https://registry.npmjs.org/@jsonjoy.com/fs-node/-/fs-node-4.68.1.tgz",
+      "origin": "https://registry.npmjs.org/@jsonjoy.com/fs-node/-/fs-node-4.68.2.tgz",
       "platforms": [
         "all"
       ],
-      "version": "4.68.1"
+      "version": "4.68.2"
     },
     {
       "distribution": "build-only",
       "id": "npm:node_modules/@jsonjoy.com/fs-node-builtins",
       "integrity": {
         "algorithm": "sha512-sri",
-        "value": "sha512-HK1BTksysokNZxNspqDH0yPaqN9YgR/AYIlYiIaU2Ys4BOk5CdybI7r6BgiZuiiPiV8n4sK/kZdice7Znpy2Kw=="
+        "value": "sha512-V8WzQsW2YIrH3RxBGY6HZisxn+dDUltHgksVRuCdPEOXEkAfXuhL/01eHFrabNu84Dn13XuLqvcQUKOYVKAUOA=="
       },
       "introducedBy": "package-lock.json:node_modules/@jsonjoy.com/fs-node-builtins",
       "kind": "npm-package",
       "license": "Apache-2.0",
       "name": "@jsonjoy.com/fs-node-builtins",
-      "origin": "https://registry.npmjs.org/@jsonjoy.com/fs-node-builtins/-/fs-node-builtins-4.68.1.tgz",
+      "origin": "https://registry.npmjs.org/@jsonjoy.com/fs-node-builtins/-/fs-node-builtins-4.68.2.tgz",
       "platforms": [
         "all"
       ],
-      "version": "4.68.1"
+      "version": "4.68.2"
     },
     {
       "distribution": "build-only",
       "id": "npm:node_modules/@jsonjoy.com/fs-node-to-fsa",
       "integrity": {
         "algorithm": "sha512-sri",
-        "value": "sha512-lpKmU4X9e/oh8GIuAI7EXaS5QiLNM3KD15CkdhfS6PYmrGvoJqKQcyEfnLgnnaGslh/PFUMYSIZBCf2ejJGw8g=="
+        "value": "sha512-4O1K4w5G4oJIpKpoa3WSLG83AsQYVnGv+aUSBGOvIUph9Axm6bB1mPlvldkNg2tBx/4dkiTlZnqNrK5SQ21Wtg=="
       },
       "introducedBy": "package-lock.json:node_modules/@jsonjoy.com/fs-node-to-fsa",
       "kind": "npm-package",
       "license": "Apache-2.0",
       "name": "@jsonjoy.com/fs-node-to-fsa",
-      "origin": "https://registry.npmjs.org/@jsonjoy.com/fs-node-to-fsa/-/fs-node-to-fsa-4.68.1.tgz",
+      "origin": "https://registry.npmjs.org/@jsonjoy.com/fs-node-to-fsa/-/fs-node-to-fsa-4.68.2.tgz",
       "platforms": [
         "all"
       ],
-      "version": "4.68.1"
+      "version": "4.68.2"
     },
     {
       "distribution": "build-only",
       "id": "npm:node_modules/@jsonjoy.com/fs-node-utils",
       "integrity": {
         "algorithm": "sha512-sri",
-        "value": "sha512-/GxfW1DWm9SCdkfbvqevLO/P5duobQfmKkHXxdMIDbcZMQeAgooAstIfZhkXpATzq9QbCQsnoWFM/dGHdZfndw=="
+        "value": "sha512-CxFwyG9fJr7dAKAd1uanNRNrRMtDDqbYJA8do53+M4LY7SxcBEEmMjC1zi9MOsBlVLHTXvA7OP9+n639UqtIcw=="
       },
       "introducedBy": "package-lock.json:node_modules/@jsonjoy.com/fs-node-utils",
       "kind": "npm-package",
       "license": "Apache-2.0",
       "name": "@jsonjoy.com/fs-node-utils",
-      "origin": "https://registry.npmjs.org/@jsonjoy.com/fs-node-utils/-/fs-node-utils-4.68.1.tgz",
+      "origin": "https://registry.npmjs.org/@jsonjoy.com/fs-node-utils/-/fs-node-utils-4.68.2.tgz",
       "platforms": [
         "all"
       ],
-      "version": "4.68.1"
+      "version": "4.68.2"
     },
     {
       "distribution": "build-only",
       "id": "npm:node_modules/@jsonjoy.com/fs-print",
       "integrity": {
         "algorithm": "sha512-sri",
-        "value": "sha512-oGeZOGPYKK9v1CgeVeEDsLomH1lCnslSpqUN5GmPzrmAVGQlsmsdcXNA2O4lV8Y4xkuSuynx2ITBkUHJVaTbow=="
+        "value": "sha512-cBABQmZJXig6bahwNka3+yPNGUF1GeMWbR76ZM1N2ajgCd+S+twZigCoe9+0ueZmkhM9xd2a7688Gy/ch7T+2w=="
       },
       "introducedBy": "package-lock.json:node_modules/@jsonjoy.com/fs-print",
       "kind": "npm-package",
       "license": "Apache-2.0",
       "name": "@jsonjoy.com/fs-print",
-      "origin": "https://registry.npmjs.org/@jsonjoy.com/fs-print/-/fs-print-4.68.1.tgz",
+      "origin": "https://registry.npmjs.org/@jsonjoy.com/fs-print/-/fs-print-4.68.2.tgz",
       "platforms": [
         "all"
       ],
-      "version": "4.68.1"
+      "version": "4.68.2"
     },
     {
       "distribution": "build-only",
       "id": "npm:node_modules/@jsonjoy.com/fs-snapshot",
       "integrity": {
         "algorithm": "sha512-sri",
-        "value": "sha512-XZfP0FDZN32bbc4t2bZN2qRrYHg5AktJnzk22HRoKGK4BprrbNRH2k5ceSNS/kupKYcofCs+O841+xaAbjnxwQ=="
+        "value": "sha512-Aix7+NM38LzvewM0T3PICSgFdF5BVCtVgsjNsrlDPGc9hiMgJzReTDDl2/elgl0A9USMl3QP27x5WwxZSOtrfw=="
       },
       "introducedBy": "package-lock.json:node_modules/@jsonjoy.com/fs-snapshot",
       "kind": "npm-package",
       "license": "Apache-2.0",
       "name": "@jsonjoy.com/fs-snapshot",
-      "origin": "https://registry.npmjs.org/@jsonjoy.com/fs-snapshot/-/fs-snapshot-4.68.1.tgz",
+      "origin": "https://registry.npmjs.org/@jsonjoy.com/fs-snapshot/-/fs-snapshot-4.68.2.tgz",
       "platforms": [
         "all"
       ],
-      "version": "4.68.1"
+      "version": "4.68.2"
     },
     {
       "distribution": "build-only",
@@ -5234,17 +5268,17 @@
       "id": "npm:node_modules/@ngtools/webpack",
       "integrity": {
         "algorithm": "sha512-sri",
-        "value": "sha512-YLnHgzZUmR8zYAD77HUK6rE49/6KYgvTx0aNRGqEV3r67Iue3CcQdbulwNUCtJbX/tWhW4E0j9WpjVhx9Ulb7A=="
+        "value": "sha512-W+PN63N1XZMP1zcm3nc36hxirKVmc9VPxaCLG2yCZlP6rHT8/eWUkKI/hufePzEIqW2mVa/ZyAvxr1kh2g4ndA=="
       },
       "introducedBy": "package-lock.json:node_modules/@ngtools/webpack",
       "kind": "npm-package",
       "license": "MIT",
       "name": "@ngtools/webpack",
-      "origin": "https://registry.npmjs.org/@ngtools/webpack/-/webpack-20.3.34.tgz",
+      "origin": "https://registry.npmjs.org/@ngtools/webpack/-/webpack-20.3.35.tgz",
       "platforms": [
         "all"
       ],
-      "version": "20.3.34"
+      "version": "20.3.35"
     },
     {
       "distribution": "build-only",
@@ -6645,17 +6679,17 @@
       "id": "npm:node_modules/@schematics/angular",
       "integrity": {
         "algorithm": "sha512-sri",
-        "value": "sha512-Yja14zhlb59TaADWx2/4FptSJ85FuhSfSlB6RgQx9t8N7mVLNyUVhxBw6RaCcgazhSP4i4XcgOvY9pMiqO8a2g=="
+        "value": "sha512-og7zaTVyUYAiXrVqax8+/Uh9K/FExRQqoMC/jQ5X+ZNgmR3MfM+a5aEKRGNZxkUPeJReXF48FCFkBxxt6aCSWQ=="
       },
       "introducedBy": "package-lock.json:node_modules/@schematics/angular",
       "kind": "npm-package",
       "license": "MIT",
       "name": "@schematics/angular",
-      "origin": "https://registry.npmjs.org/@schematics/angular/-/angular-20.3.34.tgz",
+      "origin": "https://registry.npmjs.org/@schematics/angular/-/angular-20.3.35.tgz",
       "platforms": [
         "all"
       ],
-      "version": "20.3.34"
+      "version": "20.3.35"
     },
     {
       "distribution": "build-only",
@@ -8050,23 +8084,6 @@
         "all"
       ],
       "version": "4.2.1"
-    },
-    {
-      "distribution": "build-only",
-      "id": "npm:node_modules/@vitejs/plugin-basic-ssl",
-      "integrity": {
-        "algorithm": "sha512-sri",
-        "value": "sha512-dOxxrhgyDIEUADhb/8OlV9JIqYLgos03YorAueTIeOUskLJSEsfwCByjbu98ctXitUN3znXKp0bYD/WHSudCeA=="
-      },
-      "introducedBy": "package-lock.json:node_modules/@vitejs/plugin-basic-ssl",
-      "kind": "npm-package",
-      "license": "MIT",
-      "name": "@vitejs/plugin-basic-ssl",
-      "origin": "https://registry.npmjs.org/@vitejs/plugin-basic-ssl/-/plugin-basic-ssl-2.1.0.tgz",
-      "platforms": [
-        "all"
-      ],
-      "version": "2.1.0"
     },
     {
       "distribution": "build-only",
@@ -16386,17 +16403,17 @@
       "id": "npm:node_modules/memfs",
       "integrity": {
         "algorithm": "sha512-sri",
-        "value": "sha512-OD+IDRUvIxu3QHL+nFm9gdyugInD27FDJ+sl4B5QgomPHXMlbw+GP918P8VNKu2FkNlVeqBkpzkwROpamVifRw=="
+        "value": "sha512-Un1ElEBoIdPI9kg0sm3LebVEuEViodfIvlaG8Z1MFXa7ZnR9vWuPKUo3dt/vuWY2ivc05l76B5QOjdgCzAzmGw=="
       },
       "introducedBy": "package-lock.json:node_modules/memfs",
       "kind": "npm-package",
       "license": "Apache-2.0",
       "name": "memfs",
-      "origin": "https://registry.npmjs.org/memfs/-/memfs-4.68.1.tgz",
+      "origin": "https://registry.npmjs.org/memfs/-/memfs-4.68.2.tgz",
       "platforms": [
         "all"
       ],
-      "version": "4.68.1"
+      "version": "4.68.2"
     },
     {
       "distribution": "build-only",
@@ -21839,23 +21856,6 @@
       "version": "1.1.2"
     },
     {
-      "distribution": "build-only",
-      "id": "npm:node_modules/vite",
-      "integrity": {
-        "algorithm": "sha512-sri",
-        "value": "sha512-4XP60spRGjSZFf1qYH+dJIkK2znL3zQfl9KkOV9MkkRR/3Dls0dxaBsQPTloEc5BLXWPL9vsOxopxyKoMmDueg=="
-      },
-      "introducedBy": "package-lock.json:node_modules/vite",
-      "kind": "npm-package",
-      "license": "MIT",
-      "name": "vite",
-      "origin": "https://registry.npmjs.org/vite/-/vite-7.3.6.tgz",
-      "platforms": [
-        "all"
-      ],
-      "version": "7.3.6"
-    },
-    {
       "distribution": "runtime",
       "id": "npm:node_modules/void-elements",
       "integrity": {
@@ -22013,17 +22013,17 @@
       "id": "npm:node_modules/webpack-dev-server",
       "integrity": {
         "algorithm": "sha512-sri",
-        "value": "sha512-4wZtCquSuv9CKX8oybo+mqxtxZqWz47uM1Ch94lxowBztOhWCbhqvRbfC/mODOwxgV2brY+JGZpHq58/SuVFYg=="
+        "value": "sha512-HNLRmamRvVavZQ+avceZifmv8hmdUjg43t6MI4SqJDwFdW7RPQwH5vzGhDRZSX59SgfbeHhLnq3g+uooWo7pVw=="
       },
       "introducedBy": "package-lock.json:node_modules/webpack-dev-server",
       "kind": "npm-package",
       "license": "MIT",
       "name": "webpack-dev-server",
-      "origin": "https://registry.npmjs.org/webpack-dev-server/-/webpack-dev-server-5.2.5.tgz",
+      "origin": "https://registry.npmjs.org/webpack-dev-server/-/webpack-dev-server-5.2.6.tgz",
       "platforms": [
         "all"
       ],
-      "version": "5.2.5"
+      "version": "5.2.6"
     },
     {
       "distribution": "build-only",
@@ -37926,7 +37926,7 @@
     }
   ],
   "generatedFrom": {
-    "packageLockSha256": "89348f8f9407662d2fea504c647ace1868f12590d414222b70790ceab5107fc9",
+    "packageLockSha256": "a1d90bbfb02cacb3700cb70a008899d4eb4a14fb97d9a7ca45f692c4a45ba68a",
     "perfetto": {
       "installBuildDepsSha256": "ace319b1a21f24e1279be614b2c81f91420ff39e0a69ce0ee2dcbb2b1293f822",
       "pnpmLockSha256": "c65ae3153784300a5da03a02ed000759077e661c33f1a797b9000731fc28ca5a",
