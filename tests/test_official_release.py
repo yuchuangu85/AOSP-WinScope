@@ -160,6 +160,16 @@ class SupportingWorkflowTest(unittest.TestCase):
             workflow.index("npm run test:presubmit"),
         )
 
+    def test_ci_karma_tolerates_transient_hosted_runner_disconnects(self):
+        config = (ROOT / "karma.config.ci.js").read_text(encoding="utf-8")
+        for setting in (
+            "pingTimeout: 60000",
+            "browserDisconnectTimeout: 30000",
+            "browserDisconnectTolerance: 1",
+            "browserNoActivityTimeout: 120000",
+        ):
+            self.assertIn(setting, config)
+
     def test_security_uses_the_pinned_go_toolchain(self):
         workflow = SECURITY_WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("go-version: '1.26.6'", workflow)

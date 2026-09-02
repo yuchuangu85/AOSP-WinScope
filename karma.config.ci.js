@@ -40,6 +40,13 @@ const configCi = (config) => {
       require('@angular-devkit/build-angular/plugins/karma'),
     ],
     reporters: ['progress', 'spec', 'coverage'],
+    // Hosted Linux runners can briefly starve Chrome's event loop while the
+    // instrumented suite is running. Keep the run alive through those stalls,
+    // but still fail a browser that remains silent for two minutes.
+    pingTimeout: 60000,
+    browserDisconnectTimeout: 30000,
+    browserDisconnectTolerance: 1,
+    browserNoActivityTimeout: 120000,
     coverageReporter: {
       dir: require('path').join(__dirname, './coverage/winscope'),
       subdir: '.',
