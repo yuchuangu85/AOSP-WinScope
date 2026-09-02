@@ -23,6 +23,7 @@ type ElementResolver = () => Promise<WebElement>;
 
 function createDriver(): WebDriver {
   const options = new chrome.Options().addArguments(
+    '--headless=new',
     '--disable-gpu',
     '--window-size=1280x1024',
     '--no-sandbox',

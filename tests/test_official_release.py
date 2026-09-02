@@ -203,6 +203,12 @@ class SupportingWorkflowTest(unittest.TestCase):
         ):
             self.assertIn(setting, config)
 
+    def test_e2e_webdriver_runs_chrome_headless(self):
+        webdriver = (ROOT / "src/test/e2e/webdriver.ts").read_text(encoding="utf-8")
+        self.assertIn("'--headless=new'", webdriver)
+        self.assertIn("'--no-sandbox'", webdriver)
+        self.assertIn("'--disable-dev-shm-usage'", webdriver)
+
     def test_security_uses_the_pinned_go_toolchain(self):
         workflow = SECURITY_WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("go-version: '1.26.6'", workflow)
