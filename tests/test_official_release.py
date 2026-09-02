@@ -153,6 +153,11 @@ class OfficialReleaseWorkflowTest(unittest.TestCase):
 
 
 class SupportingWorkflowTest(unittest.TestCase):
+    def test_ci_fetches_vendor_branch_for_baseline_verification(self):
+        workflow = CI_WORKFLOW.read_text(encoding="utf-8")
+        validate_job = workflow.split("\n  validate:", 1)[1].split("\n  native-installers:", 1)[0]
+        self.assertIn("fetch-depth: 0", validate_job)
+
     def test_production_assets_are_built_before_unit_tests(self):
         workflow = CI_WORKFLOW.read_text(encoding="utf-8")
         self.assertLess(
