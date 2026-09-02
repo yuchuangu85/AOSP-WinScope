@@ -63,8 +63,4 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/verify-baseline.py --json
-          npm run test:presubmit
-          npx tsc --noEmit -p tsconfig.karma.json
-          python3 -m unittest discover -s tests
-          go test ./...
-          npm run features:verify -- --evidence-only
+          npm run test:fast

@@ -161,8 +161,8 @@ class SupportingWorkflowTest(unittest.TestCase):
 
     def test_fast_ci_does_not_build_or_package_release_artifacts(self):
         workflow = CI_WORKFLOW.read_text(encoding="utf-8")
-        self.assertIn("npm run test:presubmit", workflow)
-        self.assertIn("npm run features:verify -- --evidence-only", workflow)
+        self.assertIn("npm run test:fast", workflow)
+        self.assertNotIn("npm run test:unit:ci", workflow)
         for command in (
             "npm run build:prod",
             "npm run test:e2e:prod",
@@ -186,8 +186,12 @@ class SupportingWorkflowTest(unittest.TestCase):
         ):
             self.assertIn(command, workflow)
         self.assertLess(
-            workflow.index("npm run test:presubmit"),
+            workflow.index("npm run test:fast"),
             workflow.index("npm run build:prod"),
+        )
+        self.assertLess(
+            workflow.index("npm run build:prod"),
+            workflow.index("npm run test:unit:ci"),
         )
 
     def test_ci_karma_tolerates_transient_hosted_runner_disconnects(self):

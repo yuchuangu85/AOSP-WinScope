@@ -29,6 +29,7 @@
     "test:unit:dev": "ng test winscope",
     "test:e2e": "node scripts/run_e2e.js",
     "test:presubmit": "npm run build:protos && npm run format:check && npm run test:unit:ci && npm run deps_graph:check_cycles",
+    "test:fast": "npm run build:protos && npm run format:check && npx tsc --noEmit -p tsconfig.karma.json && python3 -m unittest discover -s tests && go test ./... && npm run deps_graph:check_cycles && npm run features:verify -- --evidence-only",
     "test:all": "npm run format:check && npm run test:unit:ci && npm run test:e2e && npm run deps_graph:check_cycles",
     "build:launchers": "python3 scripts/build-launchers.py",
     "release:package": "python3 scripts/release.py package --json",

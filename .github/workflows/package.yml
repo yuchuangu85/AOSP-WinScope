@@ -58,16 +58,13 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/verify-baseline.py --json
-          npm run test:presubmit
-          npx tsc --noEmit -p tsconfig.karma.json
-          python3 -m unittest discover -s tests
-          go test ./...
-          npm run features:verify -- --evidence-only
+          npm run test:fast
 
       - name: Build and verify production distribution
         run: |
           set -euo pipefail
           npm run build:prod
+          npm run test:unit:ci
           npm run build:launchers
           npm run build:verify
           npm run test:e2e:prod
