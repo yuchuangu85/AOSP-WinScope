@@ -55,6 +55,11 @@
       {
         "change": "added",
         "origin": "newly-authored-clean-room",
+        "path": ".github/workflows/package.yml"
+      },
+      {
+        "change": "added",
+        "origin": "newly-authored-clean-room",
         "path": ".github/workflows/security.yml"
       },
       {

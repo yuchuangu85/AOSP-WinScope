@@ -89,7 +89,7 @@ def run_check(name: str, command: list[str], timeout: int) -> dict[str, Any]:
     }
 
 
-def verify(timeout: int) -> dict[str, Any]:
+def verify(timeout: int, evidence_only: bool = False) -> dict[str, Any]:
     require_clean_tree()
     plan = (ROOT / "docs/REBUILD_PLAN.md").read_text(encoding="utf-8")
     stage_reports = []
@@ -110,7 +110,7 @@ def verify(timeout: int) -> dict[str, Any]:
             "missing": missing,
             "files": files,
         })
-    checks = [run_check(name, command, timeout) for name, command in COMMANDS.items()]
+    checks = [] if evidence_only else [run_check(name, command, timeout) for name, command in COMMANDS.items()]
     return {
         "schemaVersion": 1,
         "ok": all(item["status"] == "pass" for item in [*stage_reports, *checks]),
@@ -124,10 +124,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--timeout", type=int, default=1800)
+    parser.add_argument("--evidence-only", action="store_true")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
     try:
-        report = verify(args.timeout)
+        report = verify(args.timeout, args.evidence_only)
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         report = {"schemaVersion": 1, "ok": False, "errors": [str(error)]}
     args.output.parent.mkdir(parents=True, exist_ok=True)

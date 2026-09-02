@@ -5,6 +5,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/official-release.yml"
 CI_WORKFLOW = ROOT / ".github/workflows/ci.yml"
+PACKAGE_WORKFLOW = ROOT / ".github/workflows/package.yml"
 SECURITY_WORKFLOW = ROOT / ".github/workflows/security.yml"
 
 
@@ -158,11 +159,35 @@ class SupportingWorkflowTest(unittest.TestCase):
         validate_job = workflow.split("\n  validate:", 1)[1].split("\n  native-installers:", 1)[0]
         self.assertIn("fetch-depth: 0", validate_job)
 
-    def test_production_assets_are_built_before_unit_tests(self):
+    def test_fast_ci_does_not_build_or_package_release_artifacts(self):
         workflow = CI_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("npm run test:presubmit", workflow)
+        self.assertIn("npm run features:verify -- --evidence-only", workflow)
+        for command in (
+            "npm run build:prod",
+            "npm run test:e2e:prod",
+            "npm run release:package",
+            "native-installers:",
+        ):
+            self.assertNotIn(command, workflow)
+
+    def test_packaging_is_manual_and_native_installers_are_opt_in(self):
+        workflow = PACKAGE_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("workflow_dispatch:", workflow)
+        self.assertNotIn("pull_request:", workflow)
+        self.assertNotIn("push:", workflow)
+        self.assertIn("default: false", workflow)
+        self.assertIn("if: ${{ inputs.native_installers }}", workflow)
+        for command in (
+            "npm run build:prod",
+            "npm run test:e2e:prod",
+            "npm run release:package",
+            "npm run release:verify",
+        ):
+            self.assertIn(command, workflow)
         self.assertLess(
-            workflow.index("npm run build:prod"),
             workflow.index("npm run test:presubmit"),
+            workflow.index("npm run build:prod"),
         )
 
     def test_ci_karma_tolerates_transient_hosted_runner_disconnects(self):
