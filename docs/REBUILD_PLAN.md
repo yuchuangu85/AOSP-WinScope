@@ -181,7 +181,7 @@ aosp-winscope/
 
 APS relies only on `web/` and the schema-versioned `manifest.json`. It cannot depend on hashed bundle names or source paths. All Web resource URLs are relative, non-root mounting is validated, and no static-server port is embedded.
 
-APS development may pin a source submodule and explicitly build it. APS release CI may instead verify and unpack `aosp-winscope-<version>.zip` without Node, npm, Python, Go, or Perfetto build tools. Both routes converge on identical Web bytes and manifest semantics.
+APS development may pin a source submodule and explicitly build it. APS release CI may instead verify and unpack the matching `aosp-winscope-<version>-<os>-<arch>.zip` portable archive without Node, npm, Python, Go, or Perfetto build tools. Each archive contains the relocatable `web/` tree, one target launcher, and a platform-specific root startup script; macOS uses `start-winscope.sh` rather than an `.app` bundle. Both routes converge on identical Web bytes and manifest semantics.
 
 The first release declares no APS bridge. A future bridge has an independent protocol version and negotiated capability; it reuses the core distribution rather than creating an APS fork.
 

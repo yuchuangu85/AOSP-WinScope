@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
 from support import validate_index as validate_support_index
+from release import LAUNCHER_TARGETS
 
 BASELINE = ROOT / "provenance/android17-baseline.json"
 FILE_INVENTORY = ROOT / "provenance/android17-winscope-files.json"
@@ -227,10 +228,18 @@ def verify_reproducibility(path: Path, version: str) -> dict[str, Any]:
         and all(
             isinstance(build, dict)
             and build.get("provenanceVerified") is True
-            and isinstance(build.get("zipSha256"), str)
+            and isinstance(build.get("archives"), list)
+            and len(build["archives"]) == len(LAUNCHER_TARGETS)
+            and all(
+                isinstance(item, dict)
+                and isinstance(item.get("target"), str)
+                and isinstance(item.get("sha256"), str)
+                and SHA256_RE.fullmatch(item["sha256"]) is not None
+                for item in build["archives"]
+            )
             for build in builds
         )
-        and builds[0]["zipSha256"] == builds[1]["zipSha256"]
+        and builds[0]["archives"] == builds[1]["archives"]
     )
     if not valid:
         fail("reproducibility evidence is not a complete Stage 10 report for this release")
@@ -240,25 +249,38 @@ def verify_reproducibility(path: Path, version: str) -> dict[str, Any]:
 def verify_release_artifact(release_dir: Path, version: str) -> dict[str, Any]:
     if not release_dir.is_dir():
         fail(f"release directory is missing: {release_dir}")
-    archive = release_dir / f"aosp-winscope-{version}.zip"
+    archives = [
+        release_dir / f"aosp-winscope-{version}-{operating_system}-{architecture}.zip"
+        for operating_system, architecture, _ in LAUNCHER_TARGETS
+    ]
     sums = release_dir / "SHA256SUMS"
     attestation = release_dir / f"aosp-winscope-{version}.attestation.json"
-    for path in (archive, sums, attestation):
+    for path in (*archives, sums, attestation):
         if not path.is_file() or path.stat().st_size == 0:
             fail(f"release artifact is missing: {path}")
-    expected = sha256_file(archive)
-    if f"{expected}  {archive.name}" not in sums.read_text(encoding="utf-8"):
-        fail("SHA256SUMS does not match the release archive")
+    archive_records = [
+        {"target": f"{operating_system}-{architecture}", "archive": archive, "sha256": sha256_file(archive), "size": archive.stat().st_size}
+        for (operating_system, architecture, _), archive in zip(LAUNCHER_TARGETS, archives)
+    ]
+    expected_sums = "".join(
+        f"{item['sha256']}  {item['archive'].name}\n"
+        for item in sorted(archive_records, key=lambda item: item["archive"].name)
+    )
+    if sums.read_text(encoding="utf-8") != expected_sums:
+        fail("SHA256SUMS does not match the release archives")
     attestation_data = read_json(attestation)
     subjects = attestation_data.get("subject")
-    if not isinstance(subjects, list) or not any(
-        isinstance(subject, dict)
-        and subject.get("name") == archive.name
-        and isinstance(subject.get("digest"), dict)
-        and subject["digest"].get("sha256") == expected
-        for subject in subjects
+    if not isinstance(subjects, list) or any(
+        not any(
+            isinstance(subject, dict)
+            and subject.get("name") == item["archive"].name
+            and isinstance(subject.get("digest"), dict)
+            and subject["digest"].get("sha256") == item["sha256"]
+            for subject in subjects
+        )
+        for item in archive_records
     ):
-        fail("release attestation does not match the release archive")
+        fail("release attestation does not match the release archives")
     if not any(
         isinstance(subject, dict)
         and subject.get("name") == sums.name
@@ -267,46 +289,24 @@ def verify_release_artifact(release_dir: Path, version: str) -> dict[str, Any]:
         for subject in subjects
     ):
         fail("release attestation does not match the checksums")
-    with zipfile.ZipFile(archive) as package:
-        names = set(package.namelist())
     required = {
-        "manifest.json",
-        "release-manifest.json",
-        "LICENSES/LICENSE",
-        "LICENSES/NOTICE",
-        "LICENSES/sbom.spdx.json",
-        "LICENSES/attribution.json",
-        "LICENSES/compliance.json",
+        "manifest.json", "release-manifest.json", "LICENSES/LICENSE", "LICENSES/NOTICE",
+        "LICENSES/sbom.spdx.json", "LICENSES/attribution.json", "LICENSES/compliance.json",
         "dependency-bundle/dependencies.lock.json",
     }
-    missing = sorted(required - names)
-    if missing:
-        fail(f"release archive omits required evidence: {', '.join(missing)}")
-    package_check = subprocess.run(
-        [
-            sys.executable,
-            str(RELEASE_VERIFIER),
-            "verify",
-            "--input",
-            str(archive),
-            "--json",
-        ],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-    )
-    if package_check.returncode != 0:
-        fail(
-            "release package verification failed: "
-            + (package_check.stdout.strip() or package_check.stderr.strip())
+    for item in archive_records:
+        with zipfile.ZipFile(item["archive"]) as package:
+            names = set(package.namelist())
+        missing = sorted(required - names)
+        if missing:
+            fail(f"release archive omits required evidence: {', '.join(missing)}")
+        package_check = subprocess.run(
+            [sys.executable, str(RELEASE_VERIFIER), "verify", "--input", str(item["archive"]), "--json"],
+            cwd=ROOT, capture_output=True, text=True,
         )
-    return {
-        "archive": archive,
-        "sums": sums,
-        "attestation": attestation,
-        "sha256": expected,
-        "size": archive.stat().st_size,
-    }
+        if package_check.returncode != 0:
+            fail("release package verification failed: " + (package_check.stdout.strip() or package_check.stderr.strip()))
+    return {"archives": archive_records, "sums": sums, "attestation": attestation}
 
 
 def frozen_inputs(
@@ -336,7 +336,9 @@ def frozen_inputs(
         "reproducibilityReportSha256": reproducibility["reportSha256"],
         "releaseImageReportSha256": release_image["reportSha256"],
         "featureStagesReportSha256": feature_stages["reportSha256"],
-        "releaseArchiveSha256": artifact["sha256"],
+        "releaseArchivesSha256": {
+            item["target"]: item["sha256"] for item in artifact["archives"]
+        },
         "buildImage": build_image,
     }
 
@@ -407,7 +409,7 @@ def publish(
     try:
         copied = []
         for source in (
-            artifact["archive"],
+            *(item["archive"] for item in artifact["archives"]),
             artifact["sums"],
             artifact["attestation"],
             validation_path,
@@ -520,7 +522,7 @@ def publish(
         "channel": channel,
         "directory": target.as_posix(),
         "index": (target / "release-index.json").as_posix(),
-        "archiveSha256": artifact["sha256"],
+        "archiveSha256": {item["target"]: item["sha256"] for item in artifact["archives"]},
         "artifacts": len(artifacts),
     }
 

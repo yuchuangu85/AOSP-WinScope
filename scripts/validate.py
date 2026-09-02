@@ -15,9 +15,13 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT / "scripts"))
+from release import LAUNCHER_TARGETS
+
 DEFAULT_REPORT = ROOT / "dist/validation/report.json"
 DEFAULT_WEB = ROOT / "dist/prod"
-DEFAULT_RELEASE = ROOT / "dist/release/aosp-winscope-17.0.1"
+DEFAULT_RELEASE = ROOT / "dist/release"
 DEFAULT_REPRODUCIBILITY = ROOT / "dist/validation/reproducibility.json"
 LOCK = ROOT / "build/dependencies.lock.json"
 PACKAGE = ROOT / "package.json"
@@ -437,6 +441,19 @@ def reproducibility_evidence(path: Path | None) -> dict[str, Any]:
     except (OSError, json.JSONDecodeError) as error:
         return result("release:reproducibility", "fail", reason=str(error))
     builds = evidence.get("builds")
+    expected_targets = [f"{operating_system}-{architecture}" for operating_system, architecture, _ in LAUNCHER_TARGETS]
+    def valid_archive_list(build: Any) -> bool:
+        archives = build.get("archives") if isinstance(build, dict) else None
+        if not isinstance(archives, list) or len(archives) != len(expected_targets):
+            return False
+        if [item.get("target") for item in archives if isinstance(item, dict)] != expected_targets:
+            return False
+        return all(
+            isinstance(item, dict)
+            and isinstance(item.get("sha256"), str)
+            and re.fullmatch(r"[0-9a-f]{64}", item["sha256"]) is not None
+            for item in archives
+        )
     valid = (
         type(evidence.get("schemaVersion")) is int
         and evidence.get("schemaVersion") == 1
@@ -451,10 +468,10 @@ def reproducibility_evidence(path: Path | None) -> dict[str, Any]:
         and all(
             isinstance(build, dict)
             and build.get("provenanceVerified") is True
-            and isinstance(build.get("zipSha256"), str)
+            and valid_archive_list(build)
             for build in builds
         )
-        and builds[0]["zipSha256"] == builds[1]["zipSha256"]
+        and builds[0]["archives"] == builds[1]["archives"]
     )
     return result("release:reproducibility", "pass" if valid else "fail", evidence=evidence)
 

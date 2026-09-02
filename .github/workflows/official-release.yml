@@ -177,7 +177,7 @@ jobs:
             --json \
             --require-complete \
             --web dist/prod \
-            --release "dist/release/aosp-winscope-$AOSP_WINSCOPE_VERSION" \
+            --release "dist/release" \
             --reproducibility dist/validation/reproducibility.json \
             --device-evidence dist/validation/external/android17-device.json \
             --vulnerability-evidence dist/validation/external/vulnerability.json \

@@ -137,6 +137,10 @@ class ValidationGateTest(unittest.TestCase):
     def test_reproducibility_evidence_requires_two_matching_provenance_verified_builds(self):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "reproducibility.json"
+            archives = [
+                {"target": f"{operating_system}-{architecture}", "sha256": "a" * 64}
+                for operating_system, architecture, _ in validate.LAUNCHER_TARGETS
+            ]
             path.write_text(json.dumps({
                 "schemaVersion": 1,
                 "stage": 10,
@@ -146,12 +150,16 @@ class ValidationGateTest(unittest.TestCase):
                 "byteIdentical": True,
                 "provenanceVerified": True,
                 "builds": [
-                    {"zipSha256": "same", "provenanceVerified": True},
-                    {"zipSha256": "same", "provenanceVerified": True},
+                    {"archives": archives, "provenanceVerified": True},
+                    {"archives": archives, "provenanceVerified": True},
                 ],
             }), encoding="utf-8")
             self.assertEqual(validate.reproducibility_evidence(path)["status"], "pass")
-            path.write_text(path.read_text().replace('"same"', '"different"', 1), encoding="utf-8")
+            changed = list(archives)
+            changed[0] = {**changed[0], "sha256": "b" * 64}
+            value = json.loads(path.read_text())
+            value["builds"][1]["archives"] = changed
+            path.write_text(json.dumps(value), encoding="utf-8")
             self.assertEqual(validate.reproducibility_evidence(path)["status"], "fail")
 
     def test_android17_evidence_requires_successful_capture_and_import(self):

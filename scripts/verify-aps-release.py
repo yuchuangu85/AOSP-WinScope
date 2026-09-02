@@ -83,6 +83,14 @@ REQUIRED_RELEASE_IMAGE_TOOLS = (
 )
 BUILD_TYPE = "https://android.googlesource.com/aosp-winscope/release"
 BUILDER_ID = "https://android.googlesource.com/aosp-winscope/release-builder"
+LAUNCHER_TARGETS = (
+    ("windows", "amd64", "winscope-launcher.exe"),
+    ("windows", "arm64", "winscope-launcher.exe"),
+    ("darwin", "amd64", "winscope-launcher"),
+    ("darwin", "arm64", "winscope-launcher"),
+    ("linux", "amd64", "winscope-launcher"),
+    ("linux", "arm64", "winscope-launcher"),
+)
 MAX_ARCHIVE_MEMBERS = 10_000
 MAX_MEMBER_SIZE = 256 * 1024 * 1024
 MAX_TOTAL_SIZE = 512 * 1024 * 1024
@@ -345,7 +353,7 @@ def verify_reports(
     validation_path: Path,
     reproducibility_path: Path,
     frozen: dict[str, Any],
-    archive_sha256: str,
+    archive_digests: dict[str, str],
     dependency_sha256: str,
 ) -> None:
     validation = read_json_file(validation_path)
@@ -382,7 +390,13 @@ def verify_reports(
         and all(
             isinstance(build, dict)
             and build.get("provenanceVerified") is True
-            and build.get("zipSha256") == archive_sha256
+            and build.get("archives") == [
+                {
+                    "target": f"{operating_system}-{architecture}",
+                    "sha256": archive_digests[f"{operating_system}-{architecture}"],
+                }
+                for operating_system, architecture, _ in LAUNCHER_TARGETS
+            ]
             for build in builds
         )
         and frozen.get("reproducibilityReportSha256") == sha256_file(reproducibility_path)
@@ -393,68 +407,53 @@ def verify_reports(
 def verify_attestation(
     attestation_path: Path,
     index: dict[str, Any],
-    archive_name: str,
-    archive_sha256: str,
+    archive_digests: dict[str, str],
     sums_name: str,
     sums_sha256: str,
-    release_manifest_sha256: str,
+    release_manifest_digests: dict[str, str],
     dependency_sha256: str,
 ) -> None:
     attestation = read_json_file(attestation_path)
     subjects = attestation.get("subject")
-    subject_ok = isinstance(subjects, list) and any(
-        isinstance(subject, dict)
-        and subject.get("name") == archive_name
-        and isinstance(subject.get("digest"), dict)
-        and subject["digest"].get("sha256") == archive_sha256
-        for subject in subjects
+    expected_subjects = {**archive_digests, sums_name: sums_sha256}
+    actual_subjects: dict[str, str] = {}
+    for subject in subjects if isinstance(subjects, list) else []:
+        if not isinstance(subject, dict) or not isinstance(subject.get("name"), str):
+            fail("attestation subject is invalid")
+        digest = subject.get("digest")
+        value = digest.get("sha256") if isinstance(digest, dict) else None
+        if not valid_sha256(value) or subject["name"] in actual_subjects:
+            fail("attestation subject is invalid")
+        actual_subjects[subject["name"]] = value
+    byproducts = (
+        attestation.get("predicate", {}).get("runDetails", {}).get("byproducts")
+        if isinstance(attestation.get("predicate"), dict)
+        and isinstance(attestation["predicate"].get("runDetails"), dict)
+        else None
     )
-    sums_subject_ok = isinstance(subjects, list) and any(
-        isinstance(subject, dict)
-        and subject.get("name") == sums_name
-        and isinstance(subject.get("digest"), dict)
-        and subject["digest"].get("sha256") == sums_sha256
-        for subject in subjects
-    )
+    actual_byproducts: dict[str, str] = {}
+    for byproduct in byproducts if isinstance(byproducts, list) else []:
+        if not isinstance(byproduct, dict) or not isinstance(byproduct.get("name"), str):
+            fail("attestation byproduct is invalid")
+        digest = byproduct.get("digest")
+        value = digest.get("sha256") if isinstance(digest, dict) else None
+        if not valid_sha256(value) or byproduct["name"] in actual_byproducts:
+            fail("attestation byproduct is invalid")
+        actual_byproducts[byproduct["name"]] = value
     predicate = attestation.get("predicate")
     build_definition = predicate.get("buildDefinition") if isinstance(predicate, dict) else None
     run_details = predicate.get("runDetails") if isinstance(predicate, dict) else None
-    external_parameters = (
-        build_definition.get("externalParameters") if isinstance(build_definition, dict) else None
-    )
-    internal_parameters = (
-        build_definition.get("internalParameters") if isinstance(build_definition, dict) else None
-    )
-    dependencies = (
-        build_definition.get("resolvedDependencies") if isinstance(build_definition, dict) else None
-    )
+    external_parameters = build_definition.get("externalParameters") if isinstance(build_definition, dict) else None
+    internal_parameters = build_definition.get("internalParameters") if isinstance(build_definition, dict) else None
+    dependencies = build_definition.get("resolvedDependencies") if isinstance(build_definition, dict) else None
     builder = run_details.get("builder") if isinstance(run_details, dict) else None
-    byproducts = run_details.get("byproducts") if isinstance(run_details, dict) else None
-    git_material = next(
-        (item for item in dependencies if isinstance(item, dict) and item.get("uri") == "git:repository"),
-        None,
-    ) if isinstance(dependencies, list) else None
-    lock_material = next(
-        (
-            item
-            for item in dependencies
-            if isinstance(item, dict) and item.get("uri") == "build/dependencies.lock.json"
-        ),
-        None,
-    ) if isinstance(dependencies, list) else None
-    manifest_byproduct = next(
-        (
-            item
-            for item in byproducts
-            if isinstance(item, dict) and item.get("name") == "release-manifest.json"
-        ),
-        None,
-    ) if isinstance(byproducts, list) else None
+    git_material = next((item for item in dependencies if isinstance(item, dict) and item.get("uri") == "git:repository"), None) if isinstance(dependencies, list) else None
+    lock_material = next((item for item in dependencies if isinstance(item, dict) and item.get("uri") == "build/dependencies.lock.json"), None) if isinstance(dependencies, list) else None
     valid = (
         attestation.get("_type") == "https://in-toto.io/Statement/v1"
         and attestation.get("predicateType") == "https://slsa.dev/provenance/v1"
-        and subject_ok
-        and sums_subject_ok
+        and actual_subjects == expected_subjects
+        and actual_byproducts == release_manifest_digests
         and isinstance(build_definition, dict)
         and build_definition.get("buildType") == BUILD_TYPE
         and isinstance(external_parameters, dict)
@@ -469,9 +468,6 @@ def verify_attestation(
         and isinstance(lock_material, dict)
         and isinstance(lock_material.get("digest"), dict)
         and lock_material["digest"].get("sha256") == dependency_sha256
-        and isinstance(manifest_byproduct, dict)
-        and isinstance(manifest_byproduct.get("digest"), dict)
-        and manifest_byproduct["digest"].get("sha256") == release_manifest_sha256
     )
     if not valid:
         fail("attestation provenance mismatch")
@@ -609,7 +605,7 @@ def verify_supply_chain(members: dict[str, bytes]) -> dict[str, Any]:
         if not isinstance(name, str) or not valid_sha256(checksum) or name in recorded_files:
             fail("SPDX file evidence is invalid")
         recorded_files[name] = checksum
-    root_entry_points = {"AOSP-WinScope.exe", "AOSP-WinScope-ARM64.exe"}
+    root_entry_points = {"start-winscope.sh", "start-winscope.bat", "start-winscope.ps1"}
     expected_files = {
         name: sha256_bytes(data)
         for name, data in members.items()
@@ -738,6 +734,31 @@ def verify_archive(
 
     release_manifest_bytes = members["release-manifest.json"]
     release_manifest = read_json_bytes(release_manifest_bytes, "release-manifest.json")
+    target = release_manifest.get("target")
+    launcher = release_manifest.get("launcher")
+    if not isinstance(target, dict) or not isinstance(launcher, str):
+        fail("release manifest target is invalid")
+    operating_system = target.get("operatingSystem")
+    architecture = target.get("architecture")
+    target_key = f"{operating_system}-{architecture}"
+    matching = [item for item in LAUNCHER_TARGETS if item[:2] == (operating_system, architecture)]
+    if len(matching) != 1 or launcher != f"bin/{target_key}/{matching[0][2]}":
+        fail("release manifest launcher target is invalid")
+    known_launchers = {
+        f"bin/{target_os}-{target_arch}/{filename}"
+        for target_os, target_arch, filename in LAUNCHER_TARGETS
+    }
+    launcher_names = {name for name in members if name.startswith("bin/")}
+    if launcher_names != {launcher} or launcher not in known_launchers:
+        fail("release archive contains an incorrect launcher set")
+    expected_starters = (
+        {"start-winscope.bat", "start-winscope.ps1"}
+        if operating_system == "windows"
+        else {"start-winscope.sh"}
+    )
+    starter_names = {"start-winscope.sh", "start-winscope.bat", "start-winscope.ps1"}
+    if {name for name in starter_names if name in members} != expected_starters:
+        fail("release archive contains an incorrect startup entry point set")
     entries = release_manifest.get("files")
     if (
         release_manifest.get("schemaVersion") != 1
@@ -799,8 +820,17 @@ def verify_publication(
         fail("release index source time is invalid")
 
     artifacts = verify_artifacts(publication, index)
-    archive_name = f"aosp-winscope-{version}.zip"
-    archive_path = required_artifact(publication, artifacts, archive_name, "release archive")
+    expected_archives = {
+        f"aosp-winscope-{version}-{operating_system}-{architecture}.zip"
+        for operating_system, architecture, _ in LAUNCHER_TARGETS
+    }
+    archive_names = sorted(name for name in artifacts if name.endswith(".zip"))
+    if set(archive_names) != expected_archives:
+        fail("release index does not contain exactly the portable archive set")
+    archive_paths = [
+        artifacts[f"aosp-winscope-{version}-{operating_system}-{architecture}.zip"]
+        for operating_system, architecture, _ in LAUNCHER_TARGETS
+    ]
     sums_path = required_artifact(publication, artifacts, "SHA256SUMS", "checksums")
     attestation_path = required_artifact(
         publication,
@@ -837,22 +867,50 @@ def verify_publication(
     if not valid_sha256(frozen_reference.get("sha256")) or sha256_file(frozen_path) != frozen_reference["sha256"]:
         fail("frozen input evidence digest mismatch")
 
-    archive_sha256 = sha256_file(archive_path)
-    lines = [line for line in sums_path.read_text(encoding="utf-8").splitlines() if line.strip()]
-    if lines != [f"{archive_sha256}  {archive_name}"]:
-        fail("SHA256SUMS does not match the release archive")
-    files_verified, release_manifest_sha256, supply_chain = verify_archive(archive_path, index)
-    dependency_sha256 = supply_chain["dependencyLockSha256"]
+    archive_records = []
+    for archive_path in archive_paths:
+        files_verified, release_manifest_sha256, supply_chain = verify_archive(archive_path, index)
+        with zipfile.ZipFile(archive_path) as archive:
+            manifest = read_json_bytes(
+                archive.read("release-manifest.json"),
+                "release-manifest.json",
+            )
+        target = manifest.get("target")
+        if not isinstance(target, dict):
+            fail("release manifest target is invalid")
+        target_name = f"{target.get('operatingSystem')}-{target.get('architecture')}"
+        archive_records.append({
+            "target": target_name,
+            "name": archive_path.name,
+            "sha256": sha256_file(archive_path),
+            "filesVerified": files_verified,
+            "releaseManifestSha256": release_manifest_sha256,
+            "supplyChain": supply_chain,
+        })
+    if {item["target"] for item in archive_records} != {f"{os}-{arch}" for os, arch, _ in LAUNCHER_TARGETS}:
+        fail("release archives do not cover every launcher target")
+    supply_chain = archive_records[0]["supplyChain"]
+    if any(item["supplyChain"] != supply_chain for item in archive_records[1:]):
+        fail("release archives have inconsistent supply-chain evidence")
+    archive_digests = {item["name"]: item["sha256"] for item in archive_records}
+    expected_sums = "".join(f"{archive_digests[name]}  {name}\n" for name in sorted(archive_digests))
+    if sums_path.read_text(encoding="utf-8") != expected_sums:
+        fail("SHA256SUMS does not match the release archives")
+    release_manifest_digests = {
+        f"{item['target']}/release-manifest.json": item["releaseManifestSha256"]
+        for item in archive_records
+    }
 
     frozen = read_json_file(frozen_path)
     if frozen.get("buildImage") != expected_build_image:
         fail("trusted build image mismatch")
+    archive_digest_by_target = {item["target"]: item["sha256"] for item in archive_records}
     if not (
         frozen.get("schemaVersion") == 1
         and frozen.get("version") == version
         and frozen.get("sourceCommit") == index.get("sourceCommit")
         and frozen.get("sourceDateEpoch") == index.get("sourceDateEpoch")
-        and frozen.get("releaseArchiveSha256") == archive_sha256
+        and frozen.get("releaseArchivesSha256") == archive_digest_by_target
         and IMAGE_RE.fullmatch(frozen.get("buildImage", "")) is not None
         and all(frozen.get(field) == value for field, value in supply_chain.items())
     ):
@@ -862,27 +920,26 @@ def verify_publication(
         validation_path,
         reproducibility_path,
         frozen,
-        archive_sha256,
-        dependency_sha256,
+        archive_digest_by_target,
+        supply_chain["dependencyLockSha256"],
     )
     verify_release_image_evidence(release_image_path, frozen, expected_build_image)
     verify_feature_stage_evidence(feature_stages_path, index, frozen)
     verify_attestation(
         attestation_path,
         index,
-        archive_name,
-        archive_sha256,
+        archive_digests,
         sums_path.name,
         sha256_file(sums_path),
-        release_manifest_sha256,
-        dependency_sha256,
+        release_manifest_digests,
+        supply_chain["dependencyLockSha256"],
     )
     return {
         "ok": True,
         "version": version,
-        "archiveSha256": archive_sha256,
+        "archiveSha256": archive_digest_by_target,
         "artifactsVerified": len(artifacts),
-        "archiveFilesVerified": files_verified,
+        "archiveFilesVerified": sum(item["filesVerified"] for item in archive_records),
         "provenanceStatementVerified": True,
     }
 

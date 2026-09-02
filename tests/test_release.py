@@ -53,26 +53,27 @@ class ReleaseEngineeringTest(unittest.TestCase):
                 else:
                     os.environ["SOURCE_DATE_EPOCH"] = old_epoch
 
-            self.assertEqual(first["zipSha256"], second["zipSha256"])
-            self.assertEqual(Path(first["zip"]).read_bytes(), Path(second["zip"]).read_bytes())
-            verified = release.verify_package(Path(first["package"]))
-            self.assertEqual(verified["filesVerified"], first["files"])
-            verified_zip = release.verify_package(Path(first["zip"]))
-            self.assertEqual(verified_zip["zipSha256"], first["zipSha256"])
+            first_archives = first["archives"]
+            second_archives = second["archives"]
+            self.assertEqual(
+                [item["sha256"] for item in first_archives],
+                [item["sha256"] for item in second_archives],
+            )
+            self.assertEqual(len(first_archives), len(release.LAUNCHER_TARGETS))
+            for item in first_archives:
+                self.assertEqual(Path(item["archive"]).read_bytes(), Path(next(
+                    candidate["archive"] for candidate in second_archives
+                    if candidate["target"] == item["target"]
+                )).read_bytes())
+                verified_zip = release.verify_package(Path(item["archive"]))
+                self.assertEqual(verified_zip["zipSha256"], item["sha256"])
 
-            package = Path(first["package"])
-            self.assertEqual(
-                (package / "AOSP-WinScope.exe").read_bytes(),
-                (package / "bin/windows-amd64/winscope-launcher.exe").read_bytes(),
-            )
-            self.assertEqual(
-                (package / "AOSP-WinScope-ARM64.exe").read_bytes(),
-                (package / "bin/windows-arm64/winscope-launcher.exe").read_bytes(),
-            )
-            self.assertIn(
-                "double-click AOSP-WinScope.exe",
-                (package / "README.txt").read_text(encoding="utf-8"),
-            )
+            package = Path(first_archives[0]["package"])
+            self.assertTrue((package / "start-winscope.bat").is_file())
+            self.assertTrue((package / "start-winscope.ps1").is_file())
+            self.assertIn("%ROOT%bin\\windows-amd64\\winscope-launcher.exe", (package / "start-winscope.bat").read_text())
+            self.assertIn("@args", (package / "start-winscope.ps1").read_text())
+            self.assertNotIn("double-click", (package / "README.txt").read_text(encoding="utf-8"))
             self.assertTrue((package / "LICENSES/sbom.spdx.json").is_file())
             compliance = json.loads(
                 (package / "LICENSES/compliance.json").read_text(encoding="utf-8")
@@ -98,11 +99,16 @@ class ReleaseEngineeringTest(unittest.TestCase):
                 (package / "web/3rdpartylicenses.txt").read_bytes(),
             )
             self.assertEqual(
-                hashlib.sha256(Path(first["zip"]).read_bytes()).hexdigest(), first["zipSha256"]
+                hashlib.sha256(Path(first_archives[0]["archive"]).read_bytes()).hexdigest(),
+                first_archives[0]["sha256"],
             )
             attestation = json.loads(Path(first["attestation"]).read_text())
             subjects = {item["name"]: item["digest"]["sha256"] for item in attestation["subject"]}
-            self.assertEqual(subjects["SHA256SUMS"], release.sha256_file(Path(first["zip"]).parent / "SHA256SUMS"))
+            self.assertEqual(subjects["SHA256SUMS"], release.sha256_file(Path(first["sums"])))
+            self.assertEqual(
+                {Path(item["archive"]).name for item in first_archives},
+                set(subjects) - {"SHA256SUMS"},
+            )
             self.assertEqual(
                 attestation["predicate"]["buildDefinition"]["buildType"],
                 release.BUILD_TYPE,
@@ -130,7 +136,8 @@ class ReleaseEngineeringTest(unittest.TestCase):
             self.assertTrue(report["byteIdentical"])
             self.assertTrue(report["provenanceVerified"])
             self.assertEqual(len(report["builds"]), 2)
-            self.assertEqual(report["builds"][0]["zipSha256"], report["builds"][1]["zipSha256"])
+            self.assertEqual(report["builds"][0]["archives"], report["builds"][1]["archives"])
+            self.assertEqual(len(report["builds"][0]["archives"]), len(release.LAUNCHER_TARGETS))
             self.assertTrue(all(build["provenanceVerified"] for build in report["builds"]))
 
     def test_attestation_tampering_is_rejected(self):
@@ -150,9 +157,9 @@ class ReleaseEngineeringTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "attestation does not verify"):
                 release.verify_attestation(
                     attestation,
-                    Path(report["zip"]).name,
-                    report["zipSha256"],
-                    Path(report["package"]),
+                    report["archives"],
+                    None,
+                    [Path(item["package"]) for item in report["archives"]],
                 )
 
     def test_attestation_checksum_subject_tampering_is_rejected(self):
@@ -168,9 +175,9 @@ class ReleaseEngineeringTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "attestation does not verify"):
                 release.verify_attestation(
                     attestation,
-                    Path(report["zip"]).name,
-                    report["zipSha256"],
-                    Path(report["package"]),
+                    report["archives"],
+                    None,
+                    [Path(item["package"]) for item in report["archives"]],
                 )
 
     def test_zip_with_duplicate_evidence_member_is_rejected(self):
@@ -180,7 +187,7 @@ class ReleaseEngineeringTest(unittest.TestCase):
             report = release.package_distribution(
                 "17.0.0", root / "release", web, launchers, proxy
             )
-            archive = Path(report["zip"])
+            archive = Path(report["archives"][0]["archive"])
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", UserWarning)
                 with zipfile.ZipFile(archive, "a") as package:

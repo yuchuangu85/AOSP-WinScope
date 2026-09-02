@@ -1,19 +1,29 @@
 # Standalone launcher contract
 
 `cmd/launcher` is the no-CGO, standard-library desktop host for one packaged
-Winscope distribution. It listens only on `127.0.0.1:0`, prints the resulting
-local URL, and does not automatically start a browser unless `--open` is
-specified. On Windows, double-clicking `AOSP-WinScope.exe` at the package root
-with no arguments enables device capture and opens the default browser
-automatically; this is equivalent to `--capture --open`.
-`AOSP-WinScope-ARM64.exe` provides the same entry point on Windows on ARM. The
-launcher discovers `adb.exe` from `PATH`, Android SDK environment variables,
-and Android Studio's default `%LOCALAPPDATA%\Android\Sdk` directory. It also
-supports the Windows Python launcher through `py -3`. If automatic capture
-startup fails, the browser still opens in file-only mode and displays the
-startup diagnostic instead of silently exiting. The launcher does not download
-software, change Host configuration, elevate privileges, or run a
-caller-provided command.
+WinScope distribution. Releases are portable ZIP archives, one for each
+supported operating-system and architecture pair:
+
+- `windows-amd64` or `windows-arm64`
+- `darwin-amd64` or `darwin-arm64`
+- `linux-amd64` or `linux-arm64`
+
+Download the archive matching the host exactly and extract it to any directory.
+There is no universal archive and macOS does not require an `.app` bundle. At
+the archive root, start the application with `start-winscope.sh` on macOS/Linux,
+or with either `start-winscope.bat` or `start-winscope.ps1` on Windows. Each
+entry point resolves the archive directory itself, invokes only its matching
+launcher, forwards all arguments, and preserves the launcher's exit status.
+
+The launcher listens only on `127.0.0.1:0`, prints the resulting local URL, and
+does not automatically start a browser unless `--open` is specified. Passing
+`--capture --open` enables device capture and opens the default browser. The
+launcher discovers `adb` from `PATH`, Android SDK environment variables, and
+Android Studio's default SDK directory. Capture requires Python 3.10+ and
+`adb` available in `PATH`. If automatic capture startup fails, the browser
+still opens in file-only mode and displays the startup diagnostic instead of
+silently exiting. The launcher does not download software, change Host
+configuration, elevate privileges, or run a caller-provided command.
 
 ## Distribution inputs
 
