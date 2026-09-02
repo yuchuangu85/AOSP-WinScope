@@ -193,6 +193,10 @@ class SupportingWorkflowTest(unittest.TestCase):
             workflow.index("npm run build:prod"),
             workflow.index("npm run test:unit:ci"),
         )
+        self.assertLess(
+            workflow.index("npm run build:prod"),
+            workflow.index("python3 -m unittest tests.test_standalone_build"),
+        )
 
     def test_ci_karma_tolerates_transient_hosted_runner_disconnects(self):
         config = (ROOT / "karma.config.ci.js").read_text(encoding="utf-8")

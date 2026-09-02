@@ -14,6 +14,21 @@ sys.path.insert(0, str(SCRIPTS_ROOT))
 import build as standalone_build
 
 
+PRODUCTION_OUTPUTS_AVAILABLE = (
+    standalone_build.BUILD_STATE.is_file()
+    and standalone_build.WEB_OUTPUT.is_dir()
+    and all(
+        (standalone_build.TRACE_PROCESSOR_OUTPUT / name).is_file()
+        and (standalone_build.WEB_OUTPUT / name).is_file()
+        for name in standalone_build.TRACE_PROCESSOR_ARTIFACTS
+    )
+)
+requires_production_outputs = unittest.skipUnless(
+    PRODUCTION_OUTPUTS_AVAILABLE,
+    "requires verified production build outputs",
+)
+
+
 class StandaloneBuildContractTest(unittest.TestCase):
     def test_build_environment_resolves_a_bare_node_command_before_perfetto_tools(self):
         runner_node = Path("/opt/hostedtoolcache/node/24.19.0/x64/bin/node")
@@ -86,6 +101,7 @@ class StandaloneBuildContractTest(unittest.TestCase):
             {entry["path"] for entry in inventory["files"]},
         )
 
+    @requires_production_outputs
     def test_verified_production_outputs_preserve_trace_processor_bytes(self):
         result = subprocess.run(
             [sys.executable, "scripts/build.py", "verify", "--json"],
@@ -106,6 +122,7 @@ class StandaloneBuildContractTest(unittest.TestCase):
                 (REPOSITORY_ROOT / "deps_build/trace_processor/to_be_served" / name).read_bytes(),
             )
 
+    @requires_production_outputs
     def test_verified_production_output_is_local_and_file_only_by_default(self):
         result = subprocess.run(
             [sys.executable, "scripts/build.py", "verify", "--json"],
@@ -120,6 +137,7 @@ class StandaloneBuildContractTest(unittest.TestCase):
         self.assertTrue(contract["defaultFileOnly"])
         self.assertEqual(contract["runtimeConfig"], "runtime-config.json")
 
+    @requires_production_outputs
     def test_output_verification_rejects_matching_tampered_copies(self):
         paths = [
             REPOSITORY_ROOT / "deps_build/trace_processor/to_be_served/engine_bundle.js",
