@@ -638,6 +638,11 @@
         "path": "src/main_prod.ts"
       },
       {
+        "change": "modified",
+        "origin": "newly-authored-clean-room",
+        "path": "src/main_unit_test.ts"
+      },
+      {
         "change": "added",
         "origin": "newly-authored-clean-room",
         "path": "src/runtime-config.json"

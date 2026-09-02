@@ -167,6 +167,10 @@ class SupportingWorkflowTest(unittest.TestCase):
             "browserDisconnectTimeout: 30000",
             "browserDisconnectTolerance: 1",
             "browserNoActivityTimeout: 120000",
+            "'--disable-dev-shm-usage'",
+            "'--disable-background-timer-throttling'",
+            "'--disable-renderer-backgrounding'",
+            "random: false",
         ):
             self.assertIn(setting, config)
 

@@ -26,6 +26,10 @@ const configCi = (config) => {
         flags: [
           '--window-size=1280,1024',
           '--enable-unsafe-swiftshader',
+          '--disable-dev-shm-usage',
+          '--disable-background-timer-throttling',
+          '--disable-backgrounding-occluded-windows',
+          '--disable-renderer-backgrounding',
           ...(process.env.AOSP_WINSCOPE_NETWORK_SANDBOX === '1'
             ? ['--no-sandbox']
             : []),
@@ -47,6 +51,11 @@ const configCi = (config) => {
     browserDisconnectTimeout: 30000,
     browserDisconnectTolerance: 1,
     browserNoActivityTimeout: 120000,
+    client: {
+      jasmine: {
+        random: false,
+      },
+    },
     coverageReporter: {
       dir: require('path').join(__dirname, './coverage/winscope'),
       subdir: '.',
