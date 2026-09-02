@@ -71,7 +71,7 @@ export class TraceConfigComponent extends AbstractSelectComponent<SelectionConfi
 
   private lastClickedIndex = new Map<string, number>();
   private readonly observer = new ResizeObserver((_) => {
-    this.changeDetectorRef.detectChanges();
+    this.ngZone.run(() => this.changeDetectorRef.markForCheck());
   });
 
   constructor(

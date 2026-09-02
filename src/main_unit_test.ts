@@ -28,23 +28,6 @@ TestBed.initTestEnvironment(
   platformBrowserDynamicTesting(),
 );
 
-// Chrome reports this ResizeObserver delivery warning as a global error even
-// though it retries the notification on the next frame. It is not an
-// application exception and must not make browser tests order-dependent.
-window.addEventListener(
-  'error',
-  (event) => {
-    if (
-      event.message ===
-      'ResizeObserver loop completed with undelivered notifications.'
-    ) {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-    }
-  },
-  true,
-);
-
 beforeAll(async () => {
   await Registry.getInstance().loadDefaultDescriptors();
 });
