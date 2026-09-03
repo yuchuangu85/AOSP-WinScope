@@ -205,9 +205,13 @@ class SupportingWorkflowTest(unittest.TestCase):
 
     def test_e2e_webdriver_runs_chrome_headless(self):
         webdriver = (ROOT / "src/test/e2e/webdriver.ts").read_text(encoding="utf-8")
+        helpers = (ROOT / "src/test/e2e/helpers.ts").read_text(encoding="utf-8")
         self.assertIn("'--headless=new'", webdriver)
         self.assertIn("'--no-sandbox'", webdriver)
         self.assertIn("'--disable-dev-shm-usage'", webdriver)
+        self.assertIn("width: 1280", helpers)
+        self.assertIn("height: 1024", helpers)
+        self.assertNotIn("window().maximize()", helpers)
 
     def test_security_uses_the_pinned_go_toolchain(self):
         workflow = SECURITY_WORKFLOW.read_text(encoding="utf-8")

@@ -37,7 +37,12 @@ export async function setTimeouts(
   jasmine.DEFAULT_TIMEOUT_INTERVAL = jasmineTimeoutMs;
   await browser.manage().timeouts().implicitlyWait(defaultTimeoutMs);
   await checkServerIsUp('Winscope', WINSCOPE_URL);
-  await browser.driver.manage().window().maximize();
+  await browser.driver.manage().window().setRect({
+    width: 1280,
+    height: 1024,
+    x: 0,
+    y: 0,
+  });
 }
 
 /**
