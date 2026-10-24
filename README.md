@@ -16,14 +16,20 @@ contain the proto definitions for their internal states.
   ```
 
 ### Running the project locally
-From the repository root, start the Angular development server:
+From the repository root, start WinScope with the Launcher and device capture:
 
 ```bash
 npm start
 ```
 
-The development server opens the browser automatically. If dependencies are already
-installed, `npm start` can be run directly.
+The default startup builds the current Web UI and the host-native Launcher,
+then opens the browser with device capture enabled. It requires the pinned
+standalone build toolchain, Python, and Android Platform Tools (`adb`). See
+[the Launcher contract](docs/LAUNCHER.md) for prerequisites and launch options.
+
+For file-only analysis, run `npm start -- --offline-only --open`. For the
+Angular-only development server without Launcher or capture, use
+`npm run start:web`.
 
 ### Build & test & deploy changes
 * Navigate to `development/tools/winscope`

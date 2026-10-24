@@ -4,6 +4,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import subprocess
 import tempfile
 import unittest
 import warnings
@@ -20,6 +21,27 @@ SPEC.loader.exec_module(release)
 
 
 class ReleaseEngineeringTest(unittest.TestCase):
+    @unittest.skipIf(os.name == "nt", "requires a POSIX shell")
+    def test_startup_scripts_preserve_default_launch_and_explicit_arguments(self):
+        for operating_system in ("darwin", "linux"):
+            for architecture in ("amd64", "arm64"):
+                with self.subTest(target=f"{operating_system}-{architecture}"):
+                    with tempfile.TemporaryDirectory(prefix="winscope launch ") as temporary:
+                        root = Path(temporary)
+                        launcher = root / "bin" / f"{operating_system}-{architecture}" / "winscope-launcher"
+                        launcher.parent.mkdir(parents=True)
+                        launcher.write_text('#!/bin/sh\nprintf "%s\\n" "$#" "$@"\nexit 23\n')
+                        launcher.chmod(0o755)
+                        script = root / "start-winscope.sh"
+                        script.write_text(release.startup_scripts(operating_system, architecture)[script.name])
+                        for arguments in ([], ["--capture", "--open"], ["--offline-only", "--browser", "browser with spaces"]):
+                            result = subprocess.run(
+                                ["sh", str(script), *arguments], cwd=root.parent,
+                                capture_output=True, text=True, check=False,
+                            )
+                            self.assertEqual(result.returncode, 23, result.stderr)
+                            self.assertEqual(result.stdout.splitlines(), [str(len(arguments)), *arguments])
+
     def make_inputs(self, root: Path) -> tuple[Path, Path, Path]:
         web = root / "web"
         web.mkdir()

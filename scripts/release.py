@@ -571,7 +571,9 @@ def _write_target_package(
     (package / "README.txt").write_text(
         f"AOSP-WinScope {version} ({operating_system} {architecture})\\n\\n"
         f"Run {next(iter(startup_scripts(operating_system, architecture)))} from the extracted directory.\\n"
+        "With no arguments, the launcher enables device capture and opens the browser.\\n"
         "Python 3.10+ and adb are required for device capture.\\n"
+        "Use --offline-only --open for file analysis without device capture.\\n"
         "The launcher serves the Web UI locally and forwards command-line arguments.\\n",
         encoding="utf-8",
     )

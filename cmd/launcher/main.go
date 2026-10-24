@@ -72,8 +72,8 @@ type captureProxy struct {
 func main() {
 	var distributionRoot string
 	arguments := os.Args[1:]
-	automaticLaunch := automaticWindowsLaunch(runtime.GOOS, arguments)
-	enableCapture, openBrowser := defaultLaunchFlags(runtime.GOOS, arguments)
+	automaticLaunch := len(arguments) == 0
+	enableCapture, openBrowser := defaultLaunchFlags(arguments)
 	var browser string
 	var port int
 	var offlineOnly bool
@@ -152,15 +152,10 @@ func main() {
 	}
 }
 
-func automaticWindowsLaunch(goos string, arguments []string) bool {
-	return goos == "windows" && len(arguments) == 0
-}
-
-func defaultLaunchFlags(goos string, arguments []string) (capture bool, openBrowser bool) {
-	// A Windows executable launched from Explorer receives no arguments. Make
-	// that common distribution path immediately useful for device capture while
-	// preserving the existing explicit command-line behavior on every platform.
-	autoStartCapture := automaticWindowsLaunch(goos, arguments)
+func defaultLaunchFlags(arguments []string) (capture bool, openBrowser bool) {
+	// Distribution entry points share the same no-argument defaults. Explicit
+	// command-line invocations retain full control over capture and the browser.
+	autoStartCapture := len(arguments) == 0
 	return autoStartCapture, autoStartCapture
 }
 
@@ -578,12 +573,21 @@ func adbCommand(distributionRoot string, goos string) (string, error) {
 			candidates = append(candidates, filepath.Join(sdkRoot, "platform-tools", filename))
 		}
 	}
-	if goos == "windows" {
+	switch goos {
+	case "windows":
 		if localAppData := os.Getenv("LOCALAPPDATA"); localAppData != "" {
 			candidates = append(candidates, filepath.Join(localAppData, "Android", "Sdk", "platform-tools", filename))
 		}
 		if userProfile := os.Getenv("USERPROFILE"); userProfile != "" {
 			candidates = append(candidates, filepath.Join(userProfile, "AppData", "Local", "Android", "Sdk", "platform-tools", filename))
+		}
+	case "darwin", "linux":
+		if home, err := os.UserHomeDir(); err == nil {
+			if goos == "darwin" {
+				candidates = append(candidates, filepath.Join(home, "Library", "Android", "sdk", "platform-tools", filename))
+			} else {
+				candidates = append(candidates, filepath.Join(home, "Android", "Sdk", "platform-tools", filename))
+			}
 		}
 	}
 	for _, candidate := range candidates {

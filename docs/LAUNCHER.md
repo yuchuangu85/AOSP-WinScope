@@ -15,15 +15,36 @@ or with either `start-winscope.bat` or `start-winscope.ps1` on Windows. Each
 entry point resolves the archive directory itself, invokes only its matching
 launcher, forwards all arguments, and preserves the launcher's exit status.
 
-The launcher listens only on `127.0.0.1:0`, prints the resulting local URL, and
-does not automatically start a browser unless `--open` is specified. Passing
-`--capture --open` enables device capture and opens the default browser. The
+With no arguments, every platform's launcher enables device capture and opens
+the default browser. It listens only on `127.0.0.1:0` and prints the resulting
+local URL. Explicit command-line arguments retain opt-in behavior: include
+`--capture --open` to enable capture and open the browser, or use
+`--offline-only --open` for file analysis without capture. The
 launcher discovers `adb` from `PATH`, Android SDK environment variables, and
-Android Studio's default SDK directory. Capture requires Python 3.10+ and
-`adb` available in `PATH`. If automatic capture startup fails, the browser
-still opens in file-only mode and displays the startup diagnostic instead of
-silently exiting. The launcher does not download software, change Host
+Android Studio's default Windows, macOS, and Linux SDK directories. Capture
+requires Python 3.10+ and a discoverable `adb`. If no-argument automatic capture
+startup fails, the browser still opens in file-only mode and displays the diagnostic instead of
+silently exiting. Explicit `--capture` startup failures return an error.
+The launcher does not download software, change Host
 configuration, elevate privileges, or run a caller-provided command.
+
+## Source checkout
+
+`npm start` builds the current Web UI and a host-native Launcher, stages them
+with the capture proxy and an integrity manifest under `dist/local`, and runs
+the Launcher with the same defaults as a release. It reuses verified Trace
+Processor outputs when available; the first build needs the pinned dependency
+cache and toolchain described in `docs/REBUILD_PLAN.md`.
+
+Launcher arguments can be forwarded through npm, for example:
+
+```sh
+npm start -- --capture --open --port 8080
+npm start -- --offline-only --open
+```
+
+`npm run start:web` retains the Angular-only development server for UI work.
+That explicit Web-only entry does not start a Launcher or device capture.
 
 ## Distribution inputs
 
@@ -47,7 +68,7 @@ complete generated inventory and places the Python proxy at
 
 ## Device capture
 
-Passing `--capture` requires `adb` and Python 3.10+ in `PATH`. The launcher
+Capture requires a discoverable `adb` and Python 3.10+ in `PATH`. The launcher
 creates a fresh 32-byte secret, starts only its packaged proxy child on a second
 random `127.0.0.1` port, and exposes it only through `./capture/` on the Web
 origin. The secret stays in launcher/proxy memory and is injected only over the

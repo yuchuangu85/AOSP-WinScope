@@ -105,23 +105,23 @@ func TestParseLoopbackPort(t *testing.T) {
 func TestDefaultLaunchFlags(t *testing.T) {
 	tests := []struct {
 		name        string
-		goos        string
 		arguments   []string
 		wantCapture bool
 		wantOpen    bool
 	}{
-		{name: "Windows Explorer double click", goos: "windows", wantCapture: true, wantOpen: true},
-		{name: "Windows explicit arguments", goos: "windows", arguments: []string{"--port", "56745"}},
-		{name: "macOS no arguments", goos: "darwin"},
-		{name: "Linux no arguments", goos: "linux"},
+		{name: "no arguments on any platform", wantCapture: true, wantOpen: true},
+		{name: "empty argument list", arguments: []string{}, wantCapture: true, wantOpen: true},
+		{name: "explicit port", arguments: []string{"--port", "56745"}},
+		{name: "explicit capture", arguments: []string{"--capture", "--open"}},
+		{name: "offline only", arguments: []string{"--offline-only"}},
+		{name: "explicit capture opt out", arguments: []string{"--capture=false"}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			capture, openBrowser := defaultLaunchFlags(test.goos, test.arguments)
+			capture, openBrowser := defaultLaunchFlags(test.arguments)
 			if capture != test.wantCapture || openBrowser != test.wantOpen {
 				t.Fatalf(
-					"defaultLaunchFlags(%q, %v) = (%t, %t), want (%t, %t)",
-					test.goos,
+					"defaultLaunchFlags(%v) = (%t, %t), want (%t, %t)",
 					test.arguments,
 					capture,
 					openBrowser,
@@ -159,7 +159,7 @@ func TestCaptureStartupOutcome(t *testing.T) {
 	startupError := errors.New("device capture requires adb")
 	diagnostic, fatalError := captureStartupOutcome(true, startupError)
 	if fatalError != nil || !strings.Contains(diagnostic, "device capture requires adb") {
-		t.Fatalf("automatic Windows launch outcome = (%q, %v)", diagnostic, fatalError)
+		t.Fatalf("automatic launch outcome = (%q, %v)", diagnostic, fatalError)
 	}
 
 	diagnostic, fatalError = captureStartupOutcome(false, startupError)
@@ -187,6 +187,35 @@ func TestADBCommandFindsWindowsAndroidStudioSDK(t *testing.T) {
 	got, err := adbCommand(root, "windows")
 	if err != nil || got != adb {
 		t.Fatalf("adbCommand() = (%q, %v), want (%q, nil)", got, err, adb)
+	}
+}
+
+func TestADBCommandFindsUnixAndroidStudioSDK(t *testing.T) {
+	for _, goos := range []string{"darwin", "linux"} {
+		t.Run(goos, func(t *testing.T) {
+			home := t.TempDir()
+			sdk := filepath.Join(home, "Android", "Sdk")
+			if goos == "darwin" {
+				sdk = filepath.Join(home, "Library", "Android", "sdk")
+			}
+			adb := filepath.Join(sdk, "platform-tools", "adb")
+			if err := os.MkdirAll(filepath.Dir(adb), 0700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(adb, []byte("adb"), 0700); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("PATH", "")
+			t.Setenv("ANDROID_SDK_ROOT", "")
+			t.Setenv("ANDROID_HOME", "")
+			t.Setenv("HOME", home)
+			t.Setenv("USERPROFILE", home)
+
+			got, err := adbCommand(t.TempDir(), goos)
+			if err != nil || got != adb {
+				t.Fatalf("adbCommand() = (%q, %v), want (%q, nil)", got, err, adb)
+			}
+		})
 	}
 }
 
