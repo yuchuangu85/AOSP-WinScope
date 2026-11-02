@@ -8,16 +8,18 @@
 export interface RuntimeConfig {
   readonly schemaVersion: 1;
   readonly host: {readonly kind: 'standalone'};
+  readonly capture: {
+    readonly provider: 'loopback-proxy-v1';
+    readonly endpoint: string;
+  };
   readonly ai?: {readonly provider: 'loopback-ai-v1'; readonly endpoint: string};
-  readonly capture:
-    | {readonly provider: 'none'; readonly diagnostic?: string}
-    | {readonly provider: 'loopback-proxy-v1'; readonly endpoint: string};
 }
 
 export const DEFAULT_RUNTIME_CONFIG: RuntimeConfig = {
   schemaVersion: 1,
   host: {kind: 'standalone'},
-  capture: {provider: 'none'},
+  capture: {provider: 'loopback-proxy-v1', endpoint: './capture/'},
+  ai: undefined,
 };
 
 const MAX_CONFIG_BYTES = 64 * 1024;
@@ -34,7 +36,7 @@ export function getRuntimeConfigDiagnostic(): string | undefined {
 
 /**
  * Fetches and validates the host-provided configuration. Invalid or missing
- * configuration deliberately degrades to file-only analysis.
+ * configuration deliberately stays in launcher mode and reports the missing launcher contract.
  */
 export async function loadRuntimeConfig(
   fetcher: typeof fetch = fetch,
@@ -66,16 +68,13 @@ export async function loadRuntimeConfig(
       throw new Error('configuration exceeds size limit');
     }
     activeConfig = parseRuntimeConfig(JSON.parse(text));
-    configDiagnostic =
-      activeConfig.capture.provider === 'none'
-        ? activeConfig.capture.diagnostic
-        : undefined;
+    configDiagnostic = undefined;
   } catch (error) {
     activeConfig = DEFAULT_RUNTIME_CONFIG;
     configDiagnostic =
-      'Runtime configuration is unavailable; device capture is disabled and file-only analysis is active.';
+      'Runtime configuration is unavailable; start Winscope through the launcher to enable device capture.';
     console.warn(
-      'Runtime configuration unavailable; using file-only mode.',
+      'Runtime configuration unavailable; launcher mode is required.',
       error,
     );
   }
@@ -93,19 +92,6 @@ export function parseRuntimeConfig(value: unknown): RuntimeConfig {
   const capture = value['capture'];
   if (!isRecord(capture)) throw new Error('missing capture configuration');
   const ai = parseAiConfig(value['ai']);
-  if (capture['provider'] === 'none') {
-    const diagnostic = capture['diagnostic'];
-    if (diagnostic === undefined) return ai ? {...DEFAULT_RUNTIME_CONFIG, ai} : DEFAULT_RUNTIME_CONFIG;
-    if (typeof diagnostic !== 'string' || diagnostic.length > 512) {
-      throw new Error('capture diagnostic must be a bounded string');
-    }
-    return {
-      schemaVersion: 1,
-      host: {kind: 'standalone'},
-      capture: {provider: 'none', diagnostic},
-      ...(ai ? {ai} : {}),
-    };
-  }
   if (capture['provider'] !== 'loopback-proxy-v1') {
     throw new Error('unsupported capture provider');
   }
@@ -113,26 +99,12 @@ export function parseRuntimeConfig(value: unknown): RuntimeConfig {
   if (typeof configuredEndpoint !== 'string') {
     throw new Error('loopback proxy endpoint is required');
   }
-  if (
-    !configuredEndpoint.startsWith('./') ||
-    configuredEndpoint.includes('?') ||
-    configuredEndpoint.includes('#') ||
-    configuredEndpoint.split('/').includes('..')
-  ) {
-    throw new Error('capture endpoint must be a relative path');
-  }
-  const endpoint = new URL(configuredEndpoint, document.baseURI);
-  if (
-    endpoint.origin !== window.location.origin ||
-    endpoint.protocol !== window.location.protocol
-  ) {
-    throw new Error('capture endpoint must be same-origin');
-  }
+  validateRelativeSameOriginEndpoint(configuredEndpoint, 'capture');
   return {
     schemaVersion: 1,
     host: {kind: 'standalone'},
     capture: {provider: 'loopback-proxy-v1', endpoint: configuredEndpoint},
-    ...(ai ? {ai} : {}),
+    ai,
   };
 }
 

@@ -1,0 +1,750 @@
+{
+  "schemaVersion": 1,
+  "supportedTargets": [
+    "darwin-arm64",
+    "darwin-x64",
+    "win32-x64",
+    "linux-arm64",
+    "linux-x64"
+  ],
+  "platformTools": {
+    "version": "37.0.1",
+    "repository": "https://dl.google.com/android/repository/repository2-1.xml",
+    "releaseNotes": "https://developer.android.com/tools/releases/platform-tools",
+    "verifiedOn": "2026-11-02",
+    "licenses": {
+      "notice": "platform-tools/NOTICE.txt",
+      "adbSource": "https://android.googlesource.com/platform/packages/modules/adb/+/refs/tags/platform-tools-37.0.1/NOTICE",
+      "redistribution": "Retain the complete archive NOTICE.txt, including third-party notices. Bundle only adb, its support libraries and package metadata; do not bundle unrelated SDK utilities."
+    },
+    "archives": {
+      "darwin": {
+        "url": "https://dl.google.com/android/repository/platform-tools_r37.0.1-darwin.zip",
+        "sha256": "ee39ad5967e95c2a07f04dbcbde96b1a0c916ba376096db5d2f498b7727a5d1d",
+        "size": 16110554,
+        "repositorySHA1": "6ae73f4de6452dc57e62ec02b68eed92a4c21661",
+        "runtimeFiles": [
+          "adb",
+          "lib64/libc++.dylib",
+          "NOTICE.txt",
+          "source.properties"
+        ]
+      },
+      "windows": {
+        "url": "https://dl.google.com/android/repository/platform-tools_r37.0.1-win.zip",
+        "sha256": "45f4d63113e895ebde0c90f194099a4676b6ac653bd28d54314a9e022bbc1a99",
+        "size": 8044989,
+        "repositorySHA1": "e03e78b1d80b396f1c3358e31251cb31740e1110",
+        "runtimeFiles": [
+          "adb.exe",
+          "AdbWinApi.dll",
+          "AdbWinUsbApi.dll",
+          "libwinpthread-1.dll",
+          "NOTICE.txt",
+          "source.properties"
+        ]
+      },
+      "linux": {
+        "url": "https://dl.google.com/android/repository/platform-tools_r37.0.1-linux.zip",
+        "sha256": "d230f13842f60f782a8645f9c813f8f845bf36089ea7289f28c48f17979313f1",
+        "size": 9054187,
+        "repositorySHA1": "477254aa5f903c15cf51001717bdf347fb6b53e0",
+        "runtimeFiles": [
+          "adb",
+          "lib64/libc++.so",
+          "NOTICE.txt",
+          "source.properties"
+        ]
+      }
+    }
+  },
+  "linuxArm64Adb": {
+    "schemaVersion": 1,
+    "provider": "Ubuntu",
+    "providerVersion": "34.0.4",
+    "architecture": "arm64",
+    "distribution": {
+      "id": "ubuntu",
+      "versionId": "24.04",
+      "suite": "noble",
+      "glibcMinimum": "2.38"
+    },
+    "signingFingerprints": ["F6ECB3762474EDA9D21B7022871920D1991BC93C"],
+    "metadataPolicy": "Verify original InRelease with installed Ubuntu keyring, then exact binary and complete source artifact records against authenticated indexes; cached snapshots are reverified. No signature acceptance is claimed by lock creation.",
+    "binaryPackages": [
+      {
+        "name": "libmd0",
+        "version": "1.1.0-2build1",
+        "architecture": "arm64",
+        "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/libm/libmd/libmd0_1.1.0-2build1_arm64.deb",
+        "sha256": "9d957330c83693dfd870a56794317395b9519b385a69933828ff8e8e14829aa0",
+        "size": 24590,
+        "depends": "libc6 (>= 2.33)",
+        "source": {
+          "name": "libmd",
+          "version": "1.1.0-2build1"
+        },
+        "index": {
+          "suite": "noble",
+          "component": "main"
+        }
+      },
+      {
+        "name": "libusb-1.0-0",
+        "version": "2:1.0.27-1",
+        "architecture": "arm64",
+        "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/libu/libusb-1.0/libusb-1.0-0_1.0.27-1_arm64.deb",
+        "sha256": "c8c34ef4385b6be34fe94aabd4de06c7bbd5ae617e80e9306f412f4c979aa5e4",
+        "size": 54082,
+        "depends": "libc6 (>= 2.38), libudev1 (>= 183)",
+        "source": {
+          "name": "libusb-1.0",
+          "version": "2:1.0.27-1"
+        },
+        "index": {
+          "suite": "noble",
+          "component": "main"
+        }
+      },
+      {
+        "name": "adb",
+        "version": "1:34.0.4-1build3",
+        "architecture": "arm64",
+        "url": "https://ports.ubuntu.com/ubuntu-ports/pool/universe/a/android-platform-tools/adb_34.0.4-1build3_arm64.deb",
+        "sha256": "17433097fd151c47a95de2f7b45c3b683cde0a14d2b1e21251744075e71a1bcd",
+        "size": 271840,
+        "depends": "android-libbase (>= 34.0.4), android-libboringssl (>= 14.0.0+r11), android-libcutils (= 1:34.0.4-1build3), android-liblog (>= 34.0.4), android-libziparchive (>= 34.0.4), libbrotli1 (>= 0.6.0), libc6 (>= 2.38), libgcc-s1 (>= 3.0), liblz4-1 (>= 0.0~r130), libprotobuf32t64 (>= 3.21.12), libstdc++6 (>= 13.1), libusb-1.0-0 (>= 2:1.0.16), libzstd1 (>= 1.5.5)",
+        "source": {
+          "name": "android-platform-tools",
+          "version": "34.0.4-1build3"
+        },
+        "index": {
+          "suite": "noble",
+          "component": "universe"
+        }
+      },
+      {
+        "name": "android-libbase",
+        "version": "1:34.0.4-1build3",
+        "architecture": "arm64",
+        "url": "https://ports.ubuntu.com/ubuntu-ports/pool/universe/a/android-platform-tools/android-libbase_34.0.4-1build3_arm64.deb",
+        "sha256": "0d764f726449e35b4a861b056d661da6526ef8b7d3403fc8d11836e63a9ac6d6",
+        "size": 96774,
+        "depends": "android-liblog (= 1:34.0.4-1build3), libc6 (>= 2.38), libgcc-s1 (>= 4.5), libstdc++6 (>= 13.1)",
+        "source": {
+          "name": "android-platform-tools",
+          "version": "34.0.4-1build3"
+        },
+        "index": {
+          "suite": "noble",
+          "component": "universe"
+        }
+      },
+      {
+        "name": "android-libboringssl",
+        "version": "14.0.0+r11-4build1",
+        "architecture": "arm64",
+        "url": "https://ports.ubuntu.com/ubuntu-ports/pool/universe/a/android-platform-external-boringssl/android-libboringssl_14.0.0+r11-4build1_arm64.deb",
+        "sha256": "ebf7531fe6347a2c802b8f861872d7a2d0322d3102ea7fadf06977f66ae2653a",
+        "size": 657662,
+        "depends": "libc6 (>= 2.34), libgcc-s1 (>= 3.0), libstdc++6 (>= 4.1.1)",
+        "source": {
+          "name": "android-platform-external-boringssl",
+          "version": "14.0.0+r11-4build1"
+        },
+        "index": {
+          "suite": "noble",
+          "component": "universe"
+        }
+      },
+      {
+        "name": "android-libcutils",
+        "version": "1:34.0.4-1build3",
+        "architecture": "arm64",
+        "url": "https://ports.ubuntu.com/ubuntu-ports/pool/universe/a/android-platform-tools/android-libcutils_34.0.4-1build3_arm64.deb",
+        "sha256": "6888e9ed1722b63e1c8dd4656927da299b291ad83d141451f6e6394f9d7b0071",
+        "size": 35818,
+        "depends": "android-libbase (= 1:34.0.4-1build3), android-liblog (>= 34.0.4), libc6 (>= 2.38), libgcc-s1 (>= 3.0), libstdc++6 (>= 13.1), libbsd0",
+        "source": {
+          "name": "android-platform-tools",
+          "version": "34.0.4-1build3"
+        },
+        "index": {
+          "suite": "noble",
+          "component": "universe"
+        }
+      },
+      {
+        "name": "android-liblog",
+        "version": "1:34.0.4-1build3",
+        "architecture": "arm64",
+        "url": "https://ports.ubuntu.com/ubuntu-ports/pool/universe/a/android-platform-tools/android-liblog_34.0.4-1build3_arm64.deb",
+        "sha256": "81e9bcec0986b8111f63617fc226d3690ed90cca61af27b57750fd1ec65e994b",
+        "size": 35688,
+        "depends": "libc6 (>= 2.38), libgcc-s1 (>= 3.0), libstdc++6 (>= 13)",
+        "source": {
+          "name": "android-platform-tools",
+          "version": "34.0.4-1build3"
+        },
+        "index": {
+          "suite": "noble",
+          "component": "universe"
+        }
+      },
+      {
+        "name": "android-libziparchive",
+        "version": "1:34.0.4-1build3",
+        "architecture": "arm64",
+        "url": "https://ports.ubuntu.com/ubuntu-ports/pool/universe/a/android-platform-tools/android-libziparchive_34.0.4-1build3_arm64.deb",
+        "sha256": "c924e3e4fd363cb0889ce977d2f1716c63532b17bc5f55f8a78d20496b4014a6",
+        "size": 40496,
+        "depends": "android-libbase (= 1:34.0.4-1build3), android-liblog (>= 34.0.4), libc6 (>= 2.33), libgcc-s1 (>= 3.0), libstdc++6 (>= 13), zlib1g (>= 1:1.1.4)",
+        "source": {
+          "name": "android-platform-tools",
+          "version": "34.0.4-1build3"
+        },
+        "index": {
+          "suite": "noble",
+          "component": "universe"
+        }
+      },
+      {
+        "name": "gcc-14-base",
+        "version": "14.2.0-4ubuntu2~24.04.1",
+        "architecture": "arm64",
+        "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/g/gcc-14/gcc-14-base_14.2.0-4ubuntu2~24.04.1_arm64.deb",
+        "sha256": "bddbe21061fdc73a23e7de79ece91693bf61aa22d634d1c69c5048385c114968",
+        "size": 50984,
+        "depends": "",
+        "source": {
+          "name": "gcc-14",
+          "version": "14.2.0-4ubuntu2~24.04.1"
+        },
+        "index": {
+          "suite": "noble-updates",
+          "component": "main"
+        }
+      },
+      {
+        "name": "libbrotli1",
+        "version": "1.1.0-2ubuntu0.1",
+        "architecture": "arm64",
+        "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/b/brotli/libbrotli1_1.1.0-2ubuntu0.1_arm64.deb",
+        "sha256": "911411fb6fdfb4ab91dd4242f5a0a5e1f47b38e003a25c8dc7730238cb323e18",
+        "size": 339950,
+        "depends": "libc6 (>= 2.29)",
+        "source": {
+          "name": "brotli",
+          "version": "1.1.0-2ubuntu0.1"
+        },
+        "index": {
+          "suite": "noble-updates",
+          "component": "main"
+        }
+      },
+      {
+        "name": "libbsd0",
+        "version": "0.12.1-1build1.1",
+        "architecture": "arm64",
+        "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/libb/libbsd/libbsd0_0.12.1-1build1.1_arm64.deb",
+        "sha256": "cdf9ff601244e64482584d9d9b98aa54a573c081ab5956227c737307196c1ce3",
+        "size": 40970,
+        "depends": "libc6 (>= 2.38), libmd0 (>= 1.0.3-2)",
+        "source": {
+          "name": "libbsd",
+          "version": "0.12.1-1build1.1"
+        },
+        "index": {
+          "suite": "noble-updates",
+          "component": "main"
+        }
+      },
+      {
+        "name": "libcap2",
+        "version": "1:2.66-5ubuntu2.4",
+        "architecture": "arm64",
+        "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/libc/libcap2/libcap2_2.66-5ubuntu2.4_arm64.deb",
+        "sha256": "3c4459762b9ee61c773209bc45db1ca7cf34e1254cc047260d309a8db11b3490",
+        "size": 30676,
+        "depends": "libc6 (>= 2.38)",
+        "source": {
+          "name": "libcap2",
+          "version": "1:2.66-5ubuntu2.4"
+        },
+        "index": {
+          "suite": "noble-updates",
+          "component": "main"
+        }
+      },
+      {
+        "name": "libgcc-s1",
+        "version": "14.2.0-4ubuntu2~24.04.1",
+        "architecture": "arm64",
+        "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/g/gcc-14/libgcc-s1_14.2.0-4ubuntu2~24.04.1_arm64.deb",
+        "sha256": "5b191f79ad985a9a653dbba45214619f729f9178a9bdf92f7c68db06c50d070b",
+        "size": 61884,
+        "depends": "gcc-14-base (= 14.2.0-4ubuntu2~24.04.1), libc6 (>= 2.35)",
+        "source": {
+          "name": "gcc-14",
+          "version": "14.2.0-4ubuntu2~24.04.1"
+        },
+        "index": {
+          "suite": "noble-updates",
+          "component": "main"
+        }
+      },
+      {
+        "name": "liblz4-1",
+        "version": "1.9.4-1build1.1",
+        "architecture": "arm64",
+        "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/l/lz4/liblz4-1_1.9.4-1build1.1_arm64.deb",
+        "sha256": "65ab8cfe4aeb8205ef4f980500d2c8cb397cb49901ef12efad59f4ed7685cbe0",
+        "size": 64172,
+        "depends": "libc6 (>= 2.17)",
+        "source": {
+          "name": "lz4",
+          "version": "1.9.4-1build1.1"
+        },
+        "index": {
+          "suite": "noble-updates",
+          "component": "main"
+        }
+      },
+      {
+        "name": "libprotobuf32t64",
+        "version": "3.21.12-8.2ubuntu0.4",
+        "architecture": "arm64",
+        "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/p/protobuf/libprotobuf32t64_3.21.12-8.2ubuntu0.4_arm64.deb",
+        "sha256": "ff59200db84971b2499b8d80dbaa09ea83ea7e2647dc7025a327a1ab9f6fcb2c",
+        "size": 858976,
+        "depends": "libc6 (>= 2.38), libgcc-s1 (>= 3.3.1), libstdc++6 (>= 13.1), zlib1g (>= 1:1.1.4)",
+        "source": {
+          "name": "protobuf",
+          "version": "3.21.12-8.2ubuntu0.4"
+        },
+        "index": {
+          "suite": "noble-updates",
+          "component": "main"
+        }
+      },
+      {
+        "name": "libstdc++6",
+        "version": "14.2.0-4ubuntu2~24.04.1",
+        "architecture": "arm64",
+        "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/g/gcc-14/libstdc++6_14.2.0-4ubuntu2~24.04.1_arm64.deb",
+        "sha256": "f84a05ac45a6884109b6527e911081a38263b89e042fc94a338cf975f61a330c",
+        "size": 750976,
+        "depends": "gcc-14-base (= 14.2.0-4ubuntu2~24.04.1), libc6 (>= 2.38), libgcc-s1 (>= 4.5)",
+        "source": {
+          "name": "gcc-14",
+          "version": "14.2.0-4ubuntu2~24.04.1"
+        },
+        "index": {
+          "suite": "noble-updates",
+          "component": "main"
+        }
+      },
+      {
+        "name": "libudev1",
+        "version": "255.4-1ubuntu8.18",
+        "architecture": "arm64",
+        "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/s/systemd/libudev1_255.4-1ubuntu8.18_arm64.deb",
+        "sha256": "f3ecaa3ae86de0a92dd158ae6626f4d461ff5309fbded2224fb5bac3b63513b8",
+        "size": 176292,
+        "depends": "libc6 (>= 2.38), libcap2 (>= 1:2.10)",
+        "source": {
+          "name": "systemd",
+          "version": "255.4-1ubuntu8.18"
+        },
+        "index": {
+          "suite": "noble-updates",
+          "component": "main"
+        }
+      },
+      {
+        "name": "libzstd1",
+        "version": "1.5.5+dfsg2-2build1.1",
+        "architecture": "arm64",
+        "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/libz/libzstd/libzstd1_1.5.5+dfsg2-2build1.1_arm64.deb",
+        "sha256": "ea7d6e9fde577ea14dbf07fdfb74d6287eb09c6cba4a9d63abdcb87b0ec54bcc",
+        "size": 271278,
+        "depends": "libc6 (>= 2.34)",
+        "source": {
+          "name": "libzstd",
+          "version": "1.5.5+dfsg2-2build1.1"
+        },
+        "index": {
+          "suite": "noble-updates",
+          "component": "main"
+        }
+      },
+      {
+        "name": "zlib1g",
+        "version": "1:1.3.dfsg-3.1ubuntu2.3",
+        "architecture": "arm64",
+        "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/z/zlib/zlib1g_1.3.dfsg-3.1ubuntu2.3_arm64.deb",
+        "sha256": "84536bcf440cf0f988899b24b6c7df32cb9ff9f0dfa97d5e7efcc2dc088d15dc",
+        "size": 62084,
+        "depends": "libc6 (>= 2.17)",
+        "source": {
+          "name": "zlib",
+          "version": "1:1.3.dfsg-3.1ubuntu2.3"
+        },
+        "index": {
+          "suite": "noble-updates",
+          "component": "main"
+        }
+      }
+    ],
+    "sourcePackages": [
+      {
+        "name": "libmd",
+        "version": "1.1.0-2build1",
+        "index": {
+          "suite": "noble",
+          "component": "main"
+        },
+        "files": [
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/libm/libmd/libmd_1.1.0-2build1.dsc",
+            "sha256": "02b5064c724dc784654f60c416a1fa13dcdb861e4a4302af0792aaa428cbd406",
+            "size": 2412
+          },
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/libm/libmd/libmd_1.1.0.orig.tar.xz",
+            "sha256": "1bd6aa42275313af3141c7cf2e5b964e8b1fd488025caf2f971f43b00776b332",
+            "size": 271228
+          },
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/libm/libmd/libmd_1.1.0.orig.tar.xz.asc",
+            "sha256": "402fd3024e43ab975733d09e661804a58ca58697194e4b15216b1217cfe1dadb",
+            "size": 833
+          },
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/libm/libmd/libmd_1.1.0-2build1.debian.tar.xz",
+            "sha256": "1570411dfb44577c70ae28098c92440ceaf45a21a09cb905cd52ca955ef7e9c3",
+            "size": 8372
+          }
+        ]
+      },
+      {
+        "name": "libusb-1.0",
+        "version": "2:1.0.27-1",
+        "index": {
+          "suite": "noble",
+          "component": "main"
+        },
+        "files": [
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/libu/libusb-1.0/libusb-1.0_1.0.27-1.dsc",
+            "sha256": "8bb3b5e8ad48159cc562cc98b1d86ab78c0c24076bfaa25175855e332392503b",
+            "size": 2528
+          },
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/libu/libusb-1.0/libusb-1.0_1.0.27.orig.tar.bz2",
+            "sha256": "ffaa41d741a8a3bee244ac8e54a72ea05bf2879663c098c82fc5757853441575",
+            "size": 643680
+          },
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/libu/libusb-1.0/libusb-1.0_1.0.27.orig.tar.bz2.asc",
+            "sha256": "1cd22bbfe4ce382ca9b091e2a6275c48f1c776253815cbb615da295ae0bfe687",
+            "size": 833
+          },
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/libu/libusb-1.0/libusb-1.0_1.0.27-1.debian.tar.xz",
+            "sha256": "560bc02e704b8f28b04be3e6a551ccbf2b5c5cb0850864d6a5416ad05723f0b4",
+            "size": 17044
+          }
+        ]
+      },
+      {
+        "name": "android-platform-external-boringssl",
+        "version": "14.0.0+r11-4build1",
+        "index": {
+          "suite": "noble",
+          "component": "universe"
+        },
+        "files": [
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/universe/a/android-platform-external-boringssl/android-platform-external-boringssl_14.0.0+r11-4build1.dsc",
+            "sha256": "b03dc1121fd9ed3744227e746194977b4e734575a58dfc46b7a01aa20744b4bf",
+            "size": 4205
+          },
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/universe/a/android-platform-external-boringssl/android-platform-external-boringssl_14.0.0+r11.orig.tar.xz",
+            "sha256": "9d4851f48b1178596fec3b4f8a1394020ee1d64e713853ae42dd60ca5abb080b",
+            "size": 31745928
+          },
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/universe/a/android-platform-external-boringssl/android-platform-external-boringssl_14.0.0+r11-4build1.debian.tar.xz",
+            "sha256": "c4d0b7bbf9ad02648892b5ffe905c15ed8231bfb11be981ae69914db910175cf",
+            "size": 27412
+          }
+        ]
+      },
+      {
+        "name": "android-platform-tools",
+        "version": "34.0.4-1build3",
+        "index": {
+          "suite": "noble",
+          "component": "universe"
+        },
+        "files": [
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/universe/a/android-platform-tools/android-platform-tools_34.0.4-1build3.dsc",
+            "sha256": "9c48a5e85f42cf1921ae822a6f9f98e85e26c469817521c9687433f1702a4c59",
+            "size": 5369
+          },
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/universe/a/android-platform-tools/android-platform-tools_34.0.4.orig.tar.xz",
+            "sha256": "36096d68f73db95c76eda3c16e2a493436cc286e3c441b4406343e718cfd2c63",
+            "size": 18611488
+          },
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/universe/a/android-platform-tools/android-platform-tools_34.0.4-1build3.debian.tar.xz",
+            "sha256": "0e129b09b36412c0cf10de95afaa8cdbac33ebdce7513693cf9676b8353b8e6a",
+            "size": 57396
+          }
+        ]
+      },
+      {
+        "name": "brotli",
+        "version": "1.1.0-2ubuntu0.1",
+        "index": {
+          "suite": "noble-updates",
+          "component": "main"
+        },
+        "files": [
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/b/brotli/brotli_1.1.0.orig.tar.gz",
+            "sha256": "10973f4b4199eafa1d5735ef661ddb2ec2f97319ee9fd1824d4aabe08cff5265",
+            "size": 512036
+          },
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/b/brotli/brotli_1.1.0-2ubuntu0.1.debian.tar.xz",
+            "sha256": "744230cae71f1ba9fbef6b897195393dca0f94641b286a3a183898fe6a77ef59",
+            "size": 7892
+          },
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/b/brotli/brotli_1.1.0-2ubuntu0.1.dsc",
+            "sha256": "20d71900a6ed7f7edf6ef3b0084892510aae1b3b72ed7b99f38919f802c2a779",
+            "size": 2376
+          }
+        ]
+      },
+      {
+        "name": "gcc-14",
+        "version": "14.2.0-4ubuntu2~24.04.1",
+        "index": {
+          "suite": "noble-updates",
+          "component": "main"
+        },
+        "files": [
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/g/gcc-14/gcc-14_14.2.0.orig.tar.gz",
+            "sha256": "768c314c11eeab56ccebb91eb42ec4a41122fa94f0d83400126401942622197b",
+            "size": 97158172
+          },
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/g/gcc-14/gcc-14_14.2.0-4ubuntu2~24.04.1.debian.tar.xz",
+            "sha256": "cfece214c2fb790ef5f3baffb9a53e40618e7ae12d053610b251e94d77d08ade",
+            "size": 1950432
+          },
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/g/gcc-14/gcc-14_14.2.0-4ubuntu2~24.04.1.dsc",
+            "sha256": "50950080874a6ec6780dd60c243e21d9cda9d736bb32bca98d16095d27cc01b5",
+            "size": 46930
+          }
+        ]
+      },
+      {
+        "name": "libbsd",
+        "version": "0.12.1-1build1.1",
+        "index": {
+          "suite": "noble-updates",
+          "component": "main"
+        },
+        "files": [
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/libb/libbsd/libbsd_0.12.1.orig.tar.xz",
+            "sha256": "d7747f8ec1baa6ff5c096a9dd587c061233dec90da0f1aedd66d830f6db6996a",
+            "size": 444048
+          },
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/libb/libbsd/libbsd_0.12.1.orig.tar.xz.asc",
+            "sha256": "04a4b66da93ea3c761e15fcedd705a969b67597d0619c3ebc5fe3cf72d477f1f",
+            "size": 833
+          },
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/libb/libbsd/libbsd_0.12.1-1build1.1.debian.tar.xz",
+            "sha256": "4086dc52ae53f0d7625a593c331460377868edc2a5606f4d8a341565aa94b2be",
+            "size": 18732
+          },
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/libb/libbsd/libbsd_0.12.1-1build1.1.dsc",
+            "sha256": "a44c2a70dbb9703c342ae49525507d22795b37308302c6167d72c3cbd3e76236",
+            "size": 2458
+          }
+        ]
+      },
+      {
+        "name": "libcap2",
+        "version": "1:2.66-5ubuntu2.4",
+        "index": {
+          "suite": "noble-updates",
+          "component": "main"
+        },
+        "files": [
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/libc/libcap2/libcap2_2.66.orig.tar.xz",
+            "sha256": "15c40ededb3003d70a283fe587a36b7d19c8b3b554e33f86129c059a4bb466b2",
+            "size": 181592
+          },
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/libc/libcap2/libcap2_2.66-5ubuntu2.4.debian.tar.xz",
+            "sha256": "7eb46752c6b59984494d2f641a049b9d4b394b7d1fe067729ccbc413c5943136",
+            "size": 24724
+          },
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/libc/libcap2/libcap2_2.66-5ubuntu2.4.dsc",
+            "sha256": "8178019803f285b92e52e82cf84b0a6fc18840041270b2c588db826b8277e3e0",
+            "size": 2319
+          }
+        ]
+      },
+      {
+        "name": "libzstd",
+        "version": "1.5.5+dfsg2-2build1.1",
+        "index": {
+          "suite": "noble-updates",
+          "component": "main"
+        },
+        "files": [
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/libz/libzstd/libzstd_1.5.5+dfsg2.orig.tar.xz",
+            "sha256": "d7cf3c10d416fd999cb8fcf7685d9268ba7bec8eb78121fc2d0d916fa393d22b",
+            "size": 1784164
+          },
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/libz/libzstd/libzstd_1.5.5+dfsg2-2build1.1.debian.tar.xz",
+            "sha256": "c1df6d2628b26d085259b8e7ac020eb060e4c1feca98d6103058eda5ded725bc",
+            "size": 21288
+          },
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/libz/libzstd/libzstd_1.5.5+dfsg2-2build1.1.dsc",
+            "sha256": "c190a5dff9e7c5b5b1399f0d701bb2c173bc7cbdf14d5e05970f5ac066c25570",
+            "size": 2485
+          }
+        ]
+      },
+      {
+        "name": "lz4",
+        "version": "1.9.4-1build1.1",
+        "index": {
+          "suite": "noble-updates",
+          "component": "main"
+        },
+        "files": [
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/l/lz4/lz4_1.9.4.orig.tar.gz",
+            "sha256": "0b0e3aa07c8c063ddf40b082bdf7e37a1562bda40a0ff5272957f3e987e0e54b",
+            "size": 354063
+          },
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/l/lz4/lz4_1.9.4-1build1.1.debian.tar.xz",
+            "sha256": "9551b039576db7c87f38c3c847283877de65114cca06488accb9596a7c4f1ead",
+            "size": 8356
+          },
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/l/lz4/lz4_1.9.4-1build1.1.dsc",
+            "sha256": "ba7b585b15d8b4c955dd68c7af5aa89901cfbb3fdb4f2607ccad51628857d669",
+            "size": 2061
+          }
+        ]
+      },
+      {
+        "name": "protobuf",
+        "version": "3.21.12-8.2ubuntu0.4",
+        "index": {
+          "suite": "noble-updates",
+          "component": "main"
+        },
+        "files": [
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/p/protobuf/protobuf_3.21.12.orig.tar.gz",
+            "sha256": "930c2c3b5ecc6c9c12615cf5ad93f1cd6e12d0aba862b572e076259970ac3a53",
+            "size": 5141502
+          },
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/p/protobuf/protobuf_3.21.12-8.2ubuntu0.4.debian.tar.xz",
+            "sha256": "874f771ecbcfdf89e73460f5e4890e6fc1606be56f8c6a26f8a2b558ce6b8e08",
+            "size": 46716
+          },
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/p/protobuf/protobuf_3.21.12-8.2ubuntu0.4.dsc",
+            "sha256": "1ea2ac44ae3737510c780124c20aeef9e986387cbce7c9299669e58dd18b40e2",
+            "size": 3203
+          }
+        ]
+      },
+      {
+        "name": "systemd",
+        "version": "255.4-1ubuntu8.18",
+        "index": {
+          "suite": "noble-updates",
+          "component": "main"
+        },
+        "files": [
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/s/systemd/systemd_255.4.orig.tar.gz",
+            "sha256": "96e75bd08c57ad401677456fb88ef54a9f05bb1695693013bc6ecce839640fd5",
+            "size": 14952427
+          },
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/s/systemd/systemd_255.4-1ubuntu8.18.debian.tar.xz",
+            "sha256": "ec3ce620c3e072d34bbeaf9a4155cd91b5bee94eb412071bf81182f230ae2657",
+            "size": 273272
+          },
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/s/systemd/systemd_255.4-1ubuntu8.18.dsc",
+            "sha256": "04154737afced0898fc7966b85e88505fb3a17f46c8c7079576d022cdeb67304",
+            "size": 7324
+          }
+        ]
+      },
+      {
+        "name": "zlib",
+        "version": "1:1.3.dfsg-3.1ubuntu2.3",
+        "index": {
+          "suite": "noble-updates",
+          "component": "main"
+        },
+        "files": [
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/z/zlib/zlib_1.3.dfsg.orig.tar.xz",
+            "sha256": "5eea0322c1c21c75cad3b607ac1c43ff5c71e014b8ac4a34300b5e2b80d02e70",
+            "size": 1128572
+          },
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/z/zlib/zlib_1.3.dfsg-3.1ubuntu2.3.debian.tar.xz",
+            "sha256": "ada8a0c4a1016eb8cd549f4689fd9f73b04d9c55163a318cabdfb0c3872cfe1c",
+            "size": 61772
+          },
+          {
+            "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/z/zlib/zlib_1.3.dfsg-3.1ubuntu2.3.dsc",
+            "sha256": "01d8c26d0549eacbbd65bc4b51c076c407e9e429d081e4d472a13ec499ec2a3a",
+            "size": 3162
+          }
+        ]
+      }
+    ]
+  },
+  "capture": {
+    "mode": "pyinstaller-onedir",
+    "requirements": "desktop/requirements.txt",
+    "source": "src/adb/winscope_proxy.py",
+    "runtimePrerequisites": [],
+    "licenseReference": "https://pyinstaller.org/en/v6.22.3/license.html",
+    "pythonLicenseReference": "https://docs.python.org/3/license.html"
+  }
+}

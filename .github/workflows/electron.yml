@@ -1,0 +1,418 @@
+name: Electron desktop candidates
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      release-version:
+        type: string
+        required: false
+        default: ""
+      shared-artifact:
+        type: string
+        required: false
+        default: ""
+    outputs:
+      publication-artifact:
+        description: Verified desktop publication for this commit
+        value: ${{ jobs.bundle.outputs.publication-artifact }}
+  pull_request:
+    paths:
+      - .github/workflows/electron.yml
+      - .github/workflows/official-release.yml
+      - tests/test_electron_workflow.py
+      - tests/test_official_release.py
+      - README.md
+      - docs/ELECTRON.md
+      - docs/adr/0029-electron-desktop-distribution.md
+      - desktop/**
+      - ai/**
+      - src/**
+      - cmd/launcher/**
+      - tools/**
+      - scripts/**
+      - build/**
+      - protos/**
+      - configs/**
+      - package.json
+      - package-lock.json
+      - .node-version
+      - angular.json
+      - tsconfig*.json
+      - go.mod
+      - go.sum
+
+permissions:
+  contents: read
+
+concurrency:
+  group: electron-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    name: Resolve authoritative native targets and release version
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.plan.outputs.version }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+      publication-artifact: ${{ steps.plan.outputs.publication-artifact }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+
+      - name: Validate version and emit native build matrix
+        id: plan
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ inputs.release-version }}
+        run: |
+          set -euo pipefail
+          args=(--commit "$GITHUB_SHA" --github-output "$GITHUB_OUTPUT")
+          if [[ -n "$RELEASE_VERSION" ]]; then
+            args+=(--version "$RELEASE_VERSION")
+          fi
+          node desktop/release.mjs plan "${args[@]}"
+
+  shared:
+    name: Build shared Web and AI once
+    needs: plan
+    if: inputs.shared-artifact == ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.26.6"
+          cache: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          check-latest: false
+
+      - name: Prepare and verify the pinned shared build inputs
+        run: |
+          set -euo pipefail
+          npm run toolchain:verify
+          npm ci
+          npm run deps:prepare
+          npm run deps:verify
+
+      - name: Record baseline lineage audit without approving a release
+        continue-on-error: true
+        run: |
+          mkdir -p dist/validation/electron
+          python3 scripts/verify-baseline.py --json > dist/validation/electron/baseline.json
+
+      - name: Build and verify shared production Web and AI
+        run: |
+          set -euo pipefail
+          npm run build:prod
+          npm run build:verify
+          npm run ai:build
+          npm run ai:verify
+          node --test ai/dist/src/test/*.test.js
+          go test -race -count=1 ./cmd/launcher
+          go vet ./cmd/launcher
+          python3 -m unittest tests.test_desktop_capture_shutdown tests.test_security
+          python3 -m unittest discover -s desktop -p '*_test.py'
+
+      - name: Transfer same-commit shared artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: electron-shared-${{ github.sha }}
+          # A single upload preserves these paths relative to the repository root.
+          path: |
+            dist/prod
+            ai/dist
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+      - name: Retain shared lineage audit
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: electron-shared-evidence-${{ github.sha }}
+          path: dist/validation/electron
+          if-no-files-found: warn
+          retention-days: 7
+
+  native:
+    name: Package and smoke ${{ matrix.target }}
+    needs: [plan, shared]
+    if: ${{ always() && needs.plan.result == 'success' && (needs.shared.result == 'success' || needs.shared.result == 'skipped') }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      # No signing credentials or auto-discovered developer identities in PR CI.
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      DESKTOP_PLATFORM: ${{ matrix.platform }}
+      DESKTOP_ARCH: ${{ matrix.arch }}
+      DESKTOP_TARGET: ${{ matrix.target }}
+      DESKTOP_VERSION: ${{ needs.plan.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          architecture: ${{ matrix.arch }}
+          cache: npm
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.26.6"
+          cache: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          architecture: ${{ matrix.python }}
+          check-latest: false
+
+      - name: Install Linux packaging and smoke tools
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          . /etc/os-release
+          case "$ID:$VERSION_ID" in
+            ubuntu:22.04) audio_package=libasound2 ;;
+            ubuntu:24.04) audio_package=libasound2t64 ;;
+            *)
+              echo "Unsupported Linux distribution: $ID $VERSION_ID" >&2
+              exit 1
+              ;;
+          esac
+          sudo apt-get update
+          sudo apt-get install -y binutils gpgv xz-utils rpm xvfb \
+            ubuntu-keyring base-files dpkg \
+            libgtk-3-0 libnss3 libgbm1 libxss1 libdrm2 libxkbcommon0 \
+            libnotify4 libatspi2.0-0 "$audio_package"
+
+      - name: Install locked desktop build dependencies and check native target
+        run: |
+          set -euo pipefail
+          npm ci
+          node -e '
+            const assert = require("node:assert/strict");
+            const pkg = require("./package.json");
+            assert.equal(process.platform, process.env.DESKTOP_PLATFORM);
+            assert.equal(process.arch, process.env.DESKTOP_ARCH);
+            assert.equal(process.platform + "-" + process.arch, process.env.DESKTOP_TARGET);
+            assert.equal(pkg.version, process.env.DESKTOP_VERSION);
+            assert.equal(pkg.devDependencies.electron, "45.2.1");
+            assert.equal(pkg.devDependencies["electron-builder"], "26.18.1");
+          '
+
+      - name: Restore shared Web and compiled AI at their original paths
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ inputs.shared-artifact || format('electron-shared-{0}', github.sha) }}
+          path: .
+
+      - name: Stage native runtime without rebuilding shared Web or Perfetto
+        run: |
+          set -euo pipefail
+          # prepare owns pinned PyInstaller installation and verified native ADB.
+          node desktop/prepare.mjs --skip-web-build
+          npm run desktop:test
+
+      - name: Package the unpacked application first
+        run: |
+          set -euo pipefail
+          npx --no-install electron-builder --config desktop/electron-builder.cjs \
+            --dir --${{ matrix.arch }} --publish never \
+            -c.directories.output=dist/desktop/packages
+
+      - name: Resolve the actual unpacked application executable
+        id: unpacked
+        run: |
+          set -euo pipefail
+          output=dist/desktop/packages
+          suffix=''
+          [[ "$DESKTOP_ARCH" == x64 ]] || suffix="-$DESKTOP_ARCH"
+          if [[ "$RUNNER_OS" == macOS ]]; then
+            apps=("$output"/mac*/*.app)
+            if [[ ${#apps[@]} -ne 1 || ! -d "${apps[0]}" ]]; then
+              echo "Expected one unpacked macOS application" >&2
+              exit 1
+            fi
+            app="${apps[0]}"
+            name=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")
+            executable="$app/Contents/MacOS/$name"
+          elif [[ "$RUNNER_OS" == Windows ]]; then
+            app="$output/win${suffix}-unpacked"
+            name=$(node --input-type=module -e '
+              import createConfiguration from "./desktop/electron-builder.cjs";
+              const config = await createConfiguration();
+              const name = config.win?.executableName ?? config.executableName ?? config.productName;
+              if (typeof name !== "string" || !name || /[\\/:*?"<>|\r\n]/.test(name)) {
+                throw new Error("Invalid Windows application executable name");
+              }
+              process.stdout.write(name + ".exe");
+            ')
+            executable="$app/$name"
+          else
+            app="$output/linux${suffix}-unpacked"
+            executables=()
+            for candidate in "$app"/*; do
+              [[ -f "$candidate" && -x "$candidate" ]] || continue
+              case "${candidate##*/}" in
+                chrome-sandbox|chrome_crashpad_handler|*.so|*.so.*) continue ;;
+              esac
+              executables+=("$candidate")
+            done
+            if [[ ${#executables[@]} -ne 1 ]]; then
+              echo "Expected one unpacked Linux application executable" >&2
+              exit 1
+            fi
+            executable="${executables[0]}"
+          fi
+          if [[ ! -f "$executable" ]]; then
+            echo "Missing packaged application executable: $executable" >&2
+            exit 1
+          fi
+          printf 'app=%s\nexecutable=%s\n' "$app" "$executable" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke the packaged runtime under Xvfb
+        if: runner.os == 'Linux'
+        env:
+          PACKAGED_EXECUTABLE: ${{ steps.unpacked.outputs.executable }}
+        run: |
+          set -euo pipefail
+          # An unpacked CI tree has no installer to establish the sandbox helper owner.
+          sandbox="$(dirname "$PACKAGED_EXECUTABLE")/chrome-sandbox"
+          sudo chown root:root "$sandbox"
+          sudo chmod 4755 "$sandbox"
+          xvfb-run -a node desktop/smoke.mjs --executable "$PACKAGED_EXECUTABLE"
+
+      - name: Smoke the packaged runtime natively
+        if: runner.os != 'Linux'
+        env:
+          PACKAGED_EXECUTABLE: ${{ steps.unpacked.outputs.executable }}
+        run: |
+          set -euo pipefail
+          node desktop/smoke.mjs --executable "$PACKAGED_EXECUTABLE"
+
+      - name: Create installers from the smoke-tested unpacked app
+        env:
+          PREPACKAGED_APP: ${{ steps.unpacked.outputs.app }}
+        run: |
+          set -euo pipefail
+          npx --no-install electron-builder --config desktop/electron-builder.cjs \
+            --prepackaged "$PREPACKAGED_APP" --${{ matrix.arch }} --publish never \
+            -c.directories.output=dist/desktop/packages
+
+      - name: Record complete smoke-tested target delivery
+        run: |
+          set -euo pipefail
+          node desktop/release.mjs record \
+            --target "$DESKTOP_TARGET" \
+            --version "$DESKTOP_VERSION" \
+            --commit "$GITHUB_SHA" \
+            --packages dist/desktop/packages \
+            --runtime "dist/desktop/runtime/$DESKTOP_TARGET" \
+            --evidence dist/validation/electron/packaged \
+            --output dist/desktop/delivery
+
+      - name: Upload recorded installers without release publication
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: electron-installers-${{ matrix.target }}-${{ github.sha }}
+          path: dist/desktop/delivery
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+      - name: Retain native smoke and runtime evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: electron-evidence-${{ matrix.platform }}-${{ matrix.arch }}-${{ github.sha }}
+          path: |
+            dist/validation/electron
+            dist/desktop/runtime/*/manifest.json
+            dist/desktop/runtime/*/runtime-manifest.json
+            dist/desktop/packages/builder-debug.yml
+            dist/desktop/packages/builder-effective-config.yaml
+          if-no-files-found: warn
+          retention-days: 7
+
+  bundle:
+    name: Verify complete multi-OS desktop publication
+    needs: [native, plan]
+    if: ${{ always() && !cancelled() && needs.plan.result == 'success' && needs.native.result == 'success' }}
+    runs-on: ubuntu-24.04
+    outputs:
+      publication-artifact: ${{ needs.plan.outputs.publication-artifact }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      DESKTOP_VERSION: ${{ needs.plan.outputs.version }}
+      DESKTOP_PUBLICATION_DIR: dist/desktop/public/${{ needs.plan.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+
+      - name: Gather separate same-commit native deliveries
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: electron-installers-*-${{ github.sha }}
+          path: dist/desktop/downloaded
+          merge-multiple: false
+
+      - name: Collect and reverify every required target
+        run: |
+          set -euo pipefail
+          node desktop/release.mjs collect \
+            --artifacts dist/desktop/downloaded \
+            --version "$DESKTOP_VERSION" \
+            --commit "$GITHUB_SHA" \
+            --output "$DESKTOP_PUBLICATION_DIR"
+          node desktop/release.mjs verify \
+            --directory "$DESKTOP_PUBLICATION_DIR" \
+            --version "$DESKTOP_VERSION" \
+            --commit "$GITHUB_SHA"
+
+      - name: Transfer verified desktop publication without publishing a release
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ needs.plan.outputs.publication-artifact }}
+          path: ${{ env.DESKTOP_PUBLICATION_DIR }}
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0

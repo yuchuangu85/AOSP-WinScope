@@ -3,26 +3,24 @@ import {DEFAULT_RUNTIME_CONFIG, getRuntimeConfig, getRuntimeConfigDiagnostic, lo
 describe('Runtime configuration', () => {
   afterEach(() => resetRuntimeConfigForTest());
 
-  it('accepts standalone file-only configuration', () => {
+  it('accepts launcher capture configuration', () => {
     expect(
       parseRuntimeConfig({
         schemaVersion: 1,
         host: {kind: 'standalone'},
-        capture: {provider: 'none'},
+        capture: {provider: 'loopback-proxy-v1', endpoint: './capture/'},
         optionalFutureField: true,
       }),
     ).toEqual(DEFAULT_RUNTIME_CONFIG);
   });
 
   it('exposes a bounded launcher capture startup diagnostic', async () => {
-    const diagnostic =
-      'Device capture could not start because Android Platform Tools was not found.';
     const fetcher = jasmine.createSpy('fetcher').and.resolveTo(
       new Response(
         JSON.stringify({
           schemaVersion: 1,
           host: {kind: 'standalone'},
-          capture: {provider: 'none', diagnostic},
+          capture: {provider: 'loopback-proxy-v1', endpoint: './capture/'},
         }),
         {headers: {'content-type': 'application/json'}},
       ),
@@ -30,7 +28,7 @@ describe('Runtime configuration', () => {
 
     await loadRuntimeConfig(fetcher);
 
-    expect(getRuntimeConfigDiagnostic()).toEqual(diagnostic);
+    expect(getRuntimeConfigDiagnostic()).toBeUndefined();
   });
 
   it('accepts only clean relative loopback endpoints', () => {
@@ -70,11 +68,31 @@ describe('Runtime configuration', () => {
     ).toThrowError(/relative path/);
   });
 
-  it('degrades fetch failures to file-only mode', async () => {
+  it('accepts a same-origin AI gateway configuration', () => {
+    expect(
+      parseRuntimeConfig({
+        schemaVersion: 1,
+        host: {kind: 'standalone'},
+        capture: {provider: 'loopback-proxy-v1', endpoint: './capture/'},
+        ai: {provider: 'loopback-ai-v1', endpoint: './ai/'},
+      }).ai,
+    ).toEqual({provider: 'loopback-ai-v1', endpoint: './ai/'});
+    expect(() =>
+      parseRuntimeConfig({
+        schemaVersion: 1,
+        host: {kind: 'standalone'},
+        capture: {provider: 'loopback-proxy-v1', endpoint: './capture/'},
+        ai: {provider: 'loopback-ai-v1', endpoint: 'https://example.com/'},
+      }),
+    ).toThrowError(/relative path/);
+  });
+
+  it('requires launcher mode when runtime configuration is unavailable', async () => {
     const config = await loadRuntimeConfig(async () => {
       throw new Error('offline');
     });
     expect(config).toEqual(DEFAULT_RUNTIME_CONFIG);
+    expect(getRuntimeConfigDiagnostic()).toContain('launcher');
   });
 
   it('uses a bounded JSON no-store request', async () => {
@@ -124,23 +142,5 @@ describe('Runtime configuration', () => {
     expect(await loadRuntimeConfig(async () => response)).toEqual(
       DEFAULT_RUNTIME_CONFIG,
     );
-  });
-  it('accepts a same-origin AI gateway configuration', () => {
-    expect(
-      parseRuntimeConfig({
-        schemaVersion: 1,
-        host: {kind: 'standalone'},
-        capture: {provider: 'loopback-proxy-v1', endpoint: './capture/'},
-        ai: {provider: 'loopback-ai-v1', endpoint: './ai/'},
-      }).ai,
-    ).toEqual({provider: 'loopback-ai-v1', endpoint: './ai/'});
-    expect(() =>
-      parseRuntimeConfig({
-        schemaVersion: 1,
-        host: {kind: 'standalone'},
-        capture: {provider: 'loopback-proxy-v1', endpoint: './capture/'},
-        ai: {provider: 'loopback-ai-v1', endpoint: 'https://example.com/'},
-      }),
-    ).toThrowError(/relative path/);
   });
 });

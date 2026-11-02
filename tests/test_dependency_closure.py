@@ -129,7 +129,7 @@ class DependencyClosureTest(unittest.TestCase):
         report = json.loads(result.stdout)
         self.assertTrue(report["ok"])
         self.assertEqual(report["actual"]["node"], "24.19.0")
-        self.assertEqual(report["actual"]["npm"], "11.17.0")
+        self.assertEqual(report["actual"]["npm"], "12.2.0")
         self.assertIn(report["actual"]["python"], ["3.11", "3.12", "3.13"])
         self.assertEqual(
             report["runtimePython"],

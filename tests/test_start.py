@@ -27,7 +27,7 @@ class SourceCheckoutStartTest(unittest.TestCase):
     def test_npm_scripts_register_launcher_and_preserve_web_dev_server(self):
         scripts = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))["scripts"]
         self.assertEqual(scripts["start"], "python3 scripts/start.py")
-        self.assertEqual(scripts["start:web"], "ng serve winscope --open")
+        self.assertNotIn("start:web", scripts)
 
     def test_verified_outputs_rebuild_only_protos_and_app_and_reverify(self):
         artifacts = {"trace_processor.wasm": {"sha256": "verified", "size": 1}}
@@ -181,7 +181,7 @@ class SourceCheckoutStartTest(unittest.TestCase):
 
     def test_main_uses_verified_toolchain_and_forwards_arguments_unchanged(self):
         launcher = ROOT / "dist/local/winscope-launcher"
-        for arguments in ([], ["--offline-only"], ["--capture", "--open", "--port", "8123", "--browser", "path with spaces"]):
+        for arguments in ([], ["--open", "--port", "8123", "--browser", "path with spaces"], ["--open", "--ai-url", "http://127.0.0.1:7341"]):
             with (
                 self.subTest(arguments=arguments),
                 mock.patch.object(start.dependencies, "reexec_with_supported_python") as reexec,
@@ -224,7 +224,7 @@ class SourceCheckoutStartTest(unittest.TestCase):
 
     def test_posix_exec_preserves_argument_boundaries_and_environment(self):
         launcher = ROOT / "dist/local/winscope-launcher"
-        arguments = ["--offline-only", "--browser", "path with spaces"]
+        arguments = ["--open", "--browser", "path with spaces"]
         with (
             mock.patch.object(start.sys, "platform", "linux"),
             mock.patch.object(start.os, "execve") as execute,
@@ -268,11 +268,11 @@ class SourceCheckoutStartTest(unittest.TestCase):
             mock.patch.object(start.subprocess, "Popen", return_value=process) as popen,
             mock.patch.object(start.os, "execve") as execute,
         ):
-            self.assertEqual(start.launch(launcher, ["--offline-only"], self.environment), 37)
+            self.assertEqual(start.launch(launcher, ["--open"], self.environment), 37)
 
         execute.assert_not_called()
         popen.assert_called_once_with(
-            [str(launcher), "--offline-only"], env=self.environment, creationflags=512,
+            [str(launcher), "--open"], env=self.environment, creationflags=512,
         )
         self.assertEqual(process.send_signal.call_args_list, [mock.call(1)] * 3)
         self.assertEqual(handlers, previous)

@@ -189,3 +189,14 @@ line height, 12px text/toolbar gap and 34px send target.
 Verify rendered header/control sizes, no horizontal overflow at 390px, both
 themes and composer/settings usability at a 640px viewport height, alongside the
 existing keyboard, session, attachment and report workflow regressions.
+
+## Desktop title bar (2026-11-02)
+
+The Electron desktop window merges its existing 32px WinScope toolbar into the
+native title-bar area. Remove the former File/Edit/View/Help menu; keep the
+existing toolbar commands and essential keyboard actions. macOS retains native
+traffic-light controls with an 88px left inset. Windows/Linux retain native
+caption buttons through Window Controls Overlay and reserve their actual CSS
+safe area. Blank toolbar space drags the window; interactive controls never do.
+Native caption glyphs follow the resolved page theme without exposing a general
+renderer bridge. Browser-hosted WinScope keeps its existing toolbar and layout.

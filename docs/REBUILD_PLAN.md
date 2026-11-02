@@ -128,7 +128,7 @@ and queries `surfaceflinger_layers_snapshot` as this stage's import evidence.
 ### Fixed tools
 
 - Node.js `24.19.0`
-- npm `11.17.0`
+- npm `12.2.0`
 - Go `1.26.6`
 - Python 3.11 through 3.13; official CI uses Python 3.12
 
@@ -192,10 +192,10 @@ The immutable Web application fetches a bounded, schema-validated, non-redirecti
 Version 1 supports:
 
 - `host.kind: standalone`;
-- `capture.provider: none`;
+- `capture.provider: loopback-proxy-v1` with the launcher-managed relative endpoint;
 - `capture.provider: loopback-proxy-v1` through a relative same-origin endpoint.
 
-Failure or an unsupported required schema safely degrades to file-only analysis with a clear diagnostic. Unknown optional fields are ignored. Session secrets are memory-only and never enter URLs, logs, persistent storage, or release metadata. Future APS configuration adds its own host identity and bridge provider.
+Failure or an unsupported required schema keeps the product unavailable until it is started through the launcher. Unknown optional fields are ignored. Session secrets are memory-only and never enter URLs, logs, persistent storage, or release metadata. Future APS configuration adds its own host identity and bridge provider.
 
 ## Native launcher and capture
 
@@ -330,7 +330,7 @@ The work is complete only when all of the following are true:
 4. The public upstream feature matrix passes except for explicitly accepted removals.
 5. Runtime makes no automatic non-loopback request and the proxy resists unauthorized browser access.
 6. The Web tree is relocatable and consumable by both the source and archive APS modes.
-7. Supported launchers work; offline-only use has no external runtime dependency.
+7. The supported launcher always starts the authenticated capture proxy; startup fails closed when capture cannot be established.
 8. Android 17 real-device capture/import validation passes and other Android evidence is accurately tiered.
 9. Performance, memory, size, license, SBOM, vulnerability, and hostile-input gates pass.
 10. Two official cold builds produce byte-identical output and verified provenance.
@@ -352,7 +352,7 @@ Any evidence that contradicts an accepted assumption stops the dependent stage a
 
 ## Stage 4 implementation evidence
 
-The standalone Web build now ships only local assets, declares a restrictive Content Security Policy, and defaults to file-only analysis through `runtime-config.json`. Startup loads that configuration with `no-store`, same-origin credentials, redirect rejection, a 64 KiB bound, and schema validation; invalid input leaves capture disabled. A configured capture path must be a clean `./` relative endpoint and is resolved only at request time. Production no longer embeds Google analytics, remote fonts, the Web Device Proxy, or a fixed capture port; the capture token is memory-only. `python3 scripts/build.py verify --json` checks the built Web tree for the CSP, relative base URL, default runtime configuration, and forbidden remote runtime markers.
+The standalone Web build now ships only local assets, declares a restrictive Content Security Policy, and requires launcher-managed capture through `runtime-config.json`. Startup loads that configuration with `no-store`, same-origin credentials, redirect rejection, a 64 KiB bound, and schema validation; invalid input leaves the launcher contract unavailable. A configured capture path must be a clean `./` relative endpoint and is resolved only at request time. Production no longer embeds Google analytics, remote fonts, the Web Device Proxy, or a fixed capture port; the capture token is memory-only. `python3 scripts/build.py verify --json` checks the built Web tree for the CSP, relative base URL, default runtime configuration, and forbidden remote runtime markers.
 
 ## Stage 6 implementation evidence
 
@@ -415,7 +415,6 @@ pass `--build-image`) before invoking a publication command; the digest is
 frozen into release evidence. No command performs an external tag, network, or
 artifact overwrite operation.
 
-
 ## Stage 12 implementation evidence
 
 `scripts/support.py` verifies the explicit release support lifecycle without
@@ -427,7 +426,6 @@ SHA-256 digests for their local evidence files. Publication indexes now record
 release time, baseline generation, support track, withdrawal metadata, and the
 Critical/High response targets. Existing publication directories are immutable;
 re-publishing the same version fails instead of deleting evidence.
-
 
 ## Stage 13 implementation evidence
 
@@ -696,9 +694,9 @@ packet-loss counts, while declaring and enforcing exclusions for trace bytes,
 filenames, paths, tokens, commands, device serials, and device identity.
 
 The launcher adds fixed loopback `--port`, explicit `--browser`, and
-`--offline-only` controls. Port conflicts fail through normal loopback bind
-errors, browser launch uses an argument vector rather than a shell, and
-offline-only cannot be combined with capture.
+`--open` controls. Port conflicts fail through normal loopback bind errors,
+browser launch uses an argument vector rather than a shell, and capture
+startup fails closed when adb or Python is unavailable.
 
 `security.yml` adds pinned PR, main, weekly, and manual dependency, OSV,
 CodeQL, Go vulnerability, source-secret/runtime-boundary, and hostile-input

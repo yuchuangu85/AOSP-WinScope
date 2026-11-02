@@ -65,6 +65,7 @@ JCEF, Compose, or a WinScope-specific bridge to use the standalone viewer.
    ZIP paths, the release inventory, the digest-pinned build image and its
    sandboxed runtime-verification evidence, and every Web manifest digest
    without Git, Node, build caches, or network access.
+
 4. Only after verification succeeds, unpack the archive and use its `web/`
    directory plus root `manifest.json`.
 
@@ -115,8 +116,8 @@ all resources relative to the Web root: the application must work when mounted
 under a non-root path, and APS must not rewrite asset URLs or infer bundle
 names.
 
-The default runtime configuration is standalone/file-only. Capture is enabled
-only through the launcher-managed, authenticated loopback proxy contract. No
+The default runtime configuration is launcher-managed. Capture is provided
+only through the authenticated loopback proxy contract. No
 automatic external runtime request, remote CDN, fixed port, or `file://` load
 is part of the APS integration boundary.
 

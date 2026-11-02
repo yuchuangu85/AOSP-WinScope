@@ -28,7 +28,7 @@ EXPECTED = {
     "systemui_repository": "https://android.googlesource.com/platform/frameworks/libs/systemui",
     "systemui_revision": "11e04f60f563aed48e4ec080bd7bde06bae1b2f3",
     "node": "24.19.0",
-    "npm": "11.17.0",
+    "npm": "12.2.0",
     "go": "1.26.6",
     "python_supported": ["3.11", "3.12", "3.13"],
     "python_ci": "3.12",

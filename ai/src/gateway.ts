@@ -5,6 +5,8 @@ import {ChatTurn, EvidenceInput, JsonValue, ReasoningLevel, RuntimeEvent, TextAt
 import {buildHtmlReport, buildMarkdownReport} from './report';
 import {importLocalProvider, isModelId, LocalConfigOptions, LocalProviderId} from './local_config';
 
+const SHUTDOWN_TIMEOUT_MS = 5000;
+
 type SessionStatus = 'running' | 'completed' | 'failed' | 'cancelled';
 interface Session {
   id: string;
@@ -18,6 +20,7 @@ interface Session {
   events: Array<{id: number; event: RuntimeEvent}>;
   watchers: Set<ServerResponse>;
   controller: AbortController;
+  run?: Promise<void>;
   status: SessionStatus;
   createdAt: number;
   updatedAt: number;
@@ -41,11 +44,13 @@ class HttpError extends Error {
 export class AiGateway {
   private readonly sessions = new Map<string, Session>();
   private readonly importingProviders = new Set<LocalProviderId>();
+  private closePromise?: Promise<void>;
   readonly server: Server;
   constructor(private readonly runtime: AgentRuntime, private readonly localConfigOptions: LocalConfigOptions = {}) {
     this.server = createServer((request, response) => void this.handle(request, response));
   }
   listen(port: number, host = '127.0.0.1'): Promise<void> {
+    if (this.closePromise) return Promise.reject(new Error('AI gateway is shutting down'));
     if (host !== '127.0.0.1' && host !== 'localhost' && host !== '::1') return Promise.reject(new Error('AI gateway must bind to loopback'));
     return new Promise((resolve, reject) => {
       this.server.once('error', reject);
@@ -53,11 +58,33 @@ export class AiGateway {
     });
   }
   close(): Promise<void> {
+    return this.closePromise ??= Promise.resolve().then(() => this.closeSessions());
+  }
+  private async closeSessions(): Promise<void> {
+    const runs: Array<Promise<void>> = [];
     for (const session of this.sessions.values()) {
-      session.controller.abort();
+      if (session.run) runs.push(session.run);
+      if (session.status === 'running') session.controller.abort();
       for (const watcher of session.watchers) watcher.end();
+      session.watchers.clear();
     }
-    return new Promise((resolve, reject) => this.server.close((error) => error ? reject(error) : resolve()));
+    const serverClosed = new Promise<void>((resolve, reject) => this.server.close((error) => {
+      if (error && (error as NodeJS.ErrnoException).code !== 'ERR_SERVER_NOT_RUNNING') reject(error);
+      else resolve();
+    }));
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        this.server.closeAllConnections();
+        reject(new Error('AI gateway shutdown timed out'));
+      }, SHUTDOWN_TIMEOUT_MS);
+    });
+    try {
+      // Command cancellation settles only after SIGTERM/SIGKILL and child close.
+      await Promise.race([Promise.all([serverClosed, Promise.allSettled(runs)]), deadline]);
+    } finally {
+      clearTimeout(timer);
+    }
   }
   private async handle(request: IncomingMessage, response: ServerResponse): Promise<void> {
     response.setHeader('x-content-type-options', 'nosniff');
@@ -68,6 +95,7 @@ export class AiGateway {
       if (origin !== undefined && !isLoopbackOrigin(origin)) throw new HttpError(403, 'loopback Origin required');
       if (method !== 'GET' && method !== 'POST') throw new HttpError(405, 'method not allowed');
       if (method === 'POST' && !/^application\/json(?:\s*;|\s*$)/i.test(request.headers['content-type'] ?? '')) throw new HttpError(415, 'application/json required');
+      if (this.closePromise) throw new HttpError(503, 'AI gateway is shutting down');
       const url = new URL(request.url ?? '/', 'http://localhost');
       if (method === 'GET' && url.pathname === '/health') return this.json(response, 200, {ok: true, service: 'winscope-ai'});
       if (method === 'GET' && url.pathname === '/api/providers') return this.json(response, 200, {providers: this.runtime.providers.list()});
@@ -120,6 +148,7 @@ export class AiGateway {
     }
   }
   private parseTurn(body: Record<string, unknown>, previous?: Session): TurnInput {
+    if (this.closePromise) throw new HttpError(503, 'AI gateway is shutting down');
     // Child agents can use providers other than the top-level selection.
     if (this.importingProviders.size) throw new HttpError(409, 'Wait for the provider configuration to finish loading.');
     const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : '';
@@ -165,7 +194,7 @@ export class AiGateway {
       controller: new AbortController(), status: 'running', createdAt: now, updatedAt: now,
     };
     this.sessions.set(session.id, session);
-    void this.runSession(session, input);
+    session.run = this.runSession(session, input);
     this.json(response, 202, this.summary(session));
   }
   private async continueSession(request: IncomingMessage, response: ServerResponse, session: Session): Promise<void> {
@@ -182,7 +211,7 @@ export class AiGateway {
     session.modelId = input.modelId;
     session.reasoningLevel = input.reasoningLevel;
     session.updatedAt = Date.now();
-    void this.runSession(session, input);
+    session.run = this.runSession(session, input);
     this.json(response, 202, this.summary(session));
   }
   private async runSession(session: Session, input: TurnInput): Promise<void> {
@@ -257,6 +286,7 @@ export class AiGateway {
     response.end(body);
   }
   private json(response: ServerResponse, status: number, value: unknown): void {
+    if (this.closePromise) response.shouldKeepAlive = false;
     response.writeHead(status, {'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store'});
     response.end(JSON.stringify(value));
   }

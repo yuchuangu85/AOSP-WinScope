@@ -109,8 +109,21 @@
 
 .landing-content .card-grid {
   max-width: 1800px;
-  flex-grow: 1;
+  flex: 1;
+  min-height: 0;
   margin: auto;
+}
+
+.landing-status-bar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-height: 32px;
+  padding: 4px 16px;
+  border-top: 1px solid var(--border-color);
+  background-color: var(--card-title-background-color);
 }
 
 .logo {
@@ -172,8 +185,63 @@
 }
 
 .welcome-info {
-  margin: 16px 0 6px 0;
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
   text-align: center;
+}
+
+html[data-winscope-desktop] .toolbar {
+  -webkit-app-region: drag;
+  user-select: none;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  height: 32px;
+  min-height: 32px;
+  padding-left: calc(env(titlebar-area-x, 0px) + 8px);
+  padding-right: calc(
+    100% - env(titlebar-area-x, 0px) - env(
+        titlebar-area-width,
+        calc(100% - 138px)
+      ) +
+      8px
+  );
+}
+
+html[data-winscope-desktop='darwin'] .toolbar {
+  padding-left: 88px;
+  padding-right: 8px;
+}
+
+html[data-winscope-desktop] .toolbar .logo {
+  flex-shrink: 0;
+}
+
+html[data-winscope-desktop] .toolbar .icon-actions {
+  -webkit-app-region: no-drag;
+  min-width: 0;
+}
+
+html[data-winscope-desktop] .toolbar button,
+html[data-winscope-desktop] .toolbar input,
+html[data-winscope-desktop] .toolbar a,
+html[data-winscope-desktop] .toolbar mat-form-field {
+  -webkit-app-region: no-drag;
+}
+
+html[data-winscope-desktop] .toolbar .icon-actions > * {
+  flex-shrink: 0;
+}
+
+html[data-winscope-desktop] .toolbar .download-files-section {
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+html[data-winscope-desktop] .toolbar .file-descriptor,
+html[data-winscope-desktop] .toolbar .download-file-info,
+html[data-winscope-desktop] .toolbar .file-name-input-field {
+  min-width: 0;
 }
 
 @media (max-width: 760px) {

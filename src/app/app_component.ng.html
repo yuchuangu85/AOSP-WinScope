@@ -292,9 +292,6 @@ limitations under the License.
     } @else {
       <div class="center">
         <div class="landing-content">
-          <h1 class="welcome-info mat-headline-1">
-            {{ 'Welcome to Winscope. Please select source to view traces.' | tr }}
-          </h1>
           @if (runtimeConfigDiagnostic) {
             <p class="runtime-config-diagnostic mat-body-1">
               {{ runtimeConfigDiagnostic | tr }}
@@ -326,6 +323,11 @@ limitations under the License.
             ></upload-traces>
           </div>
 
+          <footer class="landing-status-bar">
+            <h1 class="welcome-info mat-body-1">
+              {{ 'Welcome to Winscope. Please select source to view traces.' | tr }}
+            </h1>
+          </footer>
         </div>
       </div>
     }

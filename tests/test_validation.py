@@ -105,7 +105,7 @@ class ValidationGateTest(unittest.TestCase):
         for name in ("perfetto", "legacy-readers", "screenshot", "screen-recording", "input-and-ime"):
             self.assertGreater(inventory[name]["files"], 0)
 
-    def test_web_contract_accepts_local_file_only_output(self):
+    def test_web_contract_accepts_launcher_capture_output(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             (root / "index.html").write_text(
@@ -118,7 +118,7 @@ class ValidationGateTest(unittest.TestCase):
                 json.dumps({
                     "schemaVersion": 1,
                     "host": {"kind": "standalone"},
-                    "capture": {"provider": "none"},
+                    "capture": {"provider": "loopback-proxy-v1", "endpoint": "./capture/"},
                 }),
                 encoding="utf-8",
             )

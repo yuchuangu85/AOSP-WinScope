@@ -16,14 +16,11 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
 )
@@ -105,30 +102,18 @@ func TestParseLoopbackPort(t *testing.T) {
 
 func TestDefaultLaunchFlags(t *testing.T) {
 	tests := []struct {
-		name        string
-		arguments   []string
-		wantCapture bool
-		wantOpen    bool
+		name      string
+		arguments []string
+		wantOpen  bool
 	}{
-		{name: "no arguments on any platform", wantCapture: true, wantOpen: true},
-		{name: "empty argument list", arguments: []string{}, wantCapture: true, wantOpen: true},
+		{name: "no arguments", wantOpen: true},
 		{name: "explicit port", arguments: []string{"--port", "56745"}},
-		{name: "explicit capture", arguments: []string{"--capture", "--open"}},
-		{name: "offline only", arguments: []string{"--offline-only"}},
-		{name: "explicit capture opt out", arguments: []string{"--capture=false"}},
+		{name: "explicit open", arguments: []string{"--open"}, wantOpen: true},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			capture, openBrowser := defaultLaunchFlags(test.arguments)
-			if capture != test.wantCapture || openBrowser != test.wantOpen {
-				t.Fatalf(
-					"defaultLaunchFlags(%v) = (%t, %t), want (%t, %t)",
-					test.arguments,
-					capture,
-					openBrowser,
-					test.wantCapture,
-					test.wantOpen,
-				)
+			if got := defaultLaunchFlags(test.arguments); got != test.wantOpen {
+				t.Fatalf("defaultLaunchFlags(%v) = %t, want %t", test.arguments, got, test.wantOpen)
 			}
 		})
 	}
@@ -156,108 +141,70 @@ func TestDistributionRootForExecutable(t *testing.T) {
 	}
 }
 
-func TestCaptureStartupOutcome(t *testing.T) {
-	startupError := errors.New("device capture requires adb")
-	diagnostic, fatalError := captureStartupOutcome(true, startupError)
-	if fatalError != nil || !strings.Contains(diagnostic, "device capture requires adb") {
-		t.Fatalf("automatic launch outcome = (%q, %v)", diagnostic, fatalError)
-	}
-
-	diagnostic, fatalError = captureStartupOutcome(false, startupError)
-	if diagnostic != "" || !errors.Is(fatalError, startupError) {
-		t.Fatalf("explicit capture outcome = (%q, %v)", diagnostic, fatalError)
-	}
-}
-
-func TestADBCommandFindsWindowsAndroidStudioSDK(t *testing.T) {
-	root := t.TempDir()
-	localAppData := filepath.Join(t.TempDir(), "LocalAppData")
-	adb := filepath.Join(localAppData, "Android", "Sdk", "platform-tools", "adb.exe")
-	if err := os.MkdirAll(filepath.Dir(adb), 0700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(adb, []byte("adb"), 0700); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("PATH", "")
-	t.Setenv("ANDROID_SDK_ROOT", "")
-	t.Setenv("ANDROID_HOME", "")
-	t.Setenv("LOCALAPPDATA", localAppData)
-	t.Setenv("USERPROFILE", "")
-
-	got, err := adbCommand(root, "windows")
-	if err != nil || got != adb {
-		t.Fatalf("adbCommand() = (%q, %v), want (%q, nil)", got, err, adb)
-	}
-}
-
-func TestADBCommandFindsUnixAndroidStudioSDK(t *testing.T) {
-	for _, goos := range []string{"darwin", "linux"} {
-		t.Run(goos, func(t *testing.T) {
-			home := t.TempDir()
-			sdk := filepath.Join(home, "Android", "Sdk")
-			if goos == "darwin" {
-				sdk = filepath.Join(home, "Library", "Android", "sdk")
-			}
-			adb := filepath.Join(sdk, "platform-tools", "adb")
-			if err := os.MkdirAll(filepath.Dir(adb), 0700); err != nil {
-				t.Fatal(err)
-			}
-			if err := os.WriteFile(adb, []byte("adb"), 0700); err != nil {
-				t.Fatal(err)
-			}
-			t.Setenv("PATH", "")
-			t.Setenv("ANDROID_SDK_ROOT", "")
-			t.Setenv("ANDROID_HOME", "")
-			t.Setenv("HOME", home)
-			t.Setenv("USERPROFILE", home)
-
-			got, err := adbCommand(t.TempDir(), goos)
-			if err != nil || got != adb {
-				t.Fatalf("adbCommand() = (%q, %v), want (%q, nil)", got, err, adb)
-			}
-		})
-	}
-}
-
-func TestPythonCommandUsesWindowsLauncher(t *testing.T) {
-	lookup := func(name string) (string, error) {
-		if name == "py" {
-			return `C:\Windows\py.exe`, nil
+func TestValidateLaunchOptions(t *testing.T) {
+	for _, port := range []int{0, 1, 8080, 65535} {
+		if err := validateLaunchOptions(port); err != nil {
+			t.Errorf("validateLaunchOptions(%d) error = %v", port, err)
 		}
-		return "", exec.ErrNotFound
 	}
-	command, err := pythonCommand("windows", lookup)
+	for _, port := range []int{-1, 65536} {
+		if err := validateLaunchOptions(port); err == nil {
+			t.Errorf("validateLaunchOptions(%d) unexpectedly succeeded", port)
+		}
+	}
+}
+
+func TestParseAIURLRequiresLoopbackWithPort(t *testing.T) {
+	valid, err := parseAIURL("http://127.0.0.1:7341")
+	if err != nil || valid == nil {
+		t.Fatalf("valid AI URL = %v, %v", valid, err)
+	}
+	for _, raw := range []string{
+		"",
+		"https://127.0.0.1:7341",
+		"http://example.test:7341",
+		"http://127.0.0.1",
+		"http://127.0.0.1:7341/ai",
+		"http://user:pass@127.0.0.1:7341",
+	} {
+		if _, err := parseAIURL(raw); raw != "" && err == nil {
+			t.Errorf("parseAIURL(%q) unexpectedly succeeded", raw)
+		}
+	}
+}
+
+func TestAIProxyUsesSameOriginPathAndRuntimeConfig(t *testing.T) {
+	gateway := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/health" {
+			t.Fatalf("gateway path = %q, want /health", request.URL.Path)
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`{"ok":true}`))
+	}))
+	defer gateway.Close()
+	aiTarget, err := url.Parse(gateway.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if command.path != `C:\Windows\py.exe` || !reflect.DeepEqual(command.prefixArguments, []string{"-3"}) {
-		t.Fatalf("pythonCommand() = %#v", command)
+	webRoot := t.TempDir()
+	if err := os.WriteFile(filepath.Join(webRoot, "index.html"), []byte("ok"), 0600); err != nil {
+		t.Fatal(err)
 	}
-}
-
-func TestValidateLaunchOptions(t *testing.T) {
-	tests := []struct {
-		name        string
-		port        int
-		capture     bool
-		offlineOnly bool
-		wantError   bool
-	}{
-		{name: "random offline", port: 0, offlineOnly: true},
-		{name: "fixed capture", port: 8080, capture: true},
-		{name: "maximum port", port: 65535},
-		{name: "negative port", port: -1, wantError: true},
-		{name: "overflow port", port: 65536, wantError: true},
-		{name: "conflicting modes", capture: true, offlineOnly: true, wantError: true},
+	handler := newHandler(webRoot, map[string]bool{"index.html": true}, "http://127.0.0.1:1234", nil, aiTarget)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "http://127.0.0.1:1234/ai/health", nil))
+	if recorder.Code != http.StatusOK || recorder.Body.String() != `{"ok":true}` {
+		t.Fatalf("AI proxy response = (%d, %q)", recorder.Code, recorder.Body.String())
 	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			err := validateLaunchOptions(test.port, test.capture, test.offlineOnly)
-			if (err != nil) != test.wantError {
-				t.Fatalf("validateLaunchOptions() error = %v, wantError = %t", err, test.wantError)
-			}
-		})
+	recorder = httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "http://127.0.0.1:1234/runtime-config.json", nil))
+	var config map[string]any
+	if err := json.NewDecoder(recorder.Body).Decode(&config); err != nil {
+		t.Fatal(err)
+	}
+	ai, ok := config["ai"].(map[string]any)
+	if !ok || ai["provider"] != "loopback-ai-v1" || ai["endpoint"] != "./ai/" {
+		t.Fatalf("runtime AI config = %#v", config["ai"])
 	}
 }
 
@@ -266,7 +213,7 @@ func TestStaticHandlerRejectsHostileRequests(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(webRoot, "index.html"), []byte("ok"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	handler := newHandler(webRoot, map[string]bool{"index.html": true}, "http://127.0.0.1:1234", nil, "")
+	handler := newHandler(webRoot, map[string]bool{"index.html": true}, "http://127.0.0.1:1234", nil, nil)
 
 	tests := []struct {
 		name   string
@@ -297,18 +244,66 @@ func TestStaticHandlerRejectsHostileRequests(t *testing.T) {
 	}
 }
 
-func TestRuntimeConfigReportsAutomaticCaptureStartupFailure(t *testing.T) {
+func TestStaticHandlerPrivacyEntryFlag(t *testing.T) {
+	webRoot := t.TempDir()
+	for name, content := range map[string]string{"index.html": "privacy entry", "app.js": "asset"} {
+		if err := os.WriteFile(filepath.Join(webRoot, name), []byte(content), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	handler := newHandler(webRoot, map[string]bool{"index.html": true, "app.js": true}, "http://127.0.0.1:1234", nil, nil)
+	for _, entry := range []string{"/", "/index.html"} {
+		for _, flag := range []string{"no-persistence", "no-persistence="} {
+			for _, method := range []string{http.MethodGet, http.MethodHead} {
+				t.Run(method+entry+"?"+flag, func(t *testing.T) {
+					request := httptest.NewRequest(method, "http://127.0.0.1:1234"+entry+"?"+flag, nil)
+					recorder := httptest.NewRecorder()
+					handler.ServeHTTP(recorder, request)
+					if recorder.Code != http.StatusOK {
+						t.Fatalf("privacy entry status = %d, want 200", recorder.Code)
+					}
+					if method == http.MethodGet && recorder.Body.String() != "privacy entry" {
+						t.Fatalf("privacy entry body = %q", recorder.Body.String())
+					}
+					if got := recorder.Header().Get("Cache-Control"); got != "no-store" {
+						t.Fatalf("privacy entry cache policy = %q", got)
+					}
+				})
+			}
+		}
+	}
+	for _, target := range []string{
+		"/?unknown", "/?no-persistence=1", "/?no-persistence=false",
+		"/?no-persistence&no-persistence", "/?no-persistence=&no-persistence=",
+		"/?no-persistence&x=1", "/?x=1&no-persistence", "/?no-persistence&",
+		"/?no-persistence;", "/?no-persistence%26x=1", "/?%6eo-persistence",
+		"/?no%2dpersistence", "/?no-persistence=%00", "/?no-persistence=%",
+		"/?no-persistence+", "/?NO-PERSISTENCE", "/?no-persistence==",
+		"/app.js?no-persistence", "/app.js?no-persistence=", "/index.html/?no-persistence",
+		"//index.html?no-persistence", "/./index.html?no-persistence", "/%69ndex.html?no-persistence",
+		"/index%2ehtml?no-persistence", "/%2f?no-persistence",
+	} {
+		t.Run(target, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "http://127.0.0.1:1234"+target, nil))
+			if recorder.Code != http.StatusBadRequest {
+				t.Fatalf("hostile privacy query status = %d, want 400", recorder.Code)
+			}
+		})
+	}
+}
+
+func TestRuntimeConfigAlwaysEnablesCapture(t *testing.T) {
 	webRoot := t.TempDir()
 	if err := os.WriteFile(filepath.Join(webRoot, "index.html"), []byte("ok"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	diagnostic := "Device capture could not start because adb was not found."
 	handler := newHandler(
 		webRoot,
 		map[string]bool{"index.html": true},
 		"http://127.0.0.1:1234",
 		nil,
-		diagnostic,
+		nil,
 	)
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(
@@ -320,14 +315,14 @@ func TestRuntimeConfigReportsAutomaticCaptureStartupFailure(t *testing.T) {
 	}
 	var config struct {
 		Capture struct {
-			Provider   string `json:"provider"`
-			Diagnostic string `json:"diagnostic"`
+			Provider string `json:"provider"`
+			Endpoint string `json:"endpoint"`
 		} `json:"capture"`
 	}
 	if err := json.NewDecoder(recorder.Body).Decode(&config); err != nil {
 		t.Fatal(err)
 	}
-	if config.Capture.Provider != "none" || config.Capture.Diagnostic != diagnostic {
+	if config.Capture.Provider != "loopback-proxy-v1" || config.Capture.Endpoint != "./capture/" {
 		t.Fatalf("runtime capture config = %#v", config.Capture)
 	}
 }
@@ -337,7 +332,7 @@ func TestHandlerAddsSecurityHeaders(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(webRoot, "index.html"), []byte("ok"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	handler := newHandler(webRoot, map[string]bool{"index.html": true}, "http://127.0.0.1:1234", nil, "")
+	handler := newHandler(webRoot, map[string]bool{"index.html": true}, "http://127.0.0.1:1234", nil, nil)
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "http://example.test/", nil))
 
@@ -387,116 +382,13 @@ func TestCaptureRequestOrigin(t *testing.T) {
 	}
 }
 
-func TestParseAIURLRequiresLoopbackWithPort(t *testing.T) {
-	valid, err := parseAIURL("http://127.0.0.1:7341")
-	if err != nil || valid == nil {
-		t.Fatalf("valid AI URL = %v, %v", valid, err)
-	}
-	for _, raw := range []string{
-		"",
-		"https://127.0.0.1:7341",
-		"http://example.test:7341",
-		"http://127.0.0.1",
-		"http://127.0.0.1:7341/ai",
-		"http://user:pass@127.0.0.1:7341",
-	} {
-		if _, err := parseAIURL(raw); raw != "" && err == nil {
-			t.Errorf("parseAIURL(%q) unexpectedly succeeded", raw)
-		}
-	}
-}
-
-func TestAIProxyUsesSameOriginPathAndRuntimeConfig(t *testing.T) {
-	gateway := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if request.URL.Path != "/health" {
-			t.Fatalf("gateway path = %q, want /health", request.URL.Path)
-		}
-		writer.Header().Set("Content-Type", "application/json")
-		_, _ = writer.Write([]byte(`{"ok":true}`))
-	}))
-	defer gateway.Close()
-	aiTarget, err := url.Parse(gateway.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	webRoot := t.TempDir()
-	if err := os.WriteFile(filepath.Join(webRoot, "index.html"), []byte("ok"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	handler := newHandler(webRoot, map[string]bool{"index.html": true}, "http://127.0.0.1:1234", nil, "", aiTarget)
-	recorder := httptest.NewRecorder()
-	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "http://127.0.0.1:1234/ai/health", nil))
-	if recorder.Code != http.StatusOK || recorder.Body.String() != `{"ok":true}` {
-		t.Fatalf("AI proxy response = (%d, %q)", recorder.Code, recorder.Body.String())
-	}
-	recorder = httptest.NewRecorder()
-	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "http://127.0.0.1:1234/runtime-config.json", nil))
-	var config map[string]any
-	if err := json.NewDecoder(recorder.Body).Decode(&config); err != nil {
-		t.Fatal(err)
-	}
-	ai, ok := config["ai"].(map[string]any)
-	if !ok || ai["provider"] != "loopback-ai-v1" || ai["endpoint"] != "./ai/" {
-		t.Fatalf("runtime AI config = %#v", config["ai"])
-	}
-}
-
-func TestStaticHandlerPrivacyEntryFlag(t *testing.T) {
-	webRoot := t.TempDir()
-	for name, content := range map[string]string{"index.html": "privacy entry", "app.js": "asset"} {
-		if err := os.WriteFile(filepath.Join(webRoot, name), []byte(content), 0600); err != nil {
-			t.Fatal(err)
-		}
-	}
-	handler := newHandler(webRoot, map[string]bool{"index.html": true, "app.js": true}, "http://127.0.0.1:1234", nil, "")
-	for _, entry := range []string{"/", "/index.html"} {
-		for _, flag := range []string{"no-persistence", "no-persistence="} {
-			for _, method := range []string{http.MethodGet, http.MethodHead} {
-				t.Run(method+entry+"?"+flag, func(t *testing.T) {
-					request := httptest.NewRequest(method, "http://127.0.0.1:1234"+entry+"?"+flag, nil)
-					recorder := httptest.NewRecorder()
-					handler.ServeHTTP(recorder, request)
-					if recorder.Code != http.StatusOK {
-						t.Fatalf("privacy entry status = %d, want 200", recorder.Code)
-					}
-					if method == http.MethodGet && recorder.Body.String() != "privacy entry" {
-						t.Fatalf("privacy entry body = %q", recorder.Body.String())
-					}
-					if got := recorder.Header().Get("Cache-Control"); got != "no-store" {
-						t.Fatalf("privacy entry cache policy = %q", got)
-					}
-				})
-			}
-		}
-	}
-	for _, target := range []string{
-		"/?unknown", "/?no-persistence=1", "/?no-persistence=false",
-		"/?no-persistence&no-persistence", "/?no-persistence=&no-persistence=",
-		"/?no-persistence&x=1", "/?x=1&no-persistence", "/?no-persistence&",
-		"/?no-persistence;", "/?no-persistence%26x=1", "/?%6eo-persistence",
-		"/?no%2dpersistence", "/?no-persistence=%00", "/?no-persistence=%",
-		"/?no-persistence+", "/?NO-PERSISTENCE", "/?no-persistence==",
-		"/app.js?no-persistence", "/app.js?no-persistence=", "/index.html/?no-persistence",
-		"//index.html?no-persistence", "/./index.html?no-persistence", "/%69ndex.html?no-persistence",
-		"/index%2ehtml?no-persistence", "/%2f?no-persistence",
-	} {
-		t.Run(target, func(t *testing.T) {
-			recorder := httptest.NewRecorder()
-			handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "http://127.0.0.1:1234"+target, nil))
-			if recorder.Code != http.StatusBadRequest {
-				t.Fatalf("hostile privacy query status = %d, want 400", recorder.Code)
-			}
-		})
-	}
-}
-
 func TestAIProxyAllowsOnlyReplayAndReportQueries(t *testing.T) {
 	gateway := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		_, _ = writer.Write([]byte(request.URL.RequestURI()))
 	}))
 	defer gateway.Close()
 	target, _ := url.Parse(gateway.URL)
-	handler := newHandler(t.TempDir(), nil, "http://127.0.0.1:1234", nil, "", target)
+	handler := newHandler(t.TempDir(), nil, "http://127.0.0.1:1234", nil, target)
 	for _, test := range []struct {
 		path  string
 		valid bool

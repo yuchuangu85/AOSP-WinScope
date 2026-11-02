@@ -103,7 +103,7 @@ class BaselineVerificationTest(unittest.TestCase):
             "ece66975738007dd0978b911d8a2077e49b8f31e",
         )
         self.assertEqual(report["toolchain"]["node"], "24.19.0")
-        self.assertEqual(report["toolchain"]["npm"], "11.17.0")
+        self.assertEqual(report["toolchain"]["npm"], "12.2.0")
         self.assertEqual(report["toolchain"]["go"], "1.26.6")
         self.assertEqual(report["toolchain"]["python"]["ci"], "3.12")
         self.assertTrue(report["vendorBranchVerified"])

@@ -1,0 +1,11 @@
+# Build-only environment. No Python installation is needed by the packaged app.
+# PyInstaller's bootloader exception permits distributing frozen applications.
+pip==26.2.2
+setuptools==84.2.1
+altgraph==0.17.5
+packaging==26.3
+pyinstaller==6.22.3
+pyinstaller-hooks-contrib==2026.9
+macholib==1.16.4; sys_platform == "darwin"
+pefile==2024.8.26; sys_platform == "win32"
+pywin32-ctypes==0.2.3; sys_platform == "win32"

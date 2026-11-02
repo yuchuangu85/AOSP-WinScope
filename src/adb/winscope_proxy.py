@@ -35,6 +35,7 @@ import logging
 import os
 import re
 import signal
+import stat
 import subprocess
 import sys
 import threading
@@ -65,6 +66,7 @@ SIGNAL_HANDLER_LOG = "/data/local/tmp/winscope_signal_handler.log"
 WINSCOPE_STATUS = "/data/local/tmp/winscope_status"
 KEEP_ALIVE_INTERVAL_S = 5
 COMMAND_TIMEOUT_S = 15
+CHILD_SHUTDOWN_GRACE_S = 0.5
 MAX_REQUEST_BYTES = 1 << 20
 MAX_COMMAND_BYTES = 64 << 10
 MAX_FETCH_BYTES = 128 << 20
@@ -88,6 +90,9 @@ def create_argument_parser() -> argparse.ArgumentParser:
   parser.add_argument("--token", required=True, help="ephemeral launcher session secret")
   parser.add_argument(
       "--allowed-origin", required=True, help="exact loopback origin served by the launcher"
+  )
+  parser.add_argument(
+      "--parent-pipe", action="store_true", help="stop when the launcher closes standard input"
   )
   parser.set_defaults(loglevel=DEBUG)
   return parser
@@ -130,6 +135,132 @@ class AdbError(Exception):
 
 class BadRequestError(Exception):
   """Invalid client request."""
+
+
+class OwnedAdbProcesses:
+  """Owns only this capture host's children, including in-flight requests."""
+
+  def __init__(self, stopping: threading.Event):
+    self.stopping = stopping
+    self._lock = threading.Lock()
+    self._processes = set()
+
+  def start(self, command, **kwargs):
+    with self._lock:
+      if self.stopping.is_set():
+        raise AdbError("Capture session is shutting down")
+      # ADB must never inherit the launcher's private lifetime pipe.
+      kwargs.setdefault("stdin", subprocess.DEVNULL)
+      process = subprocess.Popen(command, **kwargs)
+      self._processes.add(process)
+      return process
+
+  def release(self, process):
+    with self._lock:
+      if process.poll() is not None:
+        self._processes.discard(process)
+
+  def run(self, command, *, timeout, check=False, **kwargs):
+    process = self.start(command, **kwargs)
+    try:
+      try:
+        stdout, stderr = process.communicate(timeout=timeout)
+      except subprocess.TimeoutExpired:
+        process.kill()
+        stdout, stderr = process.communicate()
+        raise subprocess.TimeoutExpired(command, timeout, output=stdout, stderr=stderr)
+      except BaseException:
+        process.kill()
+        process.wait()
+        raise
+      completed = subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
+      if check:
+        completed.check_returncode()
+      return completed
+    finally:
+      self.release(process)
+
+  def shutdown(self):
+    self.stopping.set()
+    # Serialize registration with the snapshot so startup cannot escape cleanup.
+    with self._lock:
+      processes = list(self._processes)
+    for process in processes:
+      if process.poll() is None:
+        try:
+          process.terminate()
+        except ProcessLookupError:
+          pass
+    deadline = time.monotonic() + CHILD_SHUTDOWN_GRACE_S
+    for process in processes:
+      try:
+        process.wait(timeout=max(0, deadline - time.monotonic()))
+      except subprocess.TimeoutExpired:
+        pass
+    for process in processes:
+      if process.poll() is None:
+        try:
+          process.kill()
+        except ProcessLookupError:
+          pass
+    for process in processes:
+      process.wait()
+      self.release(process)
+
+
+# Initialized before the runtime accepts requests. Imported endpoint tests retain
+# their subprocess.run seam; the managed entry point always tracks real children.
+adb_processes: OwnedAdbProcesses | None = None
+
+
+def adb_process_environment(environment=None):
+  """Copies the leaf env, accepting only a launcher-private bundled Linux hint.
+
+  Go anchors the hint to its distribution root. Source entry points ignore
+  absent/invalid hints and require the same normalized platform-tools siblings.
+  Caller env mappings and HTTP requests cannot select the library directory.
+  """
+  environment = dict(os.environ if environment is None else environment)
+  library_path = os.environ.get("WINSCOPE_ADB_LIBRARY_PATH", "")
+  if sys.platform != "linux" or not library_path:
+    return environment
+  adb = adb_executable()
+  tools = os.path.dirname(adb)
+  if (
+      not os.path.isabs(adb)
+      or os.path.normpath(adb) != adb
+      or os.path.basename(adb) != "adb"
+      or os.path.basename(tools) != "platform-tools"
+      or not os.path.isabs(library_path)
+      or os.path.normpath(library_path) != library_path
+      or library_path != os.path.join(tools, "lib64")
+      or ":" in library_path
+  ):
+    return environment
+  try:
+    if not stat.S_ISDIR(os.lstat(library_path).st_mode) or not stat.S_ISREG(os.lstat(adb).st_mode):
+      return environment
+  except (OSError, ValueError):
+    return environment
+  # Replace, never append: PyInstaller's _internal libraries must stay in capture.
+  environment["LD_LIBRARY_PATH"] = library_path
+  return environment
+
+
+def run_adb_process(command, **kwargs):
+  if isinstance(command, (list, tuple)) and command and command[0] == adb_executable():
+    kwargs["env"] = adb_process_environment(kwargs.get("env"))
+  if adb_processes is not None:
+    return adb_processes.run(command, **kwargs)
+  return subprocess.run(command, **kwargs)
+
+
+def start_adb_process(command, **kwargs):
+  if isinstance(command, (list, tuple)) and command and command[0] == adb_executable():
+    kwargs["env"] = adb_process_environment(kwargs.get("env"))
+  if adb_processes is not None:
+    return adb_processes.start(command, **kwargs)
+  return subprocess.Popen(command, **kwargs)
 
 
 class RequestRouter:
@@ -245,7 +376,7 @@ def call_adb(
     raise BadRequestError("Invalid device id")
   command = [adb_executable()] + (["-s", device] if device else []) + args
   try:
-    completed = subprocess.run(
+    completed = run_adb_process(
         command,
         check=False,
         stdout=subprocess.PIPE,
@@ -405,7 +536,7 @@ class FetchEndpoint(DeviceRequestEndpoint):
   def fetch_existing_file(self, filepath: str, device_id: str):
     command = [adb_executable(), "-s", device_id, "exec-out", "cat", filepath]
     try:
-      completed = subprocess.run(
+      completed = run_adb_process(
           command,
           check=False,
           stdout=subprocess.PIPE,
@@ -433,6 +564,7 @@ class FetchEndpoint(DeviceRequestEndpoint):
 
 class TraceThread(threading.Thread):
   def __init__(self, target_id: str, device_id: str, command: str, status_filename: str):
+    super().__init__(daemon=True)
     self.trace_command = command
     self.target_id = target_id
     self.status_filename = status_filename
@@ -444,7 +576,7 @@ class TraceThread(threading.Thread):
     self._success = False
     self._failure_message = ""
     try:
-      self.process = subprocess.Popen(
+      self.process = start_adb_process(
           [adb_executable(), "-s", self._device_id, "shell"],
           stdout=subprocess.PIPE,
           stderr=subprocess.PIPE,
@@ -456,7 +588,6 @@ class TraceThread(threading.Thread):
           "ADB trace shell could not be started: "
           + safe_adb_diagnostic(str(error))
       ) from error
-    super().__init__()
 
   def timeout(self):
     if self.is_alive():
@@ -466,22 +597,35 @@ class TraceThread(threading.Thread):
   def reset_timer(self):
     if self._keep_alive_timer:
       self._keep_alive_timer.cancel()
+    if adb_processes is not None and adb_processes.stopping.is_set():
+      return
     self._keep_alive_timer = threading.Timer(KEEP_ALIVE_INTERVAL_S, self.timeout)
+    self._keep_alive_timer.daemon = True
     self._keep_alive_timer.start()
 
   def end_trace(self):
     if self._keep_alive_timer:
       self._keep_alive_timer.cancel()
     if self.process.poll() is None:
-      self.process.send_signal(signal.SIGTERM)
+      self.process.terminate()
       try:
         self.process.wait(timeout=COMMAND_TIMEOUT_S)
       except subprocess.TimeoutExpired:
         self.process.kill()
-    if threading.current_thread() is not self:
+        self.process.wait()
+    if threading.current_thread() is not self and self.ident is not None:
       self.join()
 
   def run(self):
+    try:
+      self._run_trace()
+    finally:
+      if self._keep_alive_timer:
+        self._keep_alive_timer.cancel()
+      if adb_processes is not None:
+        adb_processes.release(self.process)
+
+  def _run_trace(self):
     self.reset_timer()
     self.out, self.err = self.process.communicate(self.trace_command.encode("utf-8"))
     status_error = ""
@@ -673,6 +817,10 @@ class ADBWinscopeProxy(BaseHTTPRequestHandler):
       self.wfile.write(data)
 
   def _process(self, method: RequestType):
+    if adb_processes is not None and adb_processes.stopping.is_set():
+      self.close_connection = True
+      self.respond(HTTPStatus.SERVICE_UNAVAILABLE, b"Capture session is shutting down", "text/plain; charset=utf-8")
+      return
     if not self._valid_request_origin():
       self.respond(HTTPStatus.FORBIDDEN, b"Capture session origin is not authorized", "text/plain; charset=utf-8")
       return
@@ -694,8 +842,27 @@ class ADBWinscopeProxy(BaseHTTPRequestHandler):
     log.info("%s %s", self.command, code)
 
 
-if __name__ == "__main__":
-  args = create_argument_parser().parse_args()
+def watch_parent_pipe(reader, stopping: threading.Event):
+  try:
+    if reader is None:
+      return
+    try:
+      descriptor = reader.fileno()
+    except (AttributeError, OSError, ValueError):
+      descriptor = None
+    # Avoid a daemon reader holding Python's buffered stdin lock at exit when
+    # startup fails before the parent has closed the pipe.
+    while (os.read(descriptor, 4096) if descriptor is not None else reader.read(4096)):
+      pass
+  except (OSError, ValueError):
+    pass
+  finally:
+    stopping.set()
+
+
+def main(argv=None, parent_reader=None):
+  global allowed_origin, allowed_host, secret_token, adb_processes
+  args = create_argument_parser().parse_args(argv)
   try:
     allowed_origin, allowed_host = validate_launcher_config(args)
   except ValueError as error:
@@ -706,11 +873,49 @@ if __name__ == "__main__":
       level=args.loglevel,
       format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
   )
-  httpd = HTTPServer(("127.0.0.1", args.port), ADBWinscopeProxy)
-  print("READY " + str(httpd.server_port), flush=True)
+  stopping = threading.Event()
+  adb_processes = OwnedAdbProcesses(stopping)
+  if args.parent_pipe:
+    reader = parent_reader if parent_reader is not None else sys.stdin
+    threading.Thread(target=watch_parent_pipe, args=(reader, stopping), daemon=True).start()
+
+  httpd = None
+  server_thread = None
+  previous_sigterm = signal.signal(signal.SIGTERM, lambda *_: stopping.set())
   try:
-    httpd.serve_forever()
+    if stopping.is_set():
+      return
+    httpd = HTTPServer(("127.0.0.1", args.port), ADBWinscopeProxy)
+    httpd.daemon_threads = True
+    if stopping.is_set():
+      return
+
+    def serve():
+      try:
+        httpd.serve_forever(poll_interval=0.05)
+      finally:
+        stopping.set()
+
+    thread = threading.Thread(target=serve, daemon=True)
+    thread.start()
+    server_thread = thread
+    if not stopping.is_set():
+      print("READY " + str(httpd.server_port), flush=True)
+    stopping.wait()
   except KeyboardInterrupt:
     pass
   finally:
-    httpd.server_close()
+    stopping.set()
+    try:
+      if httpd is not None:
+        if server_thread is not None:
+          httpd.shutdown()
+          server_thread.join()
+        httpd.server_close()
+    finally:
+      adb_processes.shutdown()
+      signal.signal(signal.SIGTERM, previous_sigterm)
+
+
+if __name__ == "__main__":
+  main()

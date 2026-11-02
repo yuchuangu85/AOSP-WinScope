@@ -17,7 +17,6 @@
     "tslint:fix": "find src/ -regextype egrep -regex '^.*\\.ts$' |xargs npx tslint -c google.tslint.json --fix",
     "deps_graph:check_cycles": "npx madge --extensions ts,js src/ --circular",
     "start": "python3 scripts/start.py",
-    "start:web": "ng serve winscope --open",
     "start:remote_tool_mock": "ng serve remote-tool-mock --open",
     "build:trace_processor": "python3 scripts/build.py trace-processor",
     "build:prod": "python3 scripts/build.py production",
@@ -64,7 +63,13 @@
     "ai:verify": "node scripts/verify-ai-package.mjs",
     "test:e2e:ai": "npm run ai:build && node scripts/ai_gateway_e2e.mjs",
     "test:e2e:ai:browser": "npm run ai:build && npx ng build winscope --configuration=production && node scripts/ai_browser_e2e.mjs",
-    "test:unit:ai": "ng test winscope --configuration=ci --no-watch --no-progress --code-coverage=false --main=src/main_ai_unit.ts"
+    "test:unit:ai": "ng test winscope --configuration=ci --no-watch --no-progress --code-coverage=false --main=src/main_ai_unit.ts",
+    "desktop:prepare": "node desktop/prepare.mjs",
+    "desktop:start": "node desktop/start.mjs",
+    "desktop:pack": "npm run desktop:prepare && electron-builder --config desktop/electron-builder.cjs --dir",
+    "desktop:dist": "npm run desktop:prepare && electron-builder --config desktop/electron-builder.cjs",
+    "desktop:test": "node --test desktop/*.test.mjs desktop/app/*.test.cjs",
+    "desktop:smoke": "node desktop/smoke.mjs"
   },
   "private": true,
   "dependencies": {
@@ -114,6 +119,8 @@
     "@types/w3c-web-usb": "^1.0.10",
     "@typescript-eslint/eslint-plugin": "^8.40.0",
     "@typescript-eslint/parser": "^8.40.0",
+    "electron": "45.2.1",
+    "electron-builder": "26.18.1",
     "eslint": "^9.34.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-formatter-unix": "^8.40.0",
@@ -134,9 +141,9 @@
     "selenium-webdriver": "^4.47.0",
     "ts-protoc-gen": "^0.15.0"
   },
-  "packageManager": "npm@11.17.0",
+  "packageManager": "npm@12.2.0",
   "engines": {
     "node": "24.19.0",
-    "npm": "11.17.0"
+    "npm": "12.2.0"
   }
 }

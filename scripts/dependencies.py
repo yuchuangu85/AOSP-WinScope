@@ -44,13 +44,13 @@ PERFETTO_REPOSITORY = "https://android.googlesource.com/platform/external/perfet
 PERFETTO_REVISION = "ece66975738007dd0978b911d8a2077e49b8f31e"
 PERFETTO_TREE = "201a16e409911aa016522a95143af2e5d52a3662"
 NODE_VERSION = "24.19.0"
-NPM_VERSION = "11.17.0"
+NPM_VERSION = "12.2.0"
 GO_VERSION = "1.26.6"
 PYTHON_VERSIONS = {"3.11", "3.12", "3.13"}
 PUBLIC_NPM_REGISTRY = "https://registry.npmjs.org/"
 # This is the clean-checkout trust anchor for the complete generated closure.
 # Updating the lock deliberately requires updating this reviewable constant.
-DEPENDENCY_LOCK_SHA256 = "2f3de1b3efd0995bfe53b4eacb7d3c7c4517a5cd8b7161a948e215fca180413a"
+DEPENDENCY_LOCK_SHA256 = "3a1839cb811e4966735c829ce1bf2562f1e1abdb2fdffc9d1513900aa8500c97"
 
 ALLOWED_ORIGINS = {
     "android.googlesource.com",

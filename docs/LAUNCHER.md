@@ -1,5 +1,10 @@
 # Standalone launcher contract
 
+This document describes the portable browser/Launcher distribution. The
+[Electron Desktop distribution](ELECTRON.md) reuses the same launcher inside a
+native application and bundles its capture and AI runtimes. Installed desktop
+users do not need the separate Python, ADB, or gateway startup steps below.
+
 `cmd/launcher` is the no-CGO, standard-library desktop host for one packaged
 WinScope distribution. Releases are portable ZIP archives, one for each
 supported operating-system and architecture pair:
@@ -15,16 +20,12 @@ or with either `start-winscope.bat` or `start-winscope.ps1` on Windows. Each
 entry point resolves the archive directory itself, invokes only its matching
 launcher, forwards all arguments, and preserves the launcher's exit status.
 
-With no arguments, every platform's launcher enables device capture and opens
-the default browser. It listens only on `127.0.0.1:0` and prints the resulting
-local URL. Explicit command-line arguments retain opt-in behavior: include
-`--capture --open` to enable capture and open the browser, or use
-`--offline-only --open` for file analysis without capture. The
-launcher discovers `adb` from `PATH`, Android SDK environment variables, and
-Android Studio's default Windows, macOS, and Linux SDK directories. Capture
-requires Python 3.10+ and a discoverable `adb`. If no-argument automatic capture
-startup fails, the browser still opens in file-only mode and displays the diagnostic instead of
-silently exiting. Explicit `--capture` startup failures return an error.
+The launcher is the only supported product startup mode. It always enables
+device capture, listens only on `127.0.0.1:0` by default, and prints the
+resulting local URL. It discovers `adb` from `PATH`, Android SDK environment
+variables, and Android Studio's default Windows, macOS, and Linux SDK
+directories. Capture requires Python 3.10+ and a discoverable `adb`; startup
+fails closed when the capture proxy cannot start.
 The launcher does not download software, change Host
 configuration, elevate privileges, or run a caller-provided command.
 
@@ -39,12 +40,10 @@ cache and toolchain described in `docs/REBUILD_PLAN.md`.
 Launcher arguments can be forwarded through npm, for example:
 
 ```sh
-npm start -- --capture --open --port 8080
-npm start -- --offline-only --open
+npm start -- --open --port 8080
 ```
 
-`npm run start:web` retains the Angular-only development server for UI work.
-That explicit Web-only entry does not start a Launcher or device capture.
+The application must be started through the standalone Launcher.
 
 ## AI gateway
 
@@ -68,7 +67,11 @@ The toolbar opens an independent Settings page with a left-hand General/AI menu.
 General contains interface language and theme controls and does not need an AI
 gateway. Theme offers **Follow system**, **Dark mode**, and **Light mode** and
 applies immediately; Follow system responds to operating-system theme changes.
-The toolbar no longer contains a separate theme toggle. AI settings separates
+The toolbar no longer contains a separate theme toggle.
+Display size in General settings adjusts the whole interface from 80% to 140%
+in 10% steps and includes a 100% reset. It applies immediately and is restored
+on reload; privacy mode uses 100% initially and does not store the selection.
+AI settings separates
 Codex and Claude; each **Get configuration** action
 fills only its own model, supported effort, service URL and authentication status.
 The last successful Get configuration selects the only active provider; failed
@@ -89,8 +92,14 @@ and verifies every declared SHA-256 asset. Version 1 uses this shape:
 {
   "schemaVersion": 1,
   "assets": [
-    {"path": "web/index.html", "sha256": "<64 lowercase hexadecimal characters>"},
-    {"path": "web/runtime-config.json", "sha256": "<64 lowercase hexadecimal characters>"}
+    {
+      "path": "web/index.html",
+      "sha256": "<64 lowercase hexadecimal characters>"
+    },
+    {
+      "path": "web/runtime-config.json",
+      "sha256": "<64 lowercase hexadecimal characters>"
+    }
   ]
 }
 ```
@@ -124,8 +133,6 @@ Advanced launch controls are explicit and remain loopback-only:
   available port and a conflict fails without terminating another process;
 - `--open` uses the operating-system browser handler;
 - `--browser <executable>` launches that browser directly with the local URL;
-- `--offline-only` explicitly disables capture and cannot be combined with
-  `--capture`.
 
 With capture enabled, select an available Android device in Winscope, choose
 trace targets, and start the trace. Ending the trace is one managed operation:

@@ -34,7 +34,7 @@ class ReleaseEngineeringTest(unittest.TestCase):
                         launcher.chmod(0o755)
                         script = root / "start-winscope.sh"
                         script.write_text(release.startup_scripts(operating_system, architecture)[script.name])
-                        for arguments in ([], ["--capture", "--open"], ["--offline-only", "--browser", "browser with spaces"]):
+                        for arguments in ([], ["--open"], ["--open", "--browser", "browser with spaces"]):
                             result = subprocess.run(
                                 ["sh", str(script), *arguments], cwd=root.parent,
                                 capture_output=True, text=True, check=False,

@@ -202,7 +202,7 @@ def web_contract(web_root: Path) -> dict[str, Any]:
     valid_config = config == {
         "schemaVersion": 1,
         "host": {"kind": "standalone"},
-        "capture": {"provider": "none"},
+        "capture": {"provider": "loopback-proxy-v1", "endpoint": "./capture/"},
     }
     status = "pass" if not missing and not absolute and not markers and valid_config else "fail"
     return result(

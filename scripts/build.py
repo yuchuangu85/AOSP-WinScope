@@ -321,8 +321,8 @@ def verify_web_contract(web_files: list[Path]) -> dict[str, Any]:
     require(config == {
         "schemaVersion": 1,
         "host": {"kind": "standalone"},
-        "capture": {"provider": "none"},
-    }, "default runtime configuration must disable capture")
+        "capture": {"provider": "loopback-proxy-v1", "endpoint": "./capture/"},
+    }, "default runtime configuration must require launcher capture")
 
     scanned = 0
     for path in web_files:

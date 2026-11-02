@@ -1,5 +1,5 @@
 {
   "schemaVersion": 1,
   "host": { "kind": "standalone" },
-  "capture": { "provider": "none" }
+  "capture": { "provider": "loopback-proxy-v1", "endpoint": "./capture/" }
 }

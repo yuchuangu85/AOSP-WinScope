@@ -41,6 +41,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -65,33 +66,34 @@ type manifestAsset struct {
 }
 
 type captureProxy struct {
-	command *exec.Cmd
-	url     *url.URL
-	secret  string
+	command  *exec.Cmd
+	stdin    io.WriteCloser
+	done     chan struct{}
+	stopOnce sync.Once
+	url      *url.URL
+	secret   string
 }
 
 func main() {
 	var distributionRoot string
 	arguments := os.Args[1:]
-	automaticLaunch := len(arguments) == 0
-	enableCapture, openBrowser := defaultLaunchFlags(arguments)
+	openBrowser := defaultLaunchFlags(arguments)
 	var browser string
-	var aiURL string
 	var port int
-	var offlineOnly bool
+	var aiURL string
+	var parentPipe bool
 	flag.StringVar(&distributionRoot, "root", defaultDistributionRoot(), "path to the packaged aosp-winscope distribution")
-	flag.BoolVar(&enableCapture, "capture", enableCapture, "start the launcher-managed Android device capture session")
 	flag.BoolVar(&openBrowser, "open", openBrowser, "open the local Winscope URL with the operating system browser handler")
 	flag.StringVar(&browser, "browser", "", "browser executable to launch with the local Winscope URL")
 	flag.IntVar(&port, "port", 0, "fixed loopback Web port; 0 selects a random available port")
-	flag.BoolVar(&offlineOnly, "offline-only", false, "disable device capture explicitly")
 	flag.StringVar(&aiURL, "ai-url", "", "loopback AI gateway URL to expose at the same-origin /ai/ path")
+	flag.BoolVar(&parentPipe, "parent-pipe", false, "stop when the desktop host closes standard input")
 	flag.Parse()
 	aiTarget, err := parseAIURL(aiURL)
 	if err != nil {
 		log.Fatal(err)
 	}
-	if err := validateLaunchOptions(port, enableCapture, offlineOnly); err != nil {
+	if err := validateLaunchOptions(port); err != nil {
 		log.Fatal(err)
 	}
 
@@ -109,26 +111,20 @@ func main() {
 		log.Fatal(err)
 	}
 	defer listener.Close()
-
-	origin := "http://" + listener.Addr().String()
-	var proxy *captureProxy
-	var captureDiagnostic string
-	if enableCapture {
-		proxy, err = startCaptureProxy(root, origin)
-		if err != nil {
-			var fatalError error
-			captureDiagnostic, fatalError = captureStartupOutcome(automaticLaunch, err)
-			if fatalError != nil {
-				log.Fatal(fatalError)
-			}
-			log.Print(captureDiagnostic)
-		} else {
-			defer proxy.stop()
-		}
+	var parentDone <-chan struct{}
+	if parentPipe {
+		parentDone = watchParentPipe(os.Stdin)
 	}
 
+	origin := "http://" + listener.Addr().String()
+	proxy, err := startCaptureProxyWithParent(root, origin, parentDone)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer proxy.stop()
+
 	server := &http.Server{
-		Handler:      newHandler(webRoot, staticAssets, origin, proxy, captureDiagnostic, aiTarget),
+		Handler:      newHandler(webRoot, staticAssets, origin, proxy, aiTarget),
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 60 * time.Second,
 		IdleTimeout:  60 * time.Second,
@@ -147,11 +143,14 @@ func main() {
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 	select {
 	case <-stop:
+	case <-parentDone:
 	case err := <-errCh:
 		if !errors.Is(err, http.ErrServerClosed) {
 			log.Printf("Local server stopped: %v", err)
 		}
 	}
+	// Release capture requests before draining HTTP, including in-flight ADB work.
+	proxy.stop()
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownGracePeriod)
 	defer cancel()
 	if err := server.Shutdown(ctx); err != nil {
@@ -159,24 +158,26 @@ func main() {
 	}
 }
 
-func defaultLaunchFlags(arguments []string) (capture bool, openBrowser bool) {
-	// Distribution entry points share the same no-argument defaults. Explicit
-	// command-line invocations retain full control over capture and the browser.
-	autoStartCapture := len(arguments) == 0
-	return autoStartCapture, autoStartCapture
+func watchParentPipe(reader io.Reader) <-chan struct{} {
+	done := make(chan struct{})
+	go func() {
+		_, _ = io.Copy(io.Discard, reader)
+		close(done)
+	}()
+	return done
 }
 
-func captureStartupOutcome(automaticLaunch bool, startupError error) (diagnostic string, fatalError error) {
-	if startupError == nil {
-		return "", nil
+func defaultLaunchFlags(arguments []string) bool {
+	return len(arguments) == 0 || containsArgument(arguments, "--open")
+}
+
+func containsArgument(arguments []string, target string) bool {
+	for _, argument := range arguments {
+		if argument == target {
+			return true
+		}
 	}
-	if !automaticLaunch {
-		return "", startupError
-	}
-	return fmt.Sprintf(
-		"Device capture could not start: %v. Winscope is open in file-only mode. Install Android Platform Tools and Python 3.10+ to enable capture.",
-		startupError,
-	), nil
+	return false
 }
 
 func defaultDistributionRoot() string {
@@ -273,12 +274,9 @@ func validSHA256(value string) bool {
 	return err == nil && value == strings.ToLower(value)
 }
 
-func validateLaunchOptions(port int, capture bool, offlineOnly bool) error {
+func validateLaunchOptions(port int) error {
 	if port < 0 || port > 65535 {
 		return errors.New("Web port must be between 0 and 65535")
-	}
-	if offlineOnly && capture {
-		return errors.New("--offline-only and --capture cannot be used together")
 	}
 	return nil
 }
@@ -301,14 +299,9 @@ func newHandler(
 	staticAssets map[string]bool,
 	origin string,
 	proxy *captureProxy,
-	captureDiagnostic string,
-	aiTargets ...*url.URL,
+	aiTarget *url.URL,
 ) http.Handler {
 	static := newStaticHandler(webRoot, staticAssets)
-	var aiTarget *url.URL
-	if len(aiTargets) > 0 {
-		aiTarget = aiTargets[0]
-	}
 	var aiProxy *httputil.ReverseProxy
 	if aiTarget != nil {
 		aiProxy = httputil.NewSingleHostReverseProxy(aiTarget)
@@ -320,7 +313,7 @@ func newHandler(
 				methodNotAllowed(writer)
 				return
 			}
-			writeRuntimeConfig(writer, proxy != nil, captureDiagnostic, aiTarget != nil)
+			writeRuntimeConfig(writer, aiTarget != nil)
 			return
 		}
 		if strings.HasPrefix(request.URL.Path, aiPrefix) {
@@ -402,27 +395,108 @@ func newStaticHandler(webRoot string, staticAssets map[string]bool) http.Handler
 	})
 }
 
-func writeRuntimeConfig(writer http.ResponseWriter, captureEnabled bool, captureDiagnostic string, aiEnabled ...bool) {
+// Privacy mode is an entry-page flag, not an arbitrary asset/query capability.
+// Match raw spelling so duplicate, escaped and malformed query variants fail closed.
+func validStaticQuery(resource *url.URL) bool {
+	if resource.RawQuery == "" {
+		return true
+	}
+	if resource.Path != "/" && resource.Path != "/index.html" {
+		return false
+	}
+	if resource.EscapedPath() != resource.Path {
+		return false
+	}
+	return resource.RawQuery == "no-persistence" || resource.RawQuery == "no-persistence="
+}
+
+func writeRuntimeConfig(writer http.ResponseWriter, aiEnabled bool) {
 	writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 	writer.Header().Set("Cache-Control", "no-store")
-	capture := map[string]string{"provider": "none"}
-	if captureEnabled {
-		capture = map[string]string{
-			"provider": "loopback-proxy-v1",
-			"endpoint": "./capture/",
-		}
-	} else if captureDiagnostic != "" {
-		capture["diagnostic"] = captureDiagnostic
+	capture := map[string]string{
+		"provider": "loopback-proxy-v1",
+		"endpoint": "./capture/",
 	}
 	config := map[string]any{
 		"schemaVersion": 1,
 		"host":          map[string]string{"kind": "standalone"},
 		"capture":       capture,
 	}
-	if len(aiEnabled) > 0 && aiEnabled[0] {
-		config["ai"] = map[string]string{"provider": "loopback-ai-v1", "endpoint": "./ai/"}
+	if aiEnabled {
+		config["ai"] = map[string]string{
+			"provider": "loopback-ai-v1",
+			"endpoint": "./ai/",
+		}
 	}
 	_ = json.NewEncoder(writer).Encode(config)
+}
+
+func parseAIURL(raw string) (*url.URL, error) {
+	if raw == "" {
+		return nil, nil
+	}
+	target, err := url.Parse(raw)
+	if err != nil || target.Scheme != "http" || target.User != nil || target.Path != "" || target.RawQuery != "" || target.Fragment != "" {
+		return nil, errors.New("AI gateway URL must be a loopback http URL without path, query or credentials")
+	}
+	host := target.Hostname()
+	if host != "127.0.0.1" && host != "localhost" && host != "[::1]" && host != "::1" {
+		return nil, errors.New("AI gateway URL must target loopback")
+	}
+	if target.Port() == "" {
+		return nil, errors.New("AI gateway URL must include an explicit port")
+	}
+	return target, nil
+}
+
+func serveAI(writer http.ResponseWriter, request *http.Request, proxy *httputil.ReverseProxy) {
+	if request.Method != http.MethodGet && request.Method != http.MethodPost && request.Method != http.MethodDelete {
+		methodNotAllowed(writer)
+		return
+	}
+	if !validAIQuery(request) || !strings.HasPrefix(request.URL.Path, aiPrefix) {
+		http.Error(writer, "invalid AI request", http.StatusBadRequest)
+		return
+	}
+	forwarded := request.Clone(request.Context())
+	forwarded.URL.Path = strings.TrimPrefix(request.URL.Path, strings.TrimSuffix(aiPrefix, "/"))
+	if forwarded.URL.Path == "" {
+		forwarded.URL.Path = "/"
+	}
+	forwarded.URL.RawPath = ""
+	proxy.ServeHTTP(writer, forwarded)
+}
+
+// AI replay and report selection use bounded, route-specific query fields.
+// Keep all other queries rejected rather than widening the proxy boundary.
+func validAIQuery(request *http.Request) bool {
+	if request.URL.RawQuery == "" {
+		return true
+	}
+	if request.Method != http.MethodGet {
+		return false
+	}
+	query, err := url.ParseQuery(request.URL.RawQuery)
+	if err != nil || len(query) != 1 {
+		return false
+	}
+	if strings.HasSuffix(request.URL.Path, "/stream") {
+		values := query["after"]
+		if len(values) != 1 || len(values[0]) == 0 || len(values[0]) > 16 {
+			return false
+		}
+		for _, digit := range values[0] {
+			if digit < '0' || digit > '9' {
+				return false
+			}
+		}
+		return true
+	}
+	if strings.HasSuffix(request.URL.Path, "/report") {
+		values := query["format"]
+		return len(values) == 1 && (values[0] == "markdown" || values[0] == "html")
+	}
+	return false
 }
 
 func serveCapture(writer http.ResponseWriter, request *http.Request, origin string, proxy *captureProxy) {
@@ -515,60 +589,77 @@ func addSecurityHeaders(header http.Header) {
 }
 
 func startCaptureProxy(root, origin string) (*captureProxy, error) {
+	return startCaptureProxyWithParent(root, origin, nil)
+}
+
+func startCaptureProxyWithParent(root, origin string, parentDone <-chan struct{}) (*captureProxy, error) {
 	adb, err := adbCommand(root, runtime.GOOS)
 	if err != nil {
 		return nil, err
 	}
-	python, err := pythonCommand(runtime.GOOS, exec.LookPath)
+	capture, err := captureCommand(root, runtime.GOOS, exec.LookPath)
 	if err != nil {
 		return nil, err
-	}
-	proxyPath := filepath.Join(root, "proxy", "winscope_proxy.py")
-	if info, err := os.Stat(proxyPath); err != nil || info.IsDir() {
-		return nil, errors.New("launcher-managed capture proxy is missing")
 	}
 	secret, err := randomSecret()
 	if err != nil {
 		return nil, err
 	}
-	arguments := append([]string{}, python.prefixArguments...)
-	arguments = append(arguments, proxyPath, "--port", "0", "--token", secret, "--allowed-origin", origin)
-	command := exec.Command(python.path, arguments...)
-	command.Env = environmentWithValue(os.Environ(), "WINSCOPE_ADB", adb)
+	arguments := append([]string{}, capture.prefixArguments...)
+	arguments = append(arguments, "--port", "0", "--token", secret, "--allowed-origin", origin, "--parent-pipe")
+	command := exec.Command(capture.path, arguments...)
+	command.Env = captureEnvironment(root, adb, runtime.GOOS, os.Environ())
 	command.Stderr = os.Stderr
-	stdout, err := command.StdoutPipe()
+	proxy, err := startCaptureCommand(command, parentDone)
 	if err != nil {
 		return nil, err
 	}
+	proxy.secret = secret
+	return proxy, nil
+}
+
+func startCaptureCommand(command *exec.Cmd, parentDone <-chan struct{}) (*captureProxy, error) {
+	stdin, err := command.StdinPipe()
+	if err != nil {
+		return nil, err
+	}
+	stdout, err := command.StdoutPipe()
+	if err != nil {
+		_ = stdin.Close()
+		return nil, err
+	}
 	if err := command.Start(); err != nil {
+		_ = stdin.Close()
+		_ = stdout.Close()
 		return nil, fmt.Errorf("start launcher-managed capture proxy: %w", err)
 	}
+	proxy := &captureProxy{command: command, stdin: stdin, done: make(chan struct{})}
 	ready := make(chan string, 1)
 	go func() {
-		line, readErr := bufio.NewReader(stdout).ReadString('\n')
-		if readErr == nil || len(line) > 0 {
-			ready <- strings.TrimSpace(line)
-		}
+		line, _ := bufio.NewReader(stdout).ReadString('\n')
+		ready <- strings.TrimSpace(line)
+		_ = command.Wait()
+		close(proxy.done)
 	}()
 	select {
 	case line := <-ready:
 		fields := strings.Fields(line)
 		if len(fields) != 2 || fields[0] != "READY" {
-			_ = command.Process.Kill()
-			_ = command.Wait()
+			proxy.stop()
 			return nil, errors.New("launcher-managed capture proxy did not report a valid loopback port")
 		}
 		port, err := parseLoopbackPort(fields[1])
 		if err != nil {
-			_ = command.Process.Kill()
-			_ = command.Wait()
+			proxy.stop()
 			return nil, err
 		}
-		proxyURL, _ := url.Parse("http://127.0.0.1:" + port)
-		return &captureProxy{command: command, url: proxyURL, secret: secret}, nil
+		proxy.url, _ = url.Parse("http://127.0.0.1:" + port)
+		return proxy, nil
+	case <-parentDone:
+		proxy.stop()
+		return nil, errors.New("desktop host closed during capture startup")
 	case <-time.After(10 * time.Second):
-		_ = command.Process.Kill()
-		_ = command.Wait()
+		proxy.stop()
 		return nil, errors.New("launcher-managed capture proxy did not become ready")
 	}
 }
@@ -587,14 +678,21 @@ type executableCommand struct {
 }
 
 func adbCommand(distributionRoot string, goos string) (string, error) {
-	if command, err := exec.LookPath("adb"); err == nil {
-		return command, nil
-	}
 	filename := "adb"
 	if goos == "windows" {
 		filename = "adb.exe"
 	}
-	candidates := []string{filepath.Join(distributionRoot, "platform-tools", filename)}
+	bundled := filepath.Join(distributionRoot, "platform-tools", filename)
+	if info, err := os.Lstat(bundled); err == nil {
+		if !info.Mode().IsRegular() {
+			return "", errors.New("packaged Android Platform Tools executable is not a regular file")
+		}
+		return bundled, nil
+	}
+	if command, err := exec.LookPath("adb"); err == nil {
+		return command, nil
+	}
+	candidates := []string{}
 	for _, environmentVariable := range []string{"ANDROID_SDK_ROOT", "ANDROID_HOME"} {
 		if sdkRoot := os.Getenv(environmentVariable); sdkRoot != "" {
 			candidates = append(candidates, filepath.Join(sdkRoot, "platform-tools", filename))
@@ -625,6 +723,36 @@ func adbCommand(distributionRoot string, goos string) (string, error) {
 	return "", errors.New("device capture requires Android Platform Tools (adb)")
 }
 
+func captureCommand(
+	root string,
+	goos string,
+	lookPath func(string) (string, error),
+) (executableCommand, error) {
+	filename := "winscope-capture"
+	if goos == "windows" {
+		filename += ".exe"
+	}
+	bundled := filepath.Join(root, "capture", filename)
+	if info, err := os.Lstat(bundled); err == nil {
+		if !info.Mode().IsRegular() {
+			return executableCommand{}, errors.New("packaged capture executable is not a regular file")
+		}
+		return executableCommand{path: bundled}, nil
+	} else if !os.IsNotExist(err) {
+		return executableCommand{}, fmt.Errorf("read packaged capture executable: %w", err)
+	}
+	python, err := pythonCommand(goos, lookPath)
+	if err != nil {
+		return executableCommand{}, err
+	}
+	proxyPath := filepath.Join(root, "proxy", "winscope_proxy.py")
+	if info, err := os.Stat(proxyPath); err != nil || !info.Mode().IsRegular() {
+		return executableCommand{}, errors.New("launcher-managed capture proxy is missing")
+	}
+	python.prefixArguments = append(python.prefixArguments, proxyPath)
+	return python, nil
+}
+
 func pythonCommand(
 	goos string,
 	lookPath func(string) (string, error),
@@ -647,6 +775,22 @@ func pythonCommand(
 		}
 	}
 	return executableCommand{}, errors.New("device capture requires Python 3.10+")
+}
+
+func captureEnvironment(root, adb, goos string, baseEnv []string) []string {
+	libraryPath := ""
+	if goos == "linux" {
+		absoluteRoot, err := filepath.Abs(root)
+		if err == nil && adb == filepath.Join(absoluteRoot, "platform-tools", "adb") {
+			candidate := filepath.Join(absoluteRoot, "platform-tools", "lib64")
+			if info, err := os.Lstat(candidate); err == nil && info.IsDir() && !strings.Contains(candidate, ":") {
+				libraryPath = candidate
+			}
+		}
+	}
+	// Only the ADB leaf consumes this private hint; capture keeps its loader env.
+	environment := environmentWithValue(baseEnv, "WINSCOPE_ADB", adb)
+	return environmentWithValue(environment, "WINSCOPE_ADB_LIBRARY_PATH", libraryPath)
 }
 
 func environmentWithValue(environment []string, key string, value string) []string {
@@ -674,15 +818,17 @@ func (proxy *captureProxy) stop() {
 	if proxy == nil || proxy.command == nil || proxy.command.Process == nil {
 		return
 	}
-	_ = proxy.command.Process.Signal(os.Interrupt)
-	done := make(chan error, 1)
-	go func() { done <- proxy.command.Wait() }()
-	select {
-	case <-done:
-	case <-time.After(shutdownGracePeriod):
-		_ = proxy.command.Process.Kill()
-		<-done
-	}
+	proxy.stopOnce.Do(func() {
+		// Closing our private pipe works for Python and frozen capture on Windows,
+		// unlike os.Interrupt, and lets capture reap only its own ADB children.
+		_ = proxy.stdin.Close()
+		select {
+		case <-proxy.done:
+		case <-time.After(shutdownGracePeriod):
+			_ = proxy.command.Process.Kill()
+			<-proxy.done
+		}
+	})
 }
 
 func openLocalURL(value string) error {
@@ -707,83 +853,4 @@ func openLocalURLWithBrowser(value string, browser string) error {
 		command = exec.Command("xdg-open", value)
 	}
 	return command.Start()
-}
-
-func validStaticQuery(resource *url.URL) bool {
-	if resource.RawQuery == "" {
-		return true
-	}
-	if resource.Path != "/" && resource.Path != "/index.html" {
-		return false
-	}
-	if resource.EscapedPath() != resource.Path {
-		return false
-	}
-	return resource.RawQuery == "no-persistence" || resource.RawQuery == "no-persistence="
-}
-
-func parseAIURL(raw string) (*url.URL, error) {
-	if raw == "" {
-		return nil, nil
-	}
-	target, err := url.Parse(raw)
-	if err != nil || target.Scheme != "http" || target.User != nil || target.Path != "" || target.RawQuery != "" || target.Fragment != "" {
-		return nil, errors.New("AI gateway URL must be a loopback http URL without path, query or credentials")
-	}
-	host := target.Hostname()
-	if host != "127.0.0.1" && host != "localhost" && host != "[::1]" && host != "::1" {
-		return nil, errors.New("AI gateway URL must target loopback")
-	}
-	if target.Port() == "" {
-		return nil, errors.New("AI gateway URL must include an explicit port")
-	}
-	return target, nil
-}
-
-func serveAI(writer http.ResponseWriter, request *http.Request, proxy *httputil.ReverseProxy) {
-	if request.Method != http.MethodGet && request.Method != http.MethodPost && request.Method != http.MethodDelete {
-		methodNotAllowed(writer)
-		return
-	}
-	if !validAIQuery(request) || !strings.HasPrefix(request.URL.Path, aiPrefix) {
-		http.Error(writer, "invalid AI request", http.StatusBadRequest)
-		return
-	}
-	forwarded := request.Clone(request.Context())
-	forwarded.URL.Path = strings.TrimPrefix(request.URL.Path, strings.TrimSuffix(aiPrefix, "/"))
-	if forwarded.URL.Path == "" {
-		forwarded.URL.Path = "/"
-	}
-	forwarded.URL.RawPath = ""
-	proxy.ServeHTTP(writer, forwarded)
-}
-
-func validAIQuery(request *http.Request) bool {
-	if request.URL.RawQuery == "" {
-		return true
-	}
-	if request.Method != http.MethodGet {
-		return false
-	}
-	query, err := url.ParseQuery(request.URL.RawQuery)
-	if err != nil || len(query) != 1 {
-		return false
-	}
-	if strings.HasSuffix(request.URL.Path, "/stream") {
-		values := query["after"]
-		if len(values) != 1 || len(values[0]) == 0 || len(values[0]) > 16 {
-			return false
-		}
-		for _, digit := range values[0] {
-			if digit < '0' || digit > '9' {
-				return false
-			}
-		}
-		return true
-	}
-	if strings.HasSuffix(request.URL.Path, "/report") {
-		values := query["format"]
-		return len(values) == 1 && (values[0] == "markdown" || values[0] == "html")
-	}
-	return false
 }

@@ -1,5 +1,51 @@
 # Tool for visualizing window manager traces
 
+## Electron Desktop
+
+The install-and-run desktop distribution packages the WinScope Web UI, Trace
+Processor WASM, Go Launcher, frozen Python capture service, a pinned ADB provider
+(Google Platform Tools or native Ubuntu ARM64 ADB), and AI gateway with Electron. Installed users do not need to
+install Node.js, Python, or ADB separately; optional Codex/Claude CLIs and their
+authentication remain user-managed. No credentials or model access are bundled.
+
+The desktop release contract covers five native Electron targets: macOS Intel
+(`x64`) and Apple Silicon (`arm64`), Windows AMD64 (`x64`), and Linux
+`x64` and `arm64`. macOS requires 13 or later; Windows x64 requires Windows 10
+or later. Windows ARM64 desktop is not supported. The Windows x64 packages bundle
+Google's **32-bit x86 ADB**, while Electron, Go, and frozen capture are native
+x64. Linux x64 uses an Ubuntu 22.04 build baseline. Linux ARM64
+initially targets Ubuntu 24.04 with native Ubuntu ADB and requires glibc 2.38 or
+later, not arbitrary Linux distributions. USB debugging, authorization, drivers,
+OS rights, and Linux udev permissions still apply.
+
+The five-target contract requires ten installer assets: DMG/PKG only for each
+macOS architecture, NSIS EXE/MSI only for Windows x64, and DEB/RPM only for each
+Linux architecture. Desktop ZIP, AppImage, and binary tar.gz outputs are excluded;
+there is no universal macOS package. Manual/PR Electron CI produces
+read-only candidate artifacts; the official release contract reuses that native
+workflow and publishes portable Launcher and desktop assets in **one GitHub
+Release** only after all five targets and the existing official gates pass.
+Publication verifies uploaded names, sizes, and SHA-256 digests while the release
+is still a draft. Packages are unsigned; local installer names and metadata do
+not authenticate a publisher. OIDC attestations are not OS code signing or Apple
+notarization.
+
+Desktop assets include `desktop-release.json` and `desktop-SHA256SUMS.txt`
+alongside the installers. Linux ARM64 additionally delivers the exact app-commit
+source `.tar.gz` archive (a separate legal/source artifact, not an installer) and
+bundled library sources, original DEBs, signed indexes,
+licenses, and provenance. Source delivery and a private-key-free replacement/
+relink procedure are release requirements, not a claim of completed legal or
+native GPG approval.
+
+This multi-platform release implementation is underway, not a claim that hosted
+jobs or release qualification have passed. See [Electron Desktop](docs/ELECTRON.md)
+for installation, artifact names/index/checksums, build/start/test commands, data
+retention, and validation gaps, and
+[ADR 0030](docs/adr/0030-multi-platform-desktop-release.md) for the release policy.
+The portable Launcher remains a supported distribution with its existing gates;
+its release formats and APS outputs are unchanged by this desktop-only contract.
+
 ## Developing WinScope
 When the trace is enabled, Window Manager and Surface Flinger capture and
 save current state to a file at each point of interest.
