@@ -47,6 +47,7 @@ import (
 
 const (
 	capturePrefix       = "/capture/"
+	aiPrefix            = "/ai/"
 	runtimeConfigPath   = "/runtime-config.json"
 	maxManifestBytes    = 4 << 20
 	shutdownGracePeriod = 5 * time.Second
@@ -75,6 +76,7 @@ func main() {
 	automaticLaunch := len(arguments) == 0
 	enableCapture, openBrowser := defaultLaunchFlags(arguments)
 	var browser string
+	var aiURL string
 	var port int
 	var offlineOnly bool
 	flag.StringVar(&distributionRoot, "root", defaultDistributionRoot(), "path to the packaged aosp-winscope distribution")
@@ -83,7 +85,12 @@ func main() {
 	flag.StringVar(&browser, "browser", "", "browser executable to launch with the local Winscope URL")
 	flag.IntVar(&port, "port", 0, "fixed loopback Web port; 0 selects a random available port")
 	flag.BoolVar(&offlineOnly, "offline-only", false, "disable device capture explicitly")
+	flag.StringVar(&aiURL, "ai-url", "", "loopback AI gateway URL to expose at the same-origin /ai/ path")
 	flag.Parse()
+	aiTarget, err := parseAIURL(aiURL)
+	if err != nil {
+		log.Fatal(err)
+	}
 	if err := validateLaunchOptions(port, enableCapture, offlineOnly); err != nil {
 		log.Fatal(err)
 	}
@@ -121,7 +128,7 @@ func main() {
 	}
 
 	server := &http.Server{
-		Handler:      newHandler(webRoot, staticAssets, origin, proxy, captureDiagnostic),
+		Handler:      newHandler(webRoot, staticAssets, origin, proxy, captureDiagnostic, aiTarget),
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 60 * time.Second,
 		IdleTimeout:  60 * time.Second,
@@ -295,8 +302,17 @@ func newHandler(
 	origin string,
 	proxy *captureProxy,
 	captureDiagnostic string,
+	aiTargets ...*url.URL,
 ) http.Handler {
 	static := newStaticHandler(webRoot, staticAssets)
+	var aiTarget *url.URL
+	if len(aiTargets) > 0 {
+		aiTarget = aiTargets[0]
+	}
+	var aiProxy *httputil.ReverseProxy
+	if aiTarget != nil {
+		aiProxy = httputil.NewSingleHostReverseProxy(aiTarget)
+	}
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		addSecurityHeaders(writer.Header())
 		if request.URL.Path == runtimeConfigPath {
@@ -304,7 +320,15 @@ func newHandler(
 				methodNotAllowed(writer)
 				return
 			}
-			writeRuntimeConfig(writer, proxy != nil, captureDiagnostic)
+			writeRuntimeConfig(writer, proxy != nil, captureDiagnostic, aiTarget != nil)
+			return
+		}
+		if strings.HasPrefix(request.URL.Path, aiPrefix) {
+			if aiProxy == nil {
+				http.NotFound(writer, request)
+				return
+			}
+			serveAI(writer, request, aiProxy)
 			return
 		}
 		if strings.HasPrefix(request.URL.Path, capturePrefix) {
@@ -325,7 +349,7 @@ func newStaticHandler(webRoot string, staticAssets map[string]bool) http.Handler
 			methodNotAllowed(writer)
 			return
 		}
-		if request.URL.RawQuery != "" || strings.Contains(request.URL.Path, "\\") {
+		if !validStaticQuery(request.URL) || strings.Contains(request.URL.Path, "\\") {
 			http.Error(writer, "invalid resource path", http.StatusBadRequest)
 			return
 		}
@@ -378,7 +402,7 @@ func newStaticHandler(webRoot string, staticAssets map[string]bool) http.Handler
 	})
 }
 
-func writeRuntimeConfig(writer http.ResponseWriter, captureEnabled bool, captureDiagnostic string) {
+func writeRuntimeConfig(writer http.ResponseWriter, captureEnabled bool, captureDiagnostic string, aiEnabled ...bool) {
 	writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 	writer.Header().Set("Cache-Control", "no-store")
 	capture := map[string]string{"provider": "none"}
@@ -394,6 +418,9 @@ func writeRuntimeConfig(writer http.ResponseWriter, captureEnabled bool, capture
 		"schemaVersion": 1,
 		"host":          map[string]string{"kind": "standalone"},
 		"capture":       capture,
+	}
+	if len(aiEnabled) > 0 && aiEnabled[0] {
+		config["ai"] = map[string]string{"provider": "loopback-ai-v1", "endpoint": "./ai/"}
 	}
 	_ = json.NewEncoder(writer).Encode(config)
 }
@@ -680,4 +707,83 @@ func openLocalURLWithBrowser(value string, browser string) error {
 		command = exec.Command("xdg-open", value)
 	}
 	return command.Start()
+}
+
+func validStaticQuery(resource *url.URL) bool {
+	if resource.RawQuery == "" {
+		return true
+	}
+	if resource.Path != "/" && resource.Path != "/index.html" {
+		return false
+	}
+	if resource.EscapedPath() != resource.Path {
+		return false
+	}
+	return resource.RawQuery == "no-persistence" || resource.RawQuery == "no-persistence="
+}
+
+func parseAIURL(raw string) (*url.URL, error) {
+	if raw == "" {
+		return nil, nil
+	}
+	target, err := url.Parse(raw)
+	if err != nil || target.Scheme != "http" || target.User != nil || target.Path != "" || target.RawQuery != "" || target.Fragment != "" {
+		return nil, errors.New("AI gateway URL must be a loopback http URL without path, query or credentials")
+	}
+	host := target.Hostname()
+	if host != "127.0.0.1" && host != "localhost" && host != "[::1]" && host != "::1" {
+		return nil, errors.New("AI gateway URL must target loopback")
+	}
+	if target.Port() == "" {
+		return nil, errors.New("AI gateway URL must include an explicit port")
+	}
+	return target, nil
+}
+
+func serveAI(writer http.ResponseWriter, request *http.Request, proxy *httputil.ReverseProxy) {
+	if request.Method != http.MethodGet && request.Method != http.MethodPost && request.Method != http.MethodDelete {
+		methodNotAllowed(writer)
+		return
+	}
+	if !validAIQuery(request) || !strings.HasPrefix(request.URL.Path, aiPrefix) {
+		http.Error(writer, "invalid AI request", http.StatusBadRequest)
+		return
+	}
+	forwarded := request.Clone(request.Context())
+	forwarded.URL.Path = strings.TrimPrefix(request.URL.Path, strings.TrimSuffix(aiPrefix, "/"))
+	if forwarded.URL.Path == "" {
+		forwarded.URL.Path = "/"
+	}
+	forwarded.URL.RawPath = ""
+	proxy.ServeHTTP(writer, forwarded)
+}
+
+func validAIQuery(request *http.Request) bool {
+	if request.URL.RawQuery == "" {
+		return true
+	}
+	if request.Method != http.MethodGet {
+		return false
+	}
+	query, err := url.ParseQuery(request.URL.RawQuery)
+	if err != nil || len(query) != 1 {
+		return false
+	}
+	if strings.HasSuffix(request.URL.Path, "/stream") {
+		values := query["after"]
+		if len(values) != 1 || len(values[0]) == 0 || len(values[0]) > 16 {
+			return false
+		}
+		for _, digit := range values[0] {
+			if digit < '0' || digit > '9' {
+				return false
+			}
+		}
+		return true
+	}
+	if strings.HasSuffix(request.URL.Path, "/report") {
+		values := query["format"]
+		return len(values) == 1 && (values[0] == "markdown" || values[0] == "html")
+	}
+	return false
 }

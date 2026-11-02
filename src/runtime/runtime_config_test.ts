@@ -125,4 +125,22 @@ describe('Runtime configuration', () => {
       DEFAULT_RUNTIME_CONFIG,
     );
   });
+  it('accepts a same-origin AI gateway configuration', () => {
+    expect(
+      parseRuntimeConfig({
+        schemaVersion: 1,
+        host: {kind: 'standalone'},
+        capture: {provider: 'loopback-proxy-v1', endpoint: './capture/'},
+        ai: {provider: 'loopback-ai-v1', endpoint: './ai/'},
+      }).ai,
+    ).toEqual({provider: 'loopback-ai-v1', endpoint: './ai/'});
+    expect(() =>
+      parseRuntimeConfig({
+        schemaVersion: 1,
+        host: {kind: 'standalone'},
+        capture: {provider: 'loopback-proxy-v1', endpoint: './capture/'},
+        ai: {provider: 'loopback-ai-v1', endpoint: 'https://example.com/'},
+      }),
+    ).toThrowError(/relative path/);
+  });
 });

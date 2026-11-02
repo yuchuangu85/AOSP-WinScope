@@ -1,0 +1,470 @@
+<section
+  class="ai-panel"
+  role="dialog"
+  aria-modal="true"
+  [attr.aria-label]="'AI analysis workspace' | tr"
+  [style.display]="suspended ? 'none' : null"
+  [cdkTrapFocus]="!suspended"
+  [cdkTrapFocusAutoCapture]="!suspended"
+  (keydown.escape)="onEscape($event)"
+>
+  @if (sidebarOpen) {
+    <button
+      class="sidebar-backdrop"
+      [attr.aria-label]="'Close conversation browser' | tr"
+      (click)="sidebarOpen = false"
+    ></button>
+  }
+  <aside
+    class="ai-sidebar"
+    [class.open]="sidebarOpen"
+    [attr.aria-label]="'Conversation browser' | tr"
+  >
+    <div class="sidebar-heading"
+      ><mat-icon>forum</mat-icon><strong>{{ 'Conversations' | tr }}</strong>
+      <button
+        mat-icon-button
+        [attr.aria-label]="'Refresh conversations' | tr"
+        (click)="refreshSessions()"
+        ><mat-icon>refresh</mat-icon></button
+      >
+    </div>
+    <button mat-stroked-button class="new-session-button" (click)="newSession()"
+      ><mat-icon>edit_square</mat-icon>{{ 'New conversation' | tr }}</button
+    >
+    <label class="session-search"
+      ><mat-icon>search</mat-icon
+      ><input
+        type="search"
+        [attr.aria-label]="'Search conversations' | tr"
+        [placeholder]="'Search conversations' | tr"
+        [(ngModel)]="searchQuery"
+    /></label>
+    <nav class="session-list" [attr.aria-label]="'Conversation history' | tr">
+      @for (session of filteredSessions; track session.sessionId) {
+        <button
+          class="session-row"
+          [class.active]="session.sessionId === sessionId"
+          [attr.aria-current]="session.sessionId === sessionId ? 'true' : null"
+          (click)="selectSession(session.sessionId)"
+        >
+          <span class="session-title">{{ session.title }}</span>
+          <span class="session-meta"
+            ><span class="status-dot" [class.running]="session.status === 'running'"></span
+            >{{ session.status | tr }} ·
+            {{
+              session.updatedAt
+                | date
+                  : (language() === 'zh-CN' ? 'M月d日 HH:mm' : 'MMM d, HH:mm')
+                  : undefined
+                  : language()
+            }}</span
+          >
+        </button>
+      } @empty {
+        <p class="history-empty">{{
+          (searchQuery ? 'No matching conversations.' : 'Your conversations will appear here.') | tr
+        }}</p>
+      }
+    </nav>
+    <p class="history-note"
+      ><mat-icon>lock</mat-icon>{{ 'History stays in this local gateway.' | tr }}<br />{{
+        'Restarting it clears conversations.' | tr
+      }}</p
+    >
+  </aside>
+
+  <main class="ai-main">
+    <header class="ai-panel-header">
+      <button
+        mat-icon-button
+        class="history-toggle"
+        [attr.aria-label]="'Toggle conversation browser' | tr"
+        [attr.aria-expanded]="sidebarOpen"
+        (click)="sidebarOpen = !sidebarOpen"
+        ><mat-icon>menu</mat-icon></button
+      >
+      <div class="conversation-heading"
+        ><h2>{{ activeSession?.title || ('AI analysis' | tr) }}</h2
+        ><span>{{ 'Black-screen & flicker investigation' | tr }}</span></div
+      >
+      <div class="report-actions">
+        <button
+          mat-icon-button
+          [attr.aria-label]="'Preview report' | tr"
+          [matTooltip]="'Preview report' | tr"
+          [disabled]="!canReport || reportBusy"
+          (click)="previewReport()"
+          ><mat-icon>description</mat-icon></button
+        >
+        <button
+          mat-icon-button
+          [attr.aria-label]="'Copy report' | tr"
+          [matTooltip]="'Copy report' | tr"
+          [disabled]="!canReport"
+          (click)="copyReport()"
+          ><mat-icon>content_copy</mat-icon></button
+        >
+        <button
+          mat-icon-button
+          [attr.aria-label]="'Export Markdown report' | tr"
+          [matTooltip]="'Export Markdown' | tr"
+          [disabled]="!canReport"
+          (click)="exportReport('markdown')"
+          ><mat-icon>download</mat-icon></button
+        >
+        <button
+          mat-icon-button
+          [attr.aria-label]="'Export HTML report' | tr"
+          [matTooltip]="'Export HTML' | tr"
+          [disabled]="!canReport"
+          (click)="exportReport('html')"
+          ><mat-icon>code</mat-icon></button
+        >
+      </div>
+      <button
+        mat-icon-button
+        class="ai-settings-button"
+        [disabled]="loading"
+        [attr.aria-label]="'AI settings' | tr"
+        [matTooltip]="'AI settings' | tr"
+        (click)="openSettings()"
+        ><mat-icon>settings</mat-icon></button
+      >
+      <button
+        mat-icon-button
+        [attr.aria-label]="'Close AI analysis' | tr"
+        [matTooltip]="'Close AI analysis' | tr"
+        (click)="closed.emit()"
+        ><mat-icon>close</mat-icon></button
+      >
+    </header>
+
+    @if (!endpoint) {
+      <div class="ai-empty"
+        ><mat-icon>cable</mat-icon><h3>{{ 'Connect your AI gateway' | tr }}</h3
+        ><p
+          >{{
+            'AI gateway is not configured. Start the independent gateway and launch WinScope with'
+              | tr
+          }}
+          <code>--ai-url</code>.</p
+        ></div
+      >
+    } @else {
+      @if (loading) {
+        <mat-progress-bar
+          mode="indeterminate"
+          [attr.aria-label]="'Loading conversation' | tr"
+        ></mat-progress-bar>
+      }
+      @if (error) {
+        <div class="ai-error" role="alert">{{ errorText(error) }}</div>
+      }
+      @if (notice) {
+        <div class="ai-notice" role="status">{{ notice | tr }}</div>
+      }
+      <div class="ai-conversation-body">
+        <div
+          #transcript
+          class="ai-transcript"
+          role="log"
+          [attr.aria-label]="'Conversation messages' | tr"
+          (scroll)="onTranscriptScroll()"
+        >
+          <div class="transcript-column">
+            @for (turn of turns; track turn.id) {
+              <article class="chat-turn" [attr.data-status]="turn.status">
+                <div class="user-message"
+                  ><span class="message-author">{{ 'You' | tr }}</span
+                  ><div class="message-text">{{ turn.prompt }}</div>
+                  @for (name of turn.attachments; track $index) {
+                    <span class="sent-attachment"><mat-icon>attach_file</mat-icon>{{ name }}</span>
+                  }
+                </div>
+                <div class="assistant-message"
+                  ><div class="assistant-label"
+                    ><mat-icon>auto_awesome</mat-icon><strong>WinScope</strong
+                    ><span
+                      class="turn-status"
+                      [class.running]="turn.status === 'running'"
+                      role="status"
+                      >{{ activityText(turn.activity) }}</span
+                    ></div
+                  >
+                  @if (turn.response) {
+                    <div class="message-text assistant-content">{{ responseText(turn) }}</div>
+                  }
+                  @for (link of turn.links; track $index) {
+                    <button mat-button class="finding-link" (click)="selectFrame(link.frameIndex)"
+                      ><mat-icon>my_location</mat-icon>{{ link.title }} · {{ 'frame' | tr }}
+                      {{ link.frameIndex }}</button
+                    >
+                  }
+                  @if (turn.status !== 'running') {
+                    <div class="message-actions"
+                      ><button
+                        mat-icon-button
+                        [attr.aria-label]="'Copy response' | tr"
+                        [matTooltip]="'Copy response' | tr"
+                        (click)="copyText(responseText(turn))"
+                        ><mat-icon>content_copy</mat-icon></button
+                      >
+                      @if ($last) {
+                        <button
+                          mat-button
+                          class="retry-button"
+                          [disabled]="running"
+                          (click)="retry()"
+                          ><mat-icon>refresh</mat-icon>{{ 'Retry prompt' | tr }}</button
+                        >
+                      }
+                    </div>
+                  }
+                </div>
+              </article>
+            } @empty {
+              <div class="ai-empty"
+                ><div class="empty-symbol"><mat-icon>auto_awesome</mat-icon></div
+                ><h3>{{ 'What would you like to investigate?' | tr }}</h3
+                ><p
+                  >{{ 'Ask about black screens, flicker, or display behavior.' | tr }}<br />{{
+                    'Add trace context or text notes to ground your analysis.' | tr
+                  }}</p
+                >
+                <div class="suggestions"
+                  ><button
+                    mat-stroked-button
+                    (click)="
+                      prompt = 'Investigate black-screen intervals in the available evidence';
+                      resizeComposer()
+                    "
+                    >{{ 'Investigate a black screen' | tr }}</button
+                  ><button
+                    mat-stroked-button
+                    (click)="
+                      prompt = 'Find flicker and explain what evidence is missing'; resizeComposer()
+                    "
+                    >{{ 'Find flicker evidence' | tr }}</button
+                  ></div
+                >
+              </div>
+            }
+          </div>
+        </div>
+        @if (reportPreview) {
+          <aside class="report-preview" [attr.aria-label]="'Report preview' | tr"
+            ><div class="report-preview-header"
+              ><strong>{{ 'Report preview · Markdown' | tr }}</strong
+              ><button
+                mat-icon-button
+                [attr.aria-label]="'Close report preview' | tr"
+                (click)="reportPreview = ''"
+                ><mat-icon>close</mat-icon></button
+              ></div
+            ><pre>{{ reportPreview }}</pre>
+          </aside>
+        }
+      </div>
+      <div class="composer-dock">
+        @if (!followTail && turns.length) {
+          <button mat-stroked-button class="follow-button" (click)="scrollToLatest()"
+            ><mat-icon>arrow_downward</mat-icon>{{ 'Latest message' | tr }}</button
+          >
+        }
+        <div
+          class="ai-composer"
+          [class.hero]="!turns.length"
+          [class.drop-active]="dropActive"
+          (mousedown)="focusCard($event)"
+          (dragenter)="onDragEnter($event)"
+          (dragover)="onDragOver($event)"
+          (dragleave)="onDragLeave($event)"
+          (drop)="onDrop($event)"
+        >
+          @if (dropActive) {
+            <div class="composer-drop-hint"
+              ><mat-icon>note_add</mat-icon><strong>{{ 'Drop text notes here' | tr }}</strong
+              ><span>{{ '.txt, .md, .json · 64 KiB each' | tr }}</span></div
+            >
+          }
+          @if (attachments.length || attaching) {
+            <div class="attachment-rail" [attr.aria-label]="'Attached notes' | tr">
+              @for (attachment of attachments; track $index) {
+                <div class="attachment-chip"
+                  ><span class="attachment-icon"
+                    ><mat-icon>{{
+                      attachment.mimeType === 'application/json' ? 'data_object' : 'description'
+                    }}</mat-icon></span
+                  >
+                  <span class="attachment-info"
+                    ><strong>{{ attachment.name }}</strong
+                    ><span>{{
+                      '{count} characters · Text note'
+                        | tr
+                          : {
+                              count:
+                                (attachment.content.length | number: undefined : language()) ??
+                                attachment.content.length,
+                            }
+                    }}</span></span
+                  >
+                  <button
+                    class="attachment-remove"
+                    type="button"
+                    [attr.aria-label]="'Remove {name}' | tr: {name: attachment.name}"
+                    (click)="attachments.splice($index, 1)"
+                    ><mat-icon>close</mat-icon></button
+                  >
+                </div>
+              }
+              @if (attaching) {
+                <span class="attachment-pending" role="status">{{ 'Reading notes…' | tr }}</span>
+              }
+            </div>
+          }
+          <textarea
+            #composer
+            class="composer-input"
+            rows="1"
+            [attr.aria-label]="'Message' | tr"
+            [placeholder]="'Message WinScope' | tr"
+            [(ngModel)]="prompt"
+            (input)="resizeComposer()"
+            (keydown)="onComposerKey($event)"
+            (compositionend)="onCompositionEnd()"
+            (paste)="onPaste($event)"
+            (wheel)="onDraftWheel($event)"
+          ></textarea>
+          <div class="composer-toolbar">
+            <div class="composer-tools">
+              <input
+                #fileInput
+                class="visually-hidden"
+                type="file"
+                tabindex="-1"
+                [attr.aria-label]="'Choose text notes' | tr"
+                accept=".txt,.md,.json"
+                multiple
+                (change)="attachFiles(fileInput)"
+              />
+              <button
+                type="button"
+                class="composer-add"
+                [attr.aria-label]="'Composer actions' | tr"
+                [matTooltip]="'Add files and context' | tr"
+                [matMenuTriggerFor]="composerMenu"
+                (mousedown)="$event.preventDefault()"
+                ><mat-icon>add</mat-icon></button
+              >
+              <mat-menu #composerMenu="matMenu" yPosition="above">
+                <button
+                  mat-menu-item
+                  [attr.aria-label]="'Attach text notes' | tr"
+                  [disabled]="attaching"
+                  (click)="fileInput.click()"
+                  ><mat-icon>attach_file</mat-icon
+                  ><span>{{ 'Attach text notes' | tr }}</span></button
+                >
+                <button
+                  mat-menu-item
+                  [disabled]="!evidence"
+                  (click)="includeEvidence = !includeEvidence"
+                  ><mat-icon>{{ includeEvidence ? 'check_circle' : 'data_object' }}</mat-icon
+                  ><span>{{
+                    (includeEvidence ? 'Remove trace context' : 'Add trace context') | tr
+                  }}</span></button
+                >
+                <button
+                  mat-menu-item
+                  (click)="
+                    usePrompt('Investigate black-screen intervals in the available evidence')
+                  "
+                  ><mat-icon>dark_mode</mat-icon
+                  ><span>{{ 'Investigate a black screen' | tr }}</span></button
+                >
+                <button
+                  mat-menu-item
+                  (click)="usePrompt('Find flicker and explain what evidence is missing')"
+                  ><mat-icon>graphic_eq</mat-icon
+                  ><span>{{ 'Find flicker evidence' | tr }}</span></button
+                >
+                <button mat-menu-item (click)="openSettings()"
+                  ><mat-icon>settings</mat-icon><span>{{ 'AI settings' | tr }}</span></button
+                >
+              </mat-menu>
+              <button
+                type="button"
+                class="context-chip"
+                [class.included]="includeEvidence && !!evidence"
+                [attr.aria-pressed]="includeEvidence && !!evidence"
+                [disabled]="!evidence"
+                [matTooltip]="
+                  (evidence
+                    ? 'Include structured trace evidence in the next message'
+                    : 'Load a trace in WinScope to add evidence'
+                  ) | tr
+                "
+                (mousedown)="$event.preventDefault()"
+                (click)="includeEvidence = !includeEvidence"
+                ><mat-icon>data_object</mat-icon><span>{{ 'Trace context' | tr }}</span>
+                @if (includeEvidence && evidence) {
+                  <mat-icon class="context-check">check</mat-icon>
+                }
+              </button>
+            </div>
+            <div class="composer-trailing">
+              <select
+                class="model-select"
+                [attr.aria-label]="'Conversation model' | tr"
+                [ngModel]="conversationModel"
+                (ngModelChange)="changeConversationModel($event)"
+                [disabled]="runtimeDisabled || !catalog.agents.length"
+              >
+                @for (group of conversationModels; track group.providerId) {
+                  <optgroup [label]="group.name">
+                    @for (model of group.models; track model.value) {
+                      <option [value]="model.value">{{ model.name }}</option>
+                    }
+                  </optgroup>
+                }
+              </select>
+              @if (submitting) {
+                <button
+                  type="button"
+                  class="composer-primary"
+                  disabled
+                  [attr.aria-label]="'Sending message' | tr"
+                  aria-busy="true"
+                  ><span class="sending-spinner"></span
+                ></button>
+              } @else if (running) {
+                <button
+                  type="button"
+                  class="composer-primary ai-stop-button"
+                  [disabled]="!sessionId"
+                  (mousedown)="$event.preventDefault()"
+                  (click)="cancel()"
+                  [attr.aria-label]="'Stop analysis' | tr"
+                  [matTooltip]="'Stop analysis' | tr"
+                  ><span class="stop-glyph"></span
+                ></button>
+              } @else {
+                <button
+                  type="button"
+                  class="composer-primary ai-analyze-button"
+                  [attr.aria-label]="'Send message' | tr"
+                  [matTooltip]="'Send message' | tr"
+                  [disabled]="!prompt.trim() || loading || attaching || !catalog.agents.length"
+                  (mousedown)="$event.preventDefault()"
+                  (click)="submit()"
+                  ><mat-icon>arrow_upward</mat-icon></button
+                >
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+    }
+  </main>
+</section>

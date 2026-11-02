@@ -55,7 +55,16 @@
     "aps:verify": "python3 scripts/verify-aps-release.py --json",
     "release:settings": "python3 scripts/verify-release-settings.py --repository yuchuangu85/AOSP-WinScope --json",
     "release:image": "python3 scripts/verify-release-image.py --json",
-    "installers:package": "python3 scripts/package-installers.py"
+    "installers:package": "python3 scripts/package-installers.py",
+    "ai:build": "npm --prefix ai run build",
+    "ai:test": "npm --prefix ai test",
+    "ai:cli": "npm --prefix ai run cli --",
+    "ai:serve": "npm --prefix ai run serve --",
+    "ai:mcp": "npm --prefix ai run mcp --",
+    "ai:verify": "node scripts/verify-ai-package.mjs",
+    "test:e2e:ai": "npm run ai:build && node scripts/ai_gateway_e2e.mjs",
+    "test:e2e:ai:browser": "npm run ai:build && npx ng build winscope --configuration=production && node scripts/ai_browser_e2e.mjs",
+    "test:unit:ai": "ng test winscope --configuration=ci --no-watch --no-progress --code-coverage=false --main=src/main_ai_unit.ts"
   },
   "private": true,
   "dependencies": {

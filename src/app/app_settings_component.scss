@@ -1,0 +1,206 @@
+:host {
+  color: var(--default-text-color);
+  font:
+    14px/1.5 Roboto,
+    sans-serif;
+}
+
+.settings-dialog {
+  position: fixed;
+  inset: 40px 8px 8px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--background-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgb(0 0 0 / 18%);
+}
+
+.settings-header,
+.settings-footer {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  min-width: 0;
+  gap: 8px;
+  padding: 8px 16px;
+}
+
+.settings-header {
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-color);
+}
+
+h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 24px;
+  outline: none;
+}
+
+h3 {
+  margin: 0 0 16px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+}
+
+.settings-close-button {
+  flex-shrink: 0;
+}
+
+.settings-body {
+  display: grid;
+  flex: 1;
+  grid-template-columns: 180px minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.settings-menu {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  min-width: 0;
+  gap: 4px;
+  padding: 12px 8px;
+  border-right: 1px solid var(--border-color);
+  background: var(--card-title-background-color);
+}
+
+.settings-menu button {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.settings-menu button:hover {
+  background: var(--hover-element-color);
+}
+
+.settings-menu button[aria-selected='true'] {
+  background: var(--selected-element-color);
+  font-weight: 600;
+}
+
+.settings-content {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 16px;
+  scrollbar-gutter: stable;
+}
+
+.settings-tab-panel {
+  min-width: 0;
+  max-width: 800px;
+  margin: 0 auto;
+  overflow-wrap: anywhere;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.interface-language-select,
+.theme-mode-select {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 320px;
+  min-width: 0;
+  height: 32px;
+  padding: 4px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--drawer-color);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.settings-appearance {
+  padding-top: 20px;
+  border-top: 1px solid var(--border-color);
+}
+
+.settings-status,
+.settings-error {
+  margin: 0 0 16px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.settings-status {
+  color: var(--gray-text-color);
+}
+
+.settings-error {
+  color: var(--error-color);
+}
+
+.settings-footer {
+  justify-content: flex-end;
+  border-top: 1px solid var(--border-color);
+}
+
+.settings-footer button {
+  max-width: 100%;
+  min-height: 32px;
+  white-space: normal;
+}
+
+button:focus-visible,
+select:focus-visible,
+.settings-tab-panel:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+@media (max-width: 600px) {
+  .settings-body {
+    grid-template-columns: 96px minmax(0, 1fr);
+  }
+
+  .settings-header,
+  .settings-footer {
+    padding: 8px 12px;
+  }
+
+  .settings-menu {
+    padding: 8px 4px;
+  }
+
+  .settings-menu button {
+    padding: 8px;
+    font-size: 13px;
+  }
+
+  .settings-content {
+    padding: 16px 12px;
+  }
+}

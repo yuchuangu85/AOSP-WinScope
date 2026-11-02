@@ -46,6 +46,40 @@ npm start -- --offline-only --open
 `npm run start:web` retains the Angular-only development server for UI work.
 That explicit Web-only entry does not start a Launcher or device capture.
 
+## AI gateway
+
+The AI module is an independent Node runtime under `ai/`. Start it separately,
+then pass its loopback URL to the launcher:
+
+```sh
+npm run ai:build
+npm run ai:serve -- --port 7341
+npm start -- --open --ai-url http://127.0.0.1:7341
+```
+
+The launcher exposes the gateway to the browser only through the same-origin
+`./ai/` endpoint. `--ai-url` accepts only an explicit `http` loopback URL
+(`127.0.0.1`, `localhost` or `::1`) with no path, query, fragment or
+credentials. Omitting the option keeps the launcher-only runtime contract.
+The AI gateway can also be used directly through its CLI or MCP stdio entry
+point; see `docs/AI_DISPLAY_ANALYSIS_PLAN.md` and the `ai/` module README.
+
+The toolbar opens an independent Settings page with a left-hand General/AI menu.
+General contains interface language and theme controls and does not need an AI
+gateway. Theme offers **Follow system**, **Dark mode**, and **Light mode** and
+applies immediately; Follow system responds to operating-system theme changes.
+The toolbar no longer contains a separate theme toggle. AI settings separates
+Codex and Claude; each **Get configuration** action
+fills only its own model, supported effort, service URL and authentication status.
+The last successful Get configuration selects the only active provider; failed
+reads leave the previous selection intact. Save applies only that provider/model
+without discarding the conversation draft. The composer switches models within
+this provider, not across providers. The gateway machine,
+not the browser, reads these settings. No credentials or complete configuration
+files are returned to the browser. Imports are process-local and must be repeated
+after a gateway restart. See `ai/README.md` for supported configuration sources,
+CLI requirements and model-access limits.
+
 ## Distribution inputs
 
 Before serving anything, the launcher reads `manifest.json` at the package root
@@ -112,3 +146,14 @@ capture capabilities continue to work.
 `CGO_ENABLED=0 go build -trimpath` for Windows, macOS, and Linux on amd64 and
 arm64. It writes derived binaries beneath `dist/launchers/`; release packaging
 moves them into the stable `bin/<os>-<arch>/` distribution layout.
+
+### AI conversation replay and reports
+
+The optional loopback AI gateway supports in-memory multi-turn history. The
+same-origin `/ai/` proxy accepts only the following query fields on GET requests:
+`/api/sessions/:id/stream?after=<non-negative event ID>` and
+`/api/sessions/:id/report?format=markdown|html`. Other query fields and duplicate
+values remain rejected. The gateway separately validates loopback Host/Origin
+and JSON mutation requests. Session recovery survives browser/panel reopening,
+not gateway process restart. See `ai/README.md` for the provider/model and text
+attachment configuration boundary.

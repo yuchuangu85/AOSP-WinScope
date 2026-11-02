@@ -1,0 +1,156 @@
+<section
+  class="settings-dialog"
+  role="dialog"
+  aria-modal="true"
+  [attr.aria-label]="'Settings' | tr"
+  cdkTrapFocus
+  [cdkTrapFocusAutoCapture]="true"
+  (keydown.escape)="onEscape($event)"
+>
+  <header class="settings-header">
+    <h2 tabindex="-1" cdkFocusInitial>{{ 'Settings' | tr }}</h2>
+    <button
+      mat-icon-button
+      type="button"
+      class="settings-close-button"
+      [attr.aria-label]="'Close settings' | tr"
+      [matTooltip]="'Close settings' | tr"
+      (click)="close()"
+      ><mat-icon>close</mat-icon></button
+    >
+  </header>
+
+  <div class="settings-body">
+    <nav
+      class="settings-menu"
+      role="tablist"
+      aria-orientation="vertical"
+      [attr.aria-label]="'Settings navigation' | tr"
+    >
+      <button
+        #generalTab
+        id="settings-general-tab"
+        type="button"
+        role="tab"
+        data-section="general"
+        aria-controls="settings-general-panel"
+        [attr.aria-selected]="section === 'general'"
+        [attr.tabindex]="section === 'general' ? 0 : -1"
+        (click)="selectSection('general')"
+        (keydown)="onMenuKeydown($event, 'general')"
+        >{{ 'General settings' | tr }}</button
+      >
+      <button
+        #aiTab
+        id="settings-ai-tab"
+        type="button"
+        role="tab"
+        data-section="ai"
+        aria-controls="settings-ai-panel"
+        [attr.aria-selected]="section === 'ai'"
+        [attr.tabindex]="section === 'ai' ? 0 : -1"
+        (click)="selectSection('ai')"
+        (keydown)="onMenuKeydown($event, 'ai')"
+        >{{ 'AI settings' | tr }}</button
+      >
+    </nav>
+
+    <div class="settings-content">
+      <section
+        id="settings-general-panel"
+        class="settings-tab-panel general-settings"
+        role="tabpanel"
+        aria-labelledby="settings-general-tab"
+        [hidden]="section !== 'general'"
+        tabindex="0"
+      >
+        <h3>{{ 'General settings' | tr }}</h3>
+        <label class="settings-field">
+          <span>{{ 'Interface language' | tr }}</span>
+          <select
+            class="interface-language-select"
+            [attr.aria-label]="'Interface language' | tr"
+            [ngModel]="language()"
+            (ngModelChange)="setLanguage($event)"
+          >
+            @for (option of supportedLanguages; track option.code) {
+              <option [value]="option.code">{{ option.name }}</option>
+            }
+          </select>
+        </label>
+        <section class="settings-appearance" [attr.aria-label]="'Appearance' | tr">
+          <h3>{{ 'Appearance' | tr }}</h3>
+          <label class="settings-field">
+            <span>{{ 'Color theme' | tr }}</span>
+            <select
+              class="theme-mode-select"
+              [attr.aria-label]="'Color theme' | tr"
+              [ngModel]="themeMode"
+              (ngModelChange)="themeModeChanged.emit($event)"
+            >
+              <option value="system">{{ 'Follow system' | tr }}</option>
+              <option value="dark">{{ 'Dark mode' | tr }}</option>
+              <option value="light">{{ 'Light mode' | tr }}</option>
+            </select>
+          </label>
+        </section>
+      </section>
+
+      <section
+        id="settings-ai-panel"
+        class="settings-tab-panel ai-settings-panel"
+        role="tabpanel"
+        aria-labelledby="settings-ai-tab"
+        [hidden]="section !== 'ai'"
+        tabindex="0"
+        [attr.aria-busy]="loading"
+      >
+        @if (loading) {
+          <p class="settings-status" role="status">{{ 'Loading...' | tr }}</p>
+        }
+        @if (loadError) {
+          <p class="settings-error" role="alert">{{ loadError | tr }}</p>
+        }
+        @if (!endpoint) {
+          <p class="settings-status">{{ 'Connect your AI gateway' | tr }}</p>
+        }
+        @if (catalogReady) {
+          <ai-settings
+            [catalog]="catalog"
+            [selection]="selection"
+            [providerSelections]="providerSelections"
+            [running]="running"
+            [loading]="loading || loadingConversation || !canConfigureAi"
+            [existingSession]="existingSession"
+            [importingProvider]="importingProvider"
+            [importErrors]="importErrors"
+            [importedProviders]="importedProviders"
+            (importRequested)="importLocalConfig($event)"
+            (applied)="applySettings($event)"
+          ></ai-settings>
+        }
+      </section>
+    </div>
+  </div>
+
+  <footer class="settings-footer">
+    <button
+      mat-button
+      type="button"
+      class="settings-cancel"
+      [attr.aria-label]="'Cancel' | tr"
+      (click)="close()"
+      >{{ 'Cancel' | tr }}</button
+    >
+    <button
+      mat-flat-button
+      color="primary"
+      type="button"
+      class="settings-save"
+      [attr.aria-label]="'Save settings' | tr"
+      [disabled]="runtimeDisabled"
+      (click)="save()"
+      >{{ 'Save settings' | tr }}</button
+    >
+  </footer>
+</section>

@@ -48,6 +48,7 @@ import {WinscopeProxySetupComponent} from '@app/trace_collection/winscope_proxy_
 import {UploadTracesComponent} from '@app/trace_loading/upload_traces_component';
 import {assertDefined} from '@common/assert';
 import {waitToBeCalled} from '@common/spy_utils';
+import {setPersistenceEnabledForTest} from '@common/store/persistent_store';
 import {Store} from '@common/store/store';
 import {DOMTestHelper} from '@common/testing/dom_test_helpers';
 import {makeConverterZeroRteOffsets, makeRealTimestamp,} from '@common/time/testing/test_helpers';
@@ -65,7 +66,7 @@ import {TracePositionUpdate, TraceSearchRequest} from '@trace_api/trace_events';
 import {TraceType} from '@trace_api/trace_type';
 import {Traces} from '@trace_api/traces';
 import {AppRefreshDumpsRequest, AppResetRequest,} from '@ui/shared/events/app_events';
-import {BookmarksChanged, BugreportFileSelected, BugreportFileSelectionRequest,} from '@ui/shared/events/misc_events';
+import {BookmarksChanged, BugreportFileSelected, BugreportFileSelectionRequest, DarkModeToggled,} from '@ui/shared/events/misc_events';
 import {TabbedViewSwitchRequest} from '@ui/shared/events/tabbed_view_events';
 import {ViewType} from '@ui/shared/viewers/viewer';
 import {TimelineData} from '@ui/timeline/timeline_data';
@@ -276,6 +277,132 @@ describe('AppComponent', () => {
     expect(component).toBeTruthy();
   });
 
+  describe('theme preference', () => {
+    let savedMode: string | null;
+    let savedDark: string | null;
+    let savedBodyDark: boolean;
+    let systemDark: boolean;
+    let media: MediaQueryList;
+
+    beforeEach(() => {
+      savedMode = localStorage.getItem('theme-mode');
+      savedDark = localStorage.getItem('dark-mode');
+      savedBodyDark = document.body.classList.contains('dark-mode');
+      fixture.destroy();
+      localStorage.removeItem('theme-mode');
+      localStorage.removeItem('dark-mode');
+      systemDark = false;
+      media = new EventTarget() as MediaQueryList;
+      Object.defineProperty(media, 'matches', {get: () => systemDark});
+      spyOn(window, 'matchMedia').and.returnValue(media);
+    });
+
+    afterEach(() => {
+      fixture.destroy();
+      setPersistenceEnabledForTest(true);
+      if (savedMode === null) localStorage.removeItem('theme-mode');
+      else localStorage.setItem('theme-mode', savedMode);
+      if (savedDark === null) localStorage.removeItem('dark-mode');
+      else localStorage.setItem('dark-mode', savedDark);
+      document.body.classList.toggle('dark-mode', savedBodyDark);
+    });
+
+    function createApp(): void {
+      fixture = TestBed.createComponent(AppComponent);
+      component = fixture.componentInstance;
+    }
+
+    function changeSystem(dark: boolean): void {
+      systemDark = dark;
+      media.dispatchEvent(new MediaQueryListEvent('change', {matches: dark}));
+    }
+
+    it('defaults to system and follows live changes while keeping the preference', () => {
+      createApp();
+      expect(component.themeMode).toBe('system');
+      expect(component.isDarkModeOn).toBeFalse();
+      const notify = spyOn(component.mediator, 'onWinscopeEvent').and.resolveTo();
+      changeSystem(true);
+      expect(component.themeMode).toBe('system');
+      expect(component.isDarkModeOn).toBeTrue();
+      expect(document.body.classList.contains('dark-mode')).toBeTrue();
+      expect(localStorage.getItem('theme-mode')).toBe('system');
+      expect(localStorage.getItem('dark-mode')).toBe('true');
+      expect(component.getLogoUrl()).toContain('logo_dark_mode.svg');
+      expect(notify).toHaveBeenCalledWith(jasmine.any(DarkModeToggled));
+      changeSystem(false);
+      expect(component.isDarkModeOn).toBeFalse();
+      expect(localStorage.getItem('theme-mode')).toBe('system');
+      expect(localStorage.getItem('dark-mode')).toBe('false');
+    });
+
+    it('keeps fixed modes independent of system and resumes following immediately', async () => {
+      createApp();
+      await component.setThemeMode('dark');
+      changeSystem(false);
+      expect(component.isDarkModeOn).toBeTrue();
+      expect(localStorage.getItem('theme-mode')).toBe('dark');
+      await component.setThemeMode('light');
+      changeSystem(true);
+      expect(component.isDarkModeOn).toBeFalse();
+      expect(localStorage.getItem('theme-mode')).toBe('light');
+      await component.setThemeMode('system');
+      expect(component.isDarkModeOn).toBeTrue();
+      expect(localStorage.getItem('theme-mode')).toBe('system');
+    });
+
+    for (const [legacy, expected] of [['true', 'dark'], ['false', 'light']] as const) {
+      it(`preserves legacy ${legacy} as fixed ${expected}`, () => {
+        localStorage.setItem('dark-mode', legacy);
+        systemDark = legacy !== 'true';
+        createApp();
+        expect(component.themeMode).toBe(expected);
+        expect(component.isDarkModeOn).toBe(legacy === 'true');
+        expect(localStorage.getItem('theme-mode')).toBe(expected);
+      });
+    }
+
+    it('restores system mode even when the last resolved dark value is saved', () => {
+      localStorage.setItem('theme-mode', 'system');
+      localStorage.setItem('dark-mode', 'true');
+      createApp();
+      expect(component.themeMode).toBe('system');
+      expect(component.isDarkModeOn).toBeFalse();
+    });
+
+    it('falls back safely for invalid saved values', () => {
+      localStorage.setItem('theme-mode', 'unknown');
+      localStorage.setItem('dark-mode', 'invalid');
+      systemDark = true;
+      createApp();
+      expect(component.themeMode).toBe('system');
+      expect(component.isDarkModeOn).toBeTrue();
+    });
+
+    it('ignores stored themes and never writes them in privacy mode', async () => {
+      localStorage.setItem('theme-mode', 'dark');
+      localStorage.setItem('dark-mode', 'true');
+      setPersistenceEnabledForTest(false);
+      createApp();
+      expect(component.themeMode).toBe('system');
+      expect(component.isDarkModeOn).toBeFalse();
+      await component.setThemeMode('light');
+      changeSystem(true);
+      expect(component.isDarkModeOn).toBeFalse();
+      expect(localStorage.getItem('theme-mode')).toBe('dark');
+      expect(localStorage.getItem('dark-mode')).toBe('true');
+    });
+
+    it('removes the system listener on destroy', () => {
+      const remove = spyOn(media, 'removeEventListener').and.callThrough();
+      createApp();
+      fixture.destroy();
+      expect(remove).toHaveBeenCalledWith('change', jasmine.any(Function));
+      changeSystem(true);
+      expect(component.isDarkModeOn).toBeFalse();
+    });
+  });
+
   it('has the expected title', () => {
     expect(component.title).toBe('winscope');
   });
@@ -290,6 +417,8 @@ describe('AppComponent', () => {
     dom.detectChanges();
     checkHomepage();
   });
+
+
 
   it('displays correct elements when data loaded', async () => {
     await goToTraceView();
@@ -766,6 +895,69 @@ describe('AppComponent', () => {
       ).and.returnValue(false);
     });
 
+    it('opens independent settings from the toolbar without creating an AI panel', () => {
+      const open = spyOn(component, 'openApplicationSettings').and.callThrough();
+      dom.detectChanges();
+      expect(dom.find('.toolbar .settings-button')).toBeTruthy();
+      expect(dom.find('.toolbar select')).toBeUndefined();
+      expect(dom.find('.language-selector')).toBeUndefined();
+      dom.findAndClick('.settings-button');
+      dom.detectChanges();
+      expect(open).toHaveBeenCalledOnceWith();
+      expect(component.aiPanelOpen).toBeFalse();
+      expect(dom.find('ai-panel')).toBeUndefined();
+      expect(dom.find('app-settings')).toBeTruthy();
+      expect(dom.find('.settings-menu')).toBeTruthy();
+      expect(dom.find('.interface-language-select')).toBeTruthy();
+    });
+
+    it('keeps only the selected provider when applying settings with old multi-provider defaults', () => {
+      component.applyApplicationSettings({
+        selection: {agentId: 'display-anomaly', providerId: 'claude', modelId: 'claude-selected', customModel: '', reasoningLevel: 'high'},
+        providerSelections: {
+          codex: {modelId: 'old-codex', customModel: '', reasoningLevel: 'low'},
+          claude: {modelId: 'stale-claude', customModel: '', reasoningLevel: 'low'},
+        },
+      });
+      expect(Object.keys(component.aiDefaults.providerSelections)).toEqual(['claude']);
+      expect(component.aiDefaults.providerSelections['claude']).toEqual({modelId: 'claude-selected', customModel: '', reasoningLevel: 'high'});
+    });
+
+    it('opens AI settings beside an existing workspace and preserves the same draft on close', () => {
+      component.aiPanelOpen = true;
+      dom.detectChanges();
+      const panel = assertDefined(component.aiPanelComponent());
+      panel.prompt = 'Keep the current conversation draft';
+      panel.selectedModel = 'current-model';
+      component.openApplicationSettings('ai');
+      dom.detectChanges();
+      expect(component.settingsSelection.modelId).toBe('current-model');
+      expect(component.aiPanelComponent()).toBe(panel);
+      expect(panel.suspended).toBeTrue();
+      expect(dom.find('ai-panel app-settings')).toBeUndefined();
+      component.closeApplicationSettings();
+      dom.detectChanges();
+      expect(component.aiPanelComponent()).toBe(panel);
+      expect(panel.suspended).toBeFalse();
+      expect(panel.prompt).toBe('Keep the current conversation draft');
+    });
+
+    it('updates a pending settings snapshot after restoring the conversation', () => {
+      component.aiPanelOpen = true;
+      dom.detectChanges();
+      const panel = assertDefined(component.aiPanelComponent());
+      panel.loading = true;
+      component.openApplicationSettings('ai');
+      expect(component.waitingForAiSelection).toBeTrue();
+      const selection = {...panel.modelSelection, modelId: 'restored-model'};
+      component.onAiSelectionReady(selection);
+      expect(component.settingsSelection).toEqual(selection);
+      expect(component.waitingForAiSelection).toBeFalse();
+      component.closeApplicationSettings();
+      component.onAiSelectionReady({...selection, modelId: 'late-model'});
+      expect(component.settingsSelection.modelId).toBe('restored-model');
+    });
+
     it('is not shown if not in winscope proxy iframe', () => {
       isInsideWinscopeProxyFrameSpy.and.returnValue(false);
       dom.detectChanges();
@@ -1150,7 +1342,8 @@ describe('AppComponent', () => {
     expect(dom.find('.shortcuts')).toBeTruthy();
     expect(dom.find('.documentation')).toBeTruthy();
     expect(dom.find('.export-diagnostics')).toBeTruthy();
-    expect(dom.find('.dark-mode')).toBeTruthy();
+    expect(dom.find('.dark-mode')).toBeUndefined();
+    expect(dom.find('.settings-button')).toBeTruthy();
   }
 
   function showDataLoadedElements() {

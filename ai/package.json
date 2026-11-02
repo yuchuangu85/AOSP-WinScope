@@ -1,0 +1,17 @@
+{
+  "name": "winscope-ai",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Standalone AI and deterministic evidence services for Winscope",
+  "main": "dist/src/index.js",
+  "bin": {
+    "winscope-ai": "dist/src/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test dist/src/test/*.test.js",
+    "cli": "npm run build && node dist/src/cli.js",
+    "serve": "npm run build && node dist/src/cli.js serve",
+    "mcp": "npm run build && node dist/src/cli.js mcp"
+  }
+}

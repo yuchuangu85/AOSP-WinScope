@@ -175,3 +175,19 @@
   margin: 16px 0 6px 0;
   text-align: center;
 }
+
+@media (max-width: 760px) {
+  .toolbar {
+    gap: 4px;
+    padding: 0 4px;
+  }
+  .toolbar .icon-actions {
+    min-width: 0;
+    justify-content: flex-start;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .toolbar .icon-actions > * {
+    flex-shrink: 0;
+  }
+}

@@ -1,0 +1,175 @@
+<div class="ai-settings-body">
+  <div class="settings-fields runtime-settings">
+    <label class="settings-field">
+      <span>{{ 'Provider' | tr }}</span>
+      <input
+        type="text"
+        readonly
+        data-field="active-provider"
+        [attr.aria-label]="'Provider' | tr"
+        [value]="provider?.name || provider?.id || ('No model · deterministic skills' | tr)"
+      />
+    </label>
+    <label class="settings-field">
+      <span>{{ 'Agent' | tr }}</span>
+      <select
+        [attr.aria-label]="'Agent' | tr"
+        [ngModel]="draft.agentId"
+        (ngModelChange)="agentChanged($event)"
+        [disabled]="runtimeDisabled || existingSession"
+      >
+        @for (agent of catalog.agents; track agent.id) {
+          <option [value]="agent.id">{{ agent.name }}</option>
+        }
+      </select>
+      @if (existingSession) {
+        <small>{{
+          'The agent is fixed for an existing conversation. Start a new one to change it.' | tr
+        }}</small>
+      }
+    </label>
+  </div>
+  @if (!provider && !draft.providerId) {
+    <p class="settings-info">{{
+      'No model provider. Only deterministic evidence skills will run.' | tr
+    }}</p>
+  }
+  @for (section of sections; track section.id) {
+    @let item = providerFor(section.id);
+    @let modelDraft = providerDrafts[section.id] || emptyModel;
+    <section
+      class="provider-settings"
+      [attr.data-provider]="section.id"
+      [attr.data-active]="provider?.id === section.id"
+      [attr.aria-label]="'{name} settings' | tr: {name: section.name}"
+      [attr.aria-busy]="importingProvider === section.id"
+    >
+      <div class="section-heading">
+        <h3>{{ section.name }}</h3>
+        @if (section.id === 'codex' || section.id === 'claude') {
+          <button
+            mat-stroked-button
+            type="button"
+            [attr.aria-label]="
+              (section.id === 'codex' ? 'Get Codex configuration' : 'Get Claude configuration') | tr
+            "
+            [disabled]="runtimeDisabled || !item"
+            (click)="readConfiguration(section.id)"
+          >
+            <mat-icon>{{
+              importingProvider === section.id ? 'hourglass_top' : 'file_open'
+            }}</mat-icon>
+            {{ 'Get configuration' | tr }}
+          </button>
+        }
+      </div>
+      <div class="settings-fields">
+        <label class="settings-field">
+          <span>{{ 'Model' | tr }}</span>
+          <select
+            data-field="model"
+            [attr.aria-label]="'{name} model' | tr: {name: section.name}"
+            [ngModel]="modelDraft.modelId"
+            (ngModelChange)="modelChanged(section.id, $event)"
+            [disabled]="runtimeDisabled || !item"
+          >
+            @for (model of modelsFor(section.id); track model.id) {
+              <option [value]="model.id">{{ modelLabel(section.id, model) }}</option>
+            }
+            @if (item?.supportsCustomModel) {
+              <option value="__custom__">{{ 'Custom model…' | tr }}</option>
+            }
+          </select>
+        </label>
+        <label class="settings-field">
+          <span>{{ 'Reasoning level' | tr }}</span>
+          <select
+            data-field="reasoning"
+            [attr.aria-label]="'{name} reasoning level' | tr: {name: section.name}"
+            [ngModel]="modelDraft.reasoningLevel"
+            (ngModelChange)="reasoningChanged(section.id, $event)"
+            [disabled]="runtimeDisabled || !item || !levelsFor(section.id).length"
+          >
+            @for (level of levelsFor(section.id); track level) {
+              <option [value]="level">{{ level | titlecase | tr }}</option>
+            }
+            @if (!levelsFor(section.id).length) {
+              <option value="medium">{{ 'Provider default' | tr }}</option>
+            }
+          </select>
+        </label>
+        @if (modelDraft.modelId === '__custom__') {
+          <label class="settings-field wide">
+            <span>{{ 'Model identifier' | tr }}</span>
+            <input
+              data-field="custom-model"
+              [attr.aria-label]="'{name} custom model identifier' | tr: {name: section.name}"
+              type="text"
+              [placeholder]="'Provider model ID' | tr"
+              autocomplete="off"
+              spellcheck="false"
+              [ngModel]="modelDraft.customModel"
+              (ngModelChange)="customModelChanged(section.id, $event)"
+              [disabled]="runtimeDisabled || !item"
+            />
+          </label>
+        }
+        <label class="settings-field">
+          <span>{{ 'Service URL' | tr }}</span>
+          <input
+            data-field="base-url"
+            type="text"
+            readonly
+            [attr.aria-label]="'{name} service URL' | tr: {name: section.name}"
+            [value]="
+              item?.localConfig?.baseUrl ||
+              ((item?.localConfig ? 'Provider default' : 'Not read') | tr)
+            "
+          />
+        </label>
+        <label class="settings-field">
+          <span>{{ 'Authentication' | tr }}</span>
+          <input
+            type="text"
+            readonly
+            [attr.aria-label]="'{name} authentication' | tr: {name: section.name}"
+            [value]="authenticationLabel(section.id) | tr"
+          />
+        </label>
+        @if (item?.localConfig?.providerName) {
+          <label class="settings-field wide">
+            <span>{{ 'Provider name' | tr }}</span>
+            <input
+              type="text"
+              readonly
+              [attr.aria-label]="'{name} provider name' | tr: {name: section.name}"
+              [value]="item?.localConfig?.providerName"
+            />
+          </label>
+        }
+      </div>
+      @if (importingProvider === section.id) {
+        <p class="settings-info" role="status">{{ 'Reading local configuration…' | tr }}</p>
+      } @else if (importErrors[section.id]) {
+        <p class="settings-error" role="alert">{{ importErrors[section.id] | tr }}</p>
+      } @else if (importedProviders[section.id]) {
+        <p class="settings-info" role="status">
+          <mat-icon>check_circle</mat-icon>{{ 'Configuration read' | tr }}
+        </p>
+      }
+    </section>
+  }
+  @if (running) {
+    <p class="settings-info" role="status">
+      <mat-icon>hourglass_top</mat-icon
+      >{{ 'Settings are read-only while analysis is running.' | tr }}
+    </p>
+  }
+  @if (error) {
+    <p class="settings-error" role="alert">{{
+      errorProvider
+        ? ('{name}: {message}' | tr: {name: errorProvider, message: (error | tr)})
+        : (error | tr)
+    }}</p>
+  }
+</div>

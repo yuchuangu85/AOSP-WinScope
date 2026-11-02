@@ -1,0 +1,52 @@
+{
+  "label": "flicker-fixture",
+  "evidence": {
+    "video": {
+      "frames": [
+        {
+          "index": 0,
+          "timestampMs": 0,
+          "luma": 0.2
+        },
+        {
+          "index": 1,
+          "timestampMs": 33,
+          "luma": 0.9
+        },
+        {
+          "index": 2,
+          "timestampMs": 66,
+          "luma": 0.1
+        }
+      ],
+      "frameDiffs": [
+        {
+          "fromIndex": 0,
+          "toIndex": 1,
+          "value": 0.7
+        },
+        {
+          "fromIndex": 1,
+          "toIndex": 2,
+          "value": 0.8
+        }
+      ],
+      "durationMs": 1000,
+      "frameRate": 30
+    },
+    "surfaceFlinger": {
+      "presentedFrameCount": 3
+    },
+    "windowManager": {
+      "displayState": "on",
+      "visibleWindows": ["fixture.window"]
+    },
+    "transactions": {
+      "count": 4
+    }
+  },
+  "expected": {
+    "findingKinds": ["flicker"],
+    "complete": true
+  }
+}

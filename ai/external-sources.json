@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "sources": [
+    {
+      "id": "smartperfetto",
+      "repository": "/Users/yuchuan.gu/Workspace/AI/SmartPerfetto",
+      "revision": "22073f04bee638a70ce1d3dad45f6ea92bc04358",
+      "license": "AGPL-3.0-or-later",
+      "integration": "external-skill-registry",
+      "copiedIntoWinscope": false,
+      "bundledAtRuntime": false
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+import {AbtChromeExtensionProtocol} from '@abt_chrome_extension/abt_chrome_extension_protocol';
 /*
  * Copyright (C) 2022 The Android Open Source Project
  *
@@ -14,10 +15,9 @@
  * limitations under the License.
  */
 
-import {AbtChromeExtensionProtocol} from '@abt_chrome_extension/abt_chrome_extension_protocol';
 import {ClipboardModule} from '@angular/cdk/clipboard';
 import {CommonModule} from '@angular/common';
-import {ChangeDetectorRef, Component, ErrorHandler, Inject, Injector, NgZone, viewChild, ViewEncapsulation,} from '@angular/core';
+import {ChangeDetectorRef, Component, ErrorHandler, Inject, Injector, NgZone, OnDestroy, viewChild, ViewEncapsulation,} from '@angular/core';
 import {FormControl, FormsModule, ReactiveFormsModule, Validators,} from '@angular/forms';
 import {MatButtonModule} from '@angular/material/button';
 import {MatCheckboxModule} from '@angular/material/checkbox';
@@ -43,6 +43,7 @@ import {WarningDialogComponent, WarningDialogData, WarningDialogResult,} from '@
 import {UploadTracesComponent} from '@app/trace_loading/upload_traces_component';
 import {DIAGNOSTIC_FILENAME, DIAGNOSTIC_PREVIEW, makeDiagnosticBlob,} from '@common/diagnostics';
 import {downloadFromUrl, DownloadRequest} from '@common/download';
+import {translate, TranslatePipe} from '@common/i18n';
 import {DOWNLOAD_FILENAME_REGEX} from '@common/io';
 import {InMemoryStorage} from '@common/store/in_memory_storage';
 import {clearPersistentState, isPersistenceEnabled, PersistentStore,} from '@common/store/persistent_store';
@@ -59,11 +60,14 @@ import {ProgressListener} from '@messaging/progress_listener';
 import {WinscopeEvent} from '@messaging/winscope_event';
 import {WinscopeEventListener} from '@messaging/winscope_event_listener';
 import {getRuntimeConfig, getRuntimeConfigDiagnostic} from '@runtime/runtime_config';
+import {AiCatalog} from '@services/ai_gateway_client';
+import {buildDisplayEvidence} from '@services/display_evidence_builder';
 import {UserNotifier} from '@services/user_notifier';
 import {FileReader} from '@trace_api/file_reader';
 import {ActiveTraceChanged, TracePositionUpdate, TraceSearchRequest,} from '@trace_api/trace_events';
 import {TraceType} from '@trace_api/trace_type';
 import {AdbFiles} from '@trace_collection/adb_files';
+import {MediaBasedTraceEntry} from '@trace/media_based/media_based_trace_entry';
 import {Registry} from '@trace/proto_utils/tampered_message_type';
 import {AppFilesCollected, AppFilesUploaded, AppInitialized, AppRefreshDumpsRequest, AppResetRequest, AppTraceViewRequest,} from '@ui/shared/events/app_events';
 import {ActiveSearchQueriesUpdate, BookmarksChanged, BugreportFileSelected, BugreportFileSelectionRequest, DarkModeToggled,} from '@ui/shared/events/misc_events';
@@ -72,6 +76,9 @@ import {TimelineData} from '@ui/timeline/timeline_data';
 import {LoadedFileData} from '@ui/trace_loading/loaded_file_data';
 import {ParsingErrorType} from '@ui/trace_loading/parsing_error_type';
 
+import {AiPanelComponent} from './ai_panel_component';
+import {AiModelSelection, AiSettingsValue} from './ai_settings_component';
+import {AppSettingsComponent, ThemeMode} from './app_settings_component';
 import {AngularViewer} from './shared/angular_viewer';
 import {TraceViewComponent} from './trace_view_component';
 import {ViewersLoaded, ViewersUnloaded} from './viewers_events';
@@ -84,6 +91,7 @@ import {ViewersLoaded, ViewersUnloaded} from './viewers_events';
   encapsulation: ViewEncapsulation.None,
   standalone: true,
   imports: [
+    TranslatePipe,
     ClipboardModule,
     CommonModule,
     FormsModule,
@@ -103,6 +111,8 @@ import {ViewersLoaded, ViewersUnloaded} from './viewers_events';
     MatDrawerContainer,
     MatDrawerContent,
     TraceViewComponent,
+    AiPanelComponent,
+    AppSettingsComponent,
     TimelineComponent,
     CollectTracesComponent,
     UploadTracesComponent,
@@ -111,7 +121,7 @@ import {ViewersLoaded, ViewersUnloaded} from './viewers_events';
   templateUrl: './app_component.ng.html',
   styleUrls: ['app_component.scss'],
 })
-export class AppComponent implements WinscopeEventListener {
+export class AppComponent implements WinscopeEventListener, OnDestroy {
   title = 'winscope';
   readonly runtimeConfigDiagnostic = getRuntimeConfigDiagnostic();
   readonly privacyMode = !isPersistenceEnabled();
@@ -130,6 +140,17 @@ export class AppComponent implements WinscopeEventListener {
   canShareLocation = false;
   canShareBookmarks = false;
   canShareQueries = false;
+  aiPanelOpen = false;
+  settingsOpen = false;
+  settingsSection: 'general' | 'ai' = 'general';
+  waitingForAiSelection = false;
+  aiSettingsCatalog?: AiCatalog;
+  aiDefaults: AiSettingsValue = {
+    selection: {agentId: 'display-anomaly', providerId: '', modelId: 'default', customModel: '', reasoningLevel: 'medium'},
+    providerSelections: {},
+  };
+  settingsSelection: AiModelSelection = {...this.aiDefaults.selection};
+  aiEvidence: unknown;
 
   shareOptions = {
     location: true,
@@ -139,6 +160,7 @@ export class AppComponent implements WinscopeEventListener {
   generatedShareLink = '';
 
   isDarkModeOn = false;
+  themeMode: ThemeMode = 'system';
   changeDetectorRef: ChangeDetectorRef;
   loadedFileData: LoadedFileData;
   mediator: Mediator;
@@ -158,11 +180,18 @@ export class AppComponent implements WinscopeEventListener {
   };
 
   private sendRefreshDumpsRequest = false;
+  private systemThemeQuery?: MediaQueryList;
+  private readonly onSystemThemeChange = (event: MediaQueryListEvent) => {
+    if (this.themeMode === 'system') {
+      this.ngZone.run(() => void this.applyDarkMode(event.matches));
+    }
+  };
 
   uploadTracesComponent = viewChild(UploadTracesComponent);
   collectTracesComponent = viewChild(CollectTracesComponent);
   traceViewComponent = viewChild(TraceViewComponent);
   timelineComponent = viewChild(TimelineComponent);
+  aiPanelComponent = viewChild(AiPanelComponent);
 
   constructor(
     @Inject(Injector) injector: Injector,
@@ -189,13 +218,16 @@ export class AppComponent implements WinscopeEventListener {
 
     this.updateShareState();
 
-    const storeDarkMode = this.persistentStore.get('dark-mode');
-    const prefersDarkQuery = window.matchMedia?.(
+    const savedThemeMode = this.persistentStore.get('theme-mode');
+    const savedDarkMode = this.persistentStore.get('dark-mode');
+    this.systemThemeQuery = window.matchMedia?.(
       '(prefers-color-scheme: dark)',
     );
-    this.setDarkMode(
-      storeDarkMode ? storeDarkMode === 'true' : prefersDarkQuery.matches,
-    );
+    this.systemThemeQuery?.addEventListener('change', this.onSystemThemeChange);
+    const initialTheme = savedThemeMode === 'system' || savedThemeMode === 'dark' || savedThemeMode === 'light'
+      ? savedThemeMode
+      : savedDarkMode === 'true' ? 'dark' : savedDarkMode === 'false' ? 'light' : 'system';
+    void this.setThemeMode(initialTheme);
 
     const isProdMode = globalConfig.isProdMode();
 
@@ -221,6 +253,10 @@ export class AppComponent implements WinscopeEventListener {
     await Registry.getInstance().loadDefaultDescriptors();
     this.setComponentsToMediator();
     await this.mediator.onWinscopeEvent(new AppInitialized());
+  }
+
+  ngOnDestroy(): void {
+    this.systemThemeQuery?.removeEventListener('change', this.onSystemThemeChange);
   }
 
   ngAfterViewChecked() {
@@ -250,6 +286,72 @@ export class AppComponent implements WinscopeEventListener {
     this.changeDetectorRef.detectChanges();
   }
 
+  isAiAvailable(): boolean {
+    return getRuntimeConfig().ai?.provider === 'loopback-ai-v1';
+  }
+
+  getAiEndpoint(): string | undefined {
+    const ai = getRuntimeConfig().ai;
+    return ai?.provider === 'loopback-ai-v1' ? ai.endpoint : undefined;
+  }
+
+  async openAiPanel(): Promise<void> {
+    this.closeApplicationSettings();
+    this.aiPanelOpen = true;
+    try {
+      this.aiEvidence = await buildDisplayEvidence(this.loadedFileData.getTraces());
+    } catch {
+      this.aiEvidence = undefined;
+    }
+  }
+
+  openApplicationSettings(section: 'general' | 'ai' = 'general'): void {
+    this.settingsSection = section;
+    if (this.settingsOpen) return;
+    const panel = this.aiPanelComponent();
+    this.settingsSelection = {...(panel?.modelSelection ?? this.aiDefaults.selection)};
+    this.waitingForAiSelection = panel?.loading ?? false;
+    this.settingsOpen = true;
+  }
+
+  closeApplicationSettings(): void {
+    this.settingsOpen = false;
+    this.waitingForAiSelection = false;
+  }
+
+  onAiSelectionReady(selection: AiModelSelection): void {
+    if (!this.settingsOpen || !this.waitingForAiSelection) return;
+    this.settingsSelection = {...selection};
+    this.waitingForAiSelection = false;
+  }
+
+  applyApplicationSettings(value: AiSettingsValue): void {
+    if (this.aiPanelComponent()?.running || this.waitingForAiSelection) return;
+    this.aiDefaults = {
+      selection: {...value.selection},
+      providerSelections: value.selection.providerId ? {
+        [value.selection.providerId]: {
+          modelId: value.selection.modelId,
+          customModel: value.selection.customModel,
+          reasoningLevel: value.selection.reasoningLevel,
+        },
+      } : {},
+    };
+    this.closeApplicationSettings();
+  }
+
+  async onAiFrameSelected(frameIndex: number): Promise<void> {
+    if (!this.dataLoaded || !Number.isInteger(frameIndex) || frameIndex < 0) {
+      return;
+    }
+    const trace = this.loadedFileData.getTraces().getTrace<MediaBasedTraceEntry>(TraceType.SCREEN_RECORDING);
+    if (!trace || frameIndex >= trace.lengthEntries) {
+      return;
+    }
+    const position = this.timelineData.makePositionFromActiveTrace(trace.getEntry(frameIndex).getTimestamp());
+    await this.mediator.onWinscopeEvent(new TracePositionUpdate(position, true));
+  }
+
   getLogoUrl(): string {
     const logoPath = this.isDarkModeOn
       ? 'logo_dark_mode.svg'
@@ -257,8 +359,17 @@ export class AppComponent implements WinscopeEventListener {
     return getRootUrl() + logoPath;
   }
 
-  async setDarkMode(enabled: boolean) {
+  async setThemeMode(mode: ThemeMode): Promise<void> {
+    if (mode !== 'system' && mode !== 'dark' && mode !== 'light') return;
+    this.themeMode = mode;
+    this.persistentStore.add('theme-mode', mode);
+    const enabled = mode === 'dark' || mode === 'system' && (this.systemThemeQuery?.matches ?? false);
+    await this.applyDarkMode(enabled);
+  }
+
+  private async applyDarkMode(enabled: boolean): Promise<void> {
     document.body.classList.toggle('dark-mode', enabled);
+    // Existing viewer presenters read the resolved value, not the preference.
     this.persistentStore.add('dark-mode', `${enabled}`);
     this.isDarkModeOn = enabled;
     await this.mediator.onWinscopeEvent(new DarkModeToggled(enabled));
@@ -402,13 +513,6 @@ export class AppComponent implements WinscopeEventListener {
     this.goToLink(
       'https://source.android.com/docs/core/graphics/tracing-win-transitions',
     );
-  }
-
-  toggleDarkMode() {
-    if (!this.isDarkModeOn) {
-      Analytics.Settings.logDarkModeEnabled();
-    }
-    this.setDarkMode(!this.isDarkModeOn);
   }
 
   isInsideWinscopeProxyFrame(): boolean {
@@ -579,9 +683,7 @@ export class AppComponent implements WinscopeEventListener {
   getCrossToolSyncTooltip(): string {
     const currStatus = this.crossToolProtocol.getAllowTimestampSync();
 
-    return `Cross Tool Sync ${this.translateStatus(
-      currStatus,
-    )} (Click to turn ${this.translateStatus(!currStatus)})`;
+    return translate('Cross Tool Sync {status} (Click to turn {next})', {status: translate(this.translateStatus(currStatus)), next: translate(this.translateStatus(!currStatus))});
   }
 
   onCrossToolSyncButtonClick() {
@@ -617,14 +719,14 @@ export class AppComponent implements WinscopeEventListener {
 
     if (traceProcessorError !== undefined) {
       if (combinedWarning.length > 0) {
-        combinedWarning += ' and ';
+        combinedWarning += translate(' and ');
         combinedWarning +=
           traceProcessorError[0].toLowerCase() + traceProcessorError.slice(1);
       } else {
         combinedWarning += traceProcessorError;
       }
     } else {
-      combinedWarning += ' - data may be incomplete';
+      combinedWarning += translate(' - data may be incomplete');
     }
 
     return combinedWarning;
@@ -662,9 +764,7 @@ export class AppComponent implements WinscopeEventListener {
     if (lostPerfettoPackets === 0) {
       return undefined;
     }
-    return `${lostPerfettoPackets} Perfetto packet${
-      lostPerfettoPackets > 1 ? 's' : ''
-    } lost during tracing`;
+    return translate(lostPerfettoPackets > 1 ? '{count} Perfetto packets lost during tracing' : '{count} Perfetto packet lost during tracing', {count: lostPerfettoPackets});
   }
 
   private traceProcessorErrorWarning(): string | undefined {
@@ -676,10 +776,10 @@ export class AppComponent implements WinscopeEventListener {
 
     for (const [_, errorType] of traceTypesWithParsingErrors) {
       if (errorType === ParsingErrorType.DATA_INCORRECT) {
-        return `Trace processor errors occurred - data may be incorrect`;
+        return translate('Trace processor errors occurred - data may be incorrect');
       }
     }
-    return `Trace processor errors occurred - data may be incomplete`;
+    return translate('Trace processor errors occurred - data may be incomplete');
   }
 
   private async onViewersLoaded(event: ViewersLoaded) {

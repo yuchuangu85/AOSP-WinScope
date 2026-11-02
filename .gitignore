@@ -36,6 +36,7 @@ __pycache__/
 !.vscode/extensions.json
 .history/*
 tsconfig.json
+!ai/tsconfig.json
 launch.json
 
 # Miscellaneous

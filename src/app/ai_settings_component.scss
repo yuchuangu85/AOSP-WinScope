@@ -1,0 +1,147 @@
+:host {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  color: var(--default-text-color);
+  font:
+    13px/1.5 -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+}
+
+.ai-settings-body {
+  min-width: 0;
+}
+
+.settings-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 16px;
+}
+
+.provider-settings {
+  padding-top: 16px;
+  margin-top: 16px;
+  border-top: 1px solid var(--border-color);
+}
+
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+h3 {
+  min-width: 0;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.section-heading button {
+  flex-shrink: 0;
+  min-height: 32px;
+  height: auto;
+  max-width: 100%;
+  border-radius: 6px;
+  white-space: normal;
+}
+
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 4px;
+}
+
+.settings-field.wide {
+  grid-column: 1 / -1;
+}
+
+.settings-field > span {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.settings-field select,
+.settings-field input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--default-text-color);
+  background: var(--drawer-color);
+  font: inherit;
+}
+
+.settings-field select {
+  cursor: pointer;
+}
+
+.settings-field input[readonly] {
+  color: var(--gray-text-color);
+  background: transparent;
+}
+
+.settings-field select:disabled,
+.settings-field input:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.settings-field select:focus-visible,
+.settings-field input:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.settings-field small,
+.settings-info {
+  color: var(--gray-text-color);
+  font-size: 12px;
+}
+
+.settings-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 12px 0 0;
+}
+
+.settings-info mat-icon {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  font-size: 16px;
+}
+
+.settings-error {
+  margin: 12px 0 0;
+  color: var(--error-color);
+  font-size: 12px;
+}
+
+.settings-info,
+.settings-error,
+.settings-field > span,
+.settings-field small {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 600px) {
+  .settings-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .section-heading {
+    flex-wrap: wrap;
+  }
+}

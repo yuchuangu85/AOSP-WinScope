@@ -60,7 +60,7 @@ describe('Trace navigation', () => {
       toolbar.element(by.css('.app-title')),
       toolbar.element(by.css('.documentation')),
       toolbar.element(by.css('.export-diagnostics')),
-      toolbar.element(by.css('.dark-mode')),
+      toolbar.element(by.css('.settings-button')),
       element(by.css('.welcome-info')),
       ...(process.env['AOSP_WINSCOPE_E2E_PRODUCTION'] === '1'
         ? []
@@ -79,7 +79,7 @@ describe('Trace navigation', () => {
       toolbar.element(by.css('.save-button')),
       toolbar.element(by.css('.documentation')),
       toolbar.element(by.css('.export-diagnostics')),
-      toolbar.element(by.css('.dark-mode')),
+      toolbar.element(by.css('.settings-button')),
       element(by.css('viewer-surface-flinger')),
       element(by.css('timeline')),
     ];

@@ -1,0 +1,49 @@
+{
+  "label": "black-screen-fixture",
+  "evidence": {
+    "video": {
+      "frames": [
+        {
+          "index": 0,
+          "timestampMs": 0,
+          "luma": 0.01
+        },
+        {
+          "index": 1,
+          "timestampMs": 33,
+          "luma": 0.02
+        },
+        {
+          "index": 2,
+          "timestampMs": 66,
+          "luma": 0.8
+        }
+      ],
+      "frameDiffs": [
+        {
+          "fromIndex": 1,
+          "toIndex": 2,
+          "value": 0.05
+        }
+      ],
+      "durationMs": 1000,
+      "frameRate": 30
+    },
+    "surfaceFlinger": {
+      "presentedFrameCount": 3,
+      "notes": ["fixture SurfaceFlinger sample"]
+    },
+    "windowManager": {
+      "displayState": "on",
+      "visibleWindows": ["fixture.window"]
+    },
+    "transactions": {
+      "count": 2,
+      "sampleKeys": ["id", "vsync_id"]
+    }
+  },
+  "expected": {
+    "findingKinds": ["black-screen"],
+    "complete": true
+  }
+}

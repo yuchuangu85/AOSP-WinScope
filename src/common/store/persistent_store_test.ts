@@ -14,11 +14,13 @@ describe('PersistentStore privacy boundary', () => {
   it('persists only allowlisted display preferences and saved queries', () => {
     const store = new PersistentStore();
     store.add('dark-mode', 'true');
+    store.add('theme-mode', 'system');
     store.add('savedSearches', '{"searches":[]}');
     store.add('recentSearches', '{"searches":[]}');
     store.add('adb.proxyKey', 'secret');
 
     expect(localStorage.getItem('dark-mode')).toBe('true');
+    expect(localStorage.getItem('theme-mode')).toBe('system');
     expect(localStorage.getItem('savedSearches')).toContain('searches');
     expect(localStorage.getItem('recentSearches')).toBeNull();
     expect(localStorage.getItem('adb.proxyKey')).toBeNull();
@@ -27,11 +29,15 @@ describe('PersistentStore privacy boundary', () => {
   it('supports an explicit no-persistence mode and clearing state', () => {
     const store = new PersistentStore();
     store.add('dark-mode', 'true');
+    store.add('theme-mode', 'dark');
     setPersistenceEnabledForTest(false);
     expect(isPersistenceEnabled()).toBeFalse();
     store.add('dark-mode', 'false');
+    store.add('theme-mode', 'light');
     expect(store.get('dark-mode')).toBeUndefined();
+    expect(store.get('theme-mode')).toBeUndefined();
     clearPersistentState();
     expect(localStorage.getItem('dark-mode')).toBeNull();
+    expect(localStorage.getItem('theme-mode')).toBeNull();
   });
 });

@@ -19,6 +19,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -381,6 +382,145 @@ func TestCaptureRequestOrigin(t *testing.T) {
 			}
 			if got := authorizedCaptureRequest(request, origin); got != test.want {
 				t.Fatalf("authorizedCaptureRequest() = %t, want %t", got, test.want)
+			}
+		})
+	}
+}
+
+func TestParseAIURLRequiresLoopbackWithPort(t *testing.T) {
+	valid, err := parseAIURL("http://127.0.0.1:7341")
+	if err != nil || valid == nil {
+		t.Fatalf("valid AI URL = %v, %v", valid, err)
+	}
+	for _, raw := range []string{
+		"",
+		"https://127.0.0.1:7341",
+		"http://example.test:7341",
+		"http://127.0.0.1",
+		"http://127.0.0.1:7341/ai",
+		"http://user:pass@127.0.0.1:7341",
+	} {
+		if _, err := parseAIURL(raw); raw != "" && err == nil {
+			t.Errorf("parseAIURL(%q) unexpectedly succeeded", raw)
+		}
+	}
+}
+
+func TestAIProxyUsesSameOriginPathAndRuntimeConfig(t *testing.T) {
+	gateway := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/health" {
+			t.Fatalf("gateway path = %q, want /health", request.URL.Path)
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`{"ok":true}`))
+	}))
+	defer gateway.Close()
+	aiTarget, err := url.Parse(gateway.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	webRoot := t.TempDir()
+	if err := os.WriteFile(filepath.Join(webRoot, "index.html"), []byte("ok"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	handler := newHandler(webRoot, map[string]bool{"index.html": true}, "http://127.0.0.1:1234", nil, "", aiTarget)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "http://127.0.0.1:1234/ai/health", nil))
+	if recorder.Code != http.StatusOK || recorder.Body.String() != `{"ok":true}` {
+		t.Fatalf("AI proxy response = (%d, %q)", recorder.Code, recorder.Body.String())
+	}
+	recorder = httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "http://127.0.0.1:1234/runtime-config.json", nil))
+	var config map[string]any
+	if err := json.NewDecoder(recorder.Body).Decode(&config); err != nil {
+		t.Fatal(err)
+	}
+	ai, ok := config["ai"].(map[string]any)
+	if !ok || ai["provider"] != "loopback-ai-v1" || ai["endpoint"] != "./ai/" {
+		t.Fatalf("runtime AI config = %#v", config["ai"])
+	}
+}
+
+func TestStaticHandlerPrivacyEntryFlag(t *testing.T) {
+	webRoot := t.TempDir()
+	for name, content := range map[string]string{"index.html": "privacy entry", "app.js": "asset"} {
+		if err := os.WriteFile(filepath.Join(webRoot, name), []byte(content), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	handler := newHandler(webRoot, map[string]bool{"index.html": true, "app.js": true}, "http://127.0.0.1:1234", nil, "")
+	for _, entry := range []string{"/", "/index.html"} {
+		for _, flag := range []string{"no-persistence", "no-persistence="} {
+			for _, method := range []string{http.MethodGet, http.MethodHead} {
+				t.Run(method+entry+"?"+flag, func(t *testing.T) {
+					request := httptest.NewRequest(method, "http://127.0.0.1:1234"+entry+"?"+flag, nil)
+					recorder := httptest.NewRecorder()
+					handler.ServeHTTP(recorder, request)
+					if recorder.Code != http.StatusOK {
+						t.Fatalf("privacy entry status = %d, want 200", recorder.Code)
+					}
+					if method == http.MethodGet && recorder.Body.String() != "privacy entry" {
+						t.Fatalf("privacy entry body = %q", recorder.Body.String())
+					}
+					if got := recorder.Header().Get("Cache-Control"); got != "no-store" {
+						t.Fatalf("privacy entry cache policy = %q", got)
+					}
+				})
+			}
+		}
+	}
+	for _, target := range []string{
+		"/?unknown", "/?no-persistence=1", "/?no-persistence=false",
+		"/?no-persistence&no-persistence", "/?no-persistence=&no-persistence=",
+		"/?no-persistence&x=1", "/?x=1&no-persistence", "/?no-persistence&",
+		"/?no-persistence;", "/?no-persistence%26x=1", "/?%6eo-persistence",
+		"/?no%2dpersistence", "/?no-persistence=%00", "/?no-persistence=%",
+		"/?no-persistence+", "/?NO-PERSISTENCE", "/?no-persistence==",
+		"/app.js?no-persistence", "/app.js?no-persistence=", "/index.html/?no-persistence",
+		"//index.html?no-persistence", "/./index.html?no-persistence", "/%69ndex.html?no-persistence",
+		"/index%2ehtml?no-persistence", "/%2f?no-persistence",
+	} {
+		t.Run(target, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "http://127.0.0.1:1234"+target, nil))
+			if recorder.Code != http.StatusBadRequest {
+				t.Fatalf("hostile privacy query status = %d, want 400", recorder.Code)
+			}
+		})
+	}
+}
+
+func TestAIProxyAllowsOnlyReplayAndReportQueries(t *testing.T) {
+	gateway := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		_, _ = writer.Write([]byte(request.URL.RequestURI()))
+	}))
+	defer gateway.Close()
+	target, _ := url.Parse(gateway.URL)
+	handler := newHandler(t.TempDir(), nil, "http://127.0.0.1:1234", nil, "", target)
+	for _, test := range []struct {
+		path  string
+		valid bool
+	}{
+		{"/ai/api/sessions/a/stream?after=12", true},
+		{"/ai/api/sessions/a/stream?after=0", true},
+		{"/ai/api/sessions/a/report?format=html", true},
+		{"/ai/api/sessions/a/report?format=markdown", true},
+		{"/ai/api/sessions/a/stream?after=-1", false},
+		{"/ai/api/sessions/a/stream?after=1&after=2", false},
+		{"/ai/api/sessions/a/stream?after=1&secret=x", false},
+		{"/ai/api/sessions/a/report?format=html&secret=x", false},
+		{"/ai/api/sessions/a/report?format=script", false},
+		{"/ai/api/sessions?secret=x", false},
+	} {
+		t.Run(test.path, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "http://127.0.0.1:1234"+test.path, nil))
+			if test.valid {
+				if recorder.Code != http.StatusOK || recorder.Body.String() != strings.TrimPrefix(test.path, "/ai") {
+					t.Fatalf("AI query forwarding failed: %d %s", recorder.Code, recorder.Body.String())
+				}
+			} else if recorder.Code != http.StatusBadRequest {
+				t.Fatalf("hostile AI query accepted: %d", recorder.Code)
 			}
 		})
 	}

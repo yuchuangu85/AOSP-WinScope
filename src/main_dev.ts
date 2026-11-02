@@ -25,10 +25,12 @@ import {bootstrapApplication} from '@angular/platform-browser';
 import {provideAnimations} from '@angular/platform-browser/animations';
 import {AppComponent} from '@app/app_component';
 import {GlobalErrorHandler} from '@app/global_error_handler';
+import {initializeLanguage} from '@common/i18n';
 import {getLogger} from '@compat/logging';
 import {loadRuntimeConfig} from '@runtime/runtime_config';
 
 loadRuntimeConfig().finally(() => {
+  initializeLanguage();
   bootstrapApplication(AppComponent, {
     providers: [
       provideAnimations(),
