@@ -46,7 +46,7 @@ limitations under the License.
   <mat-divider></mat-divider>
 }
 @if (showPlaceholderText()) {
-  <span class="mat-body-1 placeholder-text"> {{ placeholderText() }} </span>
+  <span class="mat-body-1 placeholder-text"> {{ placeholderText() | tr }} </span>
 }
 @let curatedView = curatedPropertiesView();
 @if (showCuratedView() && curatedView !== undefined) {

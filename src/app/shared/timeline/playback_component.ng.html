@@ -21,7 +21,7 @@ limitations under the License.
       mat-icon-button
       class="no-touch-target-button"
       id="start-reverse-playback-button"
-      matTooltip="Play backwards"
+      [matTooltip]="'Play backwards' | tr"
       (click)="changePlaybackState(PlaybackState.BACKWARDS)"
     >
       <mat-icon
@@ -36,7 +36,7 @@ limitations under the License.
       mat-icon-button
       class="no-touch-target-button"
       id="pause-playback-button"
-      matTooltip="Pause"
+      [matTooltip]="'Pause' | tr"
       (click)="changePlaybackState(PlaybackState.PAUSED)"
       [disabled]="state === PlaybackState.PAUSED"
     >
@@ -46,7 +46,7 @@ limitations under the License.
       mat-icon-button
       class="no-touch-target-button"
       id="start-playback-button"
-      matTooltip="Play forwards"
+      [matTooltip]="'Play forwards' | tr"
       (click)="changePlaybackState(PlaybackState.FORWARDS)"
     >
       <mat-icon
@@ -58,7 +58,7 @@ limitations under the License.
     </button>
   </div>
   <div class="playback-select">
-    <span class="mat-body-1 speed-label"> Speed: </span>
+    <span class="mat-body-1 speed-label"> {{ 'Speed:' | tr }} </span>
     <mat-form-field
       subscriptSizing="dynamic"
       class="mat-form-field-appearance-none playback-speed-selector no-ripple-field"

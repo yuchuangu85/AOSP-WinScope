@@ -24,7 +24,10 @@ process.on("SIGINT", () => void stop());
   const root = process.argv[2];
   const { AiGateway } = require(path.join(root, "gateway.js"));
   const { loadRuntime } = require(path.join(root, "config.js"));
-  gateway = new AiGateway(await loadRuntime(process.env.WINSCOPE_AI_CONFIG));
+  const { defaultSettingsPath } = require(path.join(root, "settings.js"));
+  gateway = new AiGateway(await loadRuntime(process.env.WINSCOPE_AI_CONFIG), {}, {
+    settingsPath: defaultSettingsPath(),
+  });
   await gateway.listen(0);
   process.parentPort.postMessage({
     type: "ready",

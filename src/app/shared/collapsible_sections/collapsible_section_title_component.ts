@@ -18,11 +18,12 @@ import {Component, input, output} from '@angular/core';
 import {MatButtonModule} from '@angular/material/button';
 import {MatIconModule} from '@angular/material/icon';
 import {MatTooltipModule} from '@angular/material/tooltip';
+import {TranslatePipe} from '@common/i18n';
 
 @Component({
   selector: 'collapsible-section-title',
   standalone: true,
-  imports: [MatButtonModule, MatIconModule, MatTooltipModule],
+  imports: [TranslatePipe, MatButtonModule, MatIconModule, MatTooltipModule],
   templateUrl: './collapsible_section_title_component.ng.html',
   styleUrls: ['collapsible_section_title_component.scss'],
 })

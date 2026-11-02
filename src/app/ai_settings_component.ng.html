@@ -2,26 +2,44 @@
   <div class="settings-fields runtime-settings">
     <label class="settings-field">
       <span>{{ 'Provider' | tr }}</span>
-      <input
-        type="text"
-        readonly
-        data-field="active-provider"
-        [attr.aria-label]="'Provider' | tr"
-        [value]="provider?.name || provider?.id || ('No model · deterministic skills' | tr)"
-      />
+      <span class="settings-select">
+        <select
+          data-field="active-provider"
+          [attr.aria-label]="'Provider' | tr"
+          [ngModel]="draft.providerId"
+          (ngModelChange)="providerChanged($event)"
+          [disabled]="runtimeDisabled"
+        >
+          <option value="">{{ 'Agent default' | tr }}</option>
+          @for (item of catalog.providers; track item.id) {
+            <option [value]="item.id"
+              >{{ item.name || item.id
+              }}{{
+                isConfigured(item.id)
+                  ? (' · {status}' | tr: {status: ('Already configured' | tr)})
+                  : ''
+              }}</option
+            >
+          }
+        </select>
+        <mat-icon class="settings-select-arrow" aria-hidden="true">expand_more</mat-icon>
+      </span>
     </label>
     <label class="settings-field">
       <span>{{ 'Agent' | tr }}</span>
-      <select
-        [attr.aria-label]="'Agent' | tr"
-        [ngModel]="draft.agentId"
-        (ngModelChange)="agentChanged($event)"
-        [disabled]="runtimeDisabled || existingSession"
-      >
-        @for (agent of catalog.agents; track agent.id) {
-          <option [value]="agent.id">{{ agent.name }}</option>
-        }
-      </select>
+      <span class="settings-select">
+        <select
+          [attr.aria-label]="'Agent' | tr"
+          [ngModel]="draft.agentId"
+          (ngModelChange)="agentChanged($event)"
+          [disabled]="runtimeDisabled || existingSession"
+        >
+          @for (agent of catalog.agents; track agent.id) {
+            <option [value]="agent.id">{{ agent.name }}</option>
+          }
+        </select>
+        <mat-icon class="settings-select-arrow" aria-hidden="true">expand_more</mat-icon>
+      </span>
       @if (existingSession) {
         <small>{{
           'The agent is fixed for an existing conversation. Start a new one to change it.' | tr
@@ -37,6 +55,7 @@
   @for (section of sections; track section.id) {
     @let item = providerFor(section.id);
     @let modelDraft = providerDrafts[section.id] || emptyModel;
+    @let configuration = configurationDrafts[section.id];
     <section
       class="provider-settings"
       [attr.data-provider]="section.id"
@@ -45,7 +64,14 @@
       [attr.aria-busy]="importingProvider === section.id"
     >
       <div class="section-heading">
-        <h3>{{ section.name }}</h3>
+        <div class="provider-heading">
+          <h3>{{ section.name }}</h3>
+          @if (isConfigured(section.id)) {
+            <span class="configured-status" role="status"
+              ><mat-icon>check_circle</mat-icon>{{ 'Already configured' | tr }}</span
+            >
+          }
+        </div>
         @if (section.id === 'codex' || section.id === 'claude') {
           <button
             mat-stroked-button
@@ -66,37 +92,43 @@
       <div class="settings-fields">
         <label class="settings-field">
           <span>{{ 'Model' | tr }}</span>
-          <select
-            data-field="model"
-            [attr.aria-label]="'{name} model' | tr: {name: section.name}"
-            [ngModel]="modelDraft.modelId"
-            (ngModelChange)="modelChanged(section.id, $event)"
-            [disabled]="runtimeDisabled || !item"
-          >
-            @for (model of modelsFor(section.id); track model.id) {
-              <option [value]="model.id">{{ modelLabel(section.id, model) }}</option>
-            }
-            @if (item?.supportsCustomModel) {
-              <option value="__custom__">{{ 'Custom model…' | tr }}</option>
-            }
-          </select>
+          <span class="settings-select">
+            <select
+              data-field="model"
+              [attr.aria-label]="'{name} model' | tr: {name: section.name}"
+              [ngModel]="modelDraft.modelId"
+              (ngModelChange)="modelChanged(section.id, $event)"
+              [disabled]="runtimeDisabled || !item"
+            >
+              @for (model of modelsFor(section.id); track model.id) {
+                <option [value]="model.id">{{ modelLabel(section.id, model) }}</option>
+              }
+              @if (item?.supportsCustomModel) {
+                <option value="__custom__">{{ 'Custom model…' | tr }}</option>
+              }
+            </select>
+            <mat-icon class="settings-select-arrow" aria-hidden="true">expand_more</mat-icon>
+          </span>
         </label>
         <label class="settings-field">
           <span>{{ 'Reasoning level' | tr }}</span>
-          <select
-            data-field="reasoning"
-            [attr.aria-label]="'{name} reasoning level' | tr: {name: section.name}"
-            [ngModel]="modelDraft.reasoningLevel"
-            (ngModelChange)="reasoningChanged(section.id, $event)"
-            [disabled]="runtimeDisabled || !item || !levelsFor(section.id).length"
-          >
-            @for (level of levelsFor(section.id); track level) {
-              <option [value]="level">{{ level | titlecase | tr }}</option>
-            }
-            @if (!levelsFor(section.id).length) {
-              <option value="medium">{{ 'Provider default' | tr }}</option>
-            }
-          </select>
+          <span class="settings-select">
+            <select
+              data-field="reasoning"
+              [attr.aria-label]="'{name} reasoning level' | tr: {name: section.name}"
+              [ngModel]="modelDraft.reasoningLevel"
+              (ngModelChange)="reasoningChanged(section.id, $event)"
+              [disabled]="runtimeDisabled || !item || !levelsFor(section.id).length"
+            >
+              @for (level of levelsFor(section.id); track level) {
+                <option [value]="level">{{ level | titlecase | tr }}</option>
+              }
+              @if (!levelsFor(section.id).length) {
+                <option value="medium">{{ 'Provider default' | tr }}</option>
+              }
+            </select>
+            <mat-icon class="settings-select-arrow" aria-hidden="true">expand_more</mat-icon>
+          </span>
         </label>
         @if (modelDraft.modelId === '__custom__') {
           <label class="settings-field wide">
@@ -114,38 +146,68 @@
             />
           </label>
         }
-        <label class="settings-field">
-          <span>{{ 'Service URL' | tr }}</span>
-          <input
-            data-field="base-url"
-            type="text"
-            readonly
-            [attr.aria-label]="'{name} service URL' | tr: {name: section.name}"
-            [value]="
-              item?.localConfig?.baseUrl ||
-              ((item?.localConfig ? 'Provider default' : 'Not read') | tr)
-            "
-          />
-        </label>
-        <label class="settings-field">
-          <span>{{ 'Authentication' | tr }}</span>
-          <input
-            type="text"
-            readonly
-            [attr.aria-label]="'{name} authentication' | tr: {name: section.name}"
-            [value]="authenticationLabel(section.id) | tr"
-          />
-        </label>
-        @if (item?.localConfig?.providerName) {
+        @if (canConfigureProvider(section.id) && configuration) {
           <label class="settings-field wide">
-            <span>{{ 'Provider name' | tr }}</span>
+            <span>{{ 'Service URL' | tr }}</span>
             <input
-              type="text"
-              readonly
-              [attr.aria-label]="'{name} provider name' | tr: {name: section.name}"
-              [value]="item?.localConfig?.providerName"
+              data-field="base-url"
+              type="url"
+              [attr.aria-label]="'{name} service URL' | tr: {name: section.name}"
+              [placeholder]="'Provider default' | tr"
+              autocomplete="off"
+              spellcheck="false"
+              [ngModel]="configuration.baseUrl"
+              (ngModelChange)="configurationChanged(section.id, 'baseUrl', $event)"
+              [disabled]="runtimeDisabled"
             />
           </label>
+          <label class="settings-field">
+            <span>{{ 'Provider name' | tr }}</span>
+            <input
+              data-field="provider-name"
+              type="text"
+              [attr.aria-label]="'{name} provider name' | tr: {name: section.name}"
+              [placeholder]="'Provider default' | tr"
+              maxlength="128"
+              autocomplete="off"
+              [ngModel]="configuration.providerName"
+              (ngModelChange)="configurationChanged(section.id, 'providerName', $event)"
+              [disabled]="runtimeDisabled"
+            />
+          </label>
+          <label class="settings-field">
+            <span>{{ 'Request timeout (ms)' | tr }}</span>
+            <input
+              data-field="timeout"
+              type="number"
+              min="1000"
+              max="600000"
+              step="1000"
+              [attr.aria-label]="'{name} request timeout' | tr: {name: section.name}"
+              [ngModel]="configuration.timeoutMs"
+              (ngModelChange)="configurationChanged(section.id, 'timeoutMs', $event)"
+              [disabled]="runtimeDisabled"
+            />
+          </label>
+          <label class="settings-field wide">
+            <span>{{ 'API key environment variable' | tr }}</span>
+            <input
+              data-field="api-key-env"
+              type="text"
+              [attr.aria-label]="'{name} API key environment variable' | tr: {name: section.name}"
+              [placeholder]="'Managed by local CLI' | tr"
+              maxlength="128"
+              autocomplete="off"
+              spellcheck="false"
+              [ngModel]="configuration.apiKeyEnv"
+              (ngModelChange)="configurationChanged(section.id, 'apiKeyEnv', $event)"
+              [disabled]="runtimeDisabled"
+            />
+          </label>
+          <div class="settings-field wide authentication-status">
+            <span>{{ 'Authentication' | tr }}</span>
+            <span>{{ authenticationLabel(section.id) | tr }}</span>
+          </div>
         }
       </div>
       @if (importingProvider === section.id) {

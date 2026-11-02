@@ -47,6 +47,7 @@ The portable Launcher remains a supported distribution with its existing gates;
 its release formats and APS outputs are unchanged by this desktop-only contract.
 
 ## Developing WinScope
+
 When the trace is enabled, Window Manager and Surface Flinger capture and
 save current state to a file at each point of interest.
 `frameworks/base/core/proto/android/server/windowmanagertrace.proto`
@@ -54,14 +55,16 @@ and `frameworks/native/services/surfaceflinger/layerproto/layerstrace.proto`
 contain the proto definitions for their internal states.
 
 ### Checking out code and setting up environment
-* [Download Android source](https://source.android.com/setup/build/downloading)
-* Navigate to `development/tools/winscope`
-* Install dependencies:
+
+- [Download Android source](https://source.android.com/setup/build/downloading)
+- Navigate to `development/tools/winscope`
+- Install dependencies:
   ```bash
   npm ci
   ```
 
 ### Running the project locally
+
 From the repository root, start WinScope with the Launcher and device capture:
 
 ```bash
@@ -73,28 +76,55 @@ then opens the browser with device capture enabled. It requires the pinned
 standalone build toolchain, Python, and Android Platform Tools (`adb`). See
 [the Launcher contract](docs/LAUNCHER.md) for prerequisites and launch options.
 
-For file-only analysis, run `npm start -- --offline-only --open`. For the
-Angular-only development server without Launcher or capture, use
-`npm run start:web`.
+The product runs through the standalone Launcher, which owns the loopback
+server and device capture proxy. Direct Web-only startup is not a supported
+product mode.
+
+### Interface languages
+
+All application pages support English and Simplified Chinese. Use the language
+selector in the top toolbar, or **AI settings → Interface language**, to switch
+in place without resetting loaded traces, filters, SQL queries, or AI drafts.
+On first launch the interface follows the browser's preferred supported language;
+an explicit selection is remembered locally. Opening `/?no-persistence` uses the
+browser preference without reading or writing the saved language.
+
+Only application-owned interface text is translated. Trace properties and values,
+file/device names, SQL and result aliases, provider/model names, user content,
+and AI answers retain their original text.
+
+Translations live in `src/common/i18n_*.ts`; English source strings are the keys.
+Run `npm run i18n:verify -- --strict` to audit all page templates and curated UI
+labels and literal loading-progress messages,
+`node --test scripts/verify-i18n.test.mjs` for the audit's regression
+tests, and `npm run test:unit:i18n` for focused browser unit tests. The production
+browser regression (`npm run test:e2e:ai:browser`) also checks language switching,
+reload, privacy behavior, data preservation, and Chinese narrow-window layouts;
+its evidence is written to `dist/validation/i18n-browser.json`.
 
 ### Build & test & deploy changes
-* Navigate to `development/tools/winscope`
-* Run `npm run` to get the list of available commands
+
+- Navigate to `development/tools/winscope`
+- Run `npm run` to get the list of available commands
 
 ### Update IntDefMapping
-* Build `framework-minus-apex-intdefs` module and a preprocessor will
+
+- Build `framework-minus-apex-intdefs` module and a preprocessor will
   generate the latest IntDefMapping. From the `ANDROID_ROOT` run:
+
 ```
 . build/envsetup.sh
 m framework-minus-apex-intdefs
 ```
 
-* Copy the generated `intDefMapping.json` files to the `winscope`.
+- Copy the generated `intDefMapping.json` files to the `winscope`.
+
 ```
 python3 -c 'import sys,json,collections; print(json.dumps(collections.OrderedDict(sorted(collections.ChainMap(*map(lambda x:json.load(open(x)), sys.argv[1:])).items())), indent=2))' $(find out/soong/.intermediates/frameworks/base -iname intDefMapping.json) > ./development/tools/winscope/src/common/intDefMapping.json
 ```
 
-* Upload the changes.
+- Upload the changes.
+
 ```
 repo start intdef-update
 git commit -am "Update intdef mapping" "Test: N/A"
@@ -102,5 +132,6 @@ repo upload --cbr .
 ```
 
 ### Building with internal extensions
+
 Internal paths in vendor/ which are not available in AOSP must be replaced by
 stub files. See getWaylandSafePath for an example

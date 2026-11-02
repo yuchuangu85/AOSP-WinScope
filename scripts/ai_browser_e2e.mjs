@@ -93,6 +93,7 @@ async function typeMessage(text) {
   );
 }
 async function chooseProviderField(provider, field, value) {
+  await chooseProvider(provider);
   const selector = `.provider-settings[data-provider="${provider}"] [data-field="${field}"]`;
   await condition(
     `document.querySelector(${JSON.stringify(selector)}) !== null`,
@@ -102,6 +103,433 @@ async function chooseProviderField(provider, field, value) {
     control.value=${JSON.stringify(value)};
     control.dispatchEvent(new Event(control.tagName==='SELECT'?'change':'input',{bubbles:true}));
   })()`);
+}
+async function chooseProvider(provider) {
+  await condition("document.querySelector('select[data-field=active-provider]') !== null");
+  if (await evaluate("document.querySelector('select[data-field=active-provider]').value") !== provider) {
+    await evaluate(`(() => {
+      const select=document.querySelector('select[data-field=active-provider]');
+      select.value=${JSON.stringify(provider)};
+      select.dispatchEvent(new Event('change',{bubbles:true}));
+    })()`);
+  }
+  await condition(`document.querySelector('.provider-settings[data-provider="${provider}"]') !== null`);
+  assert.equal(await evaluate("document.querySelectorAll('.provider-settings').length"), 1);
+}
+async function openConversationModels() {
+  await click('.model-select .model-label');
+  await condition("document.querySelector('.conversation-model-list') !== null");
+  await condition(`(() => {
+    const panel=document.querySelector('.conversation-model-list')?.closest('.mat-mdc-menu-panel');
+    return panel && getComputedStyle(panel).opacity==='1' && !panel.getAnimations({subtree:true}).some(animation=>animation.playState==='running') && !document.querySelector('.mat-mdc-tooltip');
+  })()`);
+}
+async function chooseConversationModel(value) {
+  if (!await evaluate("document.querySelector('.conversation-model-list') !== null")) await openConversationModels();
+  await evaluate(`(() => {
+    const option=[...document.querySelectorAll('.conversation-model-list [data-model-value]')].find(option=>option.getAttribute('data-model-value')===${JSON.stringify(value)});
+    if(!option) throw new Error('Conversation model is unavailable');
+    option.click();
+  })()`);
+  await condition("document.querySelector('.conversation-model-list') === null");
+}
+async function conversationModelMenuRegression() {
+  const initial=await evaluate('({width:innerWidth,height:innerHeight,dark:document.body.classList.contains("dark-mode"),draft:document.querySelector(".composer-input").value})');
+  for (const [width, height, dark] of [[1280,800,false],[1280,800,true],[390,844,false],[390,844,true]]) {
+    await cdp('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false});
+    await evaluate(`document.body.classList.toggle('dark-mode',${dark})`);
+    await openConversationModels();
+    const menu=await evaluate(`(() => {
+      const trigger=document.querySelector('.model-select'),list=document.querySelector('.conversation-model-list'),panel=list.closest('.mat-mdc-menu-panel'),r=panel.getBoundingClientRect();
+      return {border:getComputedStyle(trigger).borderWidth,options:[...list.querySelectorAll('[data-model-value]')].map(option=>option.getAttribute('data-model-value')),checked:list.querySelectorAll('[aria-checked=true]').length,left:r.left,right:r.right,top:r.top,bottom:r.bottom};
+    })()`);
+    assert.equal(menu.border,'0px');
+    assert.deepEqual(menu.options,[JSON.stringify(['browser-fixture','default']),JSON.stringify(['browser-fixture','fixture-model']),JSON.stringify(['browser-fixture','fixture-alternate'])]);
+    assert.equal(menu.checked,1);
+    assert.ok(menu.left>=-1 && menu.right<=width+1 && menu.top>=-1 && menu.bottom<=height+1);
+    await screenshot(`ai-model-menu-${width}-${dark?'dark':'light'}.png`);
+    await cdp('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+    await cdp('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+    await condition("document.querySelector('.conversation-model-list') === null");
+    assert.equal(await evaluate("document.querySelector('.model-select')===document.activeElement"),true);
+    assert.equal(await evaluate("document.querySelector('.composer-input').value"),initial.draft);
+  }
+  await chooseConversationModel(JSON.stringify(['browser-fixture','fixture-alternate']));
+  assert.equal(await evaluate("document.querySelector('.model-select').value"),JSON.stringify(['browser-fixture','fixture-alternate']));
+  await chooseConversationModel(JSON.stringify(['browser-fixture','fixture-model']));
+  await cdp('Emulation.setDeviceMetricsOverride',{width:initial.width,height:initial.height,deviceScaleFactor:1,mobile:false});
+  await evaluate(`document.body.classList.toggle('dark-mode',${initial.dark})`);
+}
+const aiWindowEvidence = [];
+const aiWindowScreenshots = [];
+const aiWindowChecks = [
+  'history-toggle-visible-at-all-widths-and-aria-matches-hidden',
+  'sidebar-close-refresh-and-reopen-preserve-draft-session-model',
+  'desktop-history-preference-independent-from-compact-overlay',
+  'wide-viewport-measured-panel-width-opens-compact-overlay',
+  'compact-history-escape-and-outside-dismissal',
+  'trusted-pointer-capture-two-axis-resize-minimum-and-maximum-clamps',
+  'resize-grip-independent-axis-arrow-keys-and-shift-step',
+  'resize-home-and-double-click-restore-top-left-geometry',
+  'resize-viewport-shrink-below-minimum-and-390px-no-overflow',
+  'resize-80-140-display-zoom-physical-pointer-and-logical-key-deltas',
+  'panel-height-long-draft-cap-minimum-window-light-dark',
+  'sidebar-and-window-size-never-persist',
+  'layout-hide-and-destroy-never-cancel-running-analysis',
+];
+const settleAiWindow = () => evaluate(
+  'new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>requestAnimationFrame(resolve))))',
+);
+async function aiViewport(width, height) {
+  await cdp('Emulation.setDeviceMetricsOverride', {width, height, deviceScaleFactor: 1, mobile: false});
+  await settleAiWindow();
+}
+async function aiWindowState() {
+  return evaluate(`(() => {
+    const storage=s=>Object.keys(s).sort().map(key=>[key,s.getItem(key)]);
+    return {
+      draft:document.querySelector('.composer-input').value,
+      model:document.querySelector('.model-select').value,
+      sessionId:Object.keys(sessionStorage).filter(key=>key.startsWith('winscope.ai.active.')).map(key=>sessionStorage.getItem(key)),
+      context:document.querySelector('.context-chip')?.getAttribute('aria-pressed'),
+      attachments:[...document.querySelectorAll('.attachment-info strong')].map(e=>e.textContent),
+      local:storage(localStorage),session:storage(sessionStorage),
+    };
+  })()`);
+}
+async function aiWindowMetrics() {
+  return evaluate(`(() => {
+    const box=e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom};};
+    const visible=e=>!!e&&!e.hidden&&getComputedStyle(e).display!=='none'&&getComputedStyle(e).visibility!=='hidden'&&e.getBoundingClientRect().width>0&&e.getBoundingClientRect().height>0;
+    const panel=document.querySelector('.ai-panel'),header=panel.querySelector('.ai-panel-header'),aside=panel.querySelector('#ai-conversation-browser'),toggle=header.querySelector('.history-toggle'),grip=panel.querySelector('.ai-window-resize'),input=panel.querySelector('.composer-input'),composer=panel.querySelector('.ai-composer');
+    const zoom=Number(document.documentElement.style.zoom)||1,p=box(panel);
+    return {
+      viewport:{width:innerWidth,height:innerHeight},zoom,panel:p,
+      logical:{width:p.width/zoom,height:p.height/zoom},clientHeight:panel.clientHeight,
+      inline:{width:panel.style.width,height:panel.style.height},
+      compact:panel.classList.contains('compact-window'),
+      overflow:panel.scrollWidth>panel.clientWidth+1,
+      header:box(header),headerControls:[...header.querySelectorAll('button')].filter(visible).map(e=>({label:e.getAttribute('aria-label'),...box(e)})),
+      toggle:{visible:visible(toggle),expanded:toggle.getAttribute('aria-expanded')},
+      aside:{hidden:aside.hidden,visible:visible(aside),open:aside.classList.contains('open'),...box(aside)},
+      backdrop:visible(panel.querySelector('.sidebar-backdrop')),
+      main:box(panel.querySelector('.ai-main')),composer:box(composer),
+      input:{...box(input),clientHeight:input.clientHeight,scrollHeight:input.scrollHeight,overflowY:getComputedStyle(input).overflowY},
+      send:box(panel.querySelector('.composer-primary')),
+      grip:{...box(grip),label:grip.getAttribute('aria-label'),icon:grip.querySelector('mat-icon')?.textContent.trim(),disabled:grip.disabled,tabIndex:grip.tabIndex},
+    };
+  })()`);
+}
+function near(actual, expected, label, tolerance = 1) {
+  assert.ok(Math.abs(actual - expected) <= tolerance, `${label}: expected ${expected}, got ${actual}`);
+}
+function assertAiWindowFits(metrics, label) {
+  assert.equal(metrics.overflow, false, `${label}: no horizontal panel overflow`);
+  assert.ok(metrics.panel.x >= -1 && metrics.panel.y >= -1, `${label}: top-left stays on screen`);
+  assert.ok(metrics.panel.right <= metrics.viewport.width + 1 && metrics.panel.bottom <= metrics.viewport.height + 1, `${label}: panel fits viewport`);
+  assert.equal(metrics.toggle.visible, true, `${label}: history toggle is always visible`);
+  assert.equal(metrics.toggle.expanded, String(metrics.aside.visible), `${label}: aria-expanded reflects actual visibility`);
+  assert.equal(metrics.aside.hidden, !metrics.aside.visible, `${label}: hidden attribute reflects actual visibility`);
+  assert.equal(metrics.compact, metrics.logical.width <= 760, `${label}: compact mode uses measured logical width`);
+  assert.equal(metrics.aside.open, metrics.compact && metrics.aside.visible, `${label}: open class marks compact overlay`);
+  assert.equal(metrics.backdrop, metrics.compact && metrics.aside.visible, `${label}: overlay has a backdrop`);
+  for (const control of metrics.headerControls) {
+    assert.ok(control.x >= metrics.header.x - 1 && control.right <= metrics.header.right + 1, `${label}: ${control.label} fits header`);
+    assert.ok(control.y >= metrics.header.y - 1 && control.bottom <= metrics.header.bottom + 1, `${label}: ${control.label} stays on header row`);
+  }
+  assert.ok(metrics.composer.y >= metrics.header.bottom - 1, `${label}: draft cannot overlap header`);
+  assert.ok(metrics.composer.right <= metrics.panel.right + 1 && metrics.composer.bottom <= metrics.panel.bottom + 1, `${label}: composer fits window`);
+  assert.ok(metrics.send.bottom <= metrics.panel.bottom + 1, `${label}: send stays visible`);
+  assert.ok(metrics.grip.width > 0 && metrics.grip.height > 0 && metrics.grip.right <= metrics.panel.right + 1 && metrics.grip.bottom <= metrics.panel.bottom + 1, `${label}: resize grip remains reachable`);
+  assert.ok(metrics.grip.x >= metrics.panel.x + metrics.panel.width / 2 && metrics.grip.y >= metrics.panel.y + metrics.panel.height / 2, `${label}: grip is bottom-right`);
+  assert.ok(metrics.grip.x >= metrics.send.right || metrics.grip.y >= metrics.send.bottom, `${label}: grip does not overlap send`);
+}
+async function recordAiWindow(check, screenshotName) {
+  await settleAiWindow();
+  const metrics = await aiWindowMetrics();
+  aiWindowEvidence.push({check, ...metrics});
+  assertAiWindowFits(metrics, check);
+  if (screenshotName) {
+    await screenshot(screenshotName);
+    aiWindowScreenshots.push(screenshotName);
+  }
+  return metrics;
+}
+async function aiMouseClick(selector, {double = false, rightEdge = false} = {}) {
+  const point = await evaluate(`(() => {const e=document.querySelector(${JSON.stringify(selector)}),r=e.getBoundingClientRect();if(e.hidden||!r.width||!r.height) throw new Error('Control is not visible');return {x:${rightEdge ? 'r.right-8' : 'r.x+r.width/2'},y:r.y+r.height/2};})()`);
+  await cdp('Input.dispatchMouseEvent', {type: 'mouseMoved', ...point});
+  for (const clickCount of double ? [1, 2] : [1]) {
+    await cdp('Input.dispatchMouseEvent', {type: 'mousePressed', ...point, button: 'left', buttons: 1, clickCount});
+    await cdp('Input.dispatchMouseEvent', {type: 'mouseReleased', ...point, button: 'left', buttons: 0, clickCount});
+  }
+  await settleAiWindow();
+}
+async function aiGripKey(key, shift = false) {
+  await evaluate("document.querySelector('.ai-window-resize').focus()");
+  assert.equal(await evaluate("document.activeElement === document.querySelector('.ai-window-resize')"), true);
+  const code = {ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40, Home: 36, Escape: 27}[key];
+  for (const type of ['keyDown', 'keyUp']) {
+    await cdp('Input.dispatchKeyEvent', {type, key, code: key, windowsVirtualKeyCode: code, modifiers: shift ? 8 : 0});
+  }
+  await settleAiWindow();
+}
+async function dragAiWindow(dx, dy, label) {
+  const before = await aiWindowMetrics();
+  const point = {x: before.grip.x + before.grip.width / 2, y: before.grip.y + before.grip.height / 2};
+  await evaluate(`(() => {
+    window.__aiResizeRecorder?.abort();window.__aiResizeRecorder=new AbortController();window.__aiResizeEvents=[];
+    const grip=document.querySelector('.ai-window-resize');
+    for(const type of ['pointerdown','gotpointercapture','pointermove','pointerup','lostpointercapture']) grip.addEventListener(type,e=>window.__aiResizeEvents.push({type:e.type,trusted:e.isTrusted,captured:grip.hasPointerCapture(e.pointerId)}),{signal:window.__aiResizeRecorder.signal});
+  })()`);
+  await cdp('Input.dispatchMouseEvent', {type: 'mouseMoved', ...point});
+  await cdp('Input.dispatchMouseEvent', {type: 'mousePressed', ...point, button: 'left', buttons: 1, clickCount: 1});
+  try {
+    for (let step = 1; step <= 4; step++) {
+      await cdp('Input.dispatchMouseEvent', {type: 'mouseMoved', x: point.x + dx * step / 4, y: point.y + dy * step / 4, button: 'left', buttons: 1});
+      await settleAiWindow();
+    }
+  } finally {
+    await cdp('Input.dispatchMouseEvent', {type: 'mouseReleased', x: point.x + dx, y: point.y + dy, button: 'left', buttons: 0, clickCount: 1});
+  }
+  await settleAiWindow();
+  const events = await evaluate('window.__aiResizeEvents');
+  assert.ok(events.some(e => e.type === 'pointerdown' && e.trusted), `${label}: real pointerdown`);
+  assert.ok(events.some(e => e.type === 'pointermove' && e.trusted && e.captured), `${label}: drag uses pointer capture`);
+  assert.ok(events.some(e => e.type === 'pointerup' && e.trusted), `${label}: pointer released`);
+  const after = await recordAiWindow(label);
+  near(after.panel.x, before.panel.x, `${label}: fixed left anchor`);
+  near(after.panel.y, before.panel.y, `${label}: fixed top anchor`);
+  assert.ok(after.inline.width && after.inline.height, `${label}: resized width and height are inline styles`);
+  aiWindowEvidence.push({check: `${label}-pointer-events`, events});
+  return after;
+}
+async function expectAiSidebar(visible, label) {
+  await condition(`document.querySelector('#ai-conversation-browser')?.hidden === ${!visible} && document.querySelector('.history-toggle')?.getAttribute('aria-expanded') === '${visible}'`);
+  const metrics = await recordAiWindow(label);
+  assert.equal(metrics.aside.visible, visible, `${label}: actual sidebar visibility`);
+  return metrics;
+}
+function assertAiWindowCap(metrics, label) {
+  const cap = Math.min(336, Math.round(metrics.clientHeight * 0.4));
+  near(metrics.input.height / metrics.zoom, cap, `${label}: textarea reaches the dynamic panel-height cap`, 2);
+  assert.ok(metrics.input.scrollHeight > metrics.input.clientHeight + 1, `${label}: long draft really scrolls`);
+  assert.equal(metrics.input.overflowY, 'auto', `${label}: textarea owns the scrollport`);
+}
+async function aiWindowRegression() {
+  const initial = await aiWindowMetrics();
+  const initialState = await aiWindowState();
+  const initialDark = await evaluate("document.body.classList.contains('dark-mode')");
+  await aiViewport(1440, 960);
+  await aiGripKey('Home');
+  const full = await expectAiSidebar(true, 'desktop-history-default-visible');
+  assert.equal(full.compact, false);
+  assert.equal(full.grip.label, 'Resize AI window');
+  assert.equal(full.grip.icon, 'south_east');
+  assert.equal(full.grip.disabled, false);
+  assert.ok(full.grip.tabIndex >= 0, 'Resize grip is keyboard focusable');
+  assert.equal(await evaluate("document.querySelector('.ai-window-resize').tagName"), 'BUTTON');
+  assert.equal(await evaluate("document.querySelector('.ai-panel-header .ai-window-resize, .ai-panel-header [aria-label*=Reset]') === null"), true, 'No new header resize/reset action');
+  await cdp('Input.dispatchMouseEvent', {type: 'mouseMoved', x: full.grip.x + full.grip.width / 2, y: full.grip.y + full.grip.height / 2});
+  await condition("[...document.querySelectorAll('.mat-mdc-tooltip-surface')].some(e=>e.textContent.trim()==='Resize AI window')");
+  await cdp('Input.dispatchMouseEvent', {type: 'mouseMoved', x: 1, y: 1});
+
+  const draft = 'Window layout draft · 用户草稿 <b>verbatim</b>';
+  await typeMessage(draft);
+  const preserved = await aiWindowState();
+  assert.equal(preserved.sessionId.length, 1, 'Layout preservation exercises a real active session');
+  assert.ok(await evaluate("document.querySelector('.sidebar-heading [aria-label=\"Refresh conversations\"] mat-icon')?.textContent.trim() === 'refresh'"), 'Sidebar retains refresh');
+  assert.ok(await evaluate("document.querySelector('.sidebar-heading button[aria-label=\"Close conversation browser\"] mat-icon') !== null"), 'Sidebar has labelled icon-only close');
+  await aiMouseClick('.sidebar-heading [aria-label="Close conversation browser"]');
+  const hidden = await expectAiSidebar(false, 'desktop-sidebar-close-hidden');
+  assert.ok(hidden.main.width > full.main.width + 100, 'Hiding history releases its layout column');
+  assert.deepEqual(await aiWindowState(), preserved, 'Sidebar close changes no draft/session/model or storage');
+  await aiMouseClick('.history-toggle');
+  await expectAiSidebar(true, 'desktop-sidebar-header-reopen');
+  await aiMouseClick('.history-toggle');
+  await expectAiSidebar(false, 'desktop-sidebar-header-hide');
+
+  let minimum = await dragAiWindow(-full.panel.right, -full.panel.bottom, 'mouse-drag-below-640x420-clamps');
+  near(minimum.logical.width, 640, 'Minimum logical width');
+  near(minimum.logical.height, 420, 'Minimum logical height');
+  assert.equal(minimum.viewport.width, 1440);
+  assert.equal(minimum.compact, true, 'Wide viewport becomes compact from actual panel width');
+  await expectAiSidebar(false, 'compact-overlay-closed-independent-of-desktop');
+  await aiMouseClick('.history-toggle');
+  await expectAiSidebar(true, 'wide-viewport-compact-overlay-open');
+  await recordAiWindow('wide-viewport-compact-overlay', 'ai-window-wide-viewport-compact-history.png');
+  await aiGripKey('Escape');
+  await expectAiSidebar(false, 'compact-overlay-escape');
+  assert.equal(await evaluate("!!document.querySelector('ai-panel')"), true, 'Escape closes history, not the workspace');
+  await aiMouseClick('.history-toggle');
+  await expectAiSidebar(true, 'compact-overlay-reopen-before-outside');
+  await aiMouseClick('.sidebar-backdrop', {rightEdge: true});
+  await expectAiSidebar(false, 'compact-overlay-outside-click');
+  await aiMouseClick('.history-toggle');
+  await expectAiSidebar(true, 'compact-overlay-open-before-wide-reset');
+  await aiGripKey('Home');
+  await expectAiSidebar(false, 'desktop-hide-preference-survives-open-compact-overlay');
+  await aiMouseClick('.history-toggle');
+  await expectAiSidebar(true, 'desktop-show-preference-restored');
+  minimum = await dragAiWindow(-full.panel.right, -full.panel.bottom, 'desktop-visible-to-compact-resize');
+  if (minimum.aside.visible) await aiMouseClick('.sidebar-heading [aria-label="Close conversation browser"]');
+  await expectAiSidebar(false, 'compact-close-does-not-hide-desktop-history');
+  await aiGripKey('Home');
+  await expectAiSidebar(true, 'desktop-visible-preference-survives-compact-close');
+  minimum = await dragAiWindow(-full.panel.right, -full.panel.bottom, 'minimum-before-keyboard');
+
+  let previous = minimum;
+  for (const [key, shift, dw, dh] of [
+    ['ArrowRight', false, 16, 0], ['ArrowDown', false, 0, 16],
+    ['ArrowRight', true, 64, 0], ['ArrowDown', true, 0, 64],
+    ['ArrowLeft', false, -16, 0], ['ArrowUp', false, 0, -16],
+    ['ArrowLeft', true, -64, 0], ['ArrowUp', true, 0, -64],
+    ['ArrowLeft', false, 0, 0], ['ArrowUp', false, 0, 0],
+  ]) {
+    await aiGripKey(key, shift);
+    const label = `grip-${shift ? 'shift-' : ''}${key}-${dw}-${dh}`;
+    const current = await recordAiWindow(label);
+    near(current.logical.width, previous.logical.width + dw, `${label}: independent width`);
+    near(current.logical.height, previous.logical.height + dh, `${label}: independent height`);
+    near(current.panel.x, full.panel.x, `${label}: fixed left`);
+    near(current.panel.y, full.panel.y, `${label}: fixed top`);
+    previous = current;
+  }
+  const maximum = await dragAiWindow(2880, 1920, 'mouse-drag-past-viewport-maximum-clamps');
+  near(maximum.panel.width, full.panel.width, 'Maximum equals original available width');
+  near(maximum.panel.height, full.panel.height, 'Maximum equals original available height');
+  for (const key of ['ArrowRight', 'ArrowDown']) await aiGripKey(key, true);
+  const keyMaximum = await recordAiWindow('keyboard-cannot-exceed-maximum');
+  near(keyMaximum.panel.width, full.panel.width, 'Keyboard maximum width');
+  near(keyMaximum.panel.height, full.panel.height, 'Keyboard maximum height');
+  await aiGripKey('ArrowLeft');
+  await aiGripKey('ArrowUp');
+  await aiGripKey('Home');
+  const home = await recordAiWindow('home-restores-original-geometry');
+  near(home.panel.width, full.panel.width, 'Home restores width');
+  near(home.panel.height, full.panel.height, 'Home restores height');
+  await dragAiWindow(-full.panel.right, -full.panel.bottom, 'minimum-before-double-click');
+  await aiMouseClick('.ai-window-resize', {double: true});
+  const doubleClick = await recordAiWindow('double-click-restores-original-geometry');
+  near(doubleClick.panel.width, full.panel.width, 'Double-click restores width');
+  near(doubleClick.panel.height, full.panel.height, 'Double-click restores height');
+  assert.deepEqual(await aiWindowState(), preserved, 'Sidebar and all resize controls preserve draft/session/model and both stores');
+
+  const longDraft = Array.from({length: 60}, (_, index) => `Long draft ${index} must scroll inside the AI window`).join('\n');
+  await typeMessage(longDraft);
+  await dragAiWindow(-full.panel.right, -full.panel.bottom, 'long-draft-minimum-window');
+  for (const dark of [false, true]) {
+    await evaluate(`document.body.classList.toggle('dark-mode',${dark})`);
+    const label = `minimum-long-draft-${dark ? 'dark' : 'light'}`;
+    const metrics = await recordAiWindow(label, `ai-window-${label}.png`);
+    assertAiWindowCap(metrics, label);
+  }
+  await aiGripKey('Home');
+  await aiGripKey('ArrowLeft');
+  await aiGripKey('ArrowUp');
+  await aiViewport(390, 400);
+  const tiny = await recordAiWindow('manual-window-clamps-on-viewport-shrink-below-minimum', 'ai-window-390-short-clamp.png');
+  assert.ok(tiny.logical.width < 640 && tiny.logical.height < 420, 'Small viewport overrides both nominal minimums');
+  assertAiWindowCap(tiny, 'short-viewport-draft');
+
+  for (const scale of [80, 140]) {
+    await aiViewport(1440, 960);
+    await click('.toolbar .settings-button');
+    await condition("document.querySelector('.display-scale-select') !== null");
+    await chooseDisplayScale(scale);
+    await selectInterfaceLanguage('.interface-language-select', scale === 140 ? 'zh-CN' : 'en');
+    await click('.settings-close-button');
+    await condition("document.querySelector('app-settings') === null && getComputedStyle(document.querySelector('.ai-panel')).display !== 'none'");
+    await aiGripKey('Home');
+    const zoomFull = await recordAiWindow(`zoom-${scale}-original-geometry`);
+    assert.equal(zoomFull.zoom, scale / 100);
+    assert.equal(zoomFull.grip.label, scale === 140 ? '调整 AI 窗口大小' : 'Resize AI window');
+    const beforeScaleResize = await aiWindowState();
+    const resized = await dragAiWindow(-96 * zoomFull.zoom, -64 * zoomFull.zoom, `zoom-${scale}-scaled-pointer-deltas`);
+    near(resized.logical.width, zoomFull.logical.width - 96, `zoom ${scale}: logical width from physical pointer delta`);
+    near(resized.logical.height, zoomFull.logical.height - 64, `zoom ${scale}: logical height from physical pointer delta`);
+    await aiGripKey('ArrowRight');
+    await aiGripKey('ArrowDown');
+    const keyed = await recordAiWindow(`zoom-${scale}-logical-keyboard-deltas`);
+    near(keyed.logical.width, resized.logical.width + 16, `zoom ${scale}: keyboard width remains logical`);
+    near(keyed.logical.height, resized.logical.height + 16, `zoom ${scale}: keyboard height remains logical`);
+    const zoomMin = await dragAiWindow(-zoomFull.panel.right, -zoomFull.panel.bottom, `zoom-${scale}-minimum-clamp`);
+    near(zoomMin.logical.width, 640, `zoom ${scale}: minimum width`);
+    near(zoomMin.logical.height, 420, `zoom ${scale}: minimum height`);
+    for (const dark of [false, true]) {
+      await evaluate(`document.body.classList.toggle('dark-mode',${dark})`);
+      const label = `zoom-${scale}-min-${dark ? 'dark' : 'light'}`;
+      assertAiWindowCap(await recordAiWindow(label, `ai-window-${label}.png`), label);
+    }
+    assert.deepEqual(await aiWindowState(), beforeScaleResize, `Zoom ${scale}: layout never persists or mutates conversation`);
+    await aiViewport(390, 844);
+    await recordAiWindow(`zoom-${scale}-manual-size-clamped-on-mobile-viewport`);
+    await aiGripKey('Home');
+    const mobileFull = await aiWindowMetrics();
+    const mobileMin = await dragAiWindow(-390, -844, `zoom-${scale}-mobile-minimum-clamps-to-screen`);
+    near(mobileMin.logical.width, mobileFull.logical.width, `zoom ${scale}: mobile width minimum is available space`);
+    near(mobileMin.logical.height, Math.min(420, mobileFull.logical.height), `zoom ${scale}: mobile height minimum`);
+    for (const dark of [false, true]) {
+      await evaluate(`document.body.classList.toggle('dark-mode',${dark})`);
+      const label = `390-zoom-${scale}-${dark ? 'dark' : 'light'}`;
+      const metrics = await recordAiWindow(label, `ai-window-${label}.png`);
+      assert.equal(metrics.viewport.width, 390);
+      assertAiWindowCap(metrics, label);
+    }
+    if (!(await aiWindowMetrics()).aside.visible) await aiMouseClick('.history-toggle');
+    await expectAiSidebar(true, `zoom-${scale}-mobile-history-overlay`);
+    await aiMouseClick('.sidebar-backdrop', {rightEdge: true});
+    await expectAiSidebar(false, `zoom-${scale}-mobile-history-outside-dismissal`);
+  }
+  await aiViewport(initial.viewport.width, initial.viewport.height);
+  await click('.toolbar .settings-button');
+  await condition("document.querySelector('.display-scale-select') !== null");
+  await chooseDisplayScale(Math.round(initial.zoom * 100));
+  await selectInterfaceLanguage('.interface-language-select', 'en');
+  await click('.settings-close-button');
+  await condition("document.querySelector('app-settings') === null");
+  await aiGripKey('Home');
+  if ((await aiWindowMetrics()).aside.visible !== initial.aside.visible) await aiMouseClick('.history-toggle');
+  await typeMessage(initialState.draft);
+  await evaluate(`document.body.classList.toggle('dark-mode',${initialDark})`);
+  const restored = await aiWindowState();
+  assert.equal(restored.draft, initialState.draft);
+  assert.equal(restored.model, initialState.model);
+  assert.deepEqual(restored.sessionId, initialState.sessionId);
+}
+async function aiWindowRunningRegression() {
+  const initial = await aiWindowState();
+  const [sessionId] = initial.sessionId;
+  assert.ok(sessionId, 'Running layout checks use a real session');
+  const assertRunning = async label => {
+    const session = await evaluate(`fetch('./ai/api/sessions/'+${JSON.stringify(sessionId)}).then(r=>{if(!r.ok)throw new Error('Session unavailable');return r.json();})`);
+    assert.equal(session.status, 'running', `${label}: server analysis keeps running`);
+    aiWindowEvidence.push({check: label, sessionId, status: session.status});
+  };
+  await typeMessage('Unsent next-turn draft while analysis runs');
+  const preserved = await aiWindowState();
+  if ((await aiWindowMetrics()).aside.visible) await aiMouseClick('.history-toggle');
+  await expectAiSidebar(false, 'running-sidebar-hide');
+  await aiMouseClick('.history-toggle');
+  await expectAiSidebar(true, 'running-sidebar-reopen');
+  await aiGripKey('ArrowLeft');
+  await aiGripKey('ArrowUp');
+  assert.deepEqual(await aiWindowState(), preserved, 'Running layout interactions preserve draft/session/model and storage');
+  await assertRunning('sidebar-and-resize-do-not-cancel-run');
+  await aiMouseClick('.ai-settings-button');
+  await condition("document.querySelector('app-settings') !== null && getComputedStyle(document.querySelector('.ai-panel')).display === 'none'");
+  await assertRunning('settings-suspension-does-not-cancel-run');
+  await click('.settings-cancel');
+  await condition("document.querySelector('app-settings') === null && getComputedStyle(document.querySelector('.ai-panel')).display !== 'none'");
+  assert.deepEqual(await aiWindowState(), preserved, 'Settings layout suspension preserves conversation state');
+  await typeMessage(initial.draft);
+  await aiMouseClick('.ai-panel-header [aria-label="Close AI analysis"]');
+  await condition("document.querySelector('ai-panel') === null");
+  await assertRunning('window-destruction-does-not-cancel-run');
+  await aiMouseClick('.ai-open-button');
+  await condition("document.querySelector('.chat-turn[data-status=running]') !== null && !document.querySelector('.ai-stop-button').disabled");
+  assert.deepEqual(await aiWindowState(), initial, 'Reopening restores the same running session/model');
+  await aiGripKey('Home');
+  await assertRunning('window-reopen-restores-running-analysis');
 }
 async function screenshot(name) {
   const result = await cdp("Page.captureScreenshot", { format: "png" });
@@ -115,7 +543,58 @@ async function selectInterfaceLanguage(selector, value) {
     select.value=${JSON.stringify(value)};
     select.dispatchEvent(new Event('change',{bubbles:true}));
   })()`);
-  await condition(`document.documentElement.lang === ${JSON.stringify(value)}`);
+  const resolved = value === 'system'
+    ? await evaluate("navigator.languages.find(locale=>/^(en|zh)(-|$)/i.test(locale))?.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en'")
+    : value;
+  await condition(`document.documentElement.lang === ${JSON.stringify(resolved)}`);
+}
+async function languageSystemRegression() {
+  await click('.toolbar .settings-button');
+  await condition("document.querySelector('.interface-language-select') !== null");
+  assert.deepEqual(await evaluate("[...document.querySelector('.interface-language-select').options].map(option=>option.value)"), ['system','en','zh-CN']);
+  await selectInterfaceLanguage('.interface-language-select', 'system');
+  assert.equal(await evaluate("localStorage.getItem('language')"), 'system');
+  for(const [locales, resolved] of [[['zh-TW','en-US'],'zh-CN'], [['en-GB','zh-CN'],'en']]) {
+    await evaluate(`Object.defineProperty(navigator,'languages',{configurable:true,get:()=>${JSON.stringify(locales)}});window.dispatchEvent(new Event('languagechange'));`);
+    await condition(`document.documentElement.lang === ${JSON.stringify(resolved)}`);
+    assert.equal(await evaluate("document.querySelector('.interface-language-select').value"), 'system');
+    assert.equal(await evaluate("localStorage.getItem('language')"), 'system');
+  }
+  await selectInterfaceLanguage('.interface-language-select', 'zh-CN');
+  await evaluate("Object.defineProperty(navigator,'languages',{configurable:true,get:()=>['en-US']});window.dispatchEvent(new Event('languagechange'))");
+  assert.equal(await evaluate('document.documentElement.lang'), 'zh-CN');
+  await evaluate("delete navigator.languages;window.dispatchEvent(new Event('languagechange'))");
+  await selectInterfaceLanguage('.interface-language-select', 'system');
+  await evaluate('window.__systemLanguageBeforeReload=true');
+  await cdp('Page.reload');
+  await condition("window.__systemLanguageBeforeReload === undefined && document.querySelector('.toolbar .settings-button') !== null");
+  const detected=await evaluate("navigator.languages.find(locale=>/^(en|zh)(-|$)/i.test(locale))?.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en'");
+  await condition(`document.documentElement.lang === ${JSON.stringify(detected)}`);
+  assert.equal(await evaluate("localStorage.getItem('language')"), 'system');
+  await click('.toolbar .settings-button');
+  await condition("document.querySelector('.interface-language-select')?.value === 'system'");
+  await selectInterfaceLanguage('.interface-language-select', 'en');
+  await click('.settings-close-button');
+  await condition("document.querySelector('app-settings') === null");
+  languageBrowserEvidence.push({check:'system-language-preference-reload-and-live-change',detected});
+}
+async function resetConfirmationSettingsRegression() {
+  for(const enabled of [false,true]) {
+    await click('.toolbar .settings-button');
+    await condition("document.querySelector('.confirm-trace-reset input[type=checkbox]') !== null");
+    await evaluate(`(() => {const checkbox=document.querySelector('.confirm-trace-reset input[type=checkbox]');if(checkbox.checked!==${enabled}) checkbox.click();})()`);
+    await condition(`localStorage.getItem('confirm-trace-reset') === '${enabled}'`);
+    await click('.settings-close-button');
+    await condition("document.querySelector('app-settings') === null");
+    await evaluate('window.__resetPreferenceBeforeReload=true');
+    await cdp('Page.reload');
+    await condition("window.__resetPreferenceBeforeReload === undefined && document.querySelector('.toolbar .settings-button') !== null");
+    await click('.toolbar .settings-button');
+    await condition(`document.querySelector('.confirm-trace-reset input[type=checkbox]')?.checked === ${enabled}`);
+    await click('.settings-close-button');
+    await condition("document.querySelector('app-settings') === null");
+  }
+  languageBrowserEvidence.push({check:'reset-confirmation-checkbox-persistence-and-restoration'});
 }
 async function chooseThemeMode(mode) {
   await evaluate(`(() => {
@@ -127,6 +606,104 @@ async function chooseThemeMode(mode) {
   await condition(
     `document.querySelector('.theme-mode-select')?.value === ${JSON.stringify(mode)}`,
   );
+}
+async function chooseDisplayScale(scale) {
+  await evaluate(`(() => {
+    const select=document.querySelector('.display-scale-select');
+    if(!select || select.disabled) throw new Error('Display size is unavailable');
+    select.selectedIndex=[...select.options].findIndex(option=>option.textContent.trim()===${JSON.stringify(`${scale}%`)});
+    if(select.selectedIndex<0) throw new Error('Display size preset is unavailable');
+    select.dispatchEvent(new Event('change',{bubbles:true}));
+  })()`);
+  await condition(`document.querySelector('.display-scale-select')?.selectedOptions[0]?.textContent.trim() === '${scale}%' && Number(document.documentElement.style.zoom) === ${scale / 100}`);
+  await evaluate('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
+}
+const displayScaleEvidence = [];
+async function settingsSelectArrowMetrics(label) {
+  const metrics = await evaluate(`(() => {
+    const zoom=Number(document.documentElement.style.zoom)||1;
+    return [...document.querySelectorAll('app-settings select')].filter(e=>e.getClientRects().length).map(select=>{
+      const arrow=select.parentElement.querySelector('.settings-select-arrow');
+      if(!arrow) return {label:select.getAttribute('aria-label'),missing:true};
+      const s=select.getBoundingClientRect(),a=arrow.getBoundingClientRect(),style=getComputedStyle(select);
+      return {label:select.getAttribute('aria-label'),inset:(s.right-a.right)/zoom,centerOffset:Math.abs((s.y+s.height/2)-(a.y+a.height/2))/zoom,height:s.height/zoom,paddingRight:style.paddingRight,appearance:style.appearance,pointerEvents:getComputedStyle(arrow).pointerEvents};
+    });
+  })()`);
+  assert.ok(metrics.length >= 2, `${label}: visible settings selects`);
+  for (const metric of metrics) {
+    assert.equal(metric.missing, undefined, `${label}: ${metric.label} arrow`);
+    assert.ok(Math.abs(metric.inset - 8) < 1, `${label}: ${metric.label} arrow inset`);
+    assert.ok(metric.centerOffset < 1, `${label}: centered arrow`);
+    assert.ok(Math.abs(metric.height - 32) < 1, `${label}: unchanged select height`);
+    assert.equal(metric.paddingRight, '36px');
+    assert.equal(metric.appearance, 'none');
+    assert.equal(metric.pointerEvents, 'none');
+  }
+  return metrics;
+}
+async function displayScaleSettingsRegression() {
+  const initialViewport = await evaluate('({width:innerWidth,height:innerHeight,dark:document.body.classList.contains("dark-mode")})');
+  const capture = async (scale, label) => {
+    const metrics=await evaluate(`(() => {
+      const box=e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height};};
+      const d=document.querySelector('app-settings .settings-dialog'),s=document.querySelector('.display-scale-select'),reset=document.querySelector('.display-scale-reset'),footer=d.querySelector('.settings-footer'),language=d.querySelector('.interface-language-select'),menu=d.querySelector('.settings-menu'),homeFooter=document.querySelector('.landing-status-bar');
+      return {viewport:{width:innerWidth,height:innerHeight},zoom:Number(document.documentElement.style.zoom),dialog:box(d),select:box(s),reset:box(reset),footer:box(footer),language:box(language),menu:box(menu),overflow:d.scrollWidth>d.clientWidth,resetDisabled:reset.disabled,homepage:{footer:box(homeFooter),cards:[...document.querySelectorAll('.landing-grid .collect-card,.landing-grid .upload-card')].map(e=>({...box(e),bottomGap:(homeFooter.getBoundingClientRect().top-e.getBoundingClientRect().bottom)/(Number(document.documentElement.style.zoom)||1)}))}};
+    })()`);
+    assert.equal(metrics.zoom,scale/100);
+    assert.equal(metrics.overflow,false,`${label}: display-size controls cannot overflow`);
+    assert.ok(metrics.dialog.right<=metrics.viewport.width+1);
+    assert.ok(metrics.footer.bottom<=metrics.viewport.height+1);
+    assert.ok(metrics.select.width>40,`${label}: preset selector remains usable`);
+    assert.ok(metrics.reset.right<=metrics.dialog.right+1);
+    assert.ok(Math.abs(metrics.language.height-32*scale/100)<1,`${label}: controls actually scale`);
+    assert.equal(metrics.resetDisabled,scale===100);
+    assert.ok(Math.abs(metrics.homepage.footer.bottom-metrics.viewport.height)<1,`${label}: homepage footer stays at viewport bottom`);
+    assert.equal(metrics.homepage.cards.length,2);
+    for(const card of metrics.homepage.cards) {
+      assert.ok(card.height>100,`${label}: homepage cards retain usable height`);
+      assert.ok(card.bottomGap>=-1 && card.bottomGap<=12,`${label}: homepage card bottom gap is fixed, got ${card.bottomGap}`);
+    }
+    const dropdowns = await settingsSelectArrowMetrics(label);
+    displayScaleEvidence.push({label,scale,...metrics,dropdowns});
+  };
+  const options=await evaluate('[...document.querySelector(".display-scale-select").options].map(option=>option.textContent.trim())');
+  assert.deepEqual(options,['80%','90%','100%','110%','120%','130%','140%']);
+  for(const scale of [80,90,100,110,120,130,140]) await chooseDisplayScale(scale);
+  await click('.display-scale-reset');
+  await condition("Number(document.documentElement.style.zoom) === 1");
+  for(const [width,height] of [[1440,960],[1280,800],[1920,1080],[390,844]]) {
+    await cdp('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false});
+    for(const dark of [false,true]) {
+      await chooseThemeMode(dark?'dark':'light');
+      for(const scale of [80,100,140]) {
+        await chooseDisplayScale(scale);
+        await capture(scale,`${width}px-${dark?'dark':'light'}-${scale}`);
+        if(scale===80 || scale===140) {
+          await screenshot(`display-size-${width}-${scale}-${dark?'dark':'light'}.png`);
+          await click('.settings-close-button');
+          await condition("document.querySelector('app-settings') === null");
+          await screenshot(`homepage-scale-${width}-${scale}-${dark?'dark':'light'}.png`);
+          await click('.toolbar .settings-button');
+          await condition("document.querySelector('.display-scale-select') !== null");
+        }
+      }
+    }
+  }
+  await cdp('Emulation.setDeviceMetricsOverride',{width:initialViewport.width,height:initialViewport.height,deviceScaleFactor:1,mobile:false});
+  await chooseDisplayScale(120);
+  await click('.settings-cancel');
+  await condition("document.querySelector('app-settings') === null");
+  assert.equal(await evaluate('Number(document.documentElement.style.zoom)'),1.2);
+  await evaluate('window.__displayBeforeReload=true');
+  await cdp('Page.reload');
+  await condition("window.__displayBeforeReload === undefined && document.querySelector('.settings-button') !== null && Number(document.documentElement.style.zoom) === 1.2");
+  await click('.settings-button');
+  await condition("document.querySelector('.display-scale-select')?.selectedOptions[0]?.textContent.trim() === '120%'");
+  assert.equal(await evaluate("localStorage.getItem('display-scale')"),'120');
+  await click('.display-scale-reset');
+  await condition("document.querySelector('.display-scale-select')?.selectedOptions[0]?.textContent.trim() === '100%' && Number(document.documentElement.style.zoom) === 1");
+  await chooseThemeMode('system');
+  await writeFile(join(evidenceDir,'display-size-browser.json'),JSON.stringify({ok:true,checks:['80-140-percent-live-scale','desktop-mobile-light-dark','preference-reload','cancel-preserves-scale','reset-100-percent'],metrics:displayScaleEvidence},null,2)+'\n');
 }
 async function emulateColorScheme(scheme) {
   await cdp("Emulation.setEmulatedMedia", {
@@ -267,6 +844,7 @@ async function selectLandingLanguage(value) {
       );
     }
     await themeSettingsRegression();
+    await displayScaleSettingsRegression();
     await screenshot("settings-general-desktop.png");
     generalSettingsChecked = true;
   }
@@ -286,6 +864,8 @@ async function languageLandingRegression() {
   );
   // Native stable selectors keep this test independent of the host browser locale.
   await selectLandingLanguage("en");
+  await languageSystemRegression();
+  await resetConfirmationSettingsRegression();
   await condition(
     "document.querySelector('.welcome-info')?.textContent.includes('Welcome to Winscope')",
   );
@@ -294,8 +874,12 @@ async function languageLandingRegression() {
   await condition(
     "document.querySelector('.welcome-info')?.textContent.includes('欢迎使用 Winscope')",
   );
-
-
+  await condition(
+    "document.querySelector('upload-traces .title')?.textContent.trim() === '上传跟踪'",
+  );
+  await condition(
+    "document.querySelector('collect-traces .title')?.textContent.trim() === '采集跟踪'",
+  );
   assert.equal(await evaluate("localStorage.getItem('language')"), "zh-CN");
   const normalUrl = await evaluate("location.href");
   await screenshot("i18n-landing-chinese.png");
@@ -329,6 +913,14 @@ async function languageLandingRegression() {
     detected,
     "Privacy mode ignores saved language and uses browser preference",
   );
+  await click('.settings-button');
+  await condition("document.querySelector('.display-scale-select') !== null");
+  const savedScale=await evaluate("localStorage.getItem('display-scale')");
+  assert.equal(await evaluate('Number(document.documentElement.style.zoom)'),1);
+  await chooseDisplayScale(140);
+  assert.equal(await evaluate("localStorage.getItem('display-scale')"),savedScale);
+  await click('.display-scale-reset');
+  await click('.settings-close-button');
   await selectLandingLanguage("en");
   await condition(
     "document.querySelector('.privacy-mode-diagnostic')?.textContent.includes('Privacy mode is active')",
@@ -522,6 +1114,7 @@ async function localConfigurationRegression(providerCapture, claudeHome) {
     "document.querySelector('.composer-input').value",
   );
   await click(".ai-settings-button");
+  await chooseProvider('codex');
   await condition(
     "document.querySelector('[aria-label=\"Get Codex configuration\"]') !== null",
   );
@@ -529,7 +1122,7 @@ async function localConfigurationRegression(providerCapture, claudeHome) {
   const claude = '.provider-settings[data-provider="claude"]';
   assert.equal(
     await evaluate(
-      "document.querySelector('select[aria-label=Provider]') === null",
+      "document.querySelector('select[aria-label=Provider]') !== null",
     ),
     true,
   );
@@ -544,7 +1137,7 @@ async function localConfigurationRegression(providerCapture, claudeHome) {
     "https://codex.fixture.invalid/v1",
   );
   await condition(
-    "document.querySelector('[data-field=active-provider]')?.value === 'Codex'",
+    "document.querySelector('[data-field=active-provider]')?.value === 'codex'",
   );
   await chooseProviderField("codex", "model", "__custom__");
   await chooseProviderField("codex", "custom-model", "invalid inactive!");
@@ -553,13 +1146,14 @@ async function localConfigurationRegression(providerCapture, claudeHome) {
   const settingsPath = join(claudeHome, "settings.json");
   const originalSettings = await readFile(settingsPath, "utf8");
   await writeFile(settingsPath, "{ invalid FIXTURE_SECRET");
+  await chooseProvider('claude');
   await click('[aria-label="Get Claude configuration"]');
   await condition(`document.querySelector('${claude} [role=alert]') !== null`);
   assert.equal(
     await evaluate(
       "document.querySelector('[data-field=active-provider]').value",
     ),
-    "Codex",
+    "claude",
   );
   assert.equal(
     await evaluate(
@@ -572,12 +1166,14 @@ async function localConfigurationRegression(providerCapture, claudeHome) {
   await condition(
     `document.querySelector('${claude} [data-field=model]')?.value === 'fixture/claude[1m]'`,
   );
+  await chooseProvider('codex');
   assert.equal(
     await evaluate(
       `document.querySelector('${codex} [data-field=custom-model]').value`,
     ),
     "invalid inactive!",
   );
+  await chooseProvider('claude');
   assert.equal(
     await evaluate(
       `document.querySelector('${claude} [data-field=base-url]').value`,
@@ -588,7 +1184,7 @@ async function localConfigurationRegression(providerCapture, claudeHome) {
     await evaluate(
       "document.querySelector('[data-field=active-provider]').value",
     ),
-    "Claude",
+    "claude",
   );
   assert.equal(
     await evaluate(
@@ -600,9 +1196,38 @@ async function localConfigurationRegression(providerCapture, claudeHome) {
     "fetch('./ai/api/providers').then(r=>r.text())",
   );
   assert.equal(browserData.includes("FIXTURE_SECRET"), false);
+  await chooseProviderField('claude', 'base-url', 'https://claude.manual.fixture.invalid/v1');
+  await chooseProviderField('claude', 'provider-name', 'Manual Claude');
+  await chooseProviderField('claude', 'api-key-env', 'WINSCOPE_FIXTURE_API_KEY');
+  await chooseProviderField('claude', 'timeout', '90000');
   await screenshot("ai-local-config-settings.png");
   await click(".settings-save");
   await condition("document.querySelector('app-settings') === null");
+  await click('.ai-settings-button');
+  await condition("document.querySelector('.configured-status') !== null");
+  assert.equal(await evaluate("document.querySelector('[data-field=active-provider]').value"), 'claude');
+  assert.equal(await evaluate("document.querySelector('[data-field=base-url]').value"), 'https://claude.manual.fixture.invalid/v1');
+  assert.equal(await evaluate("document.querySelector('[data-field=provider-name]').value"), 'Manual Claude');
+  assert.equal(await evaluate("document.querySelector('[data-field=api-key-env]').value"), 'WINSCOPE_FIXTURE_API_KEY');
+  assert.equal(await evaluate("document.querySelector('[data-field=timeout]').value"), '90000');
+  assert.equal(await evaluate("document.querySelector('.authentication-status').textContent.includes('API key environment variable is not set')"), true);
+  const originalViewport = await evaluate('({width:innerWidth,height:innerHeight,dark:document.body.classList.contains("dark-mode")})');
+  for (const [width, height, dark] of [[1280, 800, false], [1280, 800, true], [390, 844, false], [390, 844, true]]) {
+    await cdp('Emulation.setDeviceMetricsOverride', {width, height, deviceScaleFactor: 1, mobile: false});
+    await evaluate(`document.body.classList.toggle('dark-mode',${dark})`);
+    const layout = await evaluate(`(() => {
+      const dialog=document.querySelector('.settings-dialog'), fields=[...dialog.querySelectorAll('.provider-settings input,.provider-settings select')];
+      return {overflow:dialog.scrollWidth>dialog.clientWidth,fields:fields.length,editable:fields.every(field=>!field.disabled&&!field.readOnly),footer:dialog.querySelector('.settings-footer').getBoundingClientRect().bottom};
+    })()`);
+    assert.equal(layout.overflow, false);
+    assert.equal(layout.fields, 6);
+    assert.equal(layout.editable, true);
+    assert.ok(layout.footer <= height);
+    await screenshot(`ai-provider-settings-${width}-${dark ? 'dark' : 'light'}.png`);
+  }
+  await cdp('Emulation.setDeviceMetricsOverride', {width: originalViewport.width, height: originalViewport.height, deviceScaleFactor: 1, mobile: false});
+  await evaluate(`document.body.classList.toggle('dark-mode',${originalViewport.dark})`);
+  await click('.settings-cancel');
   assert.equal(
     await evaluate("document.querySelector('.composer-input').value"),
     originalDraft,
@@ -614,6 +1239,7 @@ async function localConfigurationRegression(providerCapture, claudeHome) {
   ].entries()) {
     if (index > 0) {
       await click(".ai-settings-button");
+      await chooseProvider(provider);
       await condition(
         `document.querySelector('[aria-label="Get ${provider === "codex" ? "Codex" : "Claude"} configuration"]') !== null`,
       );
@@ -621,24 +1247,19 @@ async function localConfigurationRegression(providerCapture, claudeHome) {
         `[aria-label="Get ${provider === "codex" ? "Codex" : "Claude"} configuration"]`,
       );
       await condition(
-        `document.querySelector('[data-field=active-provider]')?.value === '${provider === "codex" ? "Codex" : "Claude"}' && !document.querySelector('.settings-save').disabled`,
+        `document.querySelector('[data-field=active-provider]')?.value === '${provider}' && !document.querySelector('.settings-save').disabled`,
       );
       await click(".settings-save");
       await condition("document.querySelector('app-settings') === null");
     }
+    await openConversationModels();
     assert.deepEqual(
       await evaluate(
-        "Array.from(document.querySelector('select[aria-label=\"Conversation model\"]').querySelectorAll('optgroup'),g=>g.label)",
+        "Array.from(document.querySelectorAll('.conversation-model-list .model-group'),group=>group.getAttribute('aria-label'))",
       ),
       [provider === "codex" ? "Codex" : "Claude"],
     );
-    await evaluate(`(() => {
-      const s=document.querySelector('select[aria-label="Conversation model"]');
-      const group=[...s.querySelectorAll('optgroup')].find(g=>g.label===${JSON.stringify(provider === "codex" ? "Codex" : "Claude")});
-      const option=[...group.querySelectorAll('option')].find(o=>JSON.parse(o.value)[1]===${JSON.stringify(model)});
-      if(!option)throw new Error('Imported model is missing');
-      s.value=option.value;s.dispatchEvent(new Event('change',{bubbles:true}));
-    })()`);
+    await chooseConversationModel(JSON.stringify([provider,model]));
     const count = await evaluate(
       "document.querySelectorAll('.chat-turn[data-status=completed]').length",
     );
@@ -654,6 +1275,7 @@ async function localConfigurationRegression(providerCapture, claudeHome) {
     assert.equal(latest.modelId, model);
     const captured = JSON.parse(await readFile(providerCapture, "utf8"));
     assert.ok(captured.args.includes(model));
+    if (index === 0) assert.equal(captured.baseUrl, 'https://claude.manual.fixture.invalid/v1');
     assert.ok(
       captured.args.includes(provider === "codex" ? "exec" : "--print"),
     );
@@ -668,7 +1290,7 @@ async function applicationSettingsMetrics(label, { short = false } = {}) {
   const metrics = await evaluate(`(() => {
     const box=e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom};};
     const dialog=document.querySelector('app-settings .settings-dialog'),menu=dialog.querySelector('.settings-menu'),content=dialog.querySelector('.settings-content'),footer=dialog.querySelector('.settings-footer');
-    return {viewport:{width:innerWidth,height:innerHeight},theme:document.body.classList.contains('dark-mode')?'dark':'light',dialog:box(dialog),menu:box(menu),content:{...box(content),clientHeight:content.clientHeight,scrollHeight:content.scrollHeight,overflowY:getComputedStyle(content).overflowY},footer:box(footer),horizontalOverflow:dialog.scrollWidth>dialog.clientWidth,aiHidden:!document.querySelector('.ai-panel')||getComputedStyle(document.querySelector('.ai-panel')).display==='none',tabs:[...menu.querySelectorAll('[role=tab]')].map(e=>({selected:e.getAttribute('aria-selected'),...box(e)})),fieldHeights:[...dialog.querySelectorAll('.provider-settings input,.provider-settings select')].filter(e=>e.getClientRects().length).map(e=>box(e).height),actions:[...footer.querySelectorAll('button')].map(e=>({label:e.getAttribute('aria-label'),...box(e)}))};
+    return {viewport:{width:innerWidth,height:innerHeight},theme:document.body.classList.contains('dark-mode')?'dark':'light',dialog:box(dialog),menu:box(menu),content:{...box(content),clientHeight:content.clientHeight,scrollHeight:content.scrollHeight,overflowY:getComputedStyle(content).overflowY},footer:box(footer),horizontalOverflow:dialog.scrollWidth>dialog.clientWidth,aiHidden:!document.querySelector('.ai-panel')||getComputedStyle(document.querySelector('.ai-panel')).display==='none',tabs:[...menu.querySelectorAll('[role=tab]')].map(e=>({selected:e.getAttribute('aria-selected'),...box(e)})),fieldHeights:[...dialog.querySelectorAll('ai-settings .settings-field input,ai-settings .settings-field select')].filter(e=>e.getClientRects().length).map(e=>box(e).height),actions:[...footer.querySelectorAll('button')].map(e=>({label:e.getAttribute('aria-label'),...box(e)}))};
   })()`);
   assert.equal(
     metrics.horizontalOverflow,
@@ -701,7 +1323,8 @@ async function applicationSettingsMetrics(label, { short = false } = {}) {
     assert.equal(metrics.content.overflowY, "auto");
     assert.ok(metrics.content.scrollHeight > metrics.content.clientHeight);
   }
-  compactDensityEvidence.push({ label, ...metrics });
+  const dropdowns = await settingsSelectArrowMetrics(label);
+  compactDensityEvidence.push({ label, ...metrics, dropdowns });
   return metrics;
 }
 async function compactDensityMetrics(
@@ -909,7 +1532,7 @@ try {
   const providerCapture = join(work, "provider-capture.json");
   await writeFile(
     providerFile,
-    `const fs=require('node:fs'); let text=''; process.stdin.setEncoding('utf8'); process.stdin.on('data',c=>text+=c); process.stdin.on('end',()=>{const answer=()=>{fs.writeFileSync(${JSON.stringify(providerCapture)},JSON.stringify({args:process.argv.slice(2),context:text}));console.log('The available evidence is incomplete. Load a screen recording and SurfaceFlinger trace to correlate black-screen intervals. Your attached notes have been included in the analysis context.');}; if(text.includes('wait-for-stop')) setTimeout(answer,30000); else answer();});`,
+    `const fs=require('node:fs'); let text=''; process.stdin.setEncoding('utf8'); process.stdin.on('data',c=>text+=c); process.stdin.on('end',()=>{const answer=()=>{fs.writeFileSync(${JSON.stringify(providerCapture)},JSON.stringify({args:process.argv.slice(2),context:text,baseUrl:process.env.ANTHROPIC_BASE_URL}));console.log('The available evidence is incomplete. Load a screen recording and SurfaceFlinger trace to correlate black-screen intervals. Your attached notes have been included in the analysis context.');}; if(text.includes('wait-for-stop')) setTimeout(answer,30000); else answer();});`,
   );
   await writeFile(join(work, "notes.txt"), "ATTACHED_NOTE_EVIDENCE");
   const cliDirectory = join(work, "bin");
@@ -973,7 +1596,10 @@ if(process.argv[2]==='app-server'){
           name: "Browser fixture",
           executable: process.execPath,
           args: [providerFile],
-          models: [{ id: "fixture-model", name: "Fixture model" }],
+          models: [
+            { id: "fixture-model", name: "Fixture model" },
+            { id: "fixture-alternate", name: "Fixture alternate model with a deliberately long label to check wrapping" },
+          ],
           modelArgs: ["--model", "{{model}}"],
           reasoningArgs: ["--effort", "{{level}}"],
         },
@@ -1014,7 +1640,7 @@ if(process.argv[2]==='app-server'){
   ai = spawn(
     process.execPath,
     [
-      join(root, "ai/dist/src/cli.js"),
+      join(process.env.WINSCOPE_AI_DIST_ROOT ?? join(root, "ai/dist/src"), "cli.js"),
       "serve",
       "--port",
       String(aiPort),
@@ -1028,6 +1654,7 @@ if(process.argv[2]==='app-server'){
         PATH: `${cliDirectory}:${process.env.PATH}`,
         CODEX_HOME: codexHome,
         CLAUDE_CONFIG_DIR: claudeHome,
+        WINSCOPE_AI_SETTINGS: join(work, 'ai-settings.json'),
         ANTHROPIC_MODEL: undefined,
       },
     },
@@ -1040,8 +1667,9 @@ if(process.argv[2]==='app-server'){
     async () => (await fetch(`http://127.0.0.1:${aiPort}/health`)).ok,
     `gateway startup ${aiLog}`,
   );
-  const executable = join(work, "winscope-launcher");
-  await command("go", ["build", "-o", executable, "./cmd/launcher"]);
+  const executable = process.env.WINSCOPE_AI_LAUNCHER ?? join(work, "winscope-launcher");
+  if (!process.env.WINSCOPE_AI_LAUNCHER)
+    await command("go", ["build", "-o", executable, "./cmd/launcher"]);
   launcher = spawn(
     executable,
     ["--root", work, "--ai-url", `http://127.0.0.1:${aiPort}`],
@@ -1063,6 +1691,11 @@ if(process.argv[2]==='app-server'){
   ).catch((error) => {
     throw new Error(`${error.message}: ${launchLog}`);
   });
+  for (const entry of ['/', '/?no-persistence=']) {
+    const response = await fetch(new URL(entry, origin));
+    assert.equal(response.status, 200, `Launcher must support ${entry}; use a current WINSCOPE_AI_LAUNCHER`);
+    await response.arrayBuffer();
+  }
   browser = spawn(
     process.env.CHROME_BIN ??
       "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -1122,6 +1755,28 @@ if(process.argv[2]==='app-server'){
     "document.querySelector('.ai-settings-button') !== null && !document.querySelector('.ai-settings-button').disabled",
   );
   await languageAiRegression();
+  const scaleDraft='Preserve message while changing display size';
+  await typeMessage(scaleDraft);
+  await click('.toolbar .settings-button');
+  await condition("document.querySelector('.display-scale-select') !== null");
+  await chooseDisplayScale(140);
+  await click('.settings-close-button');
+  await condition("document.querySelector('app-settings') === null && getComputedStyle(document.querySelector('.ai-panel')).display !== 'none'");
+  const scaledChat=await evaluate('(()=>{const c=document.querySelector(".ai-composer").getBoundingClientRect();return {right:c.right,bottom:c.bottom,width:innerWidth,height:innerHeight,draft:document.querySelector(".composer-input").value}})()');
+  assert.equal(scaledChat.draft,scaleDraft);
+  assert.ok(scaledChat.right<=scaledChat.width+1 && scaledChat.bottom<=scaledChat.height+1);
+  await click('.composer-add');
+  await condition("document.querySelector('.cdk-overlay-pane .mat-mdc-menu-panel') !== null");
+  const scaledMenu=await evaluate('(()=>{const r=document.querySelector(".cdk-overlay-pane .mat-mdc-menu-panel").getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:innerWidth,height:innerHeight}})()');
+  assert.ok(scaledMenu.left>=-1 && scaledMenu.right<=scaledMenu.width+1 && scaledMenu.top>=-1 && scaledMenu.bottom<=scaledMenu.height+1);
+  await cdp('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+  await cdp('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+  await condition("document.querySelector('.cdk-overlay-pane .mat-mdc-menu-panel') === null");
+  await click('.toolbar .settings-button');
+  await condition("document.querySelector('.display-scale-reset') !== null");
+  await click('.display-scale-reset');
+  await click('.settings-close-button');
+  await typeMessage('');
   await click('[aria-label="AI settings"]');
   await condition(
     'document.querySelector(\'.provider-settings[data-provider="browser-fixture"] option[value="fixture-model"]\') !== null',
@@ -1134,10 +1789,11 @@ if(process.argv[2]==='app-server'){
   await condition("document.querySelector('app-settings') === null");
   assert.equal(
     await evaluate(
-      "document.querySelector('.ai-composer select[aria-label=\"Conversation model\"]')?.value",
+      "document.querySelector('.ai-composer .model-select')?.value",
     ),
     JSON.stringify(["browser-fixture", "fixture-model"]),
   );
+  await conversationModelMenuRegression();
   const initialGeometry = await evaluate(`(() => {
     const card=document.querySelector('.ai-composer'), input=document.querySelector('.composer-input'), plus=document.querySelector('.composer-add'), send=document.querySelector('.composer-primary');
     const c=getComputedStyle(card), i=getComputedStyle(input), box=element=>({width:element.getBoundingClientRect().width,height:element.getBoundingClientRect().height});
@@ -1266,6 +1922,7 @@ if(process.argv[2]==='app-server'){
   assert.match(followCapture.context, /Previous conversation/);
   assert.match(followCapture.context, /Analyze the black-screen fixture/);
   await screenshot("ai-workflow-desktop.png");
+  await aiWindowRegression();
   // Close/reopen and full-page refresh must restore the same two-turn session.
   await click('[aria-label="Close AI analysis"]');
   await click(".ai-open-button");
@@ -1301,6 +1958,7 @@ if(process.argv[2]==='app-server'){
   await condition(
     "document.querySelector('.chat-turn[data-status=running]') !== null && !document.querySelector('.ai-stop-button').disabled",
   );
+  await aiWindowRunningRegression();
   await click(".ai-stop-button");
   await condition(
     "document.querySelector('.chat-turn[data-status=cancelled]') !== null",
@@ -1322,18 +1980,14 @@ if(process.argv[2]==='app-server'){
     "wait-for-stop",
   );
   await localConfigurationRegression(providerCapture, claudeHome);
-  // Auto-grow is bounded to 14 lines, with one native textarea scrollport.
+  // Auto-grow reaches the smaller of 14 lines and 40% of the actual AI panel.
   await typeMessage(
     Array.from({ length: 30 }, (_, index) => `Line ${index}`).join("\n"),
   );
   await condition(
-    "document.querySelector('.composer-input').clientHeight >= 330",
+    "(() => {const input=document.querySelector('.composer-input'),cap=Math.min(336,Math.round(document.querySelector('.ai-panel').clientHeight*0.4));return Math.abs(input.getBoundingClientRect().height/(Number(document.documentElement.style.zoom)||1)-cap)<=2 && input.scrollHeight>input.clientHeight;})()",
   );
-  assert.ok(
-    await evaluate(
-      "document.querySelector('.composer-input').getBoundingClientRect().height <= 336",
-    ),
-  );
+  assertAiWindowCap(await aiWindowMetrics(), 'default-window-multiline-cap');
   await screenshot("ai-composer-multiline.png");
   await typeMessage("Review my display trace");
   await evaluate("document.body.classList.remove('dark-mode')");
@@ -1396,6 +2050,7 @@ if(process.argv[2]==='app-server'){
     deviceScaleFactor: 1,
     mobile: false,
   });
+  await condition("document.querySelector('.ai-panel.compact-window') !== null && document.querySelector('#ai-conversation-browser').hidden");
   await click(".history-toggle");
   await condition("document.querySelector('.ai-sidebar.open') !== null");
   await screenshot("ai-workflow-mobile-history.png");
@@ -1432,6 +2087,8 @@ if(process.argv[2]==='app-server'){
     checks: [
       "session-browser",
       "model-and-effort",
+      "borderless-model-label-opens-full-menu",
+      "model-menu-selection-escape-focus-and-responsive-layout",
       "text-attachment-content",
       "enter-send",
       "multi-turn-history",
@@ -1446,11 +2103,22 @@ if(process.argv[2]==='app-server'){
       "toolbar-settings-entry-and-no-toolbar-language-selector",
       "independent-settings-general-ai-left-navigation",
       "provider-specific-config-fields-and-draft-isolation",
+      "provider-dropdown-single-selected-view",
+      "manual-provider-settings-save-reopen-and-runtime-url",
+      "configured-settings-distinct-from-missing-api-key",
+      "full-provider-form-desktop-mobile-light-dark",
       "last-successful-import-selects-single-provider",
       "failed-import-preserves-active-provider",
       "composer-only-active-provider-models",
       "general-settings-theme-and-menu-keyboard",
       "theme-system-live-follow",
+      "system-language-preference-reload-and-live-change",
+      "reset-confirmation-checkbox-persistence-and-restoration",
+      "display-size-live-persistence-reset-and-privacy",
+      "display-size-seven-fixed-presets",
+      "homepage-card-bottom-gap-at-every-scale-and-viewport",
+      "display-size-desktop-mobile-light-dark",
+      "display-size-preserves-chat-draft",
       "theme-explicit-override-and-reload",
       "toolbar-theme-button-removed",
       "local-codex-claude-import-and-model-refresh",
@@ -1466,6 +2134,7 @@ if(process.argv[2]==='app-server'){
       "compact-material-density",
       "compact-desktop-mobile-light-dark",
       "640px-composer-and-scrollable-settings-footer",
+      ...aiWindowChecks,
     ],
     screenshots: [
       "ai-workflow-desktop.png",
@@ -1473,10 +2142,18 @@ if(process.argv[2]==='app-server'){
       "ai-workflow-mobile.png",
       "ai-composer-empty.png",
       "ai-composer-settings.png",
+      "ai-model-menu-1280-light.png",
+      "ai-model-menu-1280-dark.png",
+      "ai-model-menu-390-light.png",
+      "ai-model-menu-390-dark.png",
       "settings-general-desktop.png",
       "settings-general-system-dark.png",
       "settings-general-light.png",
       "ai-local-config-settings.png",
+      "ai-provider-settings-1280-light.png",
+      "ai-provider-settings-1280-dark.png",
+      "ai-provider-settings-390-light.png",
+      "ai-provider-settings-390-dark.png",
       "ai-local-config-composer.png",
       "ai-composer-actions.png",
       "ai-composer-multiline.png",
@@ -1489,10 +2166,16 @@ if(process.argv[2]==='app-server'){
       "ai-density-mobile-light.png",
       "ai-density-mobile-dark.png",
       "ai-density-mobile-settings.png",
+      ...aiWindowScreenshots,
     ],
   };
   result.composerGeometry = initialGeometry;
   result.compactDensity = compactDensityEvidence;
+  result.aiWindow = aiWindowEvidence;
+  await writeFile(
+    join(evidenceDir, 'ai-window-browser.json'),
+    JSON.stringify({ok: true, checks: aiWindowChecks, metrics: aiWindowEvidence, screenshots: aiWindowScreenshots}, null, 2) + '\n',
+  );
   await writeFile(
     join(evidenceDir, "ai-compact-density.json"),
     JSON.stringify({ ok: true, metrics: compactDensityEvidence }, null, 2) +
@@ -1504,6 +2187,15 @@ if(process.argv[2]==='app-server'){
   );
   console.log(JSON.stringify(result));
 } catch (error) {
+  if (aiWindowEvidence.length) {
+    if (socket?.readyState === WebSocket.OPEN) {
+      await screenshot('ai-window-failure.png').then(() => aiWindowScreenshots.push('ai-window-failure.png')).catch(() => {});
+    }
+    await writeFile(
+      join(evidenceDir, 'ai-window-browser.json'),
+      JSON.stringify({ok: false, error: String(error), checks: aiWindowChecks, metrics: aiWindowEvidence, screenshots: aiWindowScreenshots}, null, 2) + '\n',
+    );
+  }
   if (socket?.readyState === WebSocket.OPEN)
     console.error(
       await evaluate(

@@ -21,6 +21,7 @@ import {HierarchyViewerComponent} from '@app/shared/hierarchy/hierarchy_viewer_c
 import {PropertiesComponent} from '@app/shared/properties/properties_component';
 import {RectsComponent} from '@app/shared/rects/rects_component';
 import {assertDefined} from '@common/assert';
+import {TranslatePipe} from '@common/i18n';
 import {CollapsibleSectionType} from '@ui/shared/collapsible_sections/collapsible_section_type';
 import {CollapsibleSections} from '@ui/shared/collapsible_sections/collapsible_sections';
 import {ShadingMode} from '@ui/shared/rects/shading_mode';
@@ -30,6 +31,7 @@ import {UiData} from '@ui/window_manager/ui_data';
   selector: 'viewer-window-manager',
   standalone: true,
   imports: [
+    TranslatePipe,
     CommonModule,
     CollapsedSectionsComponent,
     RectsComponent,

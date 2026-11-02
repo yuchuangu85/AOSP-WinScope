@@ -25,6 +25,6 @@ limitations under the License.
     n.getDisplayName()
   }}</span>
   @for (chip of n.getChips(); track chip.short) {
-    <div [class]="chipClass(chip)" [matTooltip]="chip.long">{{ chip.short }}</div>
+    <div [class]="chipClass(chip)" [matTooltip]="chip.long | tr">{{ chip.short }}</div>
   }
 </span>

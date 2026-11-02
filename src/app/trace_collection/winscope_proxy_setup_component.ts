@@ -7,13 +7,14 @@ import {CommonModule} from '@angular/common';
 import {Component, input, output} from '@angular/core';
 import {MatButtonModule} from '@angular/material/button';
 import {MatIconModule} from '@angular/material/icon';
+import {TranslatePipe} from '@common/i18n';
 import {ConnectionState} from '@trace_collection/connection_state';
 
 /** Shows recovery guidance for the launcher-managed capture session. */
 @Component({
   selector: 'winscope-proxy-setup',
   standalone: true,
-  imports: [CommonModule, MatButtonModule, MatIconModule],
+  imports: [TranslatePipe, CommonModule, MatButtonModule, MatIconModule],
   templateUrl: './winscope_proxy_setup_component.ng.html',
   styleUrls: ['winscope_proxy_setup_component.scss'],
 })

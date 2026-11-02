@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-<button mat-icon-button matTooltip="Collapse" (click)="onCollapseButtonClick()">
+<button mat-icon-button [matTooltip]="'Collapse' | tr" (click)="onCollapseButtonClick()">
   <mat-icon class="material-symbols-outlined"> left_panel_close </mat-icon>
 </button>
-<span class="mat-headline-6 section-title">{{ title().toUpperCase() }}</span>
+<span class="mat-headline-6 section-title">{{ (title() | tr).toUpperCase() }}</span>

@@ -77,7 +77,7 @@ limitations under the License.
     >
       @if (data?.isPlaybackPlaying) {
         <div class="disabled-message user-notification mat-body-1">
-          Properties disabled due to playback
+          {{ 'Properties disabled due to playback' | tr }}
         </div>
       }
       @let curatedCollapsed =
@@ -117,7 +117,7 @@ limitations under the License.
         [traceType]="TraceType.SURFACE_FLINGER"
         [store]="currStore"
         [isProtoDump]="true"
-        placeholderText="No selected entry or layer."
+        [placeholderText]="'No selected entry or layer.' | tr"
         [textFilter]="data?.propertiesFilter"
         (collapseButtonClicked)="
           sections.onCollapseStateChange(CollapsibleSectionType.PROPERTIES, true)

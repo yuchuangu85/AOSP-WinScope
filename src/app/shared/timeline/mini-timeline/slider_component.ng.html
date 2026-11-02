@@ -21,6 +21,7 @@ limitations under the License.
     cdkDragLockAxis="x"
     cdkDragBoundary="#timeline-slider-box"
     cdkDrag
+    [cdkDragScale]="getDragScale()"
     (cdkDragMoved)="onSliderMove($event)"
     (cdkDragStarted)="onSlideStart($event)"
     (cdkDragEnded)="onSlideEnd($event)"

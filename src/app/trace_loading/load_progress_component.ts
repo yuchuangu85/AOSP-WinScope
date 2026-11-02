@@ -18,6 +18,7 @@ import {CommonModule} from '@angular/common';
 import {Component, input} from '@angular/core';
 import {MatIconModule} from '@angular/material/icon';
 import {MatProgressBarModule} from '@angular/material/progress-bar';
+import {TranslatePipe} from '@common/i18n';
 
 /**
  * A component for displaying a progress bar with a message.
@@ -25,7 +26,7 @@ import {MatProgressBarModule} from '@angular/material/progress-bar';
 @Component({
   selector: 'load-progress',
   standalone: true,
-  imports: [CommonModule, MatIconModule, MatProgressBarModule],
+  imports: [TranslatePipe, CommonModule, MatIconModule, MatProgressBarModule],
   templateUrl: './load_progress_component.ng.html',
   styleUrls: ['load_progress_component.scss'],
 })

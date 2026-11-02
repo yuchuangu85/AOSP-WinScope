@@ -24,15 +24,36 @@
 .right-btn-container {
   display: flex;
   align-items: center;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  height: 40px;
+}
+
+.right-btn-container > * {
+  flex-shrink: 0;
+}
+
+.right-btn-container > button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .right-btn-container .mat-mdc-slider {
   min-width: 48px;
+  height: 32px;
+}
+
+.right-btn-container ::ng-deep .mdc-slider__thumb {
+  height: 32px;
 }
 
 .right-btn-container .mdc-slider__input {
   padding: 0px !important;
   margin: 0 16px;
+  height: 32px;
+  top: 0;
 }
 
 .icon-divider {
@@ -56,7 +77,7 @@
 .block-filter-controls {
   display: flex;
   flex-direction: row;
-  align-items: baseline;
+  align-items: center;
   flex-shrink: 0;
 }
 
@@ -66,6 +87,12 @@
   align-items: center;
   width: fit-content;
   flex-wrap: nowrap;
+  flex-shrink: 0;
+}
+
+.displays-section > span {
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .displays-select {

@@ -22,13 +22,13 @@ limitations under the License.
     [appearance]="appearance()"
     (keydown.esc)="$any($event.target).blur()"
     (keydown.enter)="$any($event.target).blur()"
-    [matTooltip]="tLabel"
+    [matTooltip]="localizeLabel() ? (tLabel | tr) : tLabel"
     matTooltipPosition="above"
     subscriptSizing="dynamic"
     [matTooltipDisabled]="disableFormFieldTooltip(formField)"
     #formField
   >
-    <mat-label>{{ tLabel }}</mat-label>
+    <mat-label>{{ localizeLabel() ? (tLabel | tr) : tLabel }}</mat-label>
     <input
       matInput
       [(ngModel)]="tFilter.filterString"
@@ -38,7 +38,7 @@ limitations under the License.
     <div class="field-suffix" matTextSuffix>
       <button
         mat-icon-button
-        matTooltip="Match case"
+        [matTooltip]="'Match case' | tr"
         [color]="hasFlag(FilterFlag.MATCH_CASE) ? 'primary' : undefined"
         (click)="onFilterFlagClick($event, FilterFlag.MATCH_CASE)"
       >
@@ -46,7 +46,7 @@ limitations under the License.
       </button>
       <button
         mat-icon-button
-        matTooltip="Match whole word"
+        [matTooltip]="'Match whole word' | tr"
         [color]="hasFlag(FilterFlag.MATCH_WORD) ? 'primary' : undefined"
         (click)="onFilterFlagClick($event, FilterFlag.MATCH_WORD)"
       >
@@ -54,7 +54,7 @@ limitations under the License.
       </button>
       <button
         mat-icon-button
-        matTooltip="Use regex"
+        [matTooltip]="'Use regex' | tr"
         [color]="hasFlag(FilterFlag.USE_REGEX) ? 'primary' : undefined"
         (click)="onFilterFlagClick($event, FilterFlag.USE_REGEX)"
       >

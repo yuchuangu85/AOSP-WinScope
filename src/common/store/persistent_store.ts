@@ -16,7 +16,7 @@
 
 import {Store} from './store';
 
-const DISPLAY_PREFERENCE_KEYS = new Set(['dark-mode', 'theme-mode', 'language', 'savedSearches']);
+const DISPLAY_PREFERENCE_KEYS = new Set(['dark-mode', 'theme-mode', 'display-scale', 'language', 'savedSearches', 'confirm-trace-reset']);
 let persistenceEnabled =
   typeof window === 'undefined' ||
   !new URLSearchParams(window.location.search).has('no-persistence');

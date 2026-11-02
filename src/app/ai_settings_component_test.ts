@@ -1,6 +1,6 @@
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {setLanguage} from '@common/i18n';
-import {AiCatalog, AiProvider} from '@services/ai_gateway_client';
+import {AiCatalog, AiProvider, AiProviderConfiguration} from '@services/ai_gateway_client';
 
 import {AiModelSelection, AiProviderModelSelection, AiSettingsComponent, AiSettingsValue,} from './ai_settings_component';
 
@@ -118,6 +118,22 @@ describe('AiSettingsComponent', () => {
     return section(id).querySelector('button') as HTMLButtonElement;
   }
 
+  function selectProvider(id: string): void {
+    const select = fixture.nativeElement.querySelector(
+      'select[data-field="active-provider"]',
+    ) as HTMLSelectElement;
+    select.value = id;
+    select.dispatchEvent(new Event('change', {bubbles: true}));
+    fixture.detectChanges();
+  }
+
+  function editConfiguration(id: string, name: string, value: string): void {
+    const input = field<HTMLInputElement>(id, name);
+    input.value = value;
+    input.dispatchEvent(new Event('input', {bubbles: true}));
+    fixture.detectChanges();
+  }
+
   function applyImport(provider: AiProvider): void {
     fixture.componentRef.setInput('catalog', {
       ...component.catalog,
@@ -132,13 +148,48 @@ describe('AiSettingsComponent', () => {
     fixture.detectChanges();
   }
 
-  it('is an embeddable body with two unframed provider sections and no dialog chrome', async () => {
+  it('distinguishes saved settings from a missing authentication environment variable', async () => {
+    await render();
+    applyImport(imported('codex', {configured: true, localConfig: {authentication: 'not-configured'}}));
+    await render();
+    expect(section('codex').textContent).toContain('Already configured');
+    expect(section('codex').querySelector('.authentication-status')?.textContent)
+      .toContain('API key environment variable is not set');
+    setLanguage('zh-CN');
+    await render();
+    expect(section('codex').textContent).toContain('尚未设置 API 密钥环境变量');
+  });
+
+  it('insets every AI dropdown arrow, including disabled controls', async () => {
+    await render();
+    for (const running of [false, true]) {
+      fixture.componentRef.setInput('running', running);
+      fixture.detectChanges();
+      const selects: HTMLSelectElement[] = Array.from(
+        fixture.nativeElement.querySelectorAll('select'),
+      );
+      expect(selects.length).toBe(4);
+      for (const select of selects) {
+        const arrow = select.parentElement?.querySelector('.settings-select-arrow');
+        expect(arrow).not.toBeNull();
+        expect(arrow?.getAttribute('aria-hidden')).toBe('true');
+        expect(getComputedStyle(select).appearance).toBe('none');
+        expect(getComputedStyle(select).paddingRight).toBe('36px');
+        expect(getComputedStyle(select).height).toBe('32px');
+        expect(getComputedStyle(arrow!).right).toBe('8px');
+        expect(getComputedStyle(arrow!).pointerEvents).toBe('none');
+        expect(getComputedStyle(arrow!).opacity).toBe(select.disabled ? '0.6' : '1');
+      }
+    }
+  });
+
+  it('is an embeddable body showing only the selected provider and no dialog chrome', async () => {
     await render();
     expect(section('codex')).not.toBeNull();
-    expect(section('claude')).not.toBeNull();
+    expect(section('claude')).toBeNull();
     expect(
       fixture.nativeElement.querySelectorAll('.provider-settings').length,
-    ).toBe(2);
+    ).toBe(1);
     expect(
       fixture.nativeElement.querySelector(
         'header, footer, h2, [role="dialog"], .settings-card',
@@ -161,24 +212,27 @@ describe('AiSettingsComponent', () => {
     ).not.toBeNull();
     expect(
       fixture.nativeElement.querySelector('select[aria-label="Provider"]'),
-    ).toBeNull();
-    expect(
-      (
-        fixture.nativeElement.querySelector(
-          '[aria-label="Provider"]',
-        ) as HTMLInputElement
-      ).readOnly,
-    ).toBeTrue();
+    ).not.toBeNull();
+    const providers = fixture.nativeElement.querySelector(
+      'select[aria-label="Provider"]',
+    ) as HTMLSelectElement;
+    expect(Array.from(providers.options).map((option) => option.value)).toEqual(
+      ['', 'codex', 'claude', 'browser-fixture', 'ds'],
+    );
     expect(
       fixture.nativeElement.querySelector('[aria-label="Agent"]'),
     ).not.toBeNull();
     expect(button('codex').getAttribute('aria-label')).toBe(
       'Get Codex configuration',
     );
+    expect(button('codex').textContent).toContain('Get configuration');
+    selectProvider('claude');
+    await render();
+    expect(component.draft.providerId).toBe('claude');
+    expect(section('codex')).toBeNull();
     expect(button('claude').getAttribute('aria-label')).toBe(
       'Get Claude configuration',
     );
-    expect(button('codex').textContent).toContain('Get configuration');
   });
 
   it('waits for catalog and conversation loading before initializing drafts', async () => {
@@ -206,6 +260,87 @@ describe('AiSettingsComponent', () => {
     expect(component.providerDrafts['claude'].reasoningLevel).toBe('max');
   });
 
+  it('uses the persisted catalog selection for a new conversation and marks configured providers', async () => {
+    const saved = {
+      ...selection,
+      providerId: 'claude',
+      modelId: 'opus',
+      reasoningLevel: 'max',
+    };
+    fixture.componentRef.setInput('catalog', {
+      ...catalog,
+      selection: saved,
+      providers: catalog.providers.map((provider) => ({
+        ...provider,
+        configured: provider.id === 'codex' || provider.id === 'claude',
+      })),
+    });
+    await render();
+    expect(component.draft).toEqual(saved);
+    expect(component.selection).toEqual(selection);
+    expect(section('codex')).toBeNull();
+    expect(section('claude').querySelector('.configured-status')?.textContent)
+      .toContain('Already configured');
+    const providers = fixture.nativeElement.querySelector(
+      'select[data-field="active-provider"]',
+    ) as HTMLSelectElement;
+    expect(providers.value).toBe('claude');
+    expect(providers.selectedOptions[0].textContent).toContain('Already configured');
+    expect(Array.from(providers.options).find((option) =>
+      option.value === 'browser-fixture')?.textContent).not.toContain('Already configured');
+  });
+
+  it('falls back to the first configured provider only when no provider is selected', async () => {
+    fixture.componentRef.setInput('catalog', {
+      ...catalog,
+      providers: catalog.providers.map((provider) => ({
+        ...provider,
+        configured: provider.id === 'claude' || provider.id === 'browser-fixture',
+      })),
+    });
+    await render();
+    expect(component.draft.providerId).toBe('claude');
+    expect(component.draft.modelId).toBe('sonnet');
+    expect(component.draft.reasoningLevel).toBe('low');
+    expect(section('codex')).toBeNull();
+    expect(section('claude').textContent).toContain('Already configured');
+  });
+
+  it('retains an explicit new-conversation provider when there is no persisted selection', async () => {
+    fixture.componentRef.setInput('selection', {...selection, providerId: 'codex'});
+    fixture.componentRef.setInput('catalog', {
+      ...catalog,
+      providers: catalog.providers.map((provider) => ({
+        ...provider,
+        configured: provider.id === 'claude',
+      })),
+    });
+    await render();
+    expect(component.draft.providerId).toBe('codex');
+    expect(component.draft.modelId).toBe('gpt-default');
+    expect(section('codex').querySelector('.configured-status')).toBeNull();
+  });
+
+  for (const providerId of ['', 'codex']) {
+    it(`prioritizes the existing session selection (${providerId || 'agent default'}) over persisted and configured defaults`, async () => {
+      const restored = {...selection, providerId};
+      fixture.componentRef.setInput('existingSession', true);
+      fixture.componentRef.setInput('selection', restored);
+      fixture.componentRef.setInput('catalog', {
+        ...catalog,
+        selection: {...selection, providerId: 'claude', modelId: 'opus', reasoningLevel: 'max'},
+        providers: catalog.providers.map((provider) => ({
+          ...provider,
+          configured: provider.id === 'claude',
+        })),
+      });
+      await render();
+      expect(component.draft).toEqual(restored);
+      expect(component.provider?.id).toBe('codex');
+      expect(section('claude')).toBeNull();
+    });
+  }
+
   it('clones incoming per-provider defaults and preserves saved edits on reopening', async () => {
     const saved: Record<string, AiProviderModelSelection> = {
       claude: {modelId: 'opus', customModel: 'keep', reasoningLevel: 'max'},
@@ -227,7 +362,9 @@ describe('AiSettingsComponent', () => {
     expect(component.providerDrafts['offline']).toEqual(saved['offline']);
   });
 
-  it('keeps model/effort drafts independent while only a successful import changes the provider', async () => {
+  it('keeps model/effort drafts independent across explicit provider switches', async () => {
+    await render();
+    selectProvider('claude');
     await render();
     const model = field<HTMLSelectElement>('claude', 'model');
     model.value = 'opus';
@@ -240,13 +377,19 @@ describe('AiSettingsComponent', () => {
     expect(component.providerDrafts['claude'].reasoningLevel).toBe('max');
     expect(component.providerDrafts['codex'].modelId).toBe('gpt-default');
     expect(component.providerDrafts['codex'].reasoningLevel).toBe('medium');
-    expect(component.provider?.id).toBe('codex');
+    expect(component.provider?.id).toBe('claude');
+    component.providerChanged('codex');
     component.modelChanged('codex', 'reasoner');
     expect(component.providerDrafts['codex'].reasoningLevel).toBe('high');
     expect(component.provider?.id).toBe('codex');
     expect(component.draft.modelId).toBe('reasoner');
     expect(component.providerDrafts['claude'].modelId).toBe('opus');
     expect(component.providerDrafts['claude'].reasoningLevel).toBe('max');
+    selectProvider('claude');
+    await render();
+    expect(field<HTMLSelectElement>('claude', 'model').value).toBe('opus');
+    expect(field<HTMLSelectElement>('claude', 'reasoning').value).toBe('max');
+    expect(section('codex')).toBeNull();
   });
 
   it('honors per-model effort restrictions including an explicit empty list', async () => {
@@ -274,11 +417,18 @@ describe('AiSettingsComponent', () => {
       customModel: '',
       reasoningLevel: 'high',
     });
+    expect(component.configurationDrafts['codex']).toEqual({
+      baseUrl: 'https://codex.example/v1',
+      providerName: 'codex local service',
+      apiKeyEnv: '',
+      timeoutMs: 120_000,
+    });
     expect(component.providerDrafts['claude']).toEqual(claudeDraft);
     component.modelChanged('codex', '__custom__');
     component.customModelChanged('codex', 'keep-codex');
     const codexDraft = {...component.providerDrafts['codex']};
     applyImport(imported('claude'));
+    await render();
     expect(component.providerDrafts['codex']).toEqual(codexDraft);
     expect(component.providerDrafts['claude']).toEqual({
       modelId: 'claude-local',
@@ -287,15 +437,15 @@ describe('AiSettingsComponent', () => {
     });
     expect(component.draft.providerId).toBe('claude');
     expect(component.draft.modelId).toBe('claude-local');
-    expect(section('codex').getAttribute('data-active')).toBe('false');
+    expect(section('codex')).toBeNull();
     expect(section('claude').getAttribute('data-active')).toBe('true');
     expect(
       (
         fixture.nativeElement.querySelector(
           '[data-field="active-provider"]',
-        ) as HTMLInputElement
+        ) as HTMLSelectElement
       ).value,
-    ).toBe('Claude');
+    ).toBe('claude');
     component.save();
     expect(applied.calls.mostRecent().args[0]!.selection.providerId).toBe(
       'claude',
@@ -368,40 +518,33 @@ describe('AiSettingsComponent', () => {
     expect(component.draft.providerId).toBe('claude');
   });
 
-  it('shows safe read-only source metadata and never invents a service URL', async () => {
+  it('fills editable configuration drafts from imports without inventing URLs or exposing credentials', async () => {
     await render();
-    expect(field<HTMLInputElement>('codex', 'base-url').value).toBe('Not read');
-    expect(
-      section('codex').querySelector<HTMLInputElement>(
-        '[aria-label="Codex authentication"]',
-      )?.value,
-    ).toBe('Not read');
+    expect(field<HTMLInputElement>('codex', 'base-url').value).toBe('');
+    expect(field<HTMLInputElement>('codex', 'base-url').placeholder).toBe(
+      'Provider default',
+    );
+    expect(section('codex').querySelector('.authentication-status')?.textContent)
+      .toContain('Not read');
     applyImport(imported('codex'));
     applyImport(
       imported('claude', {localConfig: {authentication: 'cli-managed'}}),
     );
     await render();
+    expect(field<HTMLInputElement>('claude', 'base-url').value).toBe('');
+    expect(section('claude').querySelector('.authentication-status')?.textContent)
+      .toContain('Managed by local CLI');
+    selectProvider('codex');
+    await render();
     const url = field<HTMLInputElement>('codex', 'base-url');
-    expect(url.readOnly).toBeTrue();
+    expect(url.readOnly).toBeFalse();
     expect(url.value).toBe('https://codex.example/v1');
-    expect(field<HTMLInputElement>('claude', 'base-url').value).toBe(
-      'Provider default',
+    expect(section('codex').querySelector('.authentication-status')?.textContent)
+      .toContain('Credentials configured');
+    expect(field<HTMLInputElement>('codex', 'provider-name').value).toBe(
+      'codex local service',
     );
-    expect(
-      section('codex').querySelector<HTMLInputElement>(
-        '[aria-label="Codex authentication"]',
-      )?.value,
-    ).toBe('Credentials configured');
-    expect(
-      section('claude').querySelector<HTMLInputElement>(
-        '[aria-label="Claude authentication"]',
-      )?.value,
-    ).toBe('Managed by local CLI');
-    expect(
-      section('codex').querySelector<HTMLInputElement>(
-        '[aria-label="Codex provider name"]',
-      )?.value,
-    ).toBe('codex local service');
+    expect(field<HTMLInputElement>('codex', 'api-key-env').value).toBe('');
     expect(
       fixture.nativeElement.querySelector('input[type="password"]'),
     ).toBeNull();
@@ -410,8 +553,171 @@ describe('AiSettingsComponent', () => {
         fixture.nativeElement.querySelectorAll(
           'input:not([data-field="custom-model"])',
         ),
-      ).every((input) => (input as HTMLInputElement).readOnly),
+      ).every((input) => !(input as HTMLInputElement).readOnly),
     ).toBeTrue();
+  });
+
+  it('keeps manual configuration drafts independent and emits only the selected configuration without browser storage', async () => {
+    await render();
+    const stored = spyOn(Storage.prototype, 'setItem');
+    const applied = spyOn(component.applied, 'emit');
+    const codex: AiProviderConfiguration = {
+      baseUrl: 'https://codex.example/v1',
+      providerName: 'Private Codex',
+      apiKeyEnv: 'CODEX_API_KEY',
+      timeoutMs: 30_000,
+    };
+    editConfiguration('codex', 'base-url', codex.baseUrl);
+    editConfiguration('codex', 'provider-name', codex.providerName);
+    editConfiguration('codex', 'api-key-env', codex.apiKeyEnv);
+    editConfiguration('codex', 'timeout', String(codex.timeoutMs));
+    selectProvider('claude');
+    await render();
+    editConfiguration('claude', 'base-url', 'https://claude.example/v1');
+    editConfiguration('claude', 'provider-name', 'Private Claude');
+    editConfiguration('claude', 'api-key-env', 'CLAUDE_API_KEY');
+    editConfiguration('claude', 'timeout', '45000');
+    const claude = {...component.configurationDrafts['claude']};
+    expect(component.configurationDrafts['codex']).toEqual(codex);
+    selectProvider('codex');
+    await render();
+    expect(field<HTMLInputElement>('codex', 'base-url').value).toBe(codex.baseUrl);
+    expect(field<HTMLInputElement>('codex', 'timeout').value).toBe('30000');
+    component.save();
+    const value = applied.calls.mostRecent().args[0]!;
+    expect(value.configuration).toEqual(codex);
+    expect(value.configuration).not.toBe(component.configurationDrafts['codex']);
+    expect(Object.keys(value.configuration!).sort()).toEqual([
+      'apiKeyEnv', 'baseUrl', 'providerName', 'timeoutMs',
+    ]);
+    expect(Object.keys(value.providerSelections)).toEqual(['codex']);
+    expect(component.configurationDrafts['claude']).toEqual(claude);
+    expect(catalog.providers[0].configuration).toBeUndefined();
+    expect(fixture.nativeElement.querySelector('input[type="password"]')).toBeNull();
+    expect(field<HTMLInputElement>('codex', 'api-key-env').autocomplete).toBe('off');
+    expect(stored).not.toHaveBeenCalled();
+  });
+
+  it('allows descriptor-backed manual configuration for external providers but not unsupported providers', async () => {
+    const configuration: AiProviderConfiguration = {
+      baseUrl: 'http://localhost:8080/v1',
+      providerName: 'Local model',
+      apiKeyEnv: 'LOCAL_API_KEY',
+      timeoutMs: 60_000,
+    };
+    fixture.componentRef.setInput('catalog', {
+      ...catalog,
+      providers: catalog.providers.map((provider) =>
+        provider.id === 'browser-fixture' ? {...provider, configuration} : provider),
+    });
+    await render();
+    selectProvider('browser-fixture');
+    await render();
+    expect(field<HTMLInputElement>('browser-fixture', 'base-url').readOnly).toBeFalse();
+    expect(component.configurationDrafts['browser-fixture']).toEqual(configuration);
+    expect(component.configurationDrafts['browser-fixture']).not.toBe(configuration);
+    editConfiguration('browser-fixture', 'provider-name', 'Edited local model');
+    const applied = spyOn(component.applied, 'emit');
+    component.save();
+    expect(applied.calls.mostRecent().args[0]!.configuration).toEqual({
+      ...configuration, providerName: 'Edited local model',
+    });
+    expect(configuration.providerName).toBe('Local model');
+    selectProvider('ds');
+    await render();
+    expect(section('ds').querySelector('[data-field="base-url"]')).toBeNull();
+    component.configurationChanged('ds', 'baseUrl', 'https://ignored.test');
+    expect(component.configurationDrafts['ds'].baseUrl).toBe('');
+    component.save();
+    expect(applied.calls.mostRecent().args[0]!.configuration).toBeUndefined();
+  });
+
+  const invalidConfigurations: Array<{
+    key: keyof AiProviderConfiguration;
+    value: string | number;
+    error: string;
+  }> = [
+    ...[
+      'not a URL', 'ftp://example.test', 'https://user:sk-secret@example.test',
+      'https://example.test?api_key=sk-secret', 'https://example.test#secret',
+      'https://exam ple.test', 'https://example.test/' + 'a'.repeat(2048),
+    ].map((value) => ({key: 'baseUrl' as const, value, error: 'HTTP or HTTPS service URL'})),
+    ...['sk-secret-token', '1_API_KEY', 'API KEY', 'A'.repeat(129)].map((value) =>
+      ({key: 'apiKeyEnv' as const, value, error: 'environment variable name'})),
+    ...[999, 600_001, 1500.5, Number.NaN].map((value) =>
+      ({key: 'timeoutMs' as const, value, error: 'timeout between 1000 and 600000'})),
+    ...['a'.repeat(129), 'bad\nname', 'bad\u007fname'].map((value) =>
+      ({key: 'providerName' as const, value, error: 'provider name of up to 128 characters'})),
+  ];
+
+  for (const {key, value, error} of invalidConfigurations) {
+    it(`validates manual ${key} (${String(value).slice(0, 35)}) without emitting or storing secrets`, async () => {
+      await render();
+      const stored = spyOn(Storage.prototype, 'setItem');
+      const applied = spyOn(component.applied, 'emit');
+      component.configurationChanged('codex', key, value);
+      component.save();
+      fixture.detectChanges();
+      expect(component.error).toContain(error);
+      expect(component.errorProvider).toBe('Codex');
+      expect(component.configurationDrafts['codex'][key]).toEqual(value);
+      expect(fixture.nativeElement.querySelector('[role="alert"]').textContent)
+        .not.toContain('sk-secret');
+      expect(applied).not.toHaveBeenCalled();
+      expect(stored).not.toHaveBeenCalled();
+      component.configurationChanged('codex', key, key === 'timeoutMs' ? 120_000 : '');
+      expect(component.error).toBe('');
+      component.save();
+      expect(applied).toHaveBeenCalledTimes(1);
+    });
+  }
+
+  for (const timeoutMs of [1000, 600_000]) {
+    it(`accepts valid configuration boundaries at ${timeoutMs} milliseconds`, async () => {
+      await render();
+      component.configurationChanged('codex', 'apiKeyEnv', '_' + 'A'.repeat(127));
+      component.configurationChanged('codex', 'providerName', 'a'.repeat(128));
+      component.configurationChanged('codex', 'timeoutMs', timeoutMs);
+      const applied = spyOn(component.applied, 'emit');
+      component.save();
+      expect(applied.calls.mostRecent().args[0]!.configuration).toEqual({
+        baseUrl: '', providerName: 'a'.repeat(128),
+        apiKeyEnv: '_' + 'A'.repeat(127), timeoutMs,
+      });
+    });
+  }
+
+  it('ignores invalid inactive configuration and preserves it through provider switching and imports', async () => {
+    await render();
+    component.configurationChanged('claude', 'baseUrl', 'invalid inactive');
+    const applied = spyOn(component.applied, 'emit');
+    component.save();
+    expect(applied).toHaveBeenCalledTimes(1);
+    expect(component.error).toBe('');
+    component.providerChanged('claude');
+    component.save();
+    expect(component.error).toContain('HTTP or HTTPS');
+    expect(applied).toHaveBeenCalledTimes(1);
+    applyImport(imported('codex'));
+    expect(component.configurationDrafts['claude'].baseUrl).toBe('invalid inactive');
+    expect(component.draft.providerId).toBe('codex');
+    component.providerChanged('claude');
+    applyImport(imported('claude'));
+    expect(component.configurationDrafts['claude'].baseUrl).toBe('https://claude.example/v1');
+    component.save();
+    expect(applied).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not overwrite a manual configuration draft when a new selection input arrives', async () => {
+    await render();
+    component.configurationChanged('codex', 'baseUrl', 'https://draft.example/v1');
+    fixture.componentRef.setInput('selection', {
+      ...selection, providerId: 'claude', modelId: 'opus', reasoningLevel: 'max',
+    });
+    await render();
+    expect(component.provider?.id).toBe('codex');
+    expect(component.configurationDrafts['codex'].baseUrl).toBe('https://draft.example/v1');
+    expect(field<HTMLInputElement>('codex', 'base-url').value).toBe('https://draft.example/v1');
   });
 
   it('isolates import errors, success and retries by provider', async () => {
@@ -420,16 +726,17 @@ describe('AiSettingsComponent', () => {
     fixture.componentRef.setInput('importErrors', {codex: importError});
     applyImport(imported('claude'));
     await render();
+    expect(section('codex')).toBeNull();
+    expect(section('claude').querySelector('[role="alert"]')).toBeNull();
+    expect(section('claude').textContent).toContain('Configuration read');
+    selectProvider('codex');
+    await render();
     expect(
       section('codex').querySelector('[role="alert"]')?.textContent,
     ).toContain('Could not read local configuration');
-    expect(section('claude').querySelector('[role="alert"]')).toBeNull();
-    expect(
-      section('claude').querySelector('[role="status"]')?.textContent,
-    ).toContain('Configuration read');
     button('codex').click();
     expect(requested).toHaveBeenCalledWith('codex');
-    expect(component.provider?.id).toBe('claude');
+    expect(component.provider?.id).toBe('codex');
     fixture.componentRef.setInput('importingProvider', 'codex');
     await render();
     expect(section('codex').getAttribute('aria-busy')).toBe('true');
@@ -437,12 +744,13 @@ describe('AiSettingsComponent', () => {
       'Reading local configuration',
     );
     expect(section('codex').querySelector('[role="alert"]')).toBeNull();
-    expect(section('claude').textContent).toContain('Configuration read');
+    expect(section('claude')).toBeNull();
+    expect(component.importedProviders['claude']).toBeDefined();
     fixture.componentRef.setInput('importingProvider', '');
     fixture.componentRef.setInput('importErrors', {codex: importError});
     await render();
-    expect(component.provider?.id).toBe('claude');
-    expect(component.draft.modelId).toBe('claude-local');
+    expect(component.provider?.id).toBe('codex');
+    expect(component.draft.modelId).toBe('gpt-default');
     button('codex').click();
     expect(requested).toHaveBeenCalledTimes(2);
     fixture.componentRef.setInput('importErrors', {});
@@ -466,6 +774,7 @@ describe('AiSettingsComponent', () => {
         const applied = spyOn(component.applied, 'emit');
         const requested = spyOn(component.importRequested, 'emit');
         const before = {...component.providerDrafts['codex']};
+        const configurationBefore = {...component.configurationDrafts['codex']};
         expect(
           Array.from(
             fixture.nativeElement.querySelectorAll(
@@ -474,12 +783,15 @@ describe('AiSettingsComponent', () => {
           ).every((control) => (control as HTMLInputElement).disabled),
         ).toBeTrue();
         component.agentChanged('external');
+        component.providerChanged('claude');
         component.modelChanged('codex', 'fixed');
         component.customModelChanged('codex', 'ignored');
         component.reasoningChanged('codex', 'low');
+        component.configurationChanged('codex', 'baseUrl', 'https://ignored.test');
         component.readConfiguration('codex');
         component.save();
         expect(component.providerDrafts['codex']).toEqual(before);
+        expect(component.configurationDrafts['codex']).toEqual(configurationBefore);
         expect(component.draft.providerId).toBe('');
         expect(applied).not.toHaveBeenCalled();
         expect(requested).not.toHaveBeenCalled();
@@ -487,7 +799,7 @@ describe('AiSettingsComponent', () => {
     );
   }
 
-  it('leaves absent CLI providers visible but disables their controls and Get actions', async () => {
+  it('omits absent CLI providers and ignores their Get actions and selection', async () => {
     fixture.componentRef.setInput('catalog', {
       ...catalog,
       providers: [catalog.providers[2]],
@@ -499,11 +811,19 @@ describe('AiSettingsComponent', () => {
     });
     await render();
     const requested = spyOn(component.importRequested, 'emit');
-    expect(button('codex').disabled).toBeTrue();
-    expect(button('claude').disabled).toBeTrue();
-    expect(field<HTMLSelectElement>('codex', 'model').disabled).toBeTrue();
+    expect(section('codex')).toBeNull();
+    expect(section('claude')).toBeNull();
+    expect(section('browser-fixture')).not.toBeNull();
+    const providers = fixture.nativeElement.querySelector(
+      'select[data-field="active-provider"]',
+    ) as HTMLSelectElement;
+    expect(Array.from(providers.options).map((option) => option.value)).toEqual(
+      ['', 'browser-fixture'],
+    );
     component.readConfiguration('codex');
     component.readConfiguration('claude');
+    component.providerChanged('codex');
+    expect(component.provider?.id).toBe('browser-fixture');
     expect(requested).not.toHaveBeenCalled();
   });
 
@@ -641,9 +961,9 @@ describe('AiSettingsComponent', () => {
       (
         fixture.nativeElement.querySelector(
           '[aria-label="Provider"]',
-        ) as HTMLInputElement
-      ).readOnly,
-    ).toBeTrue();
+        ) as HTMLSelectElement
+      ).disabled,
+    ).toBeFalse();
     expect(field<HTMLSelectElement>('codex', 'model').disabled).toBeFalse();
     component.agentChanged('deterministic');
     expect(component.draft.agentId).toBe(selection.agentId);
@@ -749,7 +1069,9 @@ describe('AiSettingsComponent', () => {
     await render();
     expect(
       fixture.nativeElement.querySelectorAll('.provider-settings').length,
-    ).toBe(3);
+    ).toBe(1);
+    expect(section('codex')).toBeNull();
+    expect(section('claude')).toBeNull();
     expect(section('browser-fixture').querySelector('button')).toBeNull();
     expect(field<HTMLSelectElement>('browser-fixture', 'model').value).toBe(
       'fixture-model',
@@ -767,6 +1089,7 @@ describe('AiSettingsComponent', () => {
       customModel: 'external/model',
       reasoningLevel: 'low',
     });
+    expect(applied.calls.mostRecent().args[0]!.configuration).toBeUndefined();
     fixture.componentRef.setInput('selection', {
       ...selection,
       agentId: 'external',
@@ -830,15 +1153,20 @@ describe('AiSettingsComponent', () => {
     expect(
       field<HTMLInputElement>('codex', 'base-url').getAttribute('aria-label'),
     ).toBe('Codex 服务地址');
-    expect(field<HTMLInputElement>('codex', 'base-url').value).toBe('未读取');
+    expect(field<HTMLInputElement>('codex', 'base-url').value).toBe('');
+    expect(field<HTMLInputElement>('codex', 'base-url').placeholder).toBe(
+      '提供方默认值',
+    );
     expect(button('codex').getAttribute('aria-label')).toBe('获取 Codex 配置');
-    expect(
-      section('claude').querySelector('[role="alert"]')?.textContent,
-    ).toContain('无法读取本地配置');
     expect(fixture.nativeElement.textContent).toContain(
       '请输入有效的模型标识符',
     );
     expect(component.providerDrafts['codex'].customModel).toBe('bad model!');
+    selectProvider('claude');
+    await render();
+    expect(
+      section('claude').querySelector('[role="alert"]')?.textContent,
+    ).toContain('无法读取本地配置');
     expect(
       fixture.nativeElement.querySelector('.interface-language-select'),
     ).toBeNull();

@@ -15,6 +15,7 @@
  */
 
 .user-option {
+  flex-shrink: 0;
   line-height: 24px;
   padding: 0 10px;
   margin-inline-end: 10px;
@@ -29,14 +30,8 @@
 .user-option-label {
   display: flex;
   flex-direction: row;
-}
-
-.user-option-label.with-chip {
-  align-items: baseline;
-}
-
-.user-option-label:not(.with-chip) {
   align-items: center;
+  white-space: nowrap;
 }
 
 .user-option .mat-icon {
@@ -45,7 +40,6 @@
 
 .user-option-chip {
   margin-inline-start: 5px;
-  margin-top: 2px;
   padding: 0 10px;
   border-radius: 10px;
   background-color: var(--chip-blue);

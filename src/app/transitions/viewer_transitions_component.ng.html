@@ -50,7 +50,7 @@ limitations under the License.
     [traceType]="TraceType.TRANSITION"
     [textFilter]="data?.propertiesFilter"
     [isProtoDump]="false"
-    placeholderText="No current or selected transition."
+    [placeholderText]="'No current or selected transition.' | tr"
     (collapseButtonClicked)="
       sections.onCollapseStateChange(CollapsibleSectionType.PROPERTIES, true)
     "

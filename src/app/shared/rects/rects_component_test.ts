@@ -572,6 +572,7 @@ describe('RectsComponent', () => {
 
   it('emits rect id on rect click', () => {
     setRectAndDisplayGroup0();
+    mockCanvasBounds();
 
     const testString = 'test_id';
     const highlightedIdSpy = spyOn(component.highlightedIdChange, 'emit');
@@ -585,6 +586,80 @@ describe('RectsComponent', () => {
     dom.findAndClick(largeRectsCanvasSelector);
     expect(highlightedIdSpy).toHaveBeenCalledOnceWith(testString);
   });
+
+  for (const scale of [0.8, 1, 1.4]) {
+    it(`normalizes click and double-click picking at ${scale * 100}% display size`, () => {
+      setRectAndDisplayGroup0();
+      const canvas = dom.get(largeRectsCanvasSelector).getHTMLElement();
+      const bounds = mockCanvasBounds(scale);
+      const pickSpy = spyOn(Canvas.prototype, 'getClickedRectId');
+
+      for (const type of ['click', 'dblclick']) {
+        canvas.dispatchEvent(new MouseEvent(type, {
+          clientX: bounds.left + bounds.width / 2,
+          clientY: bounds.top + bounds.height / 2,
+        }));
+        expect(pickSpy.calls.mostRecent().args).toEqual([0, 0]);
+
+        canvas.dispatchEvent(new MouseEvent(type, {
+          clientX: bounds.left + bounds.width * 0.75,
+          clientY: bounds.top + bounds.height * 0.25,
+        }));
+        expect(pickSpy.calls.mostRecent().args).toEqual([0.5, 0.5]);
+      }
+    });
+
+    it(`pans by equivalent layout distances at ${scale * 100}% display size`, () => {
+      setRectAndDisplayGroup0();
+      const canvas = dom.get(largeRectsCanvasSelector).getHTMLElement();
+      mockCanvasBounds(scale);
+      canvas.dispatchEvent(new MouseEvent('mousedown', {clientX: 100, clientY: 150}));
+
+      for (const distance of [20, 40]) {
+        const event = new MouseEvent('mousemove', {
+          clientX: 100 + distance * scale,
+          clientY: 150 - distance * scale / 2,
+        });
+        Object.defineProperty(event, 'movementX', {value: 999});
+        Object.defineProperty(event, 'movementY', {value: 999});
+        dom.dispatchEventInDocument(event);
+      }
+      expect(updateViewPositionSpy.calls.mostRecent().args[0].panScreenDistance)
+        .toEqual({dx: 40, dy: -20});
+
+      dom.dispatchEventInDocument(new MouseEvent('mouseup'));
+      const callCount = updateViewPositionSpy.calls.count();
+      dom.dispatchEventInDocument(new MouseEvent('mousemove', {clientX: 999, clientY: 999}));
+      expect(updateViewPositionSpy.calls.count()).toBe(callCount);
+
+      canvas.dispatchEvent(new MouseEvent('mousedown', {clientX: 50, clientY: 50}));
+      dom.dispatchEventInDocument(new MouseEvent('mousemove', {
+        clientX: 50 + 10 * scale,
+        clientY: 50 + 10 * scale,
+      }));
+      dom.dispatchEventInDocument(new MouseEvent('mouseup'));
+      expect(updateViewPositionSpy.calls.mostRecent().args[0].panScreenDistance)
+        .toEqual({dx: 50, dy: -10});
+    });
+  }
+
+  for (const [width, height] of [[0, 200], [400, 0], [0, 0]]) {
+    it(`ignores picking and panning with ${width}x${height} rendered bounds`, () => {
+      setRectAndDisplayGroup0();
+      const canvas = dom.get(largeRectsCanvasSelector).getHTMLElement();
+      spyOn(canvas, 'getBoundingClientRect').and.returnValue(new DOMRect(0, 0, width, height));
+      const pickSpy = spyOn(Canvas.prototype, 'getClickedRectId');
+      canvas.dispatchEvent(new MouseEvent('click'));
+      canvas.dispatchEvent(new MouseEvent('dblclick'));
+      expect(pickSpy).not.toHaveBeenCalled();
+
+      resetSpies();
+      canvas.dispatchEvent(new MouseEvent('mousedown'));
+      dom.dispatchEventInDocument(new MouseEvent('mousemove', {clientX: 10, clientY: 10}));
+      dom.dispatchEventInDocument(new MouseEvent('mouseup'));
+      expect(updateViewPositionSpy).not.toHaveBeenCalled();
+    });
+  }
 
   it('pans view without emitting rect id', () => {
     setRectAndDisplayGroup0();
@@ -772,6 +847,7 @@ describe('RectsComponent', () => {
 
   it('handles rect double click', () => {
     setRectAndDisplayGroup0();
+    mockCanvasBounds();
     resetSpies();
 
     const testString = 'test_id';
@@ -1081,10 +1157,20 @@ describe('RectsComponent', () => {
       .build();
   }
 
+  function mockCanvasBounds(scale = 1): DOMRect {
+    const canvas = dom.get(largeRectsCanvasSelector).getHTMLElement();
+    const bounds = new DOMRect(40, 60, 400 * scale, 200 * scale);
+    spyOn(canvas, 'getBoundingClientRect').and.returnValue(bounds);
+    spyOnProperty(canvas, 'clientWidth').and.returnValue(400);
+    spyOnProperty(canvas, 'clientHeight').and.returnValue(200);
+    return bounds;
+  }
+
   function panView() {
+    mockCanvasBounds();
     const canvas = dom.get(largeRectsCanvasSelector);
     canvas.dispatchEvent(new MouseEvent('mousedown'));
-    const mouseMoveEvent = new MouseEvent('mousemove');
+    const mouseMoveEvent = new MouseEvent('mousemove', {clientX: 5, clientY: 10});
     Object.defineProperty(mouseMoveEvent, 'movementX', {value: 5});
     Object.defineProperty(mouseMoveEvent, 'movementY', {value: 10});
     dom.dispatchEventInDocument(mouseMoveEvent);

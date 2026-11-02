@@ -1,3 +1,4 @@
+import {OverlayModule} from '@angular/cdk/overlay';
 /*
  * Copyright (C) 2022 The Android Open Source Project
  *
@@ -14,7 +15,6 @@
  * limitations under the License.
  */
 
-import {OverlayModule} from '@angular/cdk/overlay';
 import {CommonModule} from '@angular/common';
 import {ApplicationRef, ChangeDetectorRef, Component, computed, createComponent, effect, ElementRef, Inject, input, NgZone, signal,} from '@angular/core';
 import {FormControl, ReactiveFormsModule, ValidationErrors, Validators,} from '@angular/forms';
@@ -27,6 +27,7 @@ import {MatTabsModule} from '@angular/material/tabs';
 import {MatTooltipModule} from '@angular/material/tooltip';
 import {AngularViewer} from '@app/shared/angular_viewer';
 import {assertDefined} from '@common/assert';
+import {translate, TranslatePipe} from '@common/i18n';
 import {Store} from '@common/store/store';
 import {getLogger} from '@compat/logging';
 import {Analytics} from '@logging/analytics';
@@ -54,6 +55,7 @@ interface Tab {
   selector: 'trace-view',
   standalone: true,
   imports: [
+    TranslatePipe,
     CommonModule,
     MatTabsModule,
     MatTooltipModule,
@@ -232,7 +234,8 @@ export class TraceViewComponent
   getTitle(viewer: AngularViewer): string {
     const traces = viewer.getTraces();
     const isDump = traces.length === 1 && traces.at(0)?.isDump();
-    return viewer.getTitle() + (isDump ? ' Dump' : '');
+    const title = translate(viewer.getTitle());
+    return isDump ? translate('{title} Dump', {title}) : title;
   }
 
   onFilterPresetsClick() {

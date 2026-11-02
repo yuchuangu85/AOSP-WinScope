@@ -30,6 +30,7 @@ import {CollapsibleSectionTitleComponent} from '@app/shared/collapsible_sections
 import {UserOptionsComponent} from '@app/shared/user_options/user_options_component';
 import {assertDefined} from '@common/assert';
 import {Distance} from '@common/geometry/distance';
+import {TranslatePipe} from '@common/i18n';
 import {Store} from '@common/store/store';
 import {getRootUrl} from '@common/window';
 import {Analytics} from '@logging/analytics';
@@ -47,6 +48,7 @@ import {UserOptions} from '@ui/shared/user_input/user_options';
   selector: 'rects-view',
   standalone: true,
   imports: [
+    TranslatePipe,
     CommonModule,
     MatButtonModule,
     MatButtonToggleModule,
@@ -113,6 +115,7 @@ export class RectsComponent implements OnInit, OnDestroy {
   private mouseMoveListener = (event: MouseEvent) => this.onMouseMove(event);
   private mouseUpListener = () => this.onMouseUp();
   private panning = false;
+  private lastPanPosition?: {x: number; y: number};
   private appliedDefaultZoomFactor = 1;
 
   private readonly defaultRectType = signal<TraceRectType | undefined>(
@@ -282,8 +285,8 @@ export class RectsComponent implements OnInit, OnDestroy {
       () => this.isDarkMode(),
       (id) => this.highlightedIdChange.emit(id),
     );
-    this.largeRectsCanvasElement.addEventListener('mousedown', () =>
-      this.onCanvasMouseDown(),
+    this.largeRectsCanvasElement.addEventListener('mousedown', (event) =>
+      this.onCanvasMouseDown(event),
     );
 
     this.miniRectsCanvasElement = canvasContainer.querySelector(
@@ -424,19 +427,34 @@ export class RectsComponent implements OnInit, OnDestroy {
     }
   }
 
-  onCanvasMouseDown() {
+  onCanvasMouseDown(event: MouseEvent) {
+    this.lastPanPosition = {x: event.clientX, y: event.clientY};
     document.addEventListener('mousemove', this.mouseMoveListener);
     document.addEventListener('mouseup', this.mouseUpListener);
   }
 
   onMouseMove(event: MouseEvent) {
+    const previousPosition = this.lastPanPosition;
+    if (!previousPosition) {
+      return;
+    }
+    this.lastPanPosition = {x: event.clientX, y: event.clientY};
+    const canvas = this.largeRectsCanvasElement;
+    const bounds = canvas?.getBoundingClientRect();
+    if (!canvas || !bounds || bounds.width <= 0 || bounds.height <= 0) {
+      return;
+    }
     this.panning = true;
-    const distance: Distance = {dx: event.movementX, dy: event.movementY};
+    const distance: Distance = {
+      dx: ((event.clientX - previousPosition.x) * canvas.clientWidth) / bounds.width,
+      dy: ((event.clientY - previousPosition.y) * canvas.clientHeight) / bounds.height,
+    };
     this.largeRectsMapper3d.addPanScreenDistance(distance);
     this.updateLargeRectsPosition();
   }
 
   onMouseUp() {
+    this.lastPanPosition = undefined;
     document.removeEventListener('mousemove', this.mouseMoveListener);
     document.removeEventListener('mouseup', this.mouseUpListener);
   }
@@ -570,11 +588,14 @@ export class RectsComponent implements OnInit, OnDestroy {
   private findClickedRectId(event: MouseEvent): string | undefined {
     const canvas = event.target as Element;
     const canvasOffset = canvas.getBoundingClientRect();
+    if (canvasOffset.width <= 0 || canvasOffset.height <= 0) {
+      return undefined;
+    }
 
     const x =
-      ((event.clientX - canvasOffset.left) / canvas.clientWidth) * 2 - 1;
+      ((event.clientX - canvasOffset.left) / canvasOffset.width) * 2 - 1;
     const y =
-      -((event.clientY - canvasOffset.top) / canvas.clientHeight) * 2 + 1;
+      -((event.clientY - canvasOffset.top) / canvasOffset.height) * 2 + 1;
 
     return this.largeRectsCanvas?.getClickedRectId(x, y);
   }

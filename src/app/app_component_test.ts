@@ -22,7 +22,7 @@ import {FormsModule, ReactiveFormsModule} from '@angular/forms';
 import {MatButtonModule} from '@angular/material/button';
 import {MatCardModule} from '@angular/material/card';
 import {MatCheckboxModule} from '@angular/material/checkbox';
-import {MatDialog} from '@angular/material/dialog';
+import {MatDialog, MatDialogRef} from '@angular/material/dialog';
 import {MatDividerModule} from '@angular/material/divider';
 import {MatFormFieldModule} from '@angular/material/form-field';
 import {MatIconModule} from '@angular/material/icon';
@@ -43,10 +43,12 @@ import {AngularViewer} from '@app/shared/angular_viewer';
 import {MatDrawer, MatDrawerContainer, MatDrawerContent,} from '@app/shared/bottomnav/bottom_drawer_component';
 import {TimelineComponent} from '@app/shared/timeline/timeline_component';
 import {CollectTracesComponent} from '@app/trace_collection/collect_traces_component';
+import {WarningDialogComponent, WarningDialogResult} from '@app/trace_collection/warning_dialog_component';
 import {WdpSetupComponent} from '@app/trace_collection/wdp_setup_component';
 import {WinscopeProxySetupComponent} from '@app/trace_collection/winscope_proxy_setup_component';
 import {UploadTracesComponent} from '@app/trace_loading/upload_traces_component';
 import {assertDefined} from '@common/assert';
+import {translate} from '@common/i18n';
 import {waitToBeCalled} from '@common/spy_utils';
 import {setPersistenceEnabledForTest} from '@common/store/persistent_store';
 import {Store} from '@common/store/store';
@@ -73,6 +75,7 @@ import {TimelineData} from '@ui/timeline/timeline_data';
 import {LoadedFileData} from '@ui/trace_loading/loaded_file_data';
 import {ParsingErrorType} from '@ui/trace_loading/parsing_error_type';
 import {makeWarningFailedToInitializeTimelineData, makeWarningNoValidFiles,} from '@ui/trace_loading/warnings';
+import {firstValueFrom} from 'rxjs';
 
 import {AppComponent} from './app_component';
 import {TraceViewComponent} from './trace_view_component';
@@ -277,6 +280,104 @@ describe('AppComponent', () => {
     expect(component).toBeTruthy();
   });
 
+  describe('display size preference', () => {
+    let savedScale: string | null;
+    let originalZoom: string;
+
+    beforeEach(() => {
+      fixture.destroy();
+      savedScale = localStorage.getItem('display-scale');
+      originalZoom = document.documentElement.style.getPropertyValue('zoom');
+      localStorage.removeItem('display-scale');
+    });
+
+    afterEach(() => {
+      fixture.destroy();
+      setPersistenceEnabledForTest(true);
+      if (savedScale === null) localStorage.removeItem('display-scale');
+      else localStorage.setItem('display-scale', savedScale);
+      if (originalZoom) document.documentElement.style.setProperty('zoom', originalZoom);
+      else document.documentElement.style.removeProperty('zoom');
+    });
+
+    function createApp(): void {
+      fixture = TestBed.createComponent(AppComponent);
+      component = fixture.componentInstance;
+    }
+
+    it('defaults to 100% and restores a saved display size', () => {
+      createApp();
+      expect(component.displayScale).toBe(100);
+      expect(document.documentElement.style.getPropertyValue('zoom')).toBe('1');
+      expect(localStorage.getItem('display-scale')).toBeNull();
+      fixture.destroy();
+      localStorage.setItem('display-scale', '120');
+      createApp();
+      expect(component.displayScale).toBe(120);
+      expect(document.documentElement.style.getPropertyValue('zoom')).toBe('1.2');
+    });
+
+    it('immediately applies and persists size without modifying theme or AI selection', () => {
+      createApp();
+      const defaults = component.aiDefaults;
+      const theme = component.themeMode;
+      component.setDisplayScale(140);
+      expect(component.displayScale).toBe(140);
+      expect(document.documentElement.style.getPropertyValue('zoom')).toBe('1.4');
+      expect(localStorage.getItem('display-scale')).toBe('140');
+      expect(component.aiDefaults).toBe(defaults);
+      expect(component.themeMode).toBe(theme);
+      component.setDisplayScale(100);
+      expect(document.documentElement.style.getPropertyValue('zoom')).toBe('1');
+      expect(localStorage.getItem('display-scale')).toBe('100');
+    });
+
+    it('rejects unsupported runtime sizes and safely defaults invalid saved values', () => {
+      localStorage.setItem('display-scale', 'invalid');
+      createApp();
+      expect(component.displayScale).toBe(100);
+      for (const scale of [NaN, Infinity, 0, 79, 85, 141]) component.setDisplayScale(scale);
+      expect(component.displayScale).toBe(100);
+      expect(document.documentElement.style.getPropertyValue('zoom')).toBe('1');
+      expect(localStorage.getItem('display-scale')).toBe('invalid');
+    });
+
+    it('ignores saved sizes and never persists choices in privacy mode', () => {
+      localStorage.setItem('display-scale', '130');
+      setPersistenceEnabledForTest(false);
+      createApp();
+      expect(component.displayScale).toBe(100);
+      component.setDisplayScale(80);
+      expect(component.displayScale).toBe(80);
+      expect(document.documentElement.style.getPropertyValue('zoom')).toBe('0.8');
+      expect(localStorage.getItem('display-scale')).toBe('130');
+    });
+
+    it('keeps the in-memory size if browser storage rejects the preference', () => {
+      createApp();
+      spyOn(component.persistentStore, 'add').and.throwError('Storage denied');
+      expect(() => component.setDisplayScale(120)).not.toThrow();
+      expect(component.displayScale).toBe(120);
+      expect(document.documentElement.style.getPropertyValue('zoom')).toBe('1.2');
+    });
+
+    it('notifies layout consumers after scaling and cancels pending work on destroy', () => {
+      const schedule = spyOn(window, 'requestAnimationFrame').and.returnValue(42);
+      const cancel = spyOn(window, 'cancelAnimationFrame');
+      const dispatch = spyOn(window, 'dispatchEvent').and.callThrough();
+      createApp();
+      component.setDisplayScale(120);
+      expect(cancel).toHaveBeenCalledWith(42);
+      schedule.calls.mostRecent().args[0](0);
+      expect(dispatch).toHaveBeenCalledWith(jasmine.any(Event));
+      expect(dispatch.calls.mostRecent().args[0].type).toBe('resize');
+      component.setDisplayScale(80);
+      fixture.destroy();
+      expect(cancel.calls.count()).toBeGreaterThanOrEqual(2);
+      expect(document.documentElement.style.getPropertyValue('zoom')).toBe(originalZoom);
+    });
+  });
+
   describe('theme preference', () => {
     let savedMode: string | null;
     let savedDark: string | null;
@@ -418,7 +519,15 @@ describe('AppComponent', () => {
     checkHomepage();
   });
 
-
+  it('places the welcome message in the bottom homepage bar', () => {
+    const content = dom.get('.landing-content').getHTMLElement();
+    const bar = dom.get('.landing-status-bar').getHTMLElement();
+    expect(content.lastElementChild).toBe(bar);
+    expect(bar.querySelector('.welcome-info')?.textContent).toContain(
+      'Welcome to Winscope',
+    );
+    expect(dom.findAll('.welcome-info').length).toBe(1);
+  });
 
   it('displays correct elements when data loaded', async () => {
     await goToTraceView();
@@ -435,6 +544,283 @@ describe('AppComponent', () => {
     await dom.clickAndWaitStable('.upload-new');
     await dom.detectChangesAndWaitStable();
     checkHomepage();
+  });
+
+  describe('toolbar trace reset', () => {
+    it('is always present, labeled, and disabled without trace data', async () => {
+      const reset: HTMLButtonElement = fixture.nativeElement.querySelector('.reset-traces-button');
+      expect(reset).not.toBeNull();
+      expect(reset.disabled).toBeTrue();
+      expect(reset.getAttribute('aria-label')).toBe(translate('Reset trace data'));
+      expect(reset.querySelector('mat-icon')?.textContent?.trim()).toBe('restart_alt');
+      const event = spyOn(component.mediator, 'onWinscopeEvent');
+      await component.resetTraceData();
+      expect(event).not.toHaveBeenCalled();
+    });
+
+    it('clears loaded viewers and returns to collection without clearing saved preferences', async () => {
+      await goToTraceView();
+      const oldFiles = component.loadedFileData;
+      const destroy = spyOn(oldFiles, 'onDestroy').and.callThrough();
+      const clear = spyOn(component.persistentStore, 'clear').and.callThrough();
+      const savedPreferences = ['language', 'theme-mode', 'display-scale'].map(
+        (key) => component.persistentStore.get(key),
+      );
+      const defaults = component.aiDefaults;
+      component.viewers = [jasmine.createSpyObj<AngularViewer>('viewer', ['onDestroy'])];
+      component.initialTimelineTabTraceType = TraceType.SURFACE_FLINGER;
+      component.currentTimestamp = makeRealTimestamp(123n);
+      component.collapsedTimelineHeight = 100;
+      component.filenameFormControl.setValue('old-trace');
+      component.isEditingFilename = true;
+      component.aiEvidence = {trace: 'old evidence'};
+      component.aiPanelOpen = true;
+      component.settingsOpen = true;
+
+      await component.resetTraceData();
+      await dom.detectChangesAndWaitStable();
+      checkHomepage();
+      expect(destroy).toHaveBeenCalledOnceWith();
+      expect(component.loadedFileData).not.toBe(oldFiles);
+      expect(component.loadedFileData.getLoadedFileReaders()).toEqual([]);
+      expect(component.viewers).toEqual([]);
+      expect(component.initialTimelineTabTraceType).toBeUndefined();
+      expect(component.currentTimestamp).toBeUndefined();
+      expect(component.collapsedTimelineHeight).toBe(0);
+      expect(component.filenameFormControl.value).toBe('winscope');
+      expect(component.isEditingFilename).toBeFalse();
+      expect(component.aiEvidence).toBeUndefined();
+      expect(component.aiPanelOpen).toBeFalse();
+      expect(component.settingsOpen).toBeFalse();
+      expect(component.resettingTraces).toBeFalse();
+      expect(component.traceResetDisabled).toBeTrue();
+      expect(component.aiDefaults).toBe(defaults);
+      expect(clear).toHaveBeenCalledOnceWith('treeView');
+      expect(['language', 'theme-mode', 'display-scale'].map(
+        (key) => component.persistentStore.get(key),
+      )).toEqual(savedPreferences);
+    });
+
+    it('also clears files staged on the upload and collection page', async () => {
+      const oldFiles = component.loadedFileData;
+      (LoadedFileData.prototype.getLoadedFileReaders as jasmine.Spy).and.callFake(
+        function(this: LoadedFileData) { return this === oldFiles ? [reader] : []; },
+      );
+      expect(component.dataLoaded).toBeFalse();
+      component.confirmTraceReset = false;
+      dom.detectChanges();
+      expect(component.traceResetDisabled).toBeFalse();
+      await dom.clickAndWaitStable('.reset-traces-button');
+      await dom.detectChangesAndWaitStable();
+      expect(component.loadedFileData).not.toBe(oldFiles);
+      expect(component.loadedFileData.getLoadedFileReaders()).toEqual([]);
+      expect(component.traceResetDisabled).toBeTrue();
+      checkHomepage();
+    });
+
+    it('ignores duplicate clicks and stays disabled while exporting', async () => {
+      await goToTraceView();
+      let finish!: () => void;
+      const event = spyOn(component.mediator, 'onWinscopeEvent').and.returnValue(
+        new Promise<void>((resolve) => { finish = resolve; }),
+      );
+      component.downloadProgress = 50;
+      await component.resetTraceData();
+      expect(event).not.toHaveBeenCalled();
+      component.downloadProgress = undefined;
+      const pending = component.resetTraceData();
+      expect(component.resettingTraces).toBeTrue();
+      await component.resetTraceData();
+      expect(event).toHaveBeenCalledOnceWith(new AppResetRequest());
+      finish();
+      await pending;
+      expect(component.resettingTraces).toBeFalse();
+    });
+
+    it('reenables reset if cleanup reports a failure', async () => {
+      await goToTraceView();
+      spyOn(component.mediator, 'onWinscopeEvent').and.rejectWith(new Error('Reset failed'));
+      await expectAsync(component.resetTraceData()).toBeRejectedWithError('Reset failed');
+      expect(component.resettingTraces).toBeFalse();
+      expect(component.traceResetDisabled).toBeFalse();
+      expect(component.dataLoaded).toBeTrue();
+    });
+  });
+
+  describe('trace reset confirmation', () => {
+    let savedPreference: string | null;
+
+    beforeEach(() => {
+      savedPreference = localStorage.getItem('confirm-trace-reset');
+      localStorage.removeItem('confirm-trace-reset');
+      component.confirmTraceReset = true;
+    });
+
+    afterEach(() => {
+      setPersistenceEnabledForTest(true);
+      if (savedPreference === null) localStorage.removeItem('confirm-trace-reset');
+      else localStorage.setItem('confirm-trace-reset', savedPreference);
+    });
+
+    function resetDialog(): MatDialogRef<WarningDialogComponent, WarningDialogResult> {
+      return matDialogSpy.open.calls.mostRecent().returnValue as MatDialogRef<WarningDialogComponent, WarningDialogResult>;
+    }
+
+    it('asks before clearing data and configures Cancel as the initial focus', async () => {
+      await goToTraceView();
+      const files = component.loadedFileData;
+      const reset = spyOn(component, 'resetTraceData').and.callThrough();
+      const pending = component.requestTraceReset();
+      await dom.whenStable();
+      const dialog = resetDialog();
+      await firstValueFrom(dialog.afterOpened(), {defaultValue: undefined});
+      expect(dialog.componentInstance.data.title).toBe('Reset trace data?');
+      expect(dialog.componentInstance.data.options).toEqual(['Do not ask again']);
+      expect(dialog.disableClose).toBeFalse();
+      expect(component.confirmingTraceReset).toBeTrue();
+      expect(component.traceResetDisabled).toBeTrue();
+      expect(component.loadedFileData).toBe(files);
+      expect(component.dataLoaded).toBeTrue();
+      expect(reset).not.toHaveBeenCalled();
+      expect(matDialogSpy.open.calls.mostRecent().args[1]?.autoFocus)
+        .toBe('.warning-action-buttons .not-last');
+      dialog.close({closeActionText: 'Reset', selectedOptions: []});
+      await pending;
+      expect(reset).toHaveBeenCalledOnceWith();
+      expect(component.dataLoaded).toBeFalse();
+      expect(component.confirmTraceReset).toBeTrue();
+      expect(localStorage.getItem('confirm-trace-reset')).toBeNull();
+    });
+
+    for (const action of ['Cancel', undefined]) {
+      it(`preserves data and the preference when dismissed with ${action ?? 'Escape or backdrop'}`, async () => {
+        await goToTraceView();
+        const files = component.loadedFileData;
+        const reset = spyOn(component, 'resetTraceData').and.callThrough();
+        const pending = component.requestTraceReset();
+        const dialog = resetDialog();
+        dialog.componentInstance.updateSelectedOptions('Do not ask again');
+        dialog.close(action ? {closeActionText: action, selectedOptions: ['Do not ask again']} : undefined);
+        await pending;
+        expect(reset).not.toHaveBeenCalled();
+        expect(component.loadedFileData).toBe(files);
+        expect(component.dataLoaded).toBeTrue();
+        expect(component.confirmTraceReset).toBeTrue();
+        expect(component.confirmingTraceReset).toBeFalse();
+        expect(localStorage.getItem('confirm-trace-reset')).toBeNull();
+      });
+    }
+
+    it('remembers Do not ask again only after a successful confirmed reset and then skips the dialog', async () => {
+      await goToTraceView();
+      const pending = component.requestTraceReset();
+      resetDialog().close({closeActionText: 'Reset', selectedOptions: ['Do not ask again']});
+      await pending;
+      expect(component.confirmTraceReset).toBeFalse();
+      expect(localStorage.getItem('confirm-trace-reset')).toBe('false');
+      const dialogCount = matDialogSpy.open.calls.count();
+      await goToTraceView();
+      await component.requestTraceReset();
+      expect(matDialogSpy.open.calls.count()).toBe(dialogCount);
+      expect(component.dataLoaded).toBeFalse();
+    });
+
+    it('re-enables prompting from the General settings checkbox', async () => {
+      component.setConfirmTraceReset(false);
+      component.openApplicationSettings();
+      await dom.detectChangesAndWaitStable();
+      const checkbox: HTMLInputElement = fixture.nativeElement.querySelector('.confirm-trace-reset input[type="checkbox"]');
+      expect(checkbox.checked).toBeFalse();
+      checkbox.click();
+      await dom.detectChangesAndWaitStable();
+      expect(component.confirmTraceReset).toBeTrue();
+      expect(localStorage.getItem('confirm-trace-reset')).toBe('true');
+      component.closeApplicationSettings();
+      await goToTraceView();
+      const pending = component.requestTraceReset();
+      expect(matDialogSpy.open).toHaveBeenCalled();
+      resetDialog().close({closeActionText: 'Cancel', selectedOptions: []});
+      await pending;
+      expect(component.dataLoaded).toBeTrue();
+    });
+
+    it('prevents duplicate confirmations and rechecks whether exporting started before approval', async () => {
+      await goToTraceView();
+      const pending = component.requestTraceReset();
+      await component.requestTraceReset();
+      expect(matDialogSpy.open).toHaveBeenCalledTimes(1);
+      component.downloadProgress = 50;
+      resetDialog().close({closeActionText: 'Reset', selectedOptions: ['Do not ask again']});
+      await pending;
+      expect(component.dataLoaded).toBeTrue();
+      expect(component.confirmTraceReset).toBeTrue();
+      expect(component.confirmingTraceReset).toBeFalse();
+    });
+
+    it('does not suppress future warnings when cleanup fails', async () => {
+      await goToTraceView();
+      spyOn(component.mediator, 'onWinscopeEvent').and.rejectWith(new Error('Reset failed'));
+      const pending = component.requestTraceReset();
+      const rejected = expectAsync(pending).toBeRejectedWithError('Reset failed');
+      resetDialog().close({closeActionText: 'Reset', selectedOptions: ['Do not ask again']});
+      await rejected;
+      expect(component.confirmTraceReset).toBeTrue();
+      expect(component.confirmingTraceReset).toBeFalse();
+      expect(localStorage.getItem('confirm-trace-reset')).toBeNull();
+    });
+
+    it('cancels an outstanding confirmation when the trace workspace is replaced', async () => {
+      await goToTraceView();
+      const pending = component.requestTraceReset();
+      await component.onWinscopeEvent(new ViewersUnloaded());
+      await pending;
+      expect(component.confirmingTraceReset).toBeFalse();
+      expect(component.confirmTraceReset).toBeTrue();
+      expect(localStorage.getItem('confirm-trace-reset')).toBeNull();
+    });
+
+    it('cancels an outstanding confirmation when the application is destroyed', async () => {
+      await goToTraceView();
+      const reset = spyOn(component, 'resetTraceData').and.callThrough();
+      const pending = component.requestTraceReset();
+      fixture.destroy();
+      await pending;
+      expect(reset).not.toHaveBeenCalled();
+      expect(localStorage.getItem('confirm-trace-reset')).toBeNull();
+    });
+
+    it('restores false, defaults unsupported stored values to true, and never persists in privacy mode', async () => {
+      for (const [value, expected] of [['false', false], ['true', true], ['invalid', true]] as const) {
+        fixture.destroy();
+        localStorage.setItem('confirm-trace-reset', value);
+        fixture = TestBed.createComponent(AppComponent);
+        component = fixture.componentInstance;
+        expect(component.confirmTraceReset).toBe(expected);
+      }
+      fixture.destroy();
+      localStorage.setItem('confirm-trace-reset', 'false');
+      setPersistenceEnabledForTest(false);
+      fixture = TestBed.createComponent(AppComponent);
+      component = fixture.componentInstance;
+      expect(component.confirmTraceReset).toBeTrue();
+      component.setConfirmTraceReset(false);
+      component.setConfirmTraceReset(true);
+      expect(localStorage.getItem('confirm-trace-reset')).toBe('false');
+    });
+
+    it('keeps prompting if storage cannot be read and honors in-memory changes when saving fails', () => {
+      fixture.destroy();
+      spyOn(Storage.prototype, 'getItem').and.callFake((key: string) => {
+        if (key === 'confirm-trace-reset') throw new Error('Storage denied');
+        return null;
+      });
+      fixture = TestBed.createComponent(AppComponent);
+      component = fixture.componentInstance;
+      expect(component.confirmTraceReset).toBeTrue();
+      spyOn(component.persistentStore, 'add').and.throwError('Storage denied');
+      expect(() => component.setConfirmTraceReset(false)).not.toThrow();
+      expect(component.confirmTraceReset).toBeFalse();
+    });
   });
 
   it('sends event on refresh dumps button click', async () => {
@@ -1317,7 +1703,7 @@ describe('AppComponent', () => {
   }
 
   function checkHomepage() {
-    expect(dom.find('.welcome-info')).toBeTruthy();
+    expect(dom.find('.landing-status-bar .welcome-info')).toBeTruthy();
     expect(dom.find('.collect-traces-card')).toBeTruthy();
     expect(dom.find('.upload-traces-card')).toBeTruthy();
     expect(dom.find('.viewers')).toBeUndefined();
@@ -1327,6 +1713,7 @@ describe('AppComponent', () => {
   }
 
   function checkTraceViewPage() {
+    expect(dom.find('.landing-status-bar')).toBeUndefined();
     expect(dom.find('.welcome-info')).toBeUndefined();
     expect(dom.find('.save-button')).toBeTruthy();
     expect(dom.find('.collect-traces-card')).toBeUndefined();
@@ -1344,6 +1731,7 @@ describe('AppComponent', () => {
     expect(dom.find('.export-diagnostics')).toBeTruthy();
     expect(dom.find('.dark-mode')).toBeUndefined();
     expect(dom.find('.settings-button')).toBeTruthy();
+    expect(dom.find('.reset-traces-button')).toBeTruthy();
   }
 
   function showDataLoadedElements() {

@@ -24,6 +24,7 @@ import {MatTooltipModule} from '@angular/material/tooltip';
 import {DomSanitizer, SafeUrl} from '@angular/platform-browser';
 import {assertDefined} from '@common/assert';
 import {Size} from '@common/geometry/size';
+import {TranslatePipe} from '@common/i18n';
 import {Timer} from '@common/time/timer';
 import {MediaBasedTraceEntry} from '@trace/media_based/media_based_trace_entry';
 
@@ -31,6 +32,7 @@ import {MediaBasedTraceEntry} from '@trace/media_based/media_based_trace_entry';
   selector: 'viewer-media-based',
   standalone: true,
   imports: [
+    TranslatePipe,
     CommonModule,
     DragDropModule,
     MatCardModule,

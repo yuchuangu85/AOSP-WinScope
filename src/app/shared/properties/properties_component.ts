@@ -20,6 +20,7 @@ import {CollapsibleSectionTitleComponent} from '@app/shared/collapsible_sections
 import {SearchBoxComponent} from '@app/shared/search_box/search_box_component';
 import {TreeComponent} from '@app/shared/tree/tree_component';
 import {UserOptionsComponent} from '@app/shared/user_options/user_options_component';
+import {TranslatePipe} from '@common/i18n';
 import {PersistentStore} from '@common/store/persistent_store';
 import {Analytics} from '@logging/analytics';
 import {TraceType} from '@trace_api/trace_type';
@@ -38,6 +39,7 @@ import {PropertyNodeHeightPredictor} from './property_tree_node_height_predictor
   selector: 'properties-view',
   standalone: true,
   imports: [
+    TranslatePipe,
     CommonModule,
     MatDividerModule,
     CollapsibleSectionTitleComponent,

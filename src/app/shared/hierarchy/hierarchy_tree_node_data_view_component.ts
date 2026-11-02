@@ -16,13 +16,14 @@
 import {CommonModule} from '@angular/common';
 import {Component, computed, input} from '@angular/core';
 import {MatTooltipModule} from '@angular/material/tooltip';
+import {TranslatePipe} from '@common/i18n';
 import {UiHierarchyTreeNode} from '@ui/shared/hierarchy/ui_hierarchy_tree_node';
 import {Chip} from '@ui/shared/user_input/chip';
 
 @Component({
   selector: 'hierarchy-tree-node-data-view',
   standalone: true,
-  imports: [CommonModule, MatTooltipModule],
+  imports: [TranslatePipe, CommonModule, MatTooltipModule],
   templateUrl: './hierarchy_tree_node_data_view_component.ng.html',
   styleUrls: ['hierarchy_tree_node_data_view_component.scss'],
 })

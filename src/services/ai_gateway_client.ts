@@ -1,3 +1,18 @@
+export interface AiProviderConfiguration {
+  baseUrl: string;
+  providerName: string;
+  apiKeyEnv: string;
+  timeoutMs: number;
+}
+
+export interface AiSettingsSelection {
+  agentId: string;
+  providerId: string;
+  modelId: string;
+  customModel: string;
+  reasoningLevel: string;
+}
+
 export interface AiProvider {
   id: string;
   name?: string;
@@ -6,16 +21,19 @@ export interface AiProvider {
   supportsCustomModel?: boolean;
   defaultModelId?: string;
   importedFrom?: string;
+  configured?: boolean;
+  configuration?: AiProviderConfiguration;
   localConfig?: {
     baseUrl?: string;
     providerName?: string;
-    authentication: 'configured' | 'cli-managed';
+    authentication: 'configured' | 'cli-managed' | 'not-configured';
     reasoningLevel?: string;
   };
 }
 
 export interface AiCatalog {
   providers: AiProvider[];
+  selection?: AiSettingsSelection;
   agents: Array<{
     id: string;
     name: string;
@@ -82,7 +100,10 @@ export class AiGatewayClient {
 
   async catalog(signal?: AbortSignal): Promise<AiCatalog> {
     const [providers, agents, skills] = await Promise.all([
-      this.getJson<{providers: AiProvider[]}>('api/providers', signal),
+      this.getJson<{providers: AiProvider[]; selection?: AiSettingsSelection}>(
+        'api/providers',
+        signal,
+      ),
       this.getJson<{agents: AiCatalog['agents']}>('api/agents', signal),
       this.getJson<{skills: AiCatalog['skills']}>('api/skills', signal),
     ]);
@@ -90,6 +111,7 @@ export class AiGatewayClient {
       providers: providers.providers,
       agents: agents.agents,
       skills: skills.skills,
+      ...(providers.selection ? {selection: providers.selection} : {}),
     };
   }
 
@@ -115,6 +137,21 @@ export class AiGatewayClient {
       },
     );
     return body.provider;
+  }
+
+  async saveSettings(
+    selection: AiSettingsSelection,
+    configuration?: AiProviderConfiguration,
+    signal?: AbortSignal,
+  ): Promise<{selection: AiSettingsSelection; provider?: AiProvider}> {
+    return this.getJson('api/settings', signal, {
+      method: 'POST',
+      headers: {'content-type': 'application/json'},
+      body: JSON.stringify({
+        selection,
+        ...(configuration ? {configuration} : {}),
+      }),
+    });
   }
 
   async getSession(

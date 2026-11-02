@@ -57,7 +57,10 @@ limitations under the License.
         @if (enableDoubleClick()) {
           <mat-icon
             class="info-icon material-symbols-outlined"
-            matTooltip="Double click overlay when not in playback mode to change active trace to this screen recording"
+            [matTooltip]="
+              'Double click overlay when not in playback mode to change active trace to this screen recording'
+                | tr
+            "
             matTooltipPosition="above"
           >
             info
@@ -77,7 +80,7 @@ limitations under the License.
     <div class="video-container" cdkDragHandle [style.height]="isMinimized() ? '0px' : ''">
       @if (showFetchingEntriesMessage) {
         <div class="mat-body-1 fetching-entries-message user-notification">
-          Loading queued frame...
+          {{ 'Loading queued frame...' | tr }}
         </div>
       }
       @let hasVideo = hasVideoToShow();
@@ -100,7 +103,7 @@ limitations under the License.
           ></video>
         }
       } @else {
-        <div class="mat-body-2 no-video"> No frame to show. </div>
+        <div class="mat-body-2 no-video"> {{ 'No frame to show.' | tr }} </div>
       }
     </div>
   </mat-card>

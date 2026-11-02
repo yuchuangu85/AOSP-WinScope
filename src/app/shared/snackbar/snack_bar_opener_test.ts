@@ -20,9 +20,10 @@ import {TestBed} from '@angular/core/testing';
 import {MatSnackBar, MatSnackBarRef} from '@angular/material/snack-bar';
 import {BrowserAnimationsModule} from '@angular/platform-browser/animations';
 import {waitToBeCalled} from '@common/spy_utils';
+import {UserWarning} from '@messaging/user_warning';
 import {makeWarningFailedToInitializeTimelineData, makeWarningNoValidFiles,} from '@ui/trace_loading/warnings';
 
-import {SnackBarComponent} from './snack_bar_component';
+import {SnackBarComponent, SnackBarMessage} from './snack_bar_component';
 import {SnackBarOpener} from './snack_bar_opener';
 
 describe('SnackBarOpener', () => {
@@ -54,6 +55,26 @@ describe('SnackBarOpener', () => {
     });
   });
 
+  it('passes optional localization metadata without changing original diagnostics or raw notifications', () => {
+    const localization = {
+      source: '{filename}: corrupted archive',
+      params: {filename: 'Save.zip'},
+    };
+    const warning = new UserWarning(
+      'corrupted archive',
+      'Save.zip: corrupted archive',
+      localization,
+    );
+    const raw = new UserWarning('external', 'external error: Save');
+    snackBarOpener.onNotifications([warning, raw]);
+    expect(openSpy).toHaveBeenCalledWith(SnackBarComponent, {
+      data: [localization, raw.message],
+      duration: 10000,
+    });
+    expect(warning.message).toBe('Save.zip: corrupted archive');
+    expect(raw.message).toBe('external error: Save');
+  });
+
   it('handles empty notifications', () => {
     snackBarOpener.onNotifications([]);
     expect(openSpy).not.toHaveBeenCalled();
@@ -72,8 +93,11 @@ describe('SnackBarOpener', () => {
     const notifications = Array.from({length: 6}, () => filesNotif);
     snackBarOpener.onNotifications(notifications);
 
-    const expectedMessages = Array.from({length: 5}, () => filesMessage);
-    expectedMessages.push("... (cropped 1 'no valid files' message)");
+    const expectedMessages: SnackBarMessage[] = Array.from({length: 5}, () => filesMessage);
+    expectedMessages.push({
+      source: "... (cropped {count} '{descriptor}' message)",
+      params: {count: 1, descriptor: 'no valid files'},
+    });
     expect(openSpy).toHaveBeenCalledWith(SnackBarComponent, {
       data: expectedMessages,
       duration: 30000,
@@ -84,8 +108,11 @@ describe('SnackBarOpener', () => {
     const notifications = Array.from({length: 7}, () => filesNotif);
     snackBarOpener.onNotifications(notifications);
 
-    const expectedMessages = Array.from({length: 5}, () => filesMessage);
-    expectedMessages.push("... (cropped 2 'no valid files' messages)");
+    const expectedMessages: SnackBarMessage[] = Array.from({length: 5}, () => filesMessage);
+    expectedMessages.push({
+      source: "... (cropped {count} '{descriptor}' messages)",
+      params: {count: 2, descriptor: 'no valid files'},
+    });
     expect(openSpy).toHaveBeenCalledWith(SnackBarComponent, {
       data: expectedMessages,
       duration: 30000,
@@ -114,9 +141,14 @@ describe('SnackBarOpener', () => {
     ]);
     snackBarOpener.onNotifications(notifications);
 
-    const expectedMessages = Array.from({length: 5}, () => filesMessage).concat(
-      ["... (cropped 1 'no valid files' message)", timelineMessage],
-    );
+    const expectedMessages: SnackBarMessage[] = [
+      ...Array.from({length: 5}, () => filesMessage),
+      {
+        source: "... (cropped {count} '{descriptor}' message)",
+        params: {count: 1, descriptor: 'no valid files'},
+      },
+      timelineMessage,
+    ];
     expect(openSpy).toHaveBeenCalledWith(SnackBarComponent, {
       data: expectedMessages,
       duration: 35000,

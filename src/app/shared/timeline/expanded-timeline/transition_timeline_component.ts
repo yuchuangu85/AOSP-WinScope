@@ -21,6 +21,7 @@ import {convertLifecycle, getLifecycleForTransition, TransitionLifecycle,} from 
 import {assertDefined, assertTrue} from '@common/assert';
 import {Point} from '@common/geometry/point';
 import {Rect} from '@common/geometry/rect';
+import {TranslatePipe} from '@common/i18n';
 import {TimeRange, Timestamp} from '@common/time/time';
 import {AbsoluteEntryIndex} from '@trace_api/index_types';
 import {TraceEntry} from '@trace_api/trace';
@@ -36,7 +37,7 @@ import {AbstractTimelineRowComponent} from './abstract_timeline_row_component';
 @Component({
   selector: 'transition-timeline',
   standalone: true,
-  imports: [MatTooltipModule],
+  imports: [TranslatePipe, MatTooltipModule],
   templateUrl: './transition_timeline_component.ng.html',
   styleUrls: ['transition_timeline_component.scss'],
 })

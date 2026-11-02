@@ -17,6 +17,7 @@ import {CommonModule} from '@angular/common';
 import {Component, computed, input, output} from '@angular/core';
 import {MatButtonModule} from '@angular/material/button';
 import {CollapsibleSectionTitleComponent} from '@app/shared/collapsible_sections/collapsible_section_title_component';
+import {TranslatePipe} from '@common/i18n';
 import {EMPTY_OBJ_STRING} from '@trace/formatters';
 import {HierarchyTreeNode} from '@tree_node/hierarchy_tree_node';
 import {PropertyTreeNode} from '@tree_node/property_tree_node';
@@ -31,6 +32,7 @@ import {CoordinatesTableComponent} from './coordinates_table_component';
   selector: 'ime-additional-properties',
   standalone: true,
   imports: [
+    TranslatePipe,
     CommonModule,
     MatButtonModule,
     CollapsibleSectionTitleComponent,

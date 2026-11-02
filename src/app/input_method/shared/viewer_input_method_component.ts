@@ -20,6 +20,7 @@ import {CollapsedSectionsComponent} from '@app/shared/collapsible_sections/colla
 import {HierarchyComponent} from '@app/shared/hierarchy/hierarchy_component';
 import {HierarchyViewerComponent} from '@app/shared/hierarchy/hierarchy_viewer_component';
 import {PropertiesComponent} from '@app/shared/properties/properties_component';
+import {TranslatePipe} from '@common/i18n';
 import {TraceType} from '@trace_api/trace_type';
 import {ImeUiData} from '@ui/input_method/ime_ui_data';
 import {CollapsibleSectionType} from '@ui/shared/collapsible_sections/collapsible_section_type';
@@ -32,6 +33,7 @@ import {ImeAdditionalPropertiesComponent} from './ime_additional_properties_comp
   selector: 'viewer-input-method',
   standalone: true,
   imports: [
+    TranslatePipe,
     CommonModule,
     CollapsedSectionsComponent,
     HierarchyComponent,

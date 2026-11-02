@@ -1,9 +1,12 @@
 import {createServer, IncomingMessage, Server, ServerResponse} from 'node:http';
 import {randomUUID} from 'node:crypto';
 import {AgentRuntime} from './runtime';
-import {ChatTurn, EvidenceInput, JsonValue, ReasoningLevel, RuntimeEvent, TextAttachment} from './types';
+import {AiSelection, ChatTurn, EvidenceInput, JsonValue, Provider, ReasoningLevel, RuntimeEvent, TextAttachment} from './types';
 import {buildHtmlReport, buildMarkdownReport} from './report';
-import {importLocalProvider, isModelId, LocalConfigOptions, LocalProviderId} from './local_config';
+import {importLocalProvider, isModelId, LocalConfigOptions} from './local_config';
+import {isRecord} from './json';
+import {CommandProvider, configureProvider, OpenAICompatibleProvider} from './providers';
+import {GatewaySettingsOptions, hasOnlyFields, parseProviderConfiguration, readSettings, SavedAiSettings, SavedProviderSettings, writeSettings} from './settings';
 
 const SHUTDOWN_TIMEOUT_MS = 5000;
 
@@ -43,15 +46,20 @@ class HttpError extends Error {
 
 export class AiGateway {
   private readonly sessions = new Map<string, Session>();
-  private readonly importingProviders = new Set<LocalProviderId>();
+  private readonly importingProviders = new Set<string>();
+  private settings: SavedAiSettings = {version: 1, providers: []};
+  private selection?: AiSelection;
+  private initialization?: Promise<void>;
   private closePromise?: Promise<void>;
   readonly server: Server;
-  constructor(private readonly runtime: AgentRuntime, private readonly localConfigOptions: LocalConfigOptions = {}) {
+  constructor(private readonly runtime: AgentRuntime, private readonly localConfigOptions: LocalConfigOptions = {}, private readonly settingsOptions: GatewaySettingsOptions = {}) {
     this.server = createServer((request, response) => void this.handle(request, response));
   }
-  listen(port: number, host = '127.0.0.1'): Promise<void> {
-    if (this.closePromise) return Promise.reject(new Error('AI gateway is shutting down'));
-    if (host !== '127.0.0.1' && host !== 'localhost' && host !== '::1') return Promise.reject(new Error('AI gateway must bind to loopback'));
+  async listen(port: number, host = '127.0.0.1'): Promise<void> {
+    if (this.closePromise) throw new Error('AI gateway is shutting down');
+    if (host !== '127.0.0.1' && host !== 'localhost' && host !== '::1') throw new Error('AI gateway must bind to loopback');
+    await (this.initialization ??= this.restoreSettings());
+    if (this.closePromise) throw new Error('AI gateway is shutting down');
     return new Promise((resolve, reject) => {
       this.server.once('error', reject);
       this.server.listen(port, host, () => { this.server.off('error', reject); resolve(); });
@@ -98,7 +106,8 @@ export class AiGateway {
       if (this.closePromise) throw new HttpError(503, 'AI gateway is shutting down');
       const url = new URL(request.url ?? '/', 'http://localhost');
       if (method === 'GET' && url.pathname === '/health') return this.json(response, 200, {ok: true, service: 'winscope-ai'});
-      if (method === 'GET' && url.pathname === '/api/providers') return this.json(response, 200, {providers: this.runtime.providers.list()});
+      if (method === 'GET' && url.pathname === '/api/providers') return this.json(response, 200, {providers: this.runtime.providers.list(), ...(this.selection ? {selection: this.selection} : {})});
+      if (method === 'POST' && url.pathname === '/api/settings') return await this.saveSettings(request, response);
       if (method === 'POST' && url.pathname === '/api/providers/import-local') return await this.importLocalConfiguration(request, response);
       if (method === 'GET' && url.pathname === '/api/agents') return this.json(response, 200, {agents: this.runtime.agents.list()});
       if (method === 'GET' && url.pathname === '/api/skills') return this.json(response, 200, {skills: this.runtime.skills.list()});
@@ -133,19 +142,117 @@ export class AiGateway {
     if ((id !== 'codex' && id !== 'claude') || Object.keys(body).some((key) => key !== 'providerId')) {
       throw new HttpError(400, 'Choose Codex or Claude to read its local configuration.');
     }
-    if (this.importingProviders.size || [...this.sessions.values()].some((session) => session.status === 'running')) {
-      throw new HttpError(409, 'Wait for the provider to finish before reading its configuration.');
-    }
-    this.importingProviders.add(id);
+    this.lockSettings(id);
     try {
       const provider = await importLocalProvider(id, this.localConfigOptions);
+      if (this.closePromise) throw new HttpError(503, 'AI gateway is shutting down');
+      const descriptor = provider.descriptor!;
+      const modelId = descriptor.defaultModelId ?? 'default';
+      const levels = descriptor.models.find((model) => model.id === modelId)?.levels ?? descriptor.reasoningLevels;
+      const importedLevel = descriptor.localConfig?.reasoningLevel;
+      const selection: AiSelection = {
+        agentId: this.selection?.agentId ?? this.runtime.agents.list().find((agent) => agent.id === 'display-anomaly')?.id ?? this.runtime.agents.list()[0].id,
+        providerId: id, modelId, customModel: '',
+        reasoningLevel: importedLevel && levels.includes(importedLevel) ? importedLevel : levels[0] ?? 'medium',
+      };
+      const saved: SavedProviderSettings = {id, importLocal: true};
+      await this.persistSettings(this.updatedSettings(selection, saved));
       this.runtime.providers.register(provider);
-      this.json(response, 200, {provider: provider.descriptor});
+      this.json(response, 200, {provider: descriptor, selection});
     } catch (error) {
+      if (error instanceof HttpError) throw error;
       throw new HttpError(422, error instanceof Error ? error.message : 'Local configuration could not be read.');
     } finally {
       this.importingProviders.delete(id);
     }
+  }
+  private lockSettings(id: string): void {
+    if (this.closePromise) throw new HttpError(503, 'AI gateway is shutting down');
+    if (this.importingProviders.size || [...this.sessions.values()].some((session) => session.status === 'running')) throw new HttpError(409, 'Wait for running sessions and provider settings to finish.');
+    this.importingProviders.add(id);
+  }
+  private parseSelection(value: unknown): AiSelection {
+    if (!isRecord(value) || !hasOnlyFields(value, ['agentId', 'providerId', 'modelId', 'customModel', 'reasoningLevel'])) throw new HttpError(400, 'invalid selection fields');
+    const {agentId, providerId, modelId, customModel, reasoningLevel} = value;
+    if (typeof agentId !== 'string' || typeof providerId !== 'string' || typeof modelId !== 'string' || typeof customModel !== 'string' || customModel.length > 128 || (reasoningLevel !== 'low' && reasoningLevel !== 'medium' && reasoningLevel !== 'high')) throw new HttpError(400, 'invalid selection');
+    let defaultProvider: string | undefined;
+    try { defaultProvider = this.runtime.agents.get(agentId).providerId; } catch { throw new HttpError(400, 'unknown agent'); }
+    if (modelId === '__custom__' && !isModelId(customModel)) throw new HttpError(400, 'invalid custom model identifier');
+    const activeId = providerId || defaultProvider;
+    if (activeId) {
+      const provider = this.runtime.providers.list().find((item) => item.id === activeId);
+      if (!provider) throw new HttpError(400, 'unknown provider');
+      const effectiveModel = modelId === '__custom__' ? customModel : modelId;
+      if (!isModelId(effectiveModel)) throw new HttpError(400, 'invalid model identifier');
+      const model = provider.models.find((item) => item.id === effectiveModel) ?? (effectiveModel === 'default' ? provider.models[0] : undefined);
+      if (modelId === '__custom__' ? !provider.supportsCustomModel : !model) throw new HttpError(400, 'unsupported model');
+      const levels = model?.levels ?? provider.reasoningLevels;
+      if (levels.length && !levels.includes(reasoningLevel as ReasoningLevel)) throw new HttpError(400, 'provider/model does not support the selected reasoning level');
+    } else if (modelId !== 'default') throw new HttpError(400, 'a provider is required for model selection');
+    return {agentId, providerId, modelId, customModel: modelId === '__custom__' ? customModel : '', reasoningLevel};
+  }
+  private updatedSettings(selection: AiSelection, provider?: SavedProviderSettings): SavedAiSettings {
+    return {version: 1, selection, providers: provider ? [...this.settings.providers.filter((item) => item.id !== provider.id), provider] : this.settings.providers};
+  }
+  private async persistSettings(settings: SavedAiSettings): Promise<void> {
+    if (this.settingsOptions.settingsPath) {
+      try { await writeSettings(this.settingsOptions.settingsPath, settings); }
+      catch { throw new HttpError(500, 'AI settings could not be saved.'); }
+    }
+    this.settings = settings;
+    this.selection = settings.selection;
+  }
+  private async saveSettings(request: IncomingMessage, response: ServerResponse): Promise<void> {
+    const body = await readJson(request);
+    this.lockSettings('settings');
+    try {
+      if (!hasOnlyFields(body, ['selection', 'configuration'])) throw new HttpError(400, 'invalid settings fields');
+      const selection = this.parseSelection(body.selection);
+      const activeId = selection.providerId || this.runtime.agents.get(selection.agentId).providerId;
+      let provider = activeId ? this.runtime.providers.get(activeId) : undefined;
+      let saved: SavedProviderSettings | undefined;
+      if (body.configuration !== undefined) {
+        if (!provider?.descriptor?.configuration) throw new HttpError(400, 'provider configuration is not supported');
+        try { provider = configureProvider(provider, parseProviderConfiguration(body.configuration)); }
+        catch (error) { throw new HttpError(400, error instanceof Error ? error.message : 'invalid provider configuration'); }
+        const previous = this.settings.providers.find((item) => item.id === activeId);
+        saved = {id: activeId!, ...(previous?.importLocal || provider.descriptor?.importedFrom ? {importLocal: true as const} : {}), configuration: (provider as CommandProvider | OpenAICompatibleProvider).configurationOverrides};
+      }
+      await this.persistSettings(this.updatedSettings(selection, saved));
+      if (provider) this.runtime.providers.register(provider);
+      this.json(response, 200, {selection, ...(provider ? {provider: provider.descriptor ?? this.runtime.providers.list().find((item) => item.id === activeId)} : {})});
+    } finally { this.importingProviders.delete('settings'); }
+  }
+  private applyStoredConfiguration(provider: Provider, value: unknown): Provider {
+    if (!provider.descriptor?.configuration || !isRecord(value) || !hasOnlyFields(value, ['baseUrl', 'providerName', 'apiKeyEnv', 'timeoutMs'])) throw new Error('invalid saved provider configuration');
+    return configureProvider(provider, parseProviderConfiguration({...provider.descriptor.configuration, ...value}));
+  }
+  private async restoreSettings(): Promise<void> {
+    if (!this.settingsOptions.settingsPath) return;
+    let value: unknown;
+    try { value = await readSettings(this.settingsOptions.settingsPath); } catch { return; }
+    if (!isRecord(value) || value.version !== 1 || !hasOnlyFields(value, ['version', 'selection', 'providers']) || !Array.isArray(value.providers)) return;
+    const restored: SavedProviderSettings[] = [];
+    const seen = new Set<string>();
+    for (const entry of value.providers) {
+      if (!isRecord(entry) || typeof entry.id !== 'string' || !hasOnlyFields(entry, ['id', 'importLocal', 'configuration']) || (entry.importLocal !== undefined && entry.importLocal !== true) || seen.has(entry.id)) continue;
+      seen.add(entry.id);
+      if (entry.importLocal !== true && entry.configuration === undefined) continue;
+      try {
+        if (entry.importLocal && entry.id !== 'codex' && entry.id !== 'claude') continue;
+        let provider: Provider = entry.importLocal === true
+          ? await importLocalProvider(entry.id as 'codex' | 'claude', this.localConfigOptions)
+          : this.runtime.providers.get(entry.id);
+        if (entry.configuration !== undefined) provider = this.applyStoredConfiguration(provider, entry.configuration);
+        if (this.closePromise) return;
+        this.runtime.providers.register(provider);
+        restored.push({id: entry.id, ...(entry.importLocal ? {importLocal: true} : {}), ...(entry.configuration !== undefined ? {configuration: (provider as CommandProvider | OpenAICompatibleProvider).configurationOverrides} : {})});
+      } catch {
+        // A stale marker is not evidence that the CLI is still configured.
+      }
+    }
+    this.settings = {version: 1, providers: restored};
+    try { this.selection = this.parseSelection(value.selection); this.settings.selection = this.selection; } catch { /* Ignore stale or malformed selections. */ }
   }
   private parseTurn(body: Record<string, unknown>, previous?: Session): TurnInput {
     if (this.closePromise) throw new HttpError(503, 'AI gateway is shutting down');

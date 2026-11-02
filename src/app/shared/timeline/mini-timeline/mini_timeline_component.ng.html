@@ -52,11 +52,11 @@ limitations under the License.
   <div class="context-menu" cdkMenu #timelineMenu="cdkMenu">
     <div class="context-menu-item-container">
       <span class="context-menu-item" (click)="toggleBookmark()" cdkMenuItem>
-        {{ toggleBookmarkText() }}
+        {{ toggleBookmarkText() | tr }}
       </span>
-      <span class="context-menu-item" (click)="removeAllBookmarks()" cdkMenuItem
-        >Remove all bookmarks</span
-      >
+      <span class="context-menu-item" (click)="removeAllBookmarks()" cdkMenuItem>{{
+        'Remove all bookmarks' | tr
+      }}</span>
     </div>
   </div>
 </ng-template>

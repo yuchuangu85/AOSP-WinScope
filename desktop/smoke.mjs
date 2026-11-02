@@ -102,6 +102,11 @@ try {
         80,
         "Saved display size must restore before Angular bootstrap on restart",
       );
+      assert.equal(
+        result.initialConfirmTraceReset,
+        false,
+        "Suppressed confirmation restores before bootstrap on restart",
+      );
     }
     for (const origin of [result.origin, result.aiOrigin]) {
       await assert.rejects(
@@ -118,6 +123,7 @@ try {
       "System language preference must survive random-origin changes",
     );
     assert.equal(preferences["display-scale"], "80");
+    assert.equal(preferences["confirm-trace-reset"], "false");
     runs.push({
       ...result,
       servicesStopped: true,

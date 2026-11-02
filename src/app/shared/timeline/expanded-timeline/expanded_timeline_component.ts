@@ -18,6 +18,7 @@ import {CommonModule} from '@angular/common';
 import {Component, HostListener, input, output, viewChildren,} from '@angular/core';
 import {MatIconModule} from '@angular/material/icon';
 import {MatTooltipModule} from '@angular/material/tooltip';
+import {TranslatePipe} from '@common/i18n';
 import {Trace} from '@trace_api/trace';
 import {TRACE_INFO} from '@trace_api/trace_info';
 import {TracePosition} from '@trace_api/trace_position';
@@ -34,6 +35,7 @@ import {TransitionTimelineComponent} from './transition_timeline_component';
   selector: 'expanded-timeline',
   standalone: true,
   imports: [
+    TranslatePipe,
     CommonModule,
     MatIconModule,
     MatTooltipModule,

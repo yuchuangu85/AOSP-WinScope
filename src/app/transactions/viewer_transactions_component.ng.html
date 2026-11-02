@@ -47,7 +47,7 @@ limitations under the License.
     [nodeRows]="data?.propertyNodes ?? []"
     [traceType]="TraceType.TRANSACTIONS"
     [isProtoDump]="false"
-    placeholderText="No current or selected transaction with additional properties."
+    [placeholderText]="'No current or selected transaction with additional properties.' | tr"
     (collapseButtonClicked)="
       sections.onCollapseStateChange(CollapsibleSectionType.PROPERTIES, true)
     "

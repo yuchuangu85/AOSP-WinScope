@@ -27,6 +27,7 @@ import {MatTabsModule} from '@angular/material/tabs';
 import {MatTooltipModule} from '@angular/material/tooltip';
 import {LoadProgressComponent} from '@app/trace_loading/load_progress_component';
 import {assertDefined, assertTrue, assertUnreachable} from '@common/assert';
+import {TranslatePipe} from '@common/i18n';
 import {isPersistenceEnabled} from '@common/store/persistent_store';
 import {Store} from '@common/store/store';
 import {equal} from '@common/typed_array';
@@ -34,6 +35,7 @@ import {globalConfig} from '@compat/global_config';
 import {getLogger} from '@compat/logging';
 import {Analytics} from '@logging/analytics';
 import {ProgressListener} from '@messaging/progress_listener';
+import {UserNotification} from '@messaging/user_notification';
 import {WinscopeEvent} from '@messaging/winscope_event';
 import {EmitEvent, WinscopeEventEmitter,} from '@messaging/winscope_event_emitter';
 import {WinscopeEventListener} from '@messaging/winscope_event_listener';
@@ -63,6 +65,7 @@ import {WinscopeProxySetupComponent} from './winscope_proxy_setup_component';
   selector: 'collect-traces',
   standalone: true,
   imports: [
+    TranslatePipe,
     CommonModule,
     MatCardModule,
     MatFormFieldModule,
@@ -102,6 +105,7 @@ export class CollectTracesComponent
   requestedTraceTypes: RequestedTraceTypes[] = [];
   controller: TraceCollectionController | undefined;
   errorText = '';
+  errorLocalization?: UserNotification['localization'];
 
   refreshDumps = signal<boolean>(false);
   state = signal<ConnectionState>(ConnectionState.CONNECTING);
@@ -205,7 +209,9 @@ export class CollectTracesComponent
 
   async onConnectionChange(adbConnectionType: string) {
     if (getRuntimeConfig().capture.provider !== 'loopback-proxy-v1') {
-      await this.onError('Device capture is unavailable in file-only mode.');
+      await this.onError('Device capture requires the standalone launcher.', {
+        source: 'Device capture requires the standalone launcher.',
+      });
       return;
     }
     this.isChangingConnection.set(true);
@@ -514,8 +520,11 @@ export class CollectTracesComponent
     this.changeDetectorRef.detectChanges();
   }
 
-  async onError(errorText: string) {
-    await this.setState(ConnectionState.ERROR, errorText);
+  async onError(
+    errorText: string,
+    localization?: UserNotification['localization'],
+  ) {
+    await this.setState(ConnectionState.ERROR, errorText, localization);
   }
 
   async onConnectionStateChange(newState: ConnectionState): Promise<void> {
@@ -556,7 +565,8 @@ export class CollectTracesComponent
       !testConnection
     ) {
       await this.onError(
-        'Only the configured same-origin capture provider is supported.',
+        'Only the standalone launcher capture provider is supported.',
+        {source: 'Only the standalone launcher capture provider is supported.'},
       );
       return;
     }
@@ -734,13 +744,18 @@ export class CollectTracesComponent
     groupsConfig.options = makeProtologGroupOptions(groups);
   }
 
-  private async setState(newState: ConnectionState, errorText = '') {
+  private async setState(
+    newState: ConnectionState,
+    errorText = '',
+    errorLocalization?: UserNotification['localization'],
+  ) {
     this.updateProgressMessage(newState);
 
     const controller = assertDefined(this.controller);
 
     this.state.set(newState);
     this.errorText = errorText;
+    this.errorLocalization = errorLocalization;
     this.changeDetectorRef.detectChanges();
 
     const maybeRefreshDumps =

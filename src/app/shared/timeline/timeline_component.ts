@@ -31,6 +31,7 @@ import {ExpandedTimelineComponent} from '@app/shared/timeline/expanded-timeline/
 import {HoverPositionUpdate, MiniTimelineComponent,} from '@app/shared/timeline/mini-timeline/mini_timeline_component';
 import {assertDefined} from '@common/assert';
 import {isInputTextField, KeyboardEventKey, KeyboardEventKeyCode,} from '@common/dom';
+import { translate, TranslatePipe, } from '@common/i18n';
 import {Store} from '@common/store/store';
 import {parseBigIntStrippingUnit} from '@common/string_helpers';
 import {TimeRange, Timestamp} from '@common/time/time';
@@ -68,6 +69,7 @@ import {PlaybackControlsComponent} from './playback_component';
   encapsulation: ViewEncapsulation.None,
   standalone: true,
   imports: [
+    TranslatePipe,
     CommonModule,
     MatButtonModule,
     MatIconModule,
@@ -425,9 +427,14 @@ export class TimelineComponent
       trace.type === TraceType.VIEW_CAPTURE ||
       trace.type === TraceType.SEARCH
     ) {
-      return TRACE_INFO[trace.type].name + ' ' + trace.getDescriptors()[0];
+      return (
+        translate(TRACE_INFO[trace.type].name) + ' ' + trace.getDescriptors()[0]
+      );
     }
-    return TRACE_INFO[trace.type].name + (trace.isDump() ? ' Dump' : '');
+    return (
+      translate(TRACE_INFO[trace.type].name) +
+      (trace.isDump() ? ' ' + translate('Dump') : '')
+    );
   }
 
   @HostListener('window:resize', ['$event'])
@@ -636,20 +643,23 @@ export class TimelineComponent
   }
 
   getCopyPositionTooltip(position: string): string {
-    return `Copy current position:\n${position}`;
+    return translate('Copy current position:\n{position}', {position});
   }
 
   getHumanTimeTooltip(): string {
     const [date, time] = this.getCurrentTracePosition()
       .timestamp.format()
       .split(', ');
-    return `
-      Date: ${date}
-      Time: ${time}\xa0\xa0${this.getUTCOffset()}
+    return translate(
+      `
+      Date: {date}
+      Time: {time}\xa0\xa0{offset}
 
       Edit field to update position by inputting time as
       "hh:mm:ss.zz", "YYYY-MM-DDThh:mm:ss.zz", or "YYYY-MM-DD, hh:mm:ss.zz"
-    `;
+    `,
+      {date, time, offset: this.getUTCOffset()},
+    );
   }
 
   getCopyHumanTimeTooltip(): string {
@@ -729,7 +739,7 @@ export class TimelineComponent
   }
 
   getTraceTooltip(trace: Trace<unknown>): string {
-    let tooltip = TRACE_INFO[trace.type].name;
+    let tooltip = translate(TRACE_INFO[trace.type].name);
     if (trace.type === TraceType.SCREEN_RECORDING) {
       tooltip += ' ' + trace.getDescriptors()[0].split('.')[0];
     }

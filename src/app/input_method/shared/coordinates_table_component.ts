@@ -15,12 +15,13 @@
  */
 import {CommonModule} from '@angular/common';
 import {Component, computed, input} from '@angular/core';
+import {TranslatePipe} from '@common/i18n';
 import {PropertyTreeNode} from '@tree_node/property_tree_node';
 
 @Component({
   selector: 'coordinates-table',
   standalone: true,
-  imports: [CommonModule],
+  imports: [TranslatePipe, CommonModule],
   templateUrl: './coordinates_table_component.ng.html',
   styleUrls: ['coordinates_table_component.scss'],
 })

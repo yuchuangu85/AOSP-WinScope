@@ -313,7 +313,7 @@ select:focus-visible {
   width: calc(100% - 4px);
   box-sizing: border-box;
   min-height: 36px;
-  max-height: min(336px, 40dvh);
+  max-height: min(336px, 40cqh);
   padding: 4px 8px 0 14px;
   border: 0;
   margin: 0 4px 0 0;
@@ -358,14 +358,6 @@ select:focus-visible {
 .composer-trailing {
   margin-left: auto;
   max-width: 100%;
-}
-.model-select {
-  width: 188px;
-  min-width: 0;
-  height: 28px;
-  border: 0;
-  color: inherit;
-  background: var(--ai-composer-selector);
 }
 .composer-add,
 .composer-primary {
@@ -540,10 +532,6 @@ select:focus-visible {
   font-size: 12px;
   line-height: 1.5;
 }
-.history-toggle,
-.sidebar-backdrop {
-  display: none;
-}
 .visually-hidden {
   position: absolute;
   width: 1px;
@@ -574,27 +562,6 @@ select:focus-visible {
     grid-template-columns: minmax(0, 1fr);
     inset: 32px 0 0;
     border-radius: 0;
-  }
-  .ai-sidebar {
-    display: none;
-    position: absolute;
-    inset: 0 auto 0 0;
-    width: min(248px, calc(100% - 48px));
-    z-index: 3;
-  }
-  .ai-sidebar.open {
-    display: flex;
-  }
-  .sidebar-backdrop {
-    display: block;
-    position: absolute;
-    inset: 0;
-    border: 0;
-    z-index: 2;
-    background: rgb(0 0 0 / 28%);
-  }
-  .history-toggle {
-    display: inline-flex;
   }
   .ai-panel-header {
     padding: 3px 4px;

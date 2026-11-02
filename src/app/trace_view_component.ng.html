@@ -45,7 +45,7 @@ limitations under the License.
             <mat-icon
               class="warning-icon"
               [style]="{marginLeft: '0.5rem'}"
-              [matTooltip]="traceTypesWithParsingErrorsWarningTooltip"
+              [matTooltip]="traceTypesWithParsingErrorsWarningTooltip | tr"
               matTooltipClass="multline-tooltip"
               matTooltipPosition="above"
               >warning</mat-icon
@@ -67,7 +67,7 @@ limitations under the License.
   >
     <span class="filter-presets-label">
       <mat-icon class="material-symbols-outlined">save</mat-icon>
-      <span> Filter Presets </span>
+      <span> {{ 'Filter Presets' | tr }} </span>
     </span>
   </button>
 
@@ -81,19 +81,21 @@ limitations under the License.
   >
     <div class="overlay-panel filter-presets-panel">
       <h2 class="overlay-panel-title">
-        <span> FILTER PRESETS </span>
+        <span> {{ 'FILTER PRESETS' | tr }} </span>
         <button (click)="onFilterPresetsClick()" class="close-button" mat-icon-button>
           <mat-icon> close </mat-icon>
         </button>
       </h2>
       <div class="overlay-panel-content">
         <span class="mat-body-1">
-          Save the current configuration of filters for this trace type to access later, or select
-          one of the existing configurations below.
+          {{
+            'Save the current configuration of filters for this trace type to access later, or select one of the existing configurations below.'
+              | tr
+          }}
         </span>
 
         <div class="overlay-panel-section save-section">
-          <span class="mat-body-2 overlay-panel-section-title"> Preset Name </span>
+          <span class="mat-body-2 overlay-panel-section-title"> {{ 'Preset Name' | tr }} </span>
           <div class="outline-field save-field">
             <mat-form-field subscriptSizing="dynamic" appearance="outline">
               <input
@@ -102,7 +104,7 @@ limitations under the License.
                 (keydown.enter)="savePreset()"
               />
               @if (filterPresetNameControl.invalid && filterPresetNameControl.value) {
-                <mat-error>Preset with that name already exists.</mat-error>
+                <mat-error>{{ 'Preset with that name already exists.' | tr }}</mat-error>
               }
             </mat-form-field>
             <button
@@ -111,7 +113,7 @@ limitations under the License.
               [disabled]="filterPresetNameControl.invalid"
               (click)="savePreset()"
             >
-              Save
+              {{ 'Save' | tr }}
             </button>
           </div>
         </div>
@@ -119,9 +121,9 @@ limitations under the License.
         <mat-divider></mat-divider>
 
         <div class="overlay-panel-section existing-presets-section">
-          <span class="mat-body-2 overlay-panel-section-title"> Apply a preset </span>
+          <span class="mat-body-2 overlay-panel-section-title"> {{ 'Apply a preset' | tr }} </span>
           @if (getCurrentFilterPresets().length === 0) {
-            <span class="mat-body-1"> No existing presets found. </span>
+            <span class="mat-body-1"> {{ 'No existing presets found.' | tr }} </span>
           }
           @for (preset of getCurrentFilterPresets(); track preset) {
             <div class="existing-preset inline">

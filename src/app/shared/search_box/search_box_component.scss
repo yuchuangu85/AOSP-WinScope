@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+@use '@angular/material' as mat;
+
 :host {
   height: 40px;
   margin-left: 8px;
@@ -21,8 +23,40 @@
 }
 
 :host(.compact-search-box) {
+  display: flex;
+  align-items: center;
   height: 32px;
   margin-left: 4px;
+  min-width: 0;
+  width: 240px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+:host(.compact-search-box) .search-box {
+  flex: 0 0 100%;
+  min-width: 224px;
+  max-width: none;
+
+  // The applied-field border adds 4px to the Material container height.
+  @include mat.form-field-overrides(
+    (
+      container-height: 28px,
+      container-vertical-padding: 0px,
+      filled-with-label-container-padding-top: 2px,
+      filled-with-label-container-padding-bottom: 2px,
+      filled-container-shape: 0px,
+    )
+  );
+}
+
+:host(.compact-search-box) ::ng-deep .mat-mdc-form-field-flex {
+  align-items: center;
+}
+
+:host(.compact-search-box) ::ng-deep .mat-mdc-form-field-infix {
+  display: flex;
+  align-items: center;
 }
 
 .search-box {
@@ -33,6 +67,13 @@
 .search-box .field-suffix {
   display: flex;
   flex-wrap: nowrap;
+}
+
+:host(.compact-search-box) .field-suffix button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
 }
 
 .search-box.applied-field .field-suffix {

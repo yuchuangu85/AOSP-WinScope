@@ -19,6 +19,7 @@ import {CollapsedSectionsComponent} from '@app/shared/collapsible_sections/colla
 import {LogComponent} from '@app/shared/log_view/log_component';
 import {LogViewerComponent} from '@app/shared/log_view/log_viewer_component';
 import {PropertiesComponent} from '@app/shared/properties/properties_component';
+import {TranslatePipe} from '@common/i18n';
 import {CollapsibleSectionType} from '@ui/shared/collapsible_sections/collapsible_section_type';
 import {CollapsibleSections} from '@ui/shared/collapsible_sections/collapsible_sections';
 import {UiData} from '@ui/transactions/ui_data';
@@ -29,6 +30,7 @@ import {TransactionsHeightPredictor} from './transactions_height_predictor';
   selector: 'viewer-transactions',
   standalone: true,
   imports: [
+    TranslatePipe,
     CommonModule,
     CollapsedSectionsComponent,
     LogComponent,

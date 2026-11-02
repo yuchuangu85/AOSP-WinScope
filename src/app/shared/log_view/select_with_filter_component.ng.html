@@ -20,14 +20,14 @@ limitations under the License.
   [style.text-align]="'unset'"
   [appearance]="appearance()"
   [class]="formFieldClass()"
-  [matTooltip]="textLabel"
+  [matTooltip]="localizeLabel() ? (textLabel | tr) : textLabel"
   matTooltipPosition="above"
   [matTooltipDisabled]="disableFormFieldTooltip(formField)"
   subscriptSizing="dynamic"
   [class.mat-body-2]="!selectWithFilter.value || selectWithFilter.value.length === 0"
   #formField
 >
-  <mat-label>{{ textLabel }}</mat-label>
+  <mat-label>{{ localizeLabel() ? (textLabel | tr) : textLabel }}</mat-label>
   <mat-select
     (opened)="onSelectOpened(filter)"
     (closed)="onSelectClosed()"
@@ -47,7 +47,7 @@ limitations under the License.
         [style]="innerFormFieldStyle()"
         subscriptSizing="dynamic"
       >
-        <mat-label>Filter options</mat-label>
+        <mat-label>{{ 'Filter options' | tr }}</mat-label>
         <input
           matInput
           #filter
@@ -62,17 +62,17 @@ limitations under the License.
         [color]="allSelected ? 'primary' : undefined"
         [class.not-enabled]="!allSelected"
         (click)="onAllButtonClick()"
-        [matTooltip]="allButtonTooltip"
+        [matTooltip]="allButtonTooltip | tr"
         [matTooltipShowDelay]="500"
         matTooltipPosition="right"
-        >All</button
+        >{{ 'All' | tr }}</button
       >
     </div>
     @if (totalSelected > 0) {
       <div class="selected-options">
-        <span class="mat-mdc-option mat-mdc-option-active mdc-list-item mdc-list-item--selected"
-          >Selected:</span
-        >
+        <span class="mat-mdc-option mat-mdc-option-active mdc-list-item mdc-list-item--selected">{{
+          'Selected:' | tr
+        }}</span>
         @for (option of selectedOptions(); track option) {
           <div
             class="mat-mdc-option mat-mdc-option-active mat-mdc-option-multiple mdc-list-item mdc-list-item--selected selected-option"

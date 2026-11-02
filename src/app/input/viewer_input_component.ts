@@ -21,6 +21,7 @@ import {LogComponent} from '@app/shared/log_view/log_component';
 import {LogViewerComponent} from '@app/shared/log_view/log_viewer_component';
 import {PropertiesComponent} from '@app/shared/properties/properties_component';
 import {RectsComponent} from '@app/shared/rects/rects_component';
+import {TranslatePipe} from '@common/i18n';
 import {UiData} from '@ui/input/ui_data';
 import {CollapsibleSectionType} from '@ui/shared/collapsible_sections/collapsible_section_type';
 import {CollapsibleSections} from '@ui/shared/collapsible_sections/collapsible_sections';
@@ -33,6 +34,7 @@ import {InputHeightPredictor} from './input_height_predictor';
   selector: 'viewer-input',
   standalone: true,
   imports: [
+    TranslatePipe,
     CommonModule,
     CollapsedSectionsComponent,
     RectsComponent,

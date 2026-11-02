@@ -28,6 +28,7 @@ import {MatTooltipModule} from '@angular/material/tooltip';
 import {AbstractSelectComponent} from '@app/shared/user_input/abstract_select_component';
 import {assertDefined} from '@common/assert';
 import {isElementOverflowing} from '@common/dom';
+import {TranslatePipe} from '@common/i18n';
 import {Store} from '@common/store/store';
 import {AdvancedConfiguration, CheckboxConfiguration, SelectionConfiguration, SelectionOption, TraceConfigurationMap, updateConfigsFromStore,} from '@trace_collection/ui/ui_trace_configuration';
 
@@ -39,6 +40,7 @@ import {AdvancedConfiguration, CheckboxConfiguration, SelectionConfiguration, Se
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    TranslatePipe,
     CommonModule,
     MatCheckboxModule,
     FormsModule,

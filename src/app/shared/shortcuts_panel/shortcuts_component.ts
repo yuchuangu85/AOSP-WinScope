@@ -19,6 +19,7 @@ import {MatButtonModule} from '@angular/material/button';
 import {MatDialogModule} from '@angular/material/dialog';
 import {MatIconModule, MatIconRegistry} from '@angular/material/icon';
 import {DomSanitizer} from '@angular/platform-browser';
+import {TranslatePipe} from '@common/i18n';
 import {getRootUrl} from '@common/window';
 
 /**
@@ -27,7 +28,13 @@ import {getRootUrl} from '@common/window';
 @Component({
   selector: 'shortcuts-panel',
   standalone: true,
-  imports: [CommonModule, MatDialogModule, MatIconModule, MatButtonModule],
+  imports: [
+    TranslatePipe,
+    CommonModule,
+    MatDialogModule,
+    MatIconModule,
+    MatButtonModule,
+  ],
   templateUrl: './shortcuts_component.ng.html',
   styleUrls: ['shortcuts_component.scss'],
 })

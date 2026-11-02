@@ -30,4 +30,6 @@ export declare interface UserNotification {
   getNotificationType(): NotificationType;
   descriptor: string;
   message: string;
+  /** UI-only localization metadata. Original message remains available to diagnostics. */
+  localization?: {source: string; params?: Readonly<Record<string, string | number>>};
 }

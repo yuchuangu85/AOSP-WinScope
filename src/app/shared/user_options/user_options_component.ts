@@ -18,6 +18,8 @@ import {CommonModule} from '@angular/common';
 import {Component, input, output} from '@angular/core';
 import {MatButtonModule} from '@angular/material/button';
 import {MatIconModule} from '@angular/material/icon';
+import {MatTooltipModule} from '@angular/material/tooltip';
+import {TranslatePipe} from '@common/i18n';
 import {TRACE_INFO} from '@trace_api/trace_info';
 import {TraceType} from '@trace_api/trace_type';
 import {UserOption, UserOptions} from '@ui/shared/user_input/user_options';
@@ -27,7 +29,13 @@ type LogCallback = (key: string, state: boolean, name: string) => void;
 @Component({
   selector: 'user-options',
   standalone: true,
-  imports: [CommonModule, MatButtonModule, MatIconModule],
+  imports: [
+    TranslatePipe,
+    MatTooltipModule,
+    CommonModule,
+    MatButtonModule,
+    MatIconModule,
+  ],
   templateUrl: './user_options_component.ng.html',
   styleUrls: ['user_options_component.scss'],
 })

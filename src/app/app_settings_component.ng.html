@@ -56,6 +56,9 @@
     </nav>
 
     <div class="settings-content">
+      @if (saveError) {
+        <p class="settings-error" role="alert">{{ saveError | tr }}</p>
+      }
       <section
         id="settings-general-panel"
         class="settings-tab-panel general-settings"
@@ -67,32 +70,81 @@
         <h3>{{ 'General settings' | tr }}</h3>
         <label class="settings-field">
           <span>{{ 'Interface language' | tr }}</span>
-          <select
-            class="interface-language-select"
-            [attr.aria-label]="'Interface language' | tr"
-            [ngModel]="language()"
-            (ngModelChange)="setLanguage($event)"
-          >
-            @for (option of supportedLanguages; track option.code) {
-              <option [value]="option.code">{{ option.name }}</option>
-            }
-          </select>
+          <span class="settings-select">
+            <select
+              class="interface-language-select"
+              [attr.aria-label]="'Interface language' | tr"
+              [ngModel]="languagePreference()"
+              (ngModelChange)="setLanguage($event)"
+            >
+              <option value="system">{{ 'Follow system' | tr }}</option>
+              @for (option of supportedLanguages; track option.code) {
+                <option [value]="option.code">{{ option.name }}</option>
+              }
+            </select>
+            <mat-icon class="settings-select-arrow" aria-hidden="true">expand_more</mat-icon>
+          </span>
         </label>
         <section class="settings-appearance" [attr.aria-label]="'Appearance' | tr">
           <h3>{{ 'Appearance' | tr }}</h3>
           <label class="settings-field">
             <span>{{ 'Color theme' | tr }}</span>
-            <select
-              class="theme-mode-select"
-              [attr.aria-label]="'Color theme' | tr"
-              [ngModel]="themeMode"
-              (ngModelChange)="themeModeChanged.emit($event)"
-            >
-              <option value="system">{{ 'Follow system' | tr }}</option>
-              <option value="dark">{{ 'Dark mode' | tr }}</option>
-              <option value="light">{{ 'Light mode' | tr }}</option>
-            </select>
+            <span class="settings-select">
+              <select
+                class="theme-mode-select"
+                [attr.aria-label]="'Color theme' | tr"
+                [ngModel]="themeMode"
+                (ngModelChange)="themeModeChanged.emit($event)"
+              >
+                <option value="system">{{ 'Follow system' | tr }}</option>
+                <option value="dark">{{ 'Dark mode' | tr }}</option>
+                <option value="light">{{ 'Light mode' | tr }}</option>
+              </select>
+              <mat-icon class="settings-select-arrow" aria-hidden="true">expand_more</mat-icon>
+            </span>
           </label>
+          <div class="settings-field">
+            <label for="settings-display-scale">{{ 'Display size' | tr }}</label>
+            <div class="display-scale-control">
+              <span class="settings-select">
+                <select
+                  id="settings-display-scale"
+                  class="display-scale-select"
+                  [attr.aria-label]="'Display size' | tr"
+                  [ngModel]="displayScale"
+                  (ngModelChange)="onDisplayScaleChange($event)"
+                >
+                  @for (scale of displayScaleOptions; track scale) {
+                    <option [ngValue]="scale">{{ scale }}%</option>
+                  }
+                </select>
+                <mat-icon class="settings-select-arrow" aria-hidden="true">expand_more</mat-icon>
+              </span>
+              <button
+                mat-icon-button
+                type="button"
+                class="display-scale-reset"
+                [attr.aria-label]="'Reset display size' | tr"
+                [matTooltip]="'Reset display size' | tr"
+                [disabled]="displayScale === defaultDisplayScale"
+                (click)="onDisplayScaleChange(defaultDisplayScale)"
+                ><mat-icon>restart_alt</mat-icon></button
+              >
+            </div>
+          </div>
+        </section>
+        <section
+          class="settings-confirmations"
+          [attr.aria-label]="'Confirmations' | tr"
+        >
+          <h3>{{ 'Confirmations' | tr }}</h3>
+          <mat-checkbox
+            class="confirm-trace-reset wrapped-checkbox"
+            [aria-label]="'Confirm before resetting trace data' | tr"
+            [checked]="confirmTraceReset"
+            (change)="confirmTraceResetChanged.emit($event.checked)"
+            >{{ 'Confirm before resetting trace data' | tr }}</mat-checkbox
+          >
         </section>
       </section>
 
@@ -120,7 +172,7 @@
             [selection]="selection"
             [providerSelections]="providerSelections"
             [running]="running"
-            [loading]="loading || loadingConversation || !canConfigureAi"
+            [loading]="loading || saving || loadingConversation || !canConfigureAi"
             [existingSession]="existingSession"
             [importingProvider]="importingProvider"
             [importErrors]="importErrors"

@@ -1,3 +1,4 @@
+import {CdkMenuModule} from '@angular/cdk/menu';
 /*
  * Copyright (C) 2024 The Android Open Source Project
  *
@@ -14,7 +15,6 @@
  * limitations under the License.
  */
 
-import {CdkMenuModule} from '@angular/cdk/menu';
 import {CommonModule} from '@angular/common';
 import {Component, input, TemplateRef} from '@angular/core';
 import {FormControl} from '@angular/forms';
@@ -22,12 +22,14 @@ import {MatButtonModule} from '@angular/material/button';
 import {MatIconModule} from '@angular/material/icon';
 import {MatTooltipModule} from '@angular/material/tooltip';
 import {isElementOverflowing} from '@common/dom';
+import {language, TranslatePipe} from '@common/i18n';
 import {ListedSearch} from '@ui/search/ui_data';
 
 @Component({
   selector: 'search-list',
   standalone: true,
   imports: [
+    TranslatePipe,
     CommonModule,
     MatButtonModule,
     MatIconModule,
@@ -56,7 +58,7 @@ export class SearchListComponent {
 
   formatTimeMs(timeMs: number) {
     const time = new Date(timeMs);
-    return time.toTimeString().slice(0, 5) + '\n' + time.toLocaleDateString();
+    return time.toTimeString().slice(0, 5) + '\n' + time.toLocaleDateString(language());
   }
 }
 

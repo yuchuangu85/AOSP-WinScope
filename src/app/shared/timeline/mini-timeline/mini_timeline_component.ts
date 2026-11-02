@@ -24,6 +24,7 @@ import {MiniTimelineDrawerImpl} from '@app/shared/timeline/mini-timeline/drawer/
 import {MiniTimelineDrawerInput} from '@app/shared/timeline/mini-timeline/drawer/mini_timeline_drawer_input';
 import {assertDefined} from '@common/assert';
 import {KeyboardEventCode} from '@common/dom';
+import {TranslatePipe} from '@common/i18n';
 import {PersistentStore} from '@common/store/persistent_store';
 import {TimeRange, Timestamp} from '@common/time/time';
 import {Analytics} from '@logging/analytics';
@@ -42,6 +43,7 @@ import {SliderComponent} from './slider_component';
   selector: 'mini-timeline',
   standalone: true,
   imports: [
+    TranslatePipe,
     CommonModule,
     MatButtonModule,
     MatIconModule,

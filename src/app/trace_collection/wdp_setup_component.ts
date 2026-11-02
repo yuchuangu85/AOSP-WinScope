@@ -18,6 +18,7 @@ import {CommonModule} from '@angular/common';
 import {Component, input, output} from '@angular/core';
 import {MatButtonModule} from '@angular/material/button';
 import {MatIconModule} from '@angular/material/icon';
+import {TranslatePipe} from '@common/i18n';
 import {ConnectionState} from '@trace_collection/connection_state';
 
 /**
@@ -26,7 +27,7 @@ import {ConnectionState} from '@trace_collection/connection_state';
 @Component({
   selector: 'wdp-setup',
   standalone: true,
-  imports: [CommonModule, MatButtonModule, MatIconModule],
+  imports: [TranslatePipe, CommonModule, MatButtonModule, MatIconModule],
   templateUrl: './wdp_setup_component.ng.html',
   styleUrls: ['./proxy_setup.scss'],
 })

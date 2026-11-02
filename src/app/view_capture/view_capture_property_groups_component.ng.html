@@ -16,56 +16,56 @@ limitations under the License.
 
 @let props = properties();
 <div class="group view">
-  <h3 class="group-header mat-subtitle-1">View</h3>
+  <h3 class="group-header mat-subtitle-1">{{ 'View' | tr }}</h3>
   <div class="left-column">
     <p class="mat-body-2 class-name">
-      <span class="mat-body-1">Class: </span>
+      <span class="mat-body-1">{{ 'Class:' | tr }} </span>
       &ngsp; {{ props.className }}
     </p>
     <p class="mat-body-2 hashcode">
-      <span class="mat-body-1">Hashcode: </span>
+      <span class="mat-body-1">{{ 'Hashcode:' | tr }} </span>
       &ngsp; {{ props.hashcode }}
     </p>
     <p class="mat-body-2 view-id">
-      <span class="mat-body-1">View Id: </span>
+      <span class="mat-body-1">{{ 'View Id:' | tr }} </span>
       &ngsp; {{ props.viewId }}
     </p>
     <p class="mat-body-2 content-description">
-      <span class="mat-body-1">Content Description: </span>
+      <span class="mat-body-1">{{ 'Content Description:' | tr }} </span>
       &ngsp; {{ props.contentDescription }}
     </p>
     <p class="mat-body-2 text">
-      <span class="mat-body-1">Text: </span>
+      <span class="mat-body-1">{{ 'Text:' | tr }} </span>
       &ngsp; {{ props.text }}
     </p>
   </div>
 </div>
 <mat-divider></mat-divider>
 <div class="group geometry">
-  <h3 class="group-header mat-subtitle-1">Geometry</h3>
+  <h3 class="group-header mat-subtitle-1">{{ 'Geometry' | tr }}</h3>
   <div class="left-column coordinates">
-    <p class="column-header mat-small">Coordinates</p>
+    <p class="column-header mat-small">{{ 'Coordinates' | tr }}</p>
     <p class="mat-body-2 left">
-      <span class="mat-body-1">Left: </span>
+      <span class="mat-body-1">{{ 'Left:' | tr }} </span>
       &ngsp; {{ props.left }}
     </p>
     <p class="mat-body-2 top">
-      <span class="mat-body-1">Top: </span>
+      <span class="mat-body-1">{{ 'Top:' | tr }} </span>
       &ngsp; {{ props.top }}
     </p>
     <p class="mat-body-2 elevation">
-      <span class="mat-body-1">Elevation: </span>
+      <span class="mat-body-1">{{ 'Elevation:' | tr }} </span>
       &ngsp; {{ props.elevation }}
     </p>
   </div>
   <div class="right-column size">
-    <p class="column-header mat-small">Size</p>
+    <p class="column-header mat-small">{{ 'Size' | tr }}</p>
     <p class="mat-body-2 height">
-      <span class="mat-body-1">Height: </span>
+      <span class="mat-body-1">{{ 'Height:' | tr }} </span>
       &ngsp; {{ props.height }}
     </p>
     <p class="mat-body-2 width">
-      <span class="mat-body-1">Width: </span>
+      <span class="mat-body-1">{{ 'Width:' | tr }} </span>
       &ngsp; {{ props.width }}
     </p>
   </div>
@@ -73,24 +73,24 @@ limitations under the License.
 <div class="group geometry">
   <h3 class="group-header mat-subtitle-1"></h3>
   <div class="left-column translation">
-    <p class="column-header mat-small">Translation</p>
+    <p class="column-header mat-small">{{ 'Translation' | tr }}</p>
     <p class="mat-body-2 translationx">
-      <span class="mat-body-1">Translation X: </span>
+      <span class="mat-body-1">{{ 'Translation X:' | tr }} </span>
       &ngsp; {{ props.translationX }}
     </p>
     <p class="mat-body-2 translationy">
-      <span class="mat-body-1">Translation Y: </span>
+      <span class="mat-body-1">{{ 'Translation Y:' | tr }} </span>
       &ngsp; {{ props.translationY }}
     </p>
   </div>
   <div class="right-column scroll">
-    <p class="column-header mat-small">Scroll</p>
+    <p class="column-header mat-small">{{ 'Scroll' | tr }}</p>
     <p class="mat-body-2 scrollx">
-      <span class="mat-body-1">Scroll X: </span>
+      <span class="mat-body-1">{{ 'Scroll X:' | tr }} </span>
       &ngsp; {{ props.scrollX }}
     </p>
     <p class="mat-body-2 scrolly">
-      <span class="mat-body-1">Scroll Y: </span>
+      <span class="mat-body-1">{{ 'Scroll Y:' | tr }} </span>
       &ngsp; {{ props.scrollY }}
     </p>
   </div>
@@ -98,39 +98,39 @@ limitations under the License.
 <div class="group geometry">
   <h3 class="group-header mat-subtitle-1"></h3>
   <div class="left-column scale">
-    <p class="column-header mat-small">Scale</p>
+    <p class="column-header mat-small">{{ 'Scale' | tr }}</p>
     <p class="mat-body-2 scalex">
-      <span class="mat-body-1">Scale X: </span>
+      <span class="mat-body-1">{{ 'Scale X:' | tr }} </span>
       &ngsp; {{ props.scaleX }}
     </p>
     <p class="mat-body-2 scaley">
-      <span class="mat-body-1">Scale Y: </span>
+      <span class="mat-body-1">{{ 'Scale Y:' | tr }} </span>
       &ngsp; {{ props.scaleY }}
     </p>
   </div>
 </div>
 <mat-divider></mat-divider>
 <div class="group effects">
-  <h3 class="group-header mat-subtitle-1">Effects</h3>
+  <h3 class="group-header mat-subtitle-1">{{ 'Effects' | tr }}</h3>
   <div class="left-column translation">
-    <p class="column-header mat-small">Translation</p>
+    <p class="column-header mat-small">{{ 'Translation' | tr }}</p>
     <p class="mat-body-2 visibility">
-      <span class="mat-body-1">Visibility: </span>
+      <span class="mat-body-1">{{ 'Visibility:' | tr }} </span>
       &ngsp; {{ props.visibility }}
     </p>
     <p class="mat-body-2 alpha">
-      <span class="mat-body-1">Alpha: </span>
+      <span class="mat-body-1">{{ 'Alpha:' | tr }} </span>
       &ngsp; {{ props.alpha }}
     </p>
     <p class="mat-body-2 will-not-draw">
-      <span class="mat-body-1">Will Not Draw: </span>
+      <span class="mat-body-1">{{ 'Will Not Draw:' | tr }} </span>
       &ngsp; {{ props.willNotDraw }}
     </p>
   </div>
   <div class="right-column misc">
-    <p class="column-header mat-small">Miscellaneous</p>
+    <p class="column-header mat-small">{{ 'Miscellaneous' | tr }}</p>
     <p class="mat-body-2 clip-children">
-      <span class="mat-body-1">Clip Children: </span>
+      <span class="mat-body-1">{{ 'Clip Children:' | tr }} </span>
       &ngsp; {{ props.clipChildren }}
     </p>
   </div>

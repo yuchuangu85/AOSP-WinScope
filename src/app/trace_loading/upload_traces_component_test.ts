@@ -25,6 +25,7 @@ import {MatSnackBar, MatSnackBarModule} from '@angular/material/snack-bar';
 import {MatTooltipModule} from '@angular/material/tooltip';
 import {NoopAnimationsModule} from '@angular/platform-browser/animations';
 import {assertDefined} from '@common/assert';
+import {setLanguage} from '@common/i18n';
 import {InMemoryStorage} from '@common/store/in_memory_storage';
 import {DOMTestHelper} from '@common/testing/dom_test_helpers';
 import {getFixtureFile} from '@common/testing/io_helpers';
@@ -54,6 +55,7 @@ describe('UploadTracesComponent', () => {
   let validSfFile: File;
 
   beforeEach(async () => {
+    setLanguage('en');
     await TestBed.configureTestingModule({
       imports: [
         NoopAnimationsModule,
@@ -289,6 +291,43 @@ describe('UploadTracesComponent', () => {
     spy.calls.reset();
     addFileByClickAndGetTransferredFiles(true, dropBox);
     expect(spy).toHaveBeenCalledOnceWith(files);
+  });
+
+  afterEach(() => setLanguage('en'));
+
+  it('restores localized warning metadata in place while retaining raw file names and deduplication', async () => {
+    const raw = 'Save: corrupted archive';
+    const localization = {
+      source: '{filename}: corrupted archive',
+      params: {filename: 'Save'},
+    };
+    const event = new ShowTraceUploadWarning(raw, localization);
+    await component.onWinscopeEvent(event);
+    await component.onWinscopeEvent(event);
+    dom.detectChanges();
+    expect(component.warningMessages).toEqual([raw]);
+    dom.get(warningMessageSelector).checkTextExact(raw);
+
+    setLanguage('zh-CN');
+    dom.detectChanges();
+    dom.get(warningMessageSelector).checkTextExact('Save：压缩包已损坏');
+    expect(component.warningMessages).toEqual([raw]);
+    expect(localization.params.filename).toBe('Save');
+    expect(
+      dom
+        .get(warningCloseButtonSelector)
+        .getHTMLElement()
+        .getAttribute('aria-label'),
+    ).toBe('关闭警告：Save：压缩包已损坏');
+
+    setLanguage('en');
+    dom.detectChanges();
+    dom.get(warningMessageSelector).checkTextExact(raw);
+    component.clearWarning(0);
+    await component.onWinscopeEvent(new ShowTraceUploadWarning(raw));
+    expect(component.warningText(raw)).toBe(raw);
+    component.clearAllWarnings();
+    expect(component.warningMessages).toEqual([]);
   });
 
   it('displays warning banners when ShowTraceUploadWarning events received', async () => {

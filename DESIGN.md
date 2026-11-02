@@ -39,11 +39,12 @@ workspace. No second trace-selection or timeline state.
 
 Settings is a separate application dialog, not a view inside the AI workspace.
 Its left menu contains General settings and AI settings; the right scrollport
-shows the chosen section. General owns language and theme. AI settings contains
-separate Codex and Claude configuration sections, each with its own Get
-configuration action, model, supported effort, service URL and authentication
-status. Endpoint/authentication metadata is read-only and sanitized; credentials
-remain under the local CLI's ownership. Keep custom gateway providers supported.
+shows the chosen section. General owns language and theme. AI settings has a
+provider dropdown containing every gateway catalog entry, including custom
+providers, and displays only the selected provider's section. Switching providers
+retains independent drafts. Codex and Claude each expose Get configuration in
+their own section; editable nonsecret fields and sanitized authentication status
+stay separate from credentials, which never enter the renderer.
 
 ## Design principles
 
@@ -68,7 +69,7 @@ settings navigation, catalog loading and configuration imports, with an embedded
 `AiSettingsComponent` for independent provider drafts. HTTP/SSE stays in
 `AiGatewayClient`.
 Use stable turn IDs, searchable session rows, compact run activity, explicit
-context/attachment chips and native labelled model selectors.
+context/attachment chips and a labelled model menu trigger.
 
 ## Accessibility
 
@@ -79,10 +80,26 @@ as text, not trusted HTML. Do not rely on hover or color alone for actions/state
 
 ## Responsive behavior
 
-Wide screens show sidebar and chat together. Below 760px the sidebar becomes
-a toggled overlay and selectors wrap. The composer remains in layout, not
-absolutely over the transcript. No horizontal overflow at 390px. Respect reduced
-motion and both WinScope themes.
+The header history toggle is always available and reflects actual sidebar
+visibility through `aria-expanded`. Wide AI windows show history by default;
+both the toggle and the sidebar's close icon can hide it without changing the
+draft, session or model. Keep the refresh action. At a measured panel width of
+760px or less, including a resized window inside a wide viewport, history is an
+overlay dismissed by its close icon, Escape or outside click. Desktop visibility
+and compact overlay state are independent, in-memory preferences.
+
+The AI window stays anchored at its original top-left position. A bottom-right
+**Resize AI window** icon (`south_east`) adjusts width and height, with a minimum
+of 640 x 420 logical CSS pixels and a maximum of the available viewport. Smaller
+screens clamp the minimum to the space available. Arrow keys resize one axis by
+16px, or 64px with Shift; Home and double-click restore the original
+viewport-filling geometry without a new header reset action. Respect display
+size at 80%-140% when converting physical pointer deltas, remeasure layout after
+resizing or viewport changes, and keep size in memory only. The composer stays
+in layout and caps long drafts using panel height so header and send controls
+remain visible at the minimum size. No horizontal overflow at 390px; respect
+reduced motion and both WinScope themes. Hiding history, suspending or closing the
+window preserves draft/session/model state and never cancels a running analysis.
 
 ## Interaction states
 
@@ -117,8 +134,11 @@ not a claim of complete reference parity.
 
 ## Composer refinement (2026-11-01)
 
-The current user override (2026-11-02) adds a labelled native **Conversation
-model** shortcut to the composer. It lists only the active provider's models;
+The current user override (2026-11-02) uses a borderless **Conversation model**
+button in the composer. Clicking anywhere on its model label opens the complete
+available model menu above the composer, without a second dropdown action.
+The menu marks the selected model and supports keyboard navigation, Escape and
+outside-click dismissal. It lists only the active provider's models;
 changing a model cannot activate another provider. Preserve supported reasoning
 effort and all message draft/history state. The active custom model remains
 selectable. Detailed agent,
@@ -130,17 +150,39 @@ Codex and Claude each have **Get configuration** inside their own section. The
 independent settings shell owns the abortable import and catalog reload. Only a
 current successful completion fills that provider's draft and metadata and makes
 it the sole selected provider. The last successful Get configuration wins, not a
-failed or cancelled request; it does not auto-save or replace the other draft.
-The active provider field is read-only, with no competing provider dropdown.
-Save validates and retains only this provider's selection; inactive drafts are
-neither saved nor allowed to block it. The composer uses only the saved active
-provider, including restored conversations, while ongoing runs finish unchanged.
+failed or cancelled request; it does not save manual drafts, apply a conversation
+change, or replace the other draft. A successful read persists a nonsecret import
+marker and default selection so the provider can be restored on the next launch.
+The provider dropdown can select any catalog entry; only its section is visible,
+and switching preserves every provider's independent draft. Manual fields are
+model/custom model, supported reasoning effort, service URL (`baseUrl`), provider
+name (`providerName`, up to 128 characters), API key **environment variable name**
+(not its value), and integer request timeout (1000-600000 ms). Service URLs allow
+only HTTP/HTTPS, without credentials, query parameters or fragments; environment
+variable names must be valid identifiers.
+
+Save validates, persists and applies only the active provider's configuration and
+selection; inactive drafts are neither saved nor allowed to block it. Durable,
+app-owned nonsecret settings live at `~/.winscope/ai-settings.json` on the gateway
+machine. Reopening defaults to the saved provider/selection unless an existing
+session supplies its own selection, which takes precedence. The composer uses
+only the applied active provider, including restored conversations, while ongoing
+runs finish unchanged. Show **Already configured** only for a provider confirmed
+saved or successfully imported, not merely selected or edited. Never send secret
+values to the renderer or persist them in app settings/browser storage. A saved
+configuration and available authentication are separate states: show a missing
+environment-variable status when its selected credential reference is unset. Do not
+rewrite the user's CLI configuration. The parent settings shell saves
+asynchronously and closes on Save only after success. On failure, keep the dialog
+and drafts open with the generic safe error: "Could not save AI settings. Check
+the configuration and try again."
+
 Use the imported default model and supported configured effort, with explicit
 fallbacks. Show per-provider busy, retryable error and sanitized success states,
 never credentials or raw local file paths. Menu switches preserve drafts and
 in-flight reads; closing/destroying settings invalidates pending completions.
-Runtime changes, Save and imports are disabled while running, loading or
-importing; General settings and Cancel remain usable.
+Runtime changes, Save and imports are disabled while running, loading, importing
+or saving; General settings and Cancel remain usable.
 The compact composer toolbar wraps when needed without hiding the model label.
 
 The application toolbar exposes an icon-only **Settings** action beside AI
@@ -153,6 +195,15 @@ Store the selected mode separately from the resolved dark boolean required by
 existing trace viewers. Preserve legacy explicit dark/light preferences when
 migrating, prefer a valid new mode on later loads, and ignore/persist no theme
 preferences in privacy mode.
+General settings also exposes Display size as an 80%-140% range in 10% steps,
+defaulting to 100%, with a percentage readout and reset icon. Selection applies
+immediately without saving AI edits and persists only when preferences are
+enabled. Scale the application uniformly rather than changing trace values or
+each component's typography. Trigger layout consumers after scaling; pointer
+conversion must use rendered bounds for rectangle picking and timeline dragging.
+The range and reset stay reachable at 390px and at the largest setting. This
+explicit preference supersedes the earlier no-page-scaling constraint below;
+the compact component dimensions still describe the 100% baseline.
 This entry works without creating an AI workspace or requiring a gateway;
 unavailable model/import controls remain disabled while General remains editable.
 When restoring a conversation, lock AI changes until its current selection is

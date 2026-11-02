@@ -16,12 +16,13 @@
 import {CommonModule} from '@angular/common';
 import {Component, computed, input} from '@angular/core';
 import {MatTooltipModule} from '@angular/material/tooltip';
+import {TranslatePipe} from '@common/i18n';
 import {UiPropertyTreeNode} from '@ui/shared/properties/ui_property_tree_node';
 
 @Component({
   selector: 'transform-matrix',
   standalone: true,
-  imports: [CommonModule, MatTooltipModule],
+  imports: [TranslatePipe, CommonModule, MatTooltipModule],
   templateUrl: './transform_matrix_component.ng.html',
   styleUrls: ['transform_matrix_component.scss'],
 })

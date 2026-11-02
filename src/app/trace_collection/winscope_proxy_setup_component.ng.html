@@ -7,14 +7,16 @@ you may not use this file except in compliance with the License.
 @let currState = state();
 @switch (currState) {
   @case (ConnectionState.CONNECTING) {
-    <p class="connecting-message mat-body-1">Connecting to the launcher-managed capture session...</p>
+    <p class="connecting-message mat-body-1">{{
+      'Connecting to the launcher-managed capture session...' | tr
+    }}</p>
   }
   @case (ConnectionState.NOT_FOUND) {
     <div class="further-adb-info-text">
-      <p class="mat-body-1">
-        The launcher-managed capture session is unavailable. Restart Winscope with device capture enabled
-        after confirming that Python 3.10+ and ADB are available.
-      </p>
+      <p class="mat-body-1">{{
+        'The launcher-managed capture session is unavailable. Restart Winscope with device capture enabled after confirming that Python 3.10+ and ADB are available.'
+          | tr
+      }}</p>
     </div>
     <div class="further-adb-info-actions">
       <button
@@ -22,27 +24,32 @@ you may not use this file except in compliance with the License.
         color="primary"
         mat-stroked-button
         (click)="onRetryButtonClick()"
+        >{{ 'Retry' | tr }}</button
       >
-        Retry
-      </button>
     </div>
   }
   @case (ConnectionState.INVALID_VERSION) {
     <div class="further-adb-info-text">
       <p class="icon-information mat-body-1">
         <mat-icon class="adb-icon">error</mat-icon>
-        <span class="adb-info">The launcher-managed capture session is incompatible.</span>
+        <span class="adb-info">{{
+          'The launcher-managed capture session is incompatible.' | tr
+        }}</span>
       </p>
-      <p class="mat-body-1">Restart Winscope from a matching distribution.</p>
+      <p class="mat-body-1">{{ 'Restart Winscope from a matching distribution.' | tr }}</p>
     </div>
   }
   @case (ConnectionState.UNAUTH) {
     <div class="further-adb-info-text">
       <p class="icon-information mat-body-1">
         <mat-icon class="adb-icon">lock</mat-icon>
-        <span class="adb-info">The launcher-managed capture session rejected this browser request.</span>
+        <span class="adb-info">{{
+          'The launcher-managed capture session rejected this browser request.' | tr
+        }}</span>
       </p>
-      <p class="mat-body-1">Restart Winscope to create a fresh local capture session.</p>
+      <p class="mat-body-1">{{
+        'Restart Winscope to create a fresh local capture session.' | tr
+      }}</p>
     </div>
   }
 }

@@ -1,6 +1,98 @@
-import {AiGatewayClient, parseSseEventBlock} from './ai_gateway_client';
+import {AiGatewayClient, AiProviderConfiguration, AiSettingsSelection, parseSseEventBlock} from './ai_gateway_client';
 
 describe('AiGatewayClient', () => {
+  const selection: AiSettingsSelection = {
+    agentId: 'display',
+    providerId: 'codex',
+    modelId: '__custom__',
+    customModel: 'local/model[1m]',
+    reasoningLevel: 'high',
+  };
+
+  for (const persisted of [false, true]) {
+    it(`loads provider descriptors ${persisted ? 'with' : 'without'} a persisted selection`, async () => {
+      const providers = [{id: 'codex', configured: true}];
+      const agents = [{id: 'display', name: 'Display analyst', providerId: 'codex'}];
+      const skills = [{id: 'frames', name: 'Frames', kind: 'deterministic'}];
+      const fetcher = jasmine.createSpy('fetch').and.callFake(async (url: string) => {
+        const path = new URL(url).pathname;
+        switch (path) {
+          case '/ai/api/providers':
+            return new Response(JSON.stringify({providers, ...(persisted ? {selection} : {})}));
+          case '/ai/api/agents':
+            return new Response(JSON.stringify({agents}));
+          case '/ai/api/skills':
+            return new Response(JSON.stringify({skills}));
+          default:
+            throw new Error('Unexpected catalog request: ' + path);
+        }
+      });
+      const controller = new AbortController();
+      const loaded = await new AiGatewayClient('./ai/', fetcher).catalog(controller.signal);
+      expect(loaded).toEqual({providers, agents, skills, ...(persisted ? {selection} : {})});
+      expect(Object.hasOwn(loaded, 'selection')).toBe(persisted);
+      expect(fetcher).toHaveBeenCalledTimes(3);
+      for (const [, init] of fetcher.calls.allArgs()) {
+        expect(init).toEqual({cache: 'no-store', signal: controller.signal});
+        expect(init.body).toBeUndefined();
+      }
+    });
+  }
+
+  it('posts only the selected settings and optional configuration with an abort signal', async () => {
+    const configuration: AiProviderConfiguration = {
+      baseUrl: 'https://service.example/v1',
+      providerName: 'Local service',
+      apiKeyEnv: 'CODEX_API_KEY',
+      timeoutMs: 30_000,
+    };
+    const provider = {id: 'codex', configured: true, configuration};
+    const saved = {selection: {...selection, customModel: 'persisted/model'}, provider};
+    const fetcher = jasmine.createSpy('fetch').and.callFake(async () =>
+      new Response(JSON.stringify(saved)),
+    );
+    const controller = new AbortController();
+    const client = new AiGatewayClient('./ai/', fetcher);
+    expect(await client.saveSettings(selection, configuration, controller.signal)).toEqual(saved);
+    const [url, init] = fetcher.calls.mostRecent().args;
+    expect(url).toBe(new URL('ai/api/settings', document.baseURI).toString());
+    expect(init).toEqual(jasmine.objectContaining({
+      method: 'POST',
+      cache: 'no-store',
+      signal: controller.signal,
+      headers: {'content-type': 'application/json'},
+    }));
+    expect(JSON.parse(init.body)).toEqual({selection, configuration});
+    expect(JSON.parse(init.body).configuration.apiKey).toBeUndefined();
+    expect(selection.customModel).toBe('local/model[1m]');
+  });
+
+  it('omits configuration when saving only a selection and accepts responses without a provider', async () => {
+    const fetcher = jasmine.createSpy('fetch').and.callFake(async () =>
+      new Response(JSON.stringify({selection})),
+    );
+    const result = await new AiGatewayClient('./ai/', fetcher).saveSettings(selection);
+    expect(result).toEqual({selection});
+    expect(result.provider).toBeUndefined();
+    const [, init] = fetcher.calls.mostRecent().args;
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body)).toEqual({selection});
+    expect(Object.hasOwn(JSON.parse(init.body), 'configuration')).toBeFalse();
+  });
+
+  it('propagates settings failures so the caller can retry without changing the request', async () => {
+    const fetcher = jasmine.createSpy('fetch').and.callFake(async () =>
+      new Response('{"error":"Invalid provider configuration"}', {status: 400}),
+    );
+    const client = new AiGatewayClient('./ai/', fetcher);
+    await expectAsync(client.saveSettings(selection)).toBeRejectedWithError('Invalid provider configuration');
+    fetcher.and.callFake(async () => new Response(JSON.stringify({selection})));
+    expect(await client.saveSettings(selection)).toEqual({selection});
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(fetcher.calls.allArgs().map(([, init]) => JSON.parse(init.body)))
+      .toEqual([{selection}, {selection}]);
+  });
+
   it('parses JSON SSE events with monotonic IDs', () => {
     expect(
       parseSseEventBlock(

@@ -137,6 +137,17 @@ limitations under the License.
     >
       <mat-icon>settings</mat-icon>
     </button>
+    <button
+      mat-icon-button
+      class="reset-traces-button"
+      [attr.aria-label]="'Reset trace data' | tr"
+      [attr.aria-busy]="resettingTraces || confirmingTraceReset"
+      [matTooltip]="'Reset trace data' | tr"
+      [disabled]="traceResetDisabled"
+      (click)="requestTraceReset()"
+    >
+      <mat-icon>restart_alt</mat-icon>
+    </button>
     @if (showDataLoadedElements) {
       <button
         mat-icon-button
@@ -370,7 +381,11 @@ limitations under the License.
     [loadingConversation]="waitingForAiSelection"
     [existingSession]="!!aiPanelComponent()?.sessionId"
     [themeMode]="themeMode"
+    [displayScale]="displayScale"
+    [confirmTraceReset]="confirmTraceReset"
     (themeModeChanged)="setThemeMode($event)"
+    (displayScaleChanged)="setDisplayScale($event)"
+    (confirmTraceResetChanged)="setConfirmTraceReset($event)"
     (catalogChanged)="aiSettingsCatalog = $event"
     (applied)="applyApplicationSettings($event)"
     (closed)="closeApplicationSettings()"

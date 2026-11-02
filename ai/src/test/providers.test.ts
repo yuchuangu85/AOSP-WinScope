@@ -32,7 +32,10 @@ test('built-in model catalogs expose real selection capabilities without credent
   assert.deepEqual(catalog.find((provider) => provider.id === 'codex')?.reasoningLevels, ['low', 'medium', 'high']);
   assert.ok(catalog.find((provider) => provider.id === 'claude')?.models.some((model) => model.id === 'sonnet'));
   assert.deepEqual(catalog.find((provider) => provider.id === 'ds')?.reasoningLevels, []);
-  assert.equal(JSON.stringify(catalog).includes('apiKey'), false);
+  assert.equal(catalog.find((provider) => provider.id === 'codex')?.configuration?.apiKeyEnv, 'OPENAI_API_KEY');
+  assert.equal(catalog.find((provider) => provider.id === 'codex')?.configured, false);
+  assert.equal(catalog.find((provider) => provider.id === 'claude')?.configured, false);
+  assert.equal(catalog.find((provider) => provider.id === 'ds')?.configuration, undefined);
   assert.equal(catalog.find((provider) => provider.id === 'codex')?.localConfig, undefined);
 });
 

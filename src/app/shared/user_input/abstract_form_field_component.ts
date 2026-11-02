@@ -21,6 +21,8 @@ import {isElementOverflowing} from '@common/dom';
 @Directive()
 export abstract class AbstractFormFieldComponent {
   label = input<string>('Search');
+  /** Disable for labels sourced from user-defined SQL columns or trace data. */
+  localizeLabel = input(true);
   appearance = input<MatFormFieldAppearance>('fill');
   formFieldClass = input<string>('');
 

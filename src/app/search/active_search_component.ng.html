@@ -24,7 +24,7 @@ limitations under the License.
       (click)="clearQueryClick.emit()"
     >
       <mat-icon> delete </mat-icon>
-      <span> Clear </span>
+      <span> {{ 'Clear' | tr }} </span>
     </button>
   }
 </span>
@@ -37,7 +37,7 @@ limitations under the License.
     [readonly]="currRunningQuery"
   ></textarea>
   @if (searchQueryControl.invalid && searchQueryControl.value) {
-    <mat-error>Enter valid SQL query.</mat-error>
+    <mat-error>{{ 'Enter valid SQL query.' | tr }}</mat-error>
   }
 </mat-form-field>
 
@@ -46,7 +46,7 @@ limitations under the License.
     <div class="running-query-message text-no-overflow">
       <mat-icon class="material-symbols-outlined"> timer </mat-icon>
       <span class="mat-body-2 message-with-spinner">
-        <span>Calculating results </span>
+        <span>{{ 'Calculating results' | tr }} </span>
         <mat-spinner [diameter]="20"></mat-spinner>
       </span>
     </div>
@@ -54,7 +54,7 @@ limitations under the License.
   @let lastExecutionTime = lastQueryExecutionTime();
   @if (lastExecutionTime) {
     <span class="query-execution-time text-no-overflow mat-body-1">
-      Executed in {{ lastExecutionTime }}
+      {{ 'Executed in {duration}' | tr: {duration: lastExecutionTime} }}
     </span>
   }
   <button
@@ -64,7 +64,7 @@ limitations under the License.
     (click)="onSearchQueryClick()"
     [disabled]="searchQueryDisabled()"
   >
-    Run Search Query
+    {{ 'Run Search Query' | tr }}
   </button>
 </div>
 @let lastExecutedQuery = executedQuery();
@@ -72,7 +72,7 @@ limitations under the License.
 @if (lastExecutedQuery) {
   <div class="current-search">
     <span class="query">
-      <span class="mat-body-2"> Last executed: </span>
+      <span class="mat-body-2"> {{ 'Last executed:' | tr }} </span>
       <span class="mat-body-1"> {{ lastExecutedQuery }} </span>
     </span>
     @if (!lastFailed) {
@@ -91,6 +91,6 @@ limitations under the License.
     color="primary"
     (click)="addQueryClick.emit()"
   >
-    + Add Query
+    {{ '+ Add Query' | tr }}
   </button>
 }

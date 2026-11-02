@@ -10,6 +10,7 @@ import {VIEWER_TRANSLATIONS} from './i18n_viewers';
 import {isPersistenceEnabled, PersistentStore} from './store/persistent_store';
 
 export type Language = 'en' | 'zh-CN';
+export type LanguagePreference = 'system' | Language;
 export type TranslationParams = Readonly<Record<string, string | number>>;
 
 export const LANGUAGE_PREFERENCE_KEY = 'language';
@@ -23,6 +24,9 @@ export const SUPPORTED_LANGUAGES: ReadonlyArray<{
 
 /** UI language only. Trace values, identifiers and user content stay untouched. */
 export const language = signal<Language>('en');
+export const languagePreference = signal<LanguagePreference>('system');
+
+let listeningForLanguageChanges = false;
 
 export const CHINESE_TRANSLATIONS: Readonly<Record<string, string>> = {
   ...VIEWER_TRANSLATIONS,
@@ -38,24 +42,39 @@ function isLanguage(value: unknown): value is Language {
   return value === 'en' || value === 'zh-CN';
 }
 
+function resolveSystemLanguage(browserLanguages: readonly string[]): Language {
+  const detected = browserLanguages.find((value) => /^(en|zh)(-|$)/i.test(value));
+  return detected?.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en';
+}
+
+function listenForLanguageChanges(): void {
+  if (listeningForLanguageChanges || typeof window === 'undefined') return;
+  window.addEventListener('languagechange', () => {
+    if (languagePreference() === 'system') {
+      applyLanguage(resolveSystemLanguage(navigator.languages));
+    }
+  });
+  listeningForLanguageChanges = true;
+}
+
 /** Restore a display preference; storage failures never prevent app startup. */
 export function initializeLanguage(
   browserLanguages: readonly string[] = navigator.languages,
 ): void {
   let preferred: string | undefined;
-  try {
-    preferred = new PersistentStore().get(LANGUAGE_PREFERENCE_KEY);
-  } catch {
-    // Sandboxed/private browsers can deny localStorage access.
+  if (isPersistenceEnabled()) {
+    try {
+      preferred = new PersistentStore().get(LANGUAGE_PREFERENCE_KEY);
+    } catch {
+      // Sandboxed/private browsers can deny localStorage access.
+    }
   }
-  const detected = browserLanguages.find((value) => /^(en|zh)(-|$)/i.test(value));
+  const preference = isLanguage(preferred) ? preferred : 'system';
+  languagePreference.set(preference);
   applyLanguage(
-    isLanguage(preferred)
-      ? preferred
-      : detected?.toLowerCase().startsWith('zh')
-        ? 'zh-CN'
-        : 'en',
+    preference === 'system' ? resolveSystemLanguage(browserLanguages) : preference,
   );
+  listenForLanguageChanges();
 }
 
 function applyLanguage(value: Language): void {
@@ -64,9 +83,13 @@ function applyLanguage(value: Language): void {
 }
 
 /** Change language in place without recreating viewers or losing draft state. */
-export function setLanguage(value: Language): void {
-  if (!isLanguage(value)) return;
-  applyLanguage(value);
+export function setLanguage(value: LanguagePreference): void {
+  if (value !== 'system' && !isLanguage(value)) return;
+  languagePreference.set(value);
+  applyLanguage(
+    value === 'system' ? resolveSystemLanguage(navigator.languages) : value,
+  );
+  listenForLanguageChanges();
   if (!isPersistenceEnabled()) return;
   try {
     new PersistentStore().add(LANGUAGE_PREFERENCE_KEY, value);

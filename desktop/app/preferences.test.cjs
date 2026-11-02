@@ -203,16 +203,83 @@ test("display presets and system theme survive disk save and a different launch 
   }
 });
 
-test("private windows neither restore nor save display scale and theme preferences", () => {
+test("reset confirmation round-trips across disk and launch origins in both directions", (t) => {
+  const { store, file } = fixture(t);
+  for (const value of ["false", "true"]) {
+    const nextValue = value === "true" ? "false" : "true";
+    assert.equal(store.set({ "confirm-trace-reset": value }).ok, true);
+    const first = fakePreload({ reply: new PreferenceStore(file).snapshot() });
+    assert.equal(first.data.get("confirm-trace-reset"), value);
+    first.data.set("confirm-trace-reset", nextValue);
+    first.data.set("aiPrompts", "private");
+    first.unload();
+    assert.deepEqual(first.calls[1].value, { "confirm-trace-reset": nextValue });
+    assert.equal(store.set(first.calls[1].value).ok, true);
+    const second = fakePreload({
+      href: "http://127.0.0.1:51234/",
+      reply: new PreferenceStore(file).snapshot(),
+      initial: { "confirm-trace-reset": value, aiSessions: "private" },
+    });
+    assert.equal(second.data.get("confirm-trace-reset"), nextValue);
+    assert.equal(second.data.get("aiPrompts"), undefined);
+    assert.equal(second.data.get("aiSessions"), "private");
+    second.data.delete("confirm-trace-reset");
+    second.tick();
+    assert.deepEqual(second.calls[1].value, {});
+    assert.equal(store.set(second.calls[1].value).ok, true);
+    assert.deepEqual(new PreferenceStore(file).snapshot(), {});
+  }
+});
+
+test("reset confirmation expands only the exact main and preload key boundary", (t) => {
+  const { store } = fixture(t);
+  const values = {
+    "confirm-trace-reset": "false",
+    "confirm-trace-reset-extra": "private",
+    "confirm-trace": "private",
+    confirmTraceReset: "private",
+    aiPrompts: "private",
+    trace: "private",
+  };
+  const expected = { "confirm-trace-reset": "false" };
+  assert.equal(store.set(values).ok, true);
+  assert.deepEqual(store.snapshot(), expected);
+  const restored = fakePreload({ reply: values });
+  assert.deepEqual(Object.fromEntries(restored.data), expected);
+  const captured = fakePreload();
+  Object.entries(values).forEach(([key, value]) => captured.data.set(key, value));
+  captured.tick();
+  assert.deepEqual(captured.calls[1].value, expected);
+  assert.deepEqual(captured.reads, ["confirm-trace-reset"]);
+  for (const value of [true, false, null, 1, {}]) {
+    store.set({ "confirm-trace-reset": value });
+    assert.deepEqual(store.snapshot(), {});
+    assert.equal(
+      fakePreload({ reply: { "confirm-trace-reset": value } }).data.size,
+      0,
+    );
+  }
+});
+
+test("private windows neither restore nor save display and reset confirmation preferences", () => {
   const run = fakePreload({
     href: origin + "/?no-persistence",
-    reply: { "display-scale": "80", "theme-mode": "dark" },
-    initial: { "display-scale": "120", "theme-mode": "light" },
+    reply: {
+      "display-scale": "80",
+      "theme-mode": "dark",
+      "confirm-trace-reset": "true",
+    },
+    initial: {
+      "display-scale": "120",
+      "theme-mode": "light",
+      "confirm-trace-reset": "false",
+    },
   });
   run.tick();
   run.unload();
   assert.equal(run.data.get("display-scale"), "120");
   assert.equal(run.data.get("theme-mode"), "light");
+  assert.equal(run.data.get("confirm-trace-reset"), "false");
   assert.deepEqual(run.calls, []);
 });
 
@@ -646,8 +713,8 @@ test("privacy mode, foreign URLs, and child frames perform no storage/IPC/timers
   ]) {
     const run = fakePreload({
       href,
-      initial: { language: "en" },
-      reply: { language: "zh-CN" },
+      initial: { language: "en", "confirm-trace-reset": "false" },
+      reply: { language: "zh-CN", "confirm-trace-reset": "true" },
       unavailable: true,
     });
     assert.deepEqual(run.calls, [], href);
@@ -655,11 +722,13 @@ test("privacy mode, foreign URLs, and child frames perform no storage/IPC/timers
     assert.equal(run.timers.length, 0, href);
     assert.equal(run.listeners.size, 0, href);
     assert.equal(run.data.get("language"), "en");
+    assert.equal(run.data.get("confirm-trace-reset"), "false");
   }
   const child = fakePreload({ childFrame: true });
   assert.deepEqual(child.calls, []);
   const run = fakePreload();
   run.data.set("language", "en");
+  run.data.set("confirm-trace-reset", "false");
   run.window.location.href = origin + "/?no-persistence";
   run.tick();
   run.unload();

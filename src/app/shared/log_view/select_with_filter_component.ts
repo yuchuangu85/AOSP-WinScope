@@ -26,11 +26,13 @@ import {MatInputModule} from '@angular/material/input';
 import {MatSelect, MatSelectChange, MatSelectModule,} from '@angular/material/select';
 import {MatTooltipModule} from '@angular/material/tooltip';
 import {AbstractSelectComponent} from '@app/shared/user_input/abstract_select_component';
+import {TranslatePipe} from '@common/i18n';
 
 @Component({
   selector: 'select-with-filter',
   standalone: true,
   imports: [
+    TranslatePipe,
     CommonModule,
     FormsModule,
     MatFormFieldModule,

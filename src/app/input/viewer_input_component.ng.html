@@ -81,7 +81,7 @@ limitations under the License.
         [store]="currStore"
         [isProtoDump]="true"
         [textFilter]="data?.propertiesFilter"
-        placeholderText="No selected entry."
+        [placeholderText]="'No selected entry.' | tr"
         (collapseButtonClicked)="
           sections.onCollapseStateChange(CollapsibleSectionType.PROPERTIES, true)
         "
@@ -101,7 +101,7 @@ limitations under the License.
         [store]="currStore"
         [isProtoDump]="true"
         [textFilter]="data?.dispatchPropertiesFilter"
-        placeholderText="No selected entry."
+        [placeholderText]="'No selected entry.' | tr"
         (collapseButtonClicked)="
           sections.onCollapseStateChange(CollapsibleSectionType.INPUT_DISPATCH_PROPERTIES, true)
         "

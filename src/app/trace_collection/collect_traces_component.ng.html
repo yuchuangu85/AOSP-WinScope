@@ -16,7 +16,7 @@ limitations under the License.
 
 <mat-card class="collect-card">
   <mat-card-header>
-    <mat-card-title class="title">Collect Traces</mat-card-title>
+    <mat-card-title class="title">{{ 'Collect Traces' | tr }}</mat-card-title>
   </mat-card-header>
 
   @let currState = state();
@@ -28,11 +28,11 @@ limitations under the License.
         [mat-stretch-tabs]="false"
         class="connection-tabs"
         [selectedIndex]="connectionTabIndex"
-        (selectedTabChange)="onConnectionChange($event.tab.textLabel)"
+        (selectedTabChange)="onConnectionChange(AdbConnectionType.WINSCOPE_PROXY)"
         (animationDone)="onConnectionTabAnimationDone()"
       >
-        <mat-tab [disabled]="disableTraceSection()" [label]="AdbConnectionType.WINSCOPE_PROXY">
-          <div class="tabbed-section">
+        <mat-tab [disabled]="disableTraceSection()" [label]="AdbConnectionType.WINSCOPE_PROXY | tr">
+          <div class="tabbed-section connection-section">
             @if (!adbIsSuccessful) {
               <winscope-proxy-setup
                 [state]="currState"
@@ -49,7 +49,7 @@ limitations under the License.
           mat-icon-button
           class="refresh-connection no-touch-target-button"
           (click)="onRetryConnection()"
-          matTooltip="Refresh connection"
+          [matTooltip]="'Refresh connection' | tr"
         >
           <mat-icon>refresh</mat-icon>
         </button>
@@ -57,7 +57,7 @@ limitations under the License.
       @let changingConnection = isChangingConnection();
       @if (changingConnection) {
         <div class="changing-connection-progress">
-          <load-progress message="Changing connection..."> </load-progress>
+          <load-progress [message]="'Changing connection...' | tr"> </load-progress>
         </div>
       }
 
@@ -70,12 +70,12 @@ limitations under the License.
                   <span class="mat-body-3 icon">
                     <mat-icon inline fontIcon="phonelink_erase"></mat-icon>
                   </span>
-                  <span class="mat-body-1 message">No devices detected</span>
+                  <span class="mat-body-1 message">{{ 'No devices detected' | tr }}</span>
                 </div>
               }
               @if (controller.getDevices().length > 0) {
                 <div class="device-selection">
-                  <p class="mat-body-1 instruction">Select a device:</p>
+                  <p class="mat-body-1 instruction">{{ 'Select a device:' | tr }}</p>
                   <mat-action-list>
                     @for (device of controller.getDevices(); track device.id) {
                       <mat-list-item
@@ -109,28 +109,27 @@ limitations under the License.
                     mat-stroked-button
                     (click)="onChangeDeviceButton()"
                     [disabled]="isTracingOrLoading()"
+                    >{{ 'Change device' | tr }}</button
                   >
-                    Change device
-                  </button>
                   <button
                     color="primary"
                     class="fetch-btn"
                     mat-stroked-button
                     (click)="fetchExistingTraces()"
                     [disabled]="isTracingOrLoading()"
+                    >{{ 'Fetch traces from last session' | tr }}</button
                   >
-                    Fetch traces from last session
-                  </button>
                   <button
                     color="warn"
                     class="delete-recovery-btn"
                     mat-stroked-button
                     (click)="deleteRecoveryCapture()"
                     [disabled]="isTracingOrLoading()"
-                    matTooltip="Permanently delete the Recovery Capture retained on this device"
+                    [matTooltip]="
+                      'Permanently delete the Recovery Capture retained on this device' | tr
+                    "
+                    >{{ 'Delete recovery capture' | tr }}</button
                   >
-                    Delete recovery capture
-                  </button>
                 </div>
               </div>
 
@@ -142,12 +141,12 @@ limitations under the License.
                 [selectedIndex]="targetTabIndex"
                 class="target-tabs"
               >
-                <mat-tab label="Trace" [disabled]="disableTraceSection()">
+                <mat-tab [label]="'Trace' | tr" [disabled]="disableTraceSection()">
                   <div class="tabbed-section">
                     @if (currState === ConnectionState.IDLE) {
                       <div class="trace-section">
                         <trace-config
-                          title="Trace targets"
+                          [title]="'Trace targets' | tr"
                           [(traceConfig)]="traceConfig"
                           [store]="currStore"
                           [traceConfigStoreKey]="storeKeyPrefixTraceConfig"
@@ -158,9 +157,8 @@ limitations under the License.
                             mat-raised-button
                             (click)="startTracing()"
                             class="no-touch-target-button"
+                            >{{ 'Start trace' | tr }}</button
                           >
-                            Start trace
-                          </button>
                         </div>
                       </div>
                     }
@@ -180,22 +178,21 @@ limitations under the License.
                               [disabled]="currState !== ConnectionState.TRACING"
                               (click)="endTrace()"
                               class="no-touch-target-button"
+                              >{{ 'End trace' | tr }}</button
                             >
-                              End trace
-                            </button>
                           </div>
                         }
                       </div>
                     }
                   </div>
                 </mat-tab>
-                <mat-tab label="Dump" [disabled]="isTracingOrLoading()">
+                <mat-tab [label]="'Dump' | tr" [disabled]="isTracingOrLoading()">
                   <div class="tabbed-section">
                     @let refresh = refreshDumps();
                     @if (currState === ConnectionState.IDLE && !refresh) {
                       <div class="dump-section">
                         <trace-config
-                          title="Dump targets"
+                          [title]="'Dump targets' | tr"
                           [(traceConfig)]="dumpConfig"
                           [store]="currStore"
                           [traceConfigStoreKey]="storeKeyPrefixDumpConfig"
@@ -207,9 +204,8 @@ limitations under the License.
                               mat-raised-button
                               (click)="dumpState()"
                               class="no-touch-target-button"
+                              >{{ 'Dump state' | tr }}</button
                             >
-                              Dump state
-                            </button>
                           </div>
                         }
                       </div>
@@ -230,19 +226,23 @@ limitations under the License.
           @if (currState === ConnectionState.ERROR) {
             <div class="unknown-error">
               <div class="error-wrapper mat-body-1">
-                <mat-icon class="error-icon">error</mat-icon>
-                Error:
-              </div>
-              <pre> {{ errorText }} </pre>
+                <mat-icon class="error-icon">error</mat-icon>{{ 'Error:' | tr }}</div
+              >
+              <pre>
+ {{
+                  errorLocalization
+                    ? (errorLocalization.source | tr: errorLocalization.params)
+                    : errorText
+                }} </pre
+              >
               <div class="error-retry-btn">
                 <button
                   color="primary"
                   class="retry-btn no-touch-target-button"
                   mat-raised-button
                   (click)="onRetryButton()"
+                  >{{ 'Retry' | tr }}</button
                 >
-                  Retry
-                </button>
               </div>
             </div>
           }
@@ -250,8 +250,8 @@ limitations under the License.
       </ng-template>
     </mat-card-content>
   } @else {
-    <mat-card-content class="collect-card-content">
-      Device capture is unavailable in file-only mode.
-    </mat-card-content>
+    <mat-card-content class="collect-card-content">{{
+      'Device capture requires the standalone launcher.' | tr
+    }}</mat-card-content>
   }
 </mat-card>

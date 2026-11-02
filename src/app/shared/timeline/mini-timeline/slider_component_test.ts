@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import {DragDropModule} from '@angular/cdk/drag-drop';
+import {CdkDrag, CdkDragEnd, CdkDragMove, CdkDragStart, DragDropModule} from '@angular/cdk/drag-drop';
 import {ChangeDetectionStrategy} from '@angular/core';
-import {discardPeriodicTasks, fakeAsync, TestBed} from '@angular/core/testing';
+import {ComponentFixture, discardPeriodicTasks, fakeAsync, TestBed} from '@angular/core/testing';
 import {FormsModule, ReactiveFormsModule} from '@angular/forms';
 import {MatButtonModule} from '@angular/material/button';
 import {MatFormFieldModule} from '@angular/material/form-field';
@@ -24,6 +24,7 @@ import {MatIconModule} from '@angular/material/icon';
 import {MatInputModule} from '@angular/material/input';
 import {MatSelectModule} from '@angular/material/select';
 import {MatTooltipModule} from '@angular/material/tooltip';
+import {By} from '@angular/platform-browser';
 import {BrowserAnimationsModule, NoopAnimationsModule,} from '@angular/platform-browser/animations';
 import {assertDefined} from '@common/assert';
 import {DOMTestHelper} from '@common/testing/dom_test_helpers';
@@ -35,6 +36,7 @@ import {MIN_SLIDER_WIDTH, SliderComponent} from './slider_component';
 
 describe('SliderComponent', () => {
   let component: SliderComponent;
+  let fixture: ComponentFixture<SliderComponent>;
   let dom: DOMTestHelper<SliderComponent>;
   const leftCropperSelector = '.slider .cropper.left';
   const rightCropperSelector = '.slider .cropper.right';
@@ -67,7 +69,7 @@ describe('SliderComponent', () => {
         set: {changeDetection: ChangeDetectionStrategy.Default},
       })
       .compileComponents();
-    const fixture = TestBed.createComponent(SliderComponent);
+    fixture = TestBed.createComponent(SliderComponent);
     component = fixture.componentInstance;
     dom = new DOMTestHelper(fixture, fixture.nativeElement);
     dom.setComponentInput('fullRange', new TimeRange(time100, time200));
@@ -318,6 +320,106 @@ describe('SliderComponent', () => {
     const finalZoom = assertDefined(lastZoomUpdate);
     expect(finalZoom.startNs).toEqual(initialZoom.startNs);
     expect(finalZoom.endNs).toEqual(initialZoom.endNs);
+  });
+
+  for (const scale of [0.8, 1, 1.4]) {
+    describe(`at ${scale * 100}% display size`, () => {
+      beforeEach(() => {
+        const host = dom.getHTMLElement();
+        host.style.width = '1000px';
+        host.style.zoom = `${scale}`;
+        dom.detectChanges();
+      });
+
+      it('binds CDK scale without shifting the initial layout position', () => {
+        const drag = fixture.debugElement.query(By.directive(CdkDrag)).injector.get(CdkDrag);
+        expect(drag.scale).toBe(scale);
+        expect(drag.freeDragPosition.x).toBeCloseTo(250 * scale, 8);
+        const slider = dom.get('.slider').getHTMLElement();
+        expect(new DOMMatrixReadOnly(slider.style.transform).m41).toBeCloseTo(250, 8);
+      });
+
+      it('shifts the slider by the exact layout distance and clamps both ends', () => {
+        const drag = fixture.debugElement.query(By.directive(CdkDrag)).injector.get(CdkDrag);
+        const emitSpy = spyOn(component.onZoomChanged, 'emit');
+        component.onSlideStart({source: drag} as CdkDragStart);
+        expect(assertDefined(component.slideStartX)).toBeCloseTo(250, 8);
+
+        for (const [distance, from, to] of [[100, 135n, 185n], [-1000, 100n, 150n], [1000, 150n, 200n]] as const) {
+          component.onSliderMove({
+            source: drag,
+            distance: {x: distance * scale, y: 0},
+          } as CdkDragMove);
+          const range = emitSpy.calls.mostRecent().args[0];
+          expect(range.startNs).toBe(from);
+          expect(range.endNs).toBe(to);
+        }
+
+        component.onSlideEnd({source: drag} as CdkDragEnd);
+      });
+
+      it('tracks a real CDK mouse drag without a position jump or double compensation', () => {
+        const emitSpy = spyOn(component.onZoomChanged, 'emit');
+        const handle = dom.get('.slider .handle').getHTMLElement();
+        const bounds = handle.getBoundingClientRect();
+        const clientX = bounds.left + bounds.width / 2;
+        const clientY = bounds.top + bounds.height / 2;
+        // CDK rejects detail=0 mousedown events as screen-reader-generated events.
+        handle.dispatchEvent(new MouseEvent('mousedown', {
+          bubbles: true, buttons: 1, detail: 1, clientX, clientY, view: window,
+        }));
+        for (const distance of [10, 100]) {
+          dom.dispatchEventInDocument(new MouseEvent('mousemove', {
+            bubbles: true, buttons: 1,
+            clientX: clientX + distance * scale, clientY, view: window,
+          }));
+        }
+
+        expect(assertDefined(component.slideStartX)).toBeCloseTo(250, 8);
+        const slider = dom.get('.slider').getHTMLElement();
+        expect(new DOMMatrixReadOnly(slider.style.transform).m41).toBeCloseTo(350, 8);
+        dom.dispatchEventInDocument(new MouseEvent('mouseup', {
+          bubbles: true, clientX: clientX + 100 * scale, clientY, view: window,
+        }));
+        const range = emitSpy.calls.mostRecent().args[0];
+        expect(range.startNs).toBe(135n);
+        expect(range.endNs).toBe(185n);
+        expect(component.dragging).toBeFalse();
+      });
+
+      it('shifts the left endpoint exactly and clamps to the full range and right endpoint', () => {
+        const emitSpy = spyOn(component.onZoomChanged, 'emit');
+        for (const [distance, from] of [[100, 135n], [-1000, 100n], [1000, 175n]] as const) {
+          component.startMoveLeft(new MouseEvent('mousedown', {clientX: 200}));
+          window.dispatchEvent(new MouseEvent('mousemove', {clientX: 200 + distance * scale}));
+          window.dispatchEvent(new MouseEvent('mouseup'));
+          const range = emitSpy.calls.mostRecent().args[0];
+          expect(range.startNs).toBe(from);
+          expect(range.endNs).toBe(175n);
+        }
+      });
+
+      it('shifts the right endpoint exactly and clamps to the full range and left endpoint', () => {
+        const emitSpy = spyOn(component.onZoomChanged, 'emit');
+        for (const [distance, to] of [[-100, 165n], [1000, 200n], [-1000, 125n]] as const) {
+          component.startMoveRight(new MouseEvent('mousedown', {clientX: 200}));
+          window.dispatchEvent(new MouseEvent('mousemove', {clientX: 200 + distance * scale}));
+          window.dispatchEvent(new MouseEvent('mouseup'));
+          const range = emitSpy.calls.mostRecent().args[0];
+          expect(range.startNs).toBe(125n);
+          expect(range.endNs).toBe(to);
+        }
+      });
+    });
+  }
+
+  it('uses a finite scale for hidden or zero-layout-width sliders', () => {
+    const box = component.sliderBox().nativeElement;
+    const widthSpy = spyOnProperty(box, 'offsetWidth').and.returnValue(1000);
+    spyOn(box, 'getBoundingClientRect').and.returnValue(new DOMRect());
+    expect(component.getDragScale()).toBe(1);
+    widthSpy.and.returnValue(0);
+    expect(component.getDragScale()).toBe(1);
   });
 
   function checkVisible(element: HTMLElement) {

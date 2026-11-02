@@ -1,3 +1,5 @@
+@use './shared/styles/settings_select';
+
 :host {
   color: var(--default-text-color);
   font:
@@ -128,13 +130,14 @@ h3 {
 }
 
 .interface-language-select,
-.theme-mode-select {
+.theme-mode-select,
+.display-scale-select {
   box-sizing: border-box;
   width: 100%;
   max-width: 320px;
   min-width: 0;
   height: 32px;
-  padding: 4px 8px;
+  padding: 4px 36px 4px 8px;
   border: 1px solid var(--border-color);
   border-radius: 4px;
   background: var(--drawer-color);
@@ -143,9 +146,41 @@ h3 {
   cursor: pointer;
 }
 
-.settings-appearance {
+.settings-select {
+  max-width: 320px;
+}
+
+.settings-appearance,
+.settings-confirmations {
   padding-top: 20px;
   border-top: 1px solid var(--border-color);
+}
+
+.confirm-trace-reset {
+  display: block;
+  max-width: 100%;
+}
+
+.display-scale-control {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  max-width: 320px;
+  min-width: 0;
+  gap: 8px;
+}
+
+.display-scale-control .settings-select {
+  flex: 1;
+}
+
+.display-scale-reset {
+  --mdc-icon-button-state-layer-size: 32px;
+  --mat-icon-button-touch-target-display: none;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  padding: 4px;
 }
 
 .settings-status,

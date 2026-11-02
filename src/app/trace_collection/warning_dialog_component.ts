@@ -18,6 +18,7 @@ import {Component, Inject} from '@angular/core';
 import {MatButtonModule} from '@angular/material/button';
 import {MatCheckboxModule} from '@angular/material/checkbox';
 import {MAT_DIALOG_DATA, MatDialogModule} from '@angular/material/dialog';
+import {TranslatePipe} from '@common/i18n';
 
 /**
  * A component for displaying a warning dialog.
@@ -25,7 +26,13 @@ import {MAT_DIALOG_DATA, MatDialogModule} from '@angular/material/dialog';
 @Component({
   selector: 'warning-dialog',
   standalone: true,
-  imports: [CommonModule, MatDialogModule, MatCheckboxModule, MatButtonModule],
+  imports: [
+    TranslatePipe,
+    CommonModule,
+    MatDialogModule,
+    MatCheckboxModule,
+    MatButtonModule,
+  ],
   templateUrl: './warning_dialog_component.ng.html',
   styleUrls: ['warning_dialog_component.scss'],
 })
@@ -57,11 +64,14 @@ export class WarningDialogComponent {
  * Data for the warning dialog.
  */
 export interface WarningDialogData {
+  title?: string;
   message: string | undefined;
   actions: string[] | undefined;
   options: string[] | undefined;
   closeText: string;
   singleSelection?: boolean;
+  /** File names and external choices must not be treated as UI messages. */
+  localizeOptions?: boolean;
 }
 
 /**

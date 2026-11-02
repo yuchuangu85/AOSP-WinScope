@@ -1,4 +1,8 @@
+import {OverlayContainer} from '@angular/cdk/overlay';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {MatTooltip} from '@angular/material/tooltip';
+import {By} from '@angular/platform-browser';
+import {NoopAnimationsModule} from '@angular/platform-browser/animations';
 import {setLanguage} from '@common/i18n';
 import {AiCatalog, AiEvent, AiGatewayClient, AiProvider, AiSessionDetail, AiSessionSummary,} from '@services/ai_gateway_client';
 
@@ -86,7 +90,7 @@ describe('AiPanelComponent', () => {
     setLanguage('en');
     sessionStorage.removeItem('winscope.ai.active../ai/');
     await TestBed.configureTestingModule({
-      imports: [AiPanelComponent],
+      imports: [AiPanelComponent, NoopAnimationsModule],
     }).compileComponents();
     loadCatalog = spyOn(AiGatewayClient.prototype, 'catalog').and.resolveTo(
       catalog,
@@ -115,6 +119,202 @@ describe('AiPanelComponent', () => {
     await fixture.whenStable();
     fixture.detectChanges();
   }
+
+  function modelTrigger(): HTMLButtonElement {
+    return fixture.nativeElement.querySelector('.model-select');
+  }
+
+  async function openModelMenu(): Promise<HTMLElement> {
+    modelTrigger().querySelector<HTMLElement>('.model-label')!.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    return TestBed.inject(OverlayContainer).getContainerElement()
+      .querySelector<HTMLElement>('.conversation-model-list')!;
+  }
+
+  async function settleWindow(): Promise<void> {
+    fixture.detectChanges();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+    await fixture.whenStable();
+    fixture.detectChanges();
+  }
+
+  function resizeHandle(): HTMLButtonElement {
+    return fixture.nativeElement.querySelector('.ai-window-resize');
+  }
+
+  function pointerResize(type: string, x: number, y: number, pointerId = 1, button = 0): void {
+    resizeHandle().dispatchEvent(new PointerEvent(type, {pointerId, button, clientX: x, clientY: y, bubbles: true, cancelable: true}));
+  }
+
+  function mockPointerCapture(): jasmine.Spy {
+    spyOn(resizeHandle(), 'setPointerCapture');
+    spyOn(resizeHandle(), 'hasPointerCapture').and.returnValue(true);
+    return spyOn(resizeHandle(), 'releasePointerCapture');
+  }
+
+  it('collapses and reopens desktop history without changing the conversation, search or draft', async () => {
+    await initialize();
+    await settleWindow();
+    component.prompt = 'Unsent message';
+    component.searchQuery = 'Saved';
+    component.sessionId = 'a';
+    component.running = true;
+    const selection = component.modelSelection;
+    const sidebar: HTMLElement = fixture.nativeElement.querySelector('.ai-sidebar');
+    const toggle: HTMLButtonElement = fixture.nativeElement.querySelector('.history-toggle');
+    expect(component.compactWindow).toBeFalse();
+    expect(toggle.getAttribute('aria-controls')).toBe(sidebar.id);
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    toggle.click();
+    fixture.detectChanges();
+    expect(sidebar.hidden).toBeTrue();
+    expect(getComputedStyle(sidebar).display).toBe('none');
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    toggle.click();
+    fixture.detectChanges();
+    expect(sidebar.hidden).toBeFalse();
+    sidebar.querySelector<HTMLButtonElement>('[aria-label="Close conversation browser"]')!.click();
+    fixture.detectChanges();
+    expect(sidebar.hidden).toBeTrue();
+    expect(document.activeElement).toBe(toggle);
+    toggle.click();
+    fixture.detectChanges();
+    expect(component.prompt).toBe('Unsent message');
+    expect(component.searchQuery).toBe('Saved');
+    expect(component.sessionId).toBe('a');
+    expect(component.running).toBeTrue();
+    expect(component.modelSelection).toEqual(selection);
+  });
+
+  it('uses an overlay for a compact resized window and retains the desktop collapse preference', async () => {
+    await initialize();
+    await settleWindow();
+    component.toggleSidebar();
+    component.windowSize = {width: 640, height: 420};
+    await settleWindow();
+    expect(component.compactWindow).toBeTrue();
+    expect(component.sidebarVisible).toBeFalse();
+    const closed = spyOn(component.closed, 'emit');
+    fixture.nativeElement.querySelector('.history-toggle').click();
+    fixture.detectChanges();
+    expect(component.sidebarVisible).toBeTrue();
+    expect(fixture.nativeElement.querySelector('.ai-sidebar.open')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('.sidebar-backdrop')).not.toBeNull();
+    component.onEscape(new KeyboardEvent('keydown', {key: 'Escape'}));
+    fixture.detectChanges();
+    expect(component.sidebarVisible).toBeFalse();
+    expect(closed).not.toHaveBeenCalled();
+    component.toggleSidebar();
+    fixture.detectChanges();
+    fixture.nativeElement.querySelector('.sidebar-backdrop').click();
+    fixture.detectChanges();
+    expect(component.sidebarOpen).toBeFalse();
+    component.windowSize = {width: 900, height: 650};
+    await settleWindow();
+    expect(component.compactWindow).toBeFalse();
+    expect(component.sidebarVisible).toBeFalse();
+    component.toggleSidebar();
+    fixture.detectChanges();
+    expect(component.sidebarVisible).toBeTrue();
+  });
+
+  it('clamps pointer resizing to the minimum window dimensions and available viewport', async () => {
+    await initialize();
+    const panel = component.windowPanel!.nativeElement;
+    const maximum = {width: panel.offsetWidth, height: panel.offsetHeight};
+    const release = mockPointerCapture();
+    pointerResize('pointerdown', 1000, 700);
+    pointerResize('pointermove', -10000, -10000);
+    fixture.detectChanges();
+    expect(component.windowSize).toEqual(component.minWindowSize);
+    expect(panel.offsetWidth).toBe(640);
+    expect(panel.offsetHeight).toBe(420);
+    pointerResize('pointermove', 10000, 10000);
+    fixture.detectChanges();
+    expect(component.windowSize!.width).toBeCloseTo(maximum.width, 0);
+    expect(component.windowSize!.height).toBeCloseTo(maximum.height, 0);
+    pointerResize('pointerup', 10000, 10000);
+    expect(release).toHaveBeenCalledOnceWith(1);
+    const size = {...component.windowSize!};
+    pointerResize('pointermove', -10000, -10000);
+    expect(component.windowSize).toEqual(size);
+  });
+
+  it('ignores secondary or unrelated pointers and releases resizing when cancelled or suspended', async () => {
+    await initialize();
+    const release = mockPointerCapture();
+    pointerResize('pointerdown', 100, 100, 2, 2);
+    pointerResize('pointermove', 0, 0, 2);
+    expect(component.windowSize).toBeUndefined();
+    pointerResize('pointerdown', 100, 100);
+    pointerResize('pointermove', 0, 0, 2);
+    expect(component.windowSize).toBeUndefined();
+    pointerResize('pointercancel', 100, 100);
+    expect(release).toHaveBeenCalledOnceWith(1);
+    pointerResize('pointerdown', 100, 100);
+    fixture.componentRef.setInput('suspended', true);
+    fixture.detectChanges();
+    expect(release).toHaveBeenCalledTimes(2);
+    pointerResize('pointermove', 0, 0);
+    expect(component.windowSize).toBeUndefined();
+  });
+
+  it('supports independent keyboard width and height resizing and resetting without clearing the draft', async () => {
+    await initialize();
+    component.windowSize = {width: 900, height: 650};
+    component.prompt = 'Preserve this draft';
+    await settleWindow();
+    resizeHandle().dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowLeft', bubbles: true}));
+    fixture.detectChanges();
+    expect(component.windowSize).toEqual({width: 884, height: 650});
+    resizeHandle().dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowUp', shiftKey: true, bubbles: true}));
+    fixture.detectChanges();
+    expect(component.windowSize).toEqual({width: 884, height: 586});
+    resizeHandle().dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowRight', ctrlKey: true, bubbles: true}));
+    expect(component.windowSize).toEqual({width: 884, height: 586});
+    resizeHandle().dispatchEvent(new KeyboardEvent('keydown', {key: 'Home', bubbles: true}));
+    fixture.detectChanges();
+    expect(component.windowSize).toBeUndefined();
+    expect(component.windowPanel!.nativeElement.style.width).toBe('');
+    expect(component.prompt).toBe('Preserve this draft');
+    component.windowSize = {width: 800, height: 500};
+    fixture.detectChanges();
+    resizeHandle().dispatchEvent(new MouseEvent('dblclick', {bubbles: true}));
+    fixture.detectChanges();
+    expect(component.windowSize).toBeUndefined();
+  });
+
+  it('converts physical pointer movement to CSS size at a non-default display scale', async () => {
+    await initialize();
+    component.windowSize = {width: 900, height: 500};
+    fixture.detectChanges();
+    const panel = component.windowPanel!.nativeElement;
+    spyOn(panel, 'getBoundingClientRect').and.callFake(() => new DOMRect(10, 50, panel.offsetWidth * 1.25, panel.offsetHeight * 1.25));
+    mockPointerCapture();
+    pointerResize('pointerdown', 100, 100);
+    pointerResize('pointermove', 150, 125);
+    expect(component.windowSize).toEqual({width: 940, height: 520});
+    pointerResize('pointerup', 150, 125);
+  });
+
+  it('keeps a long composer below the header and inside the minimum window height', async () => {
+    await initialize();
+    component.windowSize = {width: 640, height: 420};
+    component.prompt = Array.from({length: 30}, (_, index) => `Line ${index}`).join('\n');
+    fixture.detectChanges();
+    component.resizeComposer();
+    await settleWindow();
+    const input: HTMLTextAreaElement = fixture.nativeElement.querySelector('.composer-input');
+    const composer: HTMLElement = fixture.nativeElement.querySelector('.ai-composer');
+    const header: HTMLElement = fixture.nativeElement.querySelector('.ai-panel-header');
+    const panel = component.windowPanel!.nativeElement;
+    expect(input.clientHeight).toBeLessThanOrEqual(Math.ceil(panel.clientHeight * 0.4));
+    expect(input.scrollHeight).toBeGreaterThan(input.clientHeight);
+    expect(composer.getBoundingClientRect().top).toBeGreaterThanOrEqual(header.getBoundingClientRect().bottom);
+    expect(composer.getBoundingClientRect().bottom).toBeLessThanOrEqual(panel.getBoundingClientRect().bottom);
+  });
 
   it('renders a clear unavailable state without an endpoint', () => {
     fixture.detectChanges();
@@ -351,6 +551,100 @@ describe('AiPanelComponent', () => {
       'Copied to clipboard.',
     );
   });
+  describe('localized prompt suggestions', () => {
+    const suggestions = [
+      {
+        label: {'en': 'Investigate a black screen', 'zh-CN': '排查黑屏'},
+        prompt: {
+          'en': 'Investigate black-screen intervals in the available evidence',
+          'zh-CN': '排查现有证据中的黑屏时间段。',
+        },
+      },
+      {
+        label: {'en': 'Find flicker evidence', 'zh-CN': '查找闪烁证据'},
+        prompt: {
+          'en': 'Find flicker and explain what evidence is missing',
+          'zh-CN': '查找闪烁证据，并说明还缺少哪些证据。',
+        },
+      },
+    ];
+
+    async function clickSuggestion(
+      entry: 'empty state' | 'composer menu',
+      label: string,
+    ): Promise<void> {
+      let buttons: NodeListOf<HTMLButtonElement>;
+      if (entry === 'composer menu') {
+        fixture.nativeElement.querySelector('.composer-add').click();
+        fixture.detectChanges();
+        await fixture.whenStable();
+        buttons = TestBed.inject(OverlayContainer).getContainerElement()
+          .querySelectorAll('button[mat-menu-item]');
+      } else {
+        buttons = fixture.nativeElement.querySelectorAll('.suggestions button');
+      }
+      const button = Array.from(buttons).find((item) => item.textContent?.includes(label));
+      expect(button).withContext(`Missing suggestion: ${label}`).toBeDefined();
+      button!.click();
+      await settleWindow();
+    }
+
+    for (const entry of ['empty state', 'composer menu'] as const) {
+      for (const locale of ['en', 'zh-CN'] as const) {
+        for (const suggestion of suggestions) {
+          it(`inserts ${suggestion.label.en} in ${locale} from the ${entry} without sending`, async () => {
+            await initialize();
+            setLanguage(locale);
+            fixture.detectChanges();
+            await clickSuggestion(entry, suggestion.label[locale]);
+            const textarea: HTMLTextAreaElement = fixture.nativeElement.querySelector('textarea');
+            expect(component.prompt).toBe(suggestion.prompt[locale]);
+            expect(textarea.value).toBe(suggestion.prompt[locale]);
+            expect(document.activeElement).toBe(textarea);
+            expect(start).not.toHaveBeenCalled();
+          });
+        }
+      }
+
+      it(`uses the language at click time in the ${entry} and preserves existing drafts on language changes`, async () => {
+        await initialize();
+        await clickSuggestion(entry, suggestions[0].label.en);
+        component.prompt += ' My own note';
+        await settleWindow();
+        const draft = component.prompt;
+        setLanguage('zh-CN');
+        await settleWindow();
+        expect(component.prompt).toBe(draft);
+        expect(fixture.nativeElement.querySelector('textarea').value).toBe(draft);
+        await clickSuggestion(entry, suggestions[1].label['zh-CN']);
+        expect(component.prompt).toBe(suggestions[1].prompt['zh-CN']);
+        setLanguage('en');
+        await settleWindow();
+        expect(component.prompt).toBe(suggestions[1].prompt['zh-CN']);
+        await clickSuggestion(entry, suggestions[0].label.en);
+        expect(component.prompt).toBe(suggestions[0].prompt.en);
+        expect(start).not.toHaveBeenCalled();
+      });
+
+      it(`follows resolved system language changes in the ${entry} without changing the draft`, async () => {
+        await initialize();
+        const browserLanguages = spyOnProperty(navigator, 'languages', 'get')
+          .and.returnValue(['zh-TW']);
+        setLanguage('system');
+        fixture.detectChanges();
+        await clickSuggestion(entry, suggestions[0].label['zh-CN']);
+        expect(component.prompt).toBe(suggestions[0].prompt['zh-CN']);
+        browserLanguages.and.returnValue(['en-US']);
+        window.dispatchEvent(new Event('languagechange'));
+        await settleWindow();
+        expect(component.prompt).toBe(suggestions[0].prompt['zh-CN']);
+        await clickSuggestion(entry, suggestions[1].label.en);
+        expect(component.prompt).toBe(suggestions[1].prompt.en);
+        expect(start).not.toHaveBeenCalled();
+      });
+    }
+  });
+
   it('loads searchable history and restores the active transcript and controls', async () => {
     sessionStorage.setItem('winscope.ai.active../ai/', 'a');
     await initialize();
@@ -542,7 +836,7 @@ describe('AiPanelComponent', () => {
     await initialize();
     expect(
       fixture.nativeElement
-        .querySelector('.ai-composer select')
+        .querySelector('.ai-composer .model-select')
         .getAttribute('aria-label'),
     ).toBe('Conversation model');
     component.prompt = 'Draft to keep';
@@ -552,6 +846,53 @@ describe('AiPanelComponent', () => {
     expect(fixture.nativeElement.querySelector('ai-settings')).toBeNull();
     expect(fixture.nativeElement.querySelector('app-settings')).toBeNull();
     expect(component.prompt).toBe('Draft to keep');
+  });
+
+  it('opens every available model directly from the borderless label and marks the selected item', async () => {
+    await initialize();
+    component.prompt = 'Keep the composer draft';
+    const trigger = modelTrigger();
+    expect(trigger.tagName).toBe('BUTTON');
+    expect(fixture.nativeElement.querySelector('.model-select select')).toBeNull();
+    expect(getComputedStyle(trigger).borderWidth).toBe('0px');
+    expect(getComputedStyle(trigger).backgroundColor).toBe('rgba(0, 0, 0, 0)');
+    const menu = await openModelMenu();
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
+    const tooltip = fixture.debugElement.query(By.css('.model-select')).injector.get(MatTooltip);
+    expect(tooltip.disabled).toBeTrue();
+    const options = Array.from(menu.querySelectorAll<HTMLButtonElement>('[data-model-value]'));
+    expect(options.map((option) => option.querySelector('.model-option-label')?.textContent?.trim())).toEqual(['Default', 'Test model']);
+    expect(options.map((option) => option.getAttribute('role'))).toEqual(['menuitemradio', 'menuitemradio']);
+    expect(options.map((option) => option.getAttribute('aria-checked'))).toEqual(['true', 'false']);
+    options[1].click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(component.selectedModel).toBe('test-model');
+    expect(trigger.querySelector('.model-label')?.textContent).toBe('Test model');
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    expect(tooltip.disabled).toBeFalse();
+    expect(component.prompt).toBe('Keep the composer draft');
+  });
+
+  it('dismisses the model menu on Escape or outside click without closing the conversation or losing its draft', async () => {
+    await initialize();
+    component.prompt = 'Unsent draft';
+    const closed = spyOn(component.closed, 'emit');
+    const menu = await openModelMenu();
+    menu.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', keyCode: 27, bubbles: true}));
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(modelTrigger().getAttribute('aria-expanded')).toBe('false');
+    await openModelMenu();
+    TestBed.inject(OverlayContainer).getContainerElement()
+      .querySelector<HTMLElement>('.cdk-overlay-backdrop')!.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(modelTrigger().getAttribute('aria-expanded')).toBe('false');
+    expect(component.prompt).toBe('Unsent draft');
+    expect(component.selectedModel).toBe('default');
+    expect(closed).not.toHaveBeenCalled();
   });
 
   it('restricts same-ID composer models to the active provider without changing history or supported effort', async () => {
@@ -576,16 +917,14 @@ describe('AiPanelComponent', () => {
     component.selectedLevel = 'high';
     fixture.detectChanges();
     await fixture.whenStable();
-    const select: HTMLSelectElement = fixture.nativeElement.querySelector(
-      '[aria-label="Conversation model"]',
-    );
-    expect(select.querySelectorAll('optgroup').length).toBe(1);
-    expect(select.querySelector('optgroup')?.label).toBe('Codex');
+    const menu = await openModelMenu();
+    expect(menu.querySelectorAll('.model-group').length).toBe(1);
+    expect(menu.querySelector('.model-group')?.getAttribute('aria-label')).toBe('Codex');
     component.changeConversationModel(JSON.stringify(['test', 'default']));
     expect(component.selectedProvider).toBe('codex');
     expect(component.selectedModel).toBe('preferred[1m]');
-    select.value = JSON.stringify(['codex', 'default']);
-    select.dispatchEvent(new Event('change', {bubbles: true}));
+    Array.from(menu.querySelectorAll<HTMLButtonElement>('[data-model-value]'))
+      .find((option) => option.getAttribute('data-model-value') === JSON.stringify(['codex', 'default']))!.click();
     expect(component.selectedProvider).toBe('codex');
     expect(component.selectedModel).toBe('default');
     expect(component.selectedLevel).toBe('medium');
@@ -622,12 +961,11 @@ describe('AiPanelComponent', () => {
     });
     fixture.detectChanges();
     await fixture.whenStable();
-    const select: HTMLSelectElement = fixture.nativeElement.querySelector(
-      '[aria-label="Conversation model"]',
-    );
+    const select = modelTrigger();
+    const menu = await openModelMenu();
     const customValue = JSON.stringify(['test', '__custom__']);
     expect(select.value).toBe(customValue);
-    expect(select.textContent).toContain('custom/model@[1m]');
+    expect(menu.textContent).toContain('custom/model@[1m]');
     component.changeConversationModel(JSON.stringify(['codex', 'default']));
     component.applySettings({...configuredDefaults.selection});
     expect(component.selectedProvider).toBe('test');
@@ -635,7 +973,7 @@ describe('AiPanelComponent', () => {
     component.changeConversationModel(JSON.stringify(['test', 'default']));
     expect(component.selectedModel).toBe('default');
     fixture.detectChanges();
-    expect(select.textContent).toContain('custom/model@[1m]');
+    expect(menu.textContent).toContain('custom/model@[1m]');
     component.changeConversationModel(customValue);
     expect(component.selectedProvider).toBe('test');
     expect(component.selectedModel).toBe('__custom__');
@@ -645,7 +983,7 @@ describe('AiPanelComponent', () => {
     setLanguage('zh-CN');
     fixture.detectChanges();
     expect(select.getAttribute('aria-label')).toBe('会话模型');
-    expect(select.textContent).toContain('自定义模型：custom/model@[1m]');
+    expect(menu.textContent).toContain('自定义模型：custom/model@[1m]');
   });
 
   it('offers a deterministic fallback for a providerless agent', async () => {
@@ -655,9 +993,7 @@ describe('AiPanelComponent', () => {
       agents: [{id: 'evidence', name: 'Evidence'}],
     });
     await initialize();
-    const select: HTMLSelectElement = fixture.nativeElement.querySelector(
-      '[aria-label="Conversation model"]',
-    );
+    const select = modelTrigger();
     expect(select.value).toBe(JSON.stringify(['', 'default']));
     expect(select.textContent).toContain('No model · deterministic skills');
     expect(component.conversationModels.map((group) => group.providerId)).toEqual(['']);
@@ -687,9 +1023,9 @@ describe('AiPanelComponent', () => {
       },
     });
     fixture.detectChanges();
-    const select: HTMLSelectElement = fixture.nativeElement.querySelector('[aria-label="Conversation model"]');
-    expect(select.textContent).toContain('saved/codex[1m]');
-    expect(select.textContent).not.toContain('inactive/test[1m]');
+    const menu = await openModelMenu();
+    expect(menu.textContent).toContain('saved/codex[1m]');
+    expect(menu.textContent).not.toContain('inactive/test[1m]');
     component.applySettings({...component.modelSelection, providerId: 'test'});
     component.changeConversationModel(JSON.stringify(['test', '__custom__']));
     expect(component.selectedProvider).toBe('codex');
@@ -761,12 +1097,11 @@ describe('AiPanelComponent', () => {
     await initialize();
     setLanguage('zh-CN');
     fixture.detectChanges();
-    const select: HTMLSelectElement = fixture.nativeElement.querySelector(
-      '[aria-label="会话模型"]',
-    );
+    const select = modelTrigger();
+    const menu = await openModelMenu();
     expect(component.selectedModel).toBe('Privacy');
     expect(select.value).toBe(JSON.stringify(['test', 'Privacy']));
-    expect(select.querySelector('optgroup')?.label).toBe('Settings');
+    expect(menu.querySelector('.model-group')?.getAttribute('aria-label')).toBe('Settings');
     expect(select.textContent).toContain('Privacy');
   });
 

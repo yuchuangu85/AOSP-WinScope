@@ -20,13 +20,14 @@ limitations under the License.
     mat-flat-button
     [color]="getUserOptionButtonColor(options[option])"
     [disabled]="options[option].isUnavailable"
+    [matTooltip]="options[option].tooltip ?? options[option].chip?.long ?? '' | tr"
     [class.not-enabled]="!options[option].enabled"
     class="user-option"
     [style.cursor]="'pointer'"
     (click)="onUserOptionChange(options[option])"
   >
     <span class="user-option-label" [class.with-chip]="!!options[option].chip">
-      <span> {{ options[option].name }} </span>
+      <span> {{ options[option].name | tr }} </span>
       @if (options[option].chip) {
         <div class="user-option-chip">{{ options[option].chip.short }}</div>
       }

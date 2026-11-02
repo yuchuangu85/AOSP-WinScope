@@ -16,7 +16,7 @@ limitations under the License.
 
 @let currSearches = searches();
 @if (currSearches.length === 0) {
-  <span class="mat-body-1"> {{ placeholderText() }} </span>
+  <span class="mat-body-1"> {{ placeholderText() | tr }} </span>
 }
 @for (search of currSearches; track $index) {
   <div class="listed-search">
@@ -35,7 +35,7 @@ limitations under the License.
           <button
             mat-icon-button
             class="listed-search-option icon-button-small"
-            [matTooltip]="opt.name"
+            [matTooltip]="opt.name | tr"
             [matTooltipShowDelay]="500"
             (click)="opt.onClickCallback(search)"
           >
@@ -46,7 +46,7 @@ limitations under the License.
           <button
             mat-icon-button
             class="listed-search-option icon-button-small"
-            [matTooltip]="opt.name"
+            [matTooltip]="opt.name | tr"
             [matTooltipShowDelay]="500"
             (click)="searchOptionsTarget = search"
             [class.force-show]="searchOptionsTarget === search"

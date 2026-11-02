@@ -21,6 +21,7 @@
       (key === "dark-mode" ||
         key === "theme-mode" ||
         key === "display-scale" ||
+        key === "confirm-trace-reset" ||
         key === "language" ||
         key === "savedSearches" ||
         key.endsWith("Options") ||

@@ -7,3 +7,4 @@ export * from './evidence';
 export * from './gateway';
 export * from './report';
 export * from './local_config';
+export * from './settings';

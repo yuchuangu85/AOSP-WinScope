@@ -1,5 +1,12 @@
 <section
-  class="ai-panel"
+  #windowPanel
+  class="ai-panel ai-window"
+  [class.compact-window]="compactWindow"
+  [class.sidebar-hidden]="!sidebarVisible"
+  [style.width.px]="windowSize?.width"
+  [style.height.px]="windowSize?.height"
+  [style.--ai-window-min-width]="minWindowSize.width + 'px'"
+  [style.--ai-window-min-height]="minWindowSize.height + 'px'"
   role="dialog"
   aria-modal="true"
   [attr.aria-label]="'AI analysis workspace' | tr"
@@ -8,20 +15,29 @@
   [cdkTrapFocusAutoCapture]="!suspended"
   (keydown.escape)="onEscape($event)"
 >
-  @if (sidebarOpen) {
+  @if (compactWindow && sidebarOpen) {
     <button
       class="sidebar-backdrop"
       [attr.aria-label]="'Close conversation browser' | tr"
-      (click)="sidebarOpen = false"
+      (click)="closeSidebar()"
     ></button>
   }
   <aside
+    id="ai-conversation-browser"
     class="ai-sidebar"
-    [class.open]="sidebarOpen"
+    [class.open]="compactWindow && sidebarOpen"
+    [hidden]="!sidebarVisible"
     [attr.aria-label]="'Conversation browser' | tr"
   >
     <div class="sidebar-heading"
-      ><mat-icon>forum</mat-icon><strong>{{ 'Conversations' | tr }}</strong>
+      ><button
+        mat-icon-button
+        type="button"
+        [attr.aria-label]="'Close conversation browser' | tr"
+        [matTooltip]="'Close conversation browser' | tr"
+        (click)="closeSidebar()"
+        ><mat-icon>left_panel_close</mat-icon></button
+      ><strong>{{ 'Conversations' | tr }}</strong>
       <button
         mat-icon-button
         [attr.aria-label]="'Refresh conversations' | tr"
@@ -77,12 +93,15 @@
   <main class="ai-main">
     <header class="ai-panel-header">
       <button
+        #sidebarToggle
         mat-icon-button
         class="history-toggle"
         [attr.aria-label]="'Toggle conversation browser' | tr"
-        [attr.aria-expanded]="sidebarOpen"
-        (click)="sidebarOpen = !sidebarOpen"
-        ><mat-icon>menu</mat-icon></button
+        [matTooltip]="'Toggle conversation browser' | tr"
+        [attr.aria-expanded]="sidebarVisible"
+        aria-controls="ai-conversation-browser"
+        (click)="toggleSidebar()"
+        ><mat-icon>{{ sidebarVisible ? 'left_panel_close' : 'left_panel_open' }}</mat-icon></button
       >
       <div class="conversation-heading"
         ><h2>{{ activeSession?.title || ('AI analysis' | tr) }}</h2
@@ -236,14 +255,13 @@
                   ><button
                     mat-stroked-button
                     (click)="
-                      prompt = 'Investigate black-screen intervals in the available evidence';
-                      resizeComposer()
+                      usePrompt('Investigate black-screen intervals in the available evidence')
                     "
                     >{{ 'Investigate a black screen' | tr }}</button
                   ><button
                     mat-stroked-button
                     (click)="
-                      prompt = 'Find flicker and explain what evidence is missing'; resizeComposer()
+                      usePrompt('Find flicker and explain what evidence is missing')
                     "
                     >{{ 'Find flicker evidence' | tr }}</button
                   ></div
@@ -414,21 +432,54 @@
               </button>
             </div>
             <div class="composer-trailing">
-              <select
+              <button
+                type="button"
                 class="model-select"
                 [attr.aria-label]="'Conversation model' | tr"
-                [ngModel]="conversationModel"
-                (ngModelChange)="changeConversationModel($event)"
-                [disabled]="runtimeDisabled || !catalog.agents.length"
+                [value]="conversationModel"
+                [matTooltip]="conversationModelLabel"
+                [matTooltipDisabled]="modelMenuTrigger.menuOpen"
+                #modelMenuTrigger="matMenuTrigger"
+                [matMenuTriggerFor]="modelMenu"
+                [disabled]="runtimeDisabled || !catalog.agents.length || !conversationModels.length"
               >
-                @for (group of conversationModels; track group.providerId) {
-                  <optgroup [label]="group.name">
-                    @for (model of group.models; track model.value) {
-                      <option [value]="model.value">{{ model.name }}</option>
-                    }
-                  </optgroup>
-                }
-              </select>
+                <span class="model-label">{{ conversationModelLabel }}</span>
+                <mat-icon aria-hidden="true">expand_more</mat-icon>
+              </button>
+              <mat-menu #modelMenu="matMenu" xPosition="before" yPosition="above">
+                <div class="conversation-model-list">
+                  @for (group of conversationModels; track group.providerId) {
+                    <div
+                      class="model-group"
+                      [attr.data-provider]="group.providerId"
+                      role="group"
+                      [attr.aria-label]="group.name"
+                    >
+                      <div class="model-group-label">{{ group.name }}</div>
+                      @for (model of group.models; track model.value) {
+                        <button
+                          mat-menu-item
+                          type="button"
+                          role="menuitemradio"
+                          class="model-option"
+                          [attr.data-model-value]="model.value"
+                          [attr.aria-checked]="model.value === conversationModel"
+                          [disabled]="runtimeDisabled"
+                          (click)="changeConversationModel(model.value)"
+                        >
+                          <mat-icon
+                            [style.visibility]="
+                              model.value === conversationModel ? 'visible' : 'hidden'
+                            "
+                            >check</mat-icon
+                          >
+                          <span class="model-option-label">{{ model.name }}</span>
+                        </button>
+                      }
+                    </div>
+                  }
+                </div>
+              </mat-menu>
               @if (submitting) {
                 <button
                   type="button"
@@ -467,4 +518,18 @@
       </div>
     }
   </main>
+  <button
+    class="ai-window-resize"
+    type="button"
+    [attr.aria-label]="'Resize AI window' | tr"
+    [matTooltip]="'Resize AI window' | tr"
+    (pointerdown)="beginWindowResize($event)"
+    (pointermove)="moveWindowResize($event)"
+    (pointerup)="endWindowResize($event)"
+    (pointercancel)="endWindowResize($event)"
+    (lostpointercapture)="endWindowResize($event)"
+    (keydown)="resizeWindowKey($event)"
+    (dblclick)="resetWindowSize()"
+    ><mat-icon>south_east</mat-icon></button
+  >
 </section>

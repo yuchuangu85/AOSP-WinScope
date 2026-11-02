@@ -20,7 +20,7 @@ limitations under the License.
   <div class="title-section">
     <collapsible-section-title
       class="hierarchy-title"
-      title="HIERARCHY"
+      [title]="'HIERARCHY' | tr"
       (collapseButtonClicked)="collapseButtonClicked.emit()"
     ></collapsible-section-title>
     <search-box
@@ -45,11 +45,13 @@ limitations under the License.
       @for (warning of treeWarnings; track $index) {
         <span
           class="mat-body-1 warning"
-          [matTooltip]="warning.message"
+          [matTooltip]="warning.message | tr"
           [matTooltipDisabled]="disableTooltip(warningEl)"
         >
           <mat-icon class="warning-icon icon-small"> warning </mat-icon>
-          <span class="warning-message text-no-overflow" #warningEl>{{ warning.message }}</span>
+          <span class="warning-message text-no-overflow" #warningEl>{{
+            warning.message | tr
+          }}</span>
         </span>
       }
     </div>

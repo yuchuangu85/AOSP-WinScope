@@ -43,7 +43,7 @@ limitations under the License.
             #headerEl
             class="mat-body-2 header text-no-overflow"
             [class]="header.spec.cssClass"
-            [matTooltip]="header.spec.name"
+            [matTooltip]="localizeLabels() ? (header.spec.name | tr) : header.spec.name"
             [matTooltipDisabled]="disableHeaderTooltip(headerEl)"
             matTooltipPosition="above"
           >
@@ -71,13 +71,14 @@ limitations under the License.
                 </div>
               </ng-template>
             }
-            <span>{{ header.spec.name }}</span>
+            <span>{{ localizeLabels() ? (header.spec.name | tr) : header.spec.name }}</span>
           </div>
         } @else {
           <div class="filter mat-body-2" [class]="header.spec.cssClass">
             @if (isLogSelectFilter(header.filter)) {
               <select-with-filter
                 [label]="header.spec.name"
+                [localizeLabel]="localizeLabels()"
                 [options]="header.filter.options"
                 [outerFilterWidth]="header.filter.outerFilterWidthCss"
                 [innerFilterWidth]="header.filter.innerFilterWidthCss"
@@ -91,6 +92,7 @@ limitations under the License.
               <search-box
                 [textFilter]="header.filter.textFilter"
                 [label]="header.spec.name"
+                [localizeLabel]="localizeLabels()"
                 [filterName]="header.spec.name"
                 [formFieldClass]="
                   'wide-field center-field mat-form-field-appearance-none no-ripple-field ' +
@@ -112,7 +114,7 @@ limitations under the License.
       mat-icon-button
       class="time-button go-to-first-entry"
       (click)="onGoToFirstEntryClick()"
-      matTooltip="Go to first entry"
+      [matTooltip]="'Go to first entry' | tr"
       matTooltipPosition="above"
     >
       <mat-icon>first_page</mat-icon>
@@ -122,7 +124,7 @@ limitations under the License.
       mat-icon-button
       class="time-button go-to-current-entry"
       (click)="onGoToCurrentEntryClick()"
-      matTooltip="Go to current entry"
+      [matTooltip]="'Go to current entry' | tr"
       matTooltipPosition="above"
     >
       <mat-icon>move_down</mat-icon>
@@ -132,7 +134,7 @@ limitations under the License.
       mat-icon-button
       class="time-button go-to-last-entry"
       (click)="onGoToLastEntryClick()"
-      matTooltip="Go to last entry"
+      [matTooltip]="'Go to last entry' | tr"
       matTooltipPosition="above"
     >
       <mat-icon>last_page</mat-icon>
@@ -142,12 +144,12 @@ limitations under the License.
   @let currEntries = entries();
   @let isFetching = isFetchingData();
   @if (!isFetching && currEntries.length === 0) {
-    <div class="placeholder-text mat-body-1">No entries found.</div>
+    <div class="placeholder-text mat-body-1">{{ 'No entries found.' | tr }}</div>
   }
   @if (isFetching) {
     <div class="fetching-data mat-body-1">
       <span class="message-with-spinner">
-        <span>Fetching all data</span>
+        <span>{{ 'Fetching all data' | tr }}</span>
         <mat-spinner [diameter]="20"></mat-spinner>
       </span>
     </div>
@@ -258,7 +260,7 @@ limitations under the License.
       <div class="context-menu-item-container">
         @if (filter === undefined) {
           <span class="context-menu-item" [cdkMenuItemDisabled]="true" cdkMenuItem>
-            Filter disabled for this column.
+            {{ 'Filter disabled for this column.' | tr }}
           </span>
         } @else {
           <span
@@ -266,14 +268,14 @@ limitations under the License.
             (click)="excludeFromFilter(filter, filterMatchValue)"
             cdkMenuItem
           >
-            Exclude all "{{ filterMatchValue }}" entries
+            {{ 'Exclude all &quot;{value}&quot; entries' | tr: {value: filterMatchValue} }}
           </span>
           <span
             class="context-menu-item"
             (click)="setFilterSingleValue(filter, filterMatchValue)"
             cdkMenuItem
           >
-            Show only "{{ filterMatchValue }}" entries
+            {{ 'Show only &quot;{value}&quot; entries' | tr: {value: filterMatchValue} }}
           </span>
         }
       </div>

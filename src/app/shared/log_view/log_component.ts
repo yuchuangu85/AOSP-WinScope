@@ -31,6 +31,7 @@ import {VirtualRow, VirtualScrollViewportComponent,} from '@app/shared/scroll/vi
 import {SearchBoxComponent} from '@app/shared/search_box/search_box_component';
 import {assertDefined} from '@common/assert';
 import {isElementOverflowing, isElementVisible, KeyboardEventKey,} from '@common/dom';
+import {TranslatePipe} from '@common/i18n';
 import {Timestamp} from '@common/time/time';
 import {Timer} from '@common/time/timer';
 import {LogFilter, LogSelectFilter, LogTextFilter,} from '@ui/shared/log/log_filters';
@@ -44,6 +45,7 @@ import {SelectWithFilterComponent} from './select_with_filter_component';
   selector: 'log-view',
   standalone: true,
   imports: [
+    TranslatePipe,
     CommonModule,
     ScrollingModule,
     MatButtonModule,
@@ -67,6 +69,8 @@ export class LogComponent {
 
   headers = input.required<LogHeader[]>();
   entries = input.required<LogEntry[]>();
+  /** SQL result aliases are user content; only built-in column labels localize. */
+  localizeLabels = input(true);
 
   title = input<string>();
   selectedIndex = input<number>();

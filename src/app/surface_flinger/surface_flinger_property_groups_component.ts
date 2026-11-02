@@ -20,6 +20,7 @@ import {MatDividerModule} from '@angular/material/divider';
 import {MatTooltipModule} from '@angular/material/tooltip';
 import {CollapsibleSectionTitleComponent} from '@app/shared/collapsible_sections/collapsible_section_title_component';
 import {assertDefined} from '@common/assert';
+import {TranslatePipe} from '@common/i18n';
 import {PropertyTreeNode} from '@tree_node/property_tree_node';
 import {SfCuratedProperties, SfLayerSummary,} from '@ui/shared/properties/curated_properties';
 import {UiPropertyTreeNode} from '@ui/shared/properties/ui_property_tree_node';
@@ -30,6 +31,7 @@ import {TransformMatrixComponent} from './transform_matrix_component';
   selector: 'surface-flinger-property-groups',
   standalone: true,
   imports: [
+    TranslatePipe,
     CommonModule,
     MatDividerModule,
     MatButtonModule,

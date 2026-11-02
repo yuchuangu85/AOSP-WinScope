@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-<h3 class="mat-subtitle-1">{{ title() }}</h3>
+<h3 class="mat-subtitle-1">{{ title() | tr }}</h3>
 
 @let config = traceConfig();
 <div class="checkboxes" [style.height]="getTraceCheckboxContainerHeight()">
@@ -26,13 +26,15 @@ limitations under the License.
       [(ngModel)]="config[traceKey].config.enabled"
       (ngModelChange)="onTraceConfigChange()"
     >
-      <span [matTooltip]="config[traceKey].available ? '' : 'Unavailable on the selected device'">{{
-        config[traceKey].name
-      }}</span>
+      <span
+        [matTooltip]="(config[traceKey].available ? '' : 'Unavailable on the selected device') | tr"
+        >{{ config[traceKey].name | tr }}</span
+      >
       @if (hasAdvancedConfig(traceKey)) {
         <button
           mat-icon-button
           class="advanced-settings-button"
+          [attr.aria-label]="'Advanced settings' | tr"
           [disabled]="!config[traceKey].config.enabled"
           cdkOverlayOrigin
           #settingsTrigger="cdkOverlayOrigin"
@@ -53,7 +55,7 @@ limitations under the License.
         @if (advancedSettingsKey) {
           <div class="config-section overlay-panel">
             <h3 class="mat-subtitle-1 config-title">
-              {{ config[advancedSettingsKey].name }} configuration
+              {{ '{name} configuration' | tr: {name: (config[advancedSettingsKey].name | tr)} }}
             </h3>
 
             <div class="overlay-panel-content">
@@ -71,7 +73,7 @@ limitations under the License.
                       [disabled]="asCheckboxConfiguration(checkboxConfig).disabled ?? false"
                       [checked]="asCheckboxConfiguration(checkboxConfig).enabled"
                       (change)="onCheckboxConfigChange(checkboxConfig, $event.checked)"
-                      >{{ checkboxConfig.name }}</mat-checkbox
+                      >{{ checkboxConfig.name | tr }}</mat-checkbox
                     >
                   }
                 </div>
@@ -91,7 +93,7 @@ limitations under the License.
                       [class.wide-field]="config.wideField"
                       appearance="fill"
                     >
-                      <mat-label>{{ selectionConfig.name }}</mat-label>
+                      <mat-label>{{ selectionConfig.name | tr }}</mat-label>
 
                       <mat-select
                         #matSelect
@@ -99,6 +101,7 @@ limitations under the License.
                         disableOptionCentering
                         class="selected-value"
                         [attr.label]="advancedSettingsKey + selectionConfig.name"
+                        [attr.aria-label]="selectionConfig.name | tr"
                         [value]="config.value"
                         [disabled]="config.options.length === 0"
                         (opened)="handleSelectOpened(matSelect, config)"
@@ -114,7 +117,7 @@ limitations under the License.
                               class="select-config-filter mat-form-field-appearance-none"
                               subscriptSizing="dynamic"
                             >
-                              <mat-label>Filter options</mat-label>
+                              <mat-label>{{ 'Filter options' | tr }}</mat-label>
                               <input matInput [(ngModel)]="config.filterString" />
                             </mat-form-field>
                           }
@@ -128,12 +131,11 @@ limitations under the License.
                                   [color]="allSelected ? 'primary' : undefined"
                                   [class.not-enabled]="!allSelected"
                                   (click)="onAllButtonClick(matSelect, config)"
-                                  [matTooltip]="allButtonTooltip"
+                                  [matTooltip]="allButtonTooltip | tr"
                                   [matTooltipShowDelay]="500"
                                   matTooltipPosition="right"
+                                  >{{ 'All' | tr }}</button
                                 >
-                                  All
-                                </button>
                               }
                               @if (config.optional && !matSelect.multiple) {
                                 <button
@@ -142,9 +144,8 @@ limitations under the License.
                                   [color]="matSelect.value.length === 0 ? 'primary' : undefined"
                                   [class.not-enabled]="matSelect.value.length > 0"
                                   (click)="onNoneButtonClick(matSelect, config)"
+                                  >{{ 'None' | tr }}</button
                                 >
-                                  None
-                                </button>
                               }
                             </span>
                           }
@@ -175,7 +176,7 @@ limitations under the License.
                                   [class.not-enabled]="!option.chip.enabled"
                                   (click)="onChipClick($event, option)"
                                 >
-                                  {{ option.chip.name }}
+                                  {{ option.chip.name | tr }}
                                 </button>
                               }
                             </span>
@@ -188,7 +189,7 @@ limitations under the License.
               }
               @if (config[advancedSettingsKey].config.desc) {
                 <span class="config-desc mat-body-1 overlay-panel-section">
-                  {{ config[advancedSettingsKey].config.desc }}
+                  {{ config[advancedSettingsKey].config.desc | tr }}
                 </span>
               }
             </div>

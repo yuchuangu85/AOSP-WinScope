@@ -15,6 +15,7 @@ export const AI_TRANSLATIONS: Record<string, string> = {
   'AI stream event is too large': 'AI 流式事件过大',
   'AI gateway returned invalid JSON': 'AI 网关返回了无效的 JSON',
   'AI analysis workspace': 'AI 分析工作区',
+  'Resize AI window': '调整 AI 窗口大小',
   'Close conversation browser': '关闭会话浏览器',
   'Conversation browser': '会话浏览器',
   'Conversations': '会话',
@@ -39,6 +40,8 @@ export const AI_TRANSLATIONS: Record<string, string> = {
   'General settings': '通用设置',
   'Could not load AI settings. Close settings and try again.':
     '无法加载 AI 设置。请关闭设置后重试。',
+  'Could not save AI settings. Check the configuration and try again.':
+    '无法保存 AI 设置。请检查配置后重试。',
   'Get configuration': '获取配置',
   'Get Codex configuration': '获取 Codex 配置',
   'Get Claude configuration': '获取 Claude 配置',
@@ -46,12 +49,19 @@ export const AI_TRANSLATIONS: Record<string, string> = {
   'Authentication': '身份验证',
   'Managed by local CLI': '由本地 CLI 管理',
   'Credentials configured': '凭据已配置',
+  'API key environment variable is not set': '尚未设置 API 密钥环境变量',
+  'Already configured': '已配置',
+  '· {status}': '（{status}）',
   'Not read': '未读取',
+  'Request timeout (ms)': '请求超时时间（毫秒）',
+  'API key environment variable': 'API 密钥环境变量名',
   'Appearance': '外观',
   'Color theme': '颜色主题',
   'Follow system': '跟随系统',
   'Dark mode': '暗色模式',
   'Light mode': '亮色模式',
+  'Display size': '显示大小',
+  'Reset display size': '重置显示大小',
   'Close settings': '关闭设置',
   'Settings navigation': '设置导航',
   'Provider name': '提供方名称',
@@ -60,6 +70,8 @@ export const AI_TRANSLATIONS: Record<string, string> = {
   '{name} custom model identifier': '{name} 自定义模型标识符',
   '{name} reasoning level': '{name} 推理级别',
   '{name} service URL': '{name} 服务地址',
+  '{name} request timeout': '{name} 请求超时时间',
+  '{name} API key environment variable': '{name} API 密钥环境变量名',
   '{name} authentication': '{name} 身份验证',
   '{name} provider name': '{name} 提供方名称',
   '{name}: {message}': '{name}：{message}',
@@ -79,6 +91,10 @@ export const AI_TRANSLATIONS: Record<string, string> = {
     '添加跟踪上下文或文本备注，为分析提供依据。',
   'Investigate a black screen': '排查黑屏',
   'Find flicker evidence': '查找闪烁证据',
+  'Investigate black-screen intervals in the available evidence':
+    '排查现有证据中的黑屏时间段。',
+  'Find flicker and explain what evidence is missing':
+    '查找闪烁证据，并说明还缺少哪些证据。',
   'Report preview': '报告预览',
   'Report preview · Markdown': '报告预览 · Markdown',
   'Close report preview': '关闭报告预览',
@@ -203,4 +219,12 @@ export const AI_TRANSLATIONS: Record<string, string> = {
     '请输入有效的模型标识符（1–128 个字母、数字、句点、下划线、冒号、斜杠、@、方括号或连字符）。',
   'Choose an available model.': '请选择可用的模型。',
   'Choose a supported reasoning level.': '请选择支持的推理级别。',
+  'Enter an HTTP or HTTPS service URL without credentials, query parameters or fragments.':
+    '请输入 HTTP 或 HTTPS 服务地址，不得包含凭据、查询参数或片段。',
+  'Enter a valid API key environment variable name.':
+    '请输入有效的 API 密钥环境变量名。',
+  'Enter a timeout between 1000 and 600000 milliseconds.':
+    '请输入 1000 到 600000 毫秒之间的超时时间。',
+  'Enter a provider name of up to 128 characters.':
+    '请输入不超过 128 个字符的提供方名称。',
 };

@@ -19,6 +19,11 @@ import {CommonModule} from '@angular/common';
 import {Component, ElementRef, Inject} from '@angular/core';
 import {MatButtonModule} from '@angular/material/button';
 import {MAT_SNACK_BAR_DATA, MatSnackBarRef} from '@angular/material/snack-bar';
+import {translate, TranslatePipe, TranslationParams} from '@common/i18n';
+
+export type SnackBarMessage =
+  | string
+  | {source: string; params?: TranslationParams};
 
 /**
  * A component for displaying a snack bar with a message and action buttons.
@@ -26,7 +31,7 @@ import {MAT_SNACK_BAR_DATA, MatSnackBarRef} from '@angular/material/snack-bar';
 @Component({
   selector: 'snack-bar',
   standalone: true,
-  imports: [CommonModule, MatButtonModule, ClipboardModule],
+  imports: [TranslatePipe, CommonModule, MatButtonModule, ClipboardModule],
   templateUrl: './snack_bar_component.ng.html',
   styleUrls: ['snack_bar_component.scss'],
 })
@@ -34,11 +39,17 @@ export class SnackBarComponent {
   constructor(
     @Inject(MatSnackBarRef)
     public snackBarRef: MatSnackBarRef<SnackBarComponent>,
-    @Inject(MAT_SNACK_BAR_DATA) public messages: string[],
+    @Inject(MAT_SNACK_BAR_DATA) public messages: SnackBarMessage[],
     @Inject(ElementRef) public elementRef: ElementRef,
   ) {}
 
   formatMessages(): string {
-    return this.messages.join('\n\n');
+    return this.messages.map((message) => this.formatMessage(message)).join('\n\n');
+  }
+
+  formatMessage(message: SnackBarMessage): string {
+    return typeof message === 'string'
+      ? translate(message)
+      : translate(message.source, message.params);
   }
 }

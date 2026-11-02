@@ -20,9 +20,9 @@ import {assertDefined} from '@common/assert';
 import {NotificationType, UserNotification} from '@messaging/user_notification';
 import {UserNotificationListener} from '@messaging/user_notification_listener';
 
-import {SnackBarComponent} from './snack_bar_component';
+import {SnackBarComponent, SnackBarMessage} from './snack_bar_component';
 
-type Messages = string[];
+type Messages = SnackBarMessage[];
 
 /**
  * A class to handle opening snack bars for user notifications.
@@ -71,15 +71,17 @@ export class SnackBarOpener implements UserNotificationListener {
       const countCropped = groupedWarnings.length - countUsed;
 
       groupedWarnings.slice(0, countUsed).forEach((warning) => {
-        messages.push(warning.message);
+        messages.push(warning.localization ?? warning.message);
       });
 
       if (countCropped > 0) {
-        messages.push(
-          `... (cropped ${countCropped} '${groupedWarnings[0].descriptor}' message${
-            countCropped > 1 ? 's' : ''
-          })`,
-        );
+        messages.push({
+          source:
+            countCropped > 1
+              ? "... (cropped {count} '{descriptor}' messages)"
+              : "... (cropped {count} '{descriptor}' message)",
+          params: {count: countCropped, descriptor: groupedWarnings[0].descriptor},
+        });
       }
     }
 

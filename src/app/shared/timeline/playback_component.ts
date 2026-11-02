@@ -21,6 +21,7 @@ import {MatFormFieldModule} from '@angular/material/form-field';
 import {MatIconModule} from '@angular/material/icon';
 import {MatSelectChange, MatSelectModule} from '@angular/material/select';
 import {MatTooltipModule} from '@angular/material/tooltip';
+import {TranslatePipe} from '@common/i18n';
 import {Analytics} from '@logging/analytics';
 import {PlaybackState} from '@ui/shared/playback/playback_state';
 
@@ -28,6 +29,7 @@ import {PlaybackState} from '@ui/shared/playback/playback_state';
   selector: 'playback-controls',
   standalone: true,
   imports: [
+    TranslatePipe,
     CommonModule,
     MatButtonModule,
     MatIconModule,

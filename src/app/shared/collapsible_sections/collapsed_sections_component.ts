@@ -19,13 +19,20 @@ import {Component, input, output} from '@angular/core';
 import {MatButtonModule} from '@angular/material/button';
 import {MatRippleModule} from '@angular/material/core';
 import {MatIconModule} from '@angular/material/icon';
+import {TranslatePipe} from '@common/i18n';
 import {CollapsibleSectionType} from '@ui/shared/collapsible_sections/collapsible_section_type';
 import {CollapsibleSections} from '@ui/shared/collapsible_sections/collapsible_sections';
 
 @Component({
   selector: 'collapsed-sections',
   standalone: true,
-  imports: [CommonModule, MatButtonModule, MatIconModule, MatRippleModule],
+  imports: [
+    TranslatePipe,
+    CommonModule,
+    MatButtonModule,
+    MatIconModule,
+    MatRippleModule,
+  ],
   templateUrl: './collapsed_sections_component.ng.html',
   styleUrls: ['collapsed_sections_component.scss'],
 })

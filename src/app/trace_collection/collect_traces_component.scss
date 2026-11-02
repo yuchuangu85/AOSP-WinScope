@@ -36,7 +36,10 @@
   margin: 10px;
 }
 
-.collect-card-content {
+.collect-card .collect-card-content {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   overflow: auto;
   position: relative;
 }
@@ -127,6 +130,10 @@ winscope-proxy-setup,
   height: 100%;
 }
 
+.devices-connecting {
+  flex: 1;
+}
+
 .no-device-detected .message,
 .device-selection .instruction {
   font-size: 20px;
@@ -182,6 +189,11 @@ mat-card-content {
 .target-tabs .mat-mdc-tab-body-wrapper,
 .connection-tabs .mat-mdc-tab-body-wrapper {
   flex-grow: 1;
+}
+
+.connection-section {
+  display: flex;
+  flex-direction: column;
 }
 
 .tabbed-section {

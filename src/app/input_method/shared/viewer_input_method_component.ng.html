@@ -41,7 +41,7 @@ limitations under the License.
           sections.onCollapseStateChange(CollapsibleSectionType.HIERARCHY, true)
         "
         [class.collapsed]="sections.isSectionCollapsed(CollapsibleSectionType.HIERARCHY)"
-        placeholderText="No IME entry found."
+        [placeholderText]="'No IME entry found.' | tr"
         (filterChange)="onHierarchyFilterChange.emit($event)"
         (highlightedNodeChange)="onHighlightedNodeChange.emit($event)"
         (pinnedItemChange)="onHierarchyPinnedChange.emit($event)"
@@ -75,7 +75,7 @@ limitations under the License.
       sections.onCollapseStateChange(CollapsibleSectionType.PROPERTIES, true)
     "
     [class.collapsed]="sections.isSectionCollapsed(CollapsibleSectionType.PROPERTIES)"
-    placeholderText="No selected item."
+    [placeholderText]="'No selected item.' | tr"
     (filterChange)="onPropertiesFilterChange.emit($event)"
     (optionsChange)="onPropertiesUserOptionsChange.emit($event)"
     (highlightedPropertyChange)="onHighlightedPropertyChange.emit($event)"

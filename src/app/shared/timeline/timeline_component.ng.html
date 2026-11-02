@@ -17,7 +17,7 @@ limitations under the License.
 @let tData = timelineData();
 @if (isDisabled) {
   <div class="disabled-message user-notification mat-body-1">
-    <div>{{ disabledMessage }}</div>
+    <div>{{ disabledMessage | tr }}</div>
     <mat-spinner [diameter]="20"></mat-spinner>
   </div>
 }
@@ -28,7 +28,7 @@ limitations under the License.
         mat-icon-button
         [class]="TOGGLE_BUTTON_CLASS"
         color="basic"
-        aria-label="Toggle Expanded Timeline"
+        [attr.aria-label]="'Toggle Expanded Timeline' | tr"
         (click)="toggleExpand()"
       >
         @if (!expanded) {
@@ -56,8 +56,8 @@ limitations under the License.
             ></video>
           } @else {
             <div class="no-video-message">
-              <p>No screen recording frame to show.</p>
-              <p>Current timestamp after last screen recording frame.</p>
+              <p>{{ 'No screen recording frame to show.' | tr }}</p>
+              <p>{{ 'Current timestamp after last screen recording frame.' | tr }}</p>
             </div>
           }
         </div>
@@ -160,7 +160,7 @@ limitations under the License.
               <mat-icon
                 class="bookmark-icon prefix"
                 [class.material-symbols-outlined]="!currentPositionBookmarked()"
-                matTooltip="bookmark timestamp"
+                [matTooltip]="'bookmark timestamp' | tr"
                 (click)="toggleBookmarkCurrentPosition($any($event))"
                 matRipple
                 [matRippleCentered]="true"
@@ -187,7 +187,7 @@ limitations under the License.
             <button
               mat-icon-button
               id="prev_entry_button"
-              matTooltip="Go to previous entry"
+              [matTooltip]="'Go to previous entry' | tr"
               (click)="moveToPreviousEntry()"
               [class.disabled]="isPrevButtonDisabled()"
               [disabled]="isPrevButtonDisabled()"
@@ -205,7 +205,7 @@ limitations under the License.
             <button
               mat-icon-button
               id="next_entry_button"
-              matTooltip="Go to next entry"
+              [matTooltip]="'Go to next entry' | tr"
               (click)="moveToNextEntry()"
               [class.disabled]="isNextButtonDisabled()"
               [disabled]="isNextButtonDisabled()"
@@ -227,7 +227,7 @@ limitations under the License.
               multiple
             >
               <div class="select-traces-panel">
-                <div class="tip">Filter traces in the timeline</div>
+                <div class="tip">{{ 'Filter traces in the timeline' | tr }}</div>
                 @for (trace of sortedTraces; track trace) {
                   <mat-option
                     [value]="trace"
@@ -250,13 +250,13 @@ limitations under the License.
                 }
                 <div class="actions">
                   <button mat-flat-button color="primary" (click)="traceSelector.close()">
-                    Done
+                    {{ 'Done' | tr }}
                   </button>
                 </div>
               </div>
               <mat-select-trigger matRipple class="shown-selection small-icon-container">
                 <div class="filter-header">
-                  <span class="mat-body-2"> Filter </span>
+                  <span class="mat-body-2"> {{ 'Filter' | tr }} </span>
                   <mat-icon class="material-symbols-outlined">expand_circle_up</mat-icon>
                 </div>
 
@@ -305,11 +305,11 @@ limitations under the License.
       }
       @if (!tData?.hasMoreThanOneDistinctTimestamp()) {
         <div class="no-timeline-msg">
-          <p class="mat-body-2">No timeline to show!</p>
+          <p class="mat-body-2">{{ 'No timeline to show!' | tr }}</p>
           @if (tData?.hasTimestamps()) {
-            <p class="mat-body-1">Only a single timestamp has been recorded.</p>
+            <p class="mat-body-1">{{ 'Only a single timestamp has been recorded.' | tr }}</p>
           } @else {
-            <p class="mat-body-1">All loaded traces contain no timestamps.</p>
+            <p class="mat-body-1">{{ 'All loaded traces contain no timestamps.' | tr }}</p>
           }
         </div>
       }

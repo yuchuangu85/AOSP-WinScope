@@ -4,7 +4,7 @@ import {FormsModule} from '@angular/forms';
 import {MatButtonModule} from '@angular/material/button';
 import {MatIconModule} from '@angular/material/icon';
 import {translate, TranslatePipe} from '@common/i18n';
-import {AiCatalog, AiProvider} from '@services/ai_gateway_client';
+import {AiCatalog, AiProvider, AiProviderConfiguration,} from '@services/ai_gateway_client';
 
 export interface AiModelSelection {
   agentId: string;
@@ -23,6 +23,7 @@ export interface AiProviderModelSelection {
 export interface AiSettingsValue {
   selection: AiModelSelection;
   providerSelections: Record<string, AiProviderModelSelection>;
+  configuration?: AiProviderConfiguration;
 }
 
 @Component({
@@ -59,6 +60,7 @@ export class AiSettingsComponent implements OnInit, OnChanges {
 
   draft: AiModelSelection = {...this.selection};
   providerDrafts: Record<string, AiProviderModelSelection> = {};
+  configurationDrafts: Record<string, AiProviderConfiguration> = {};
   error = '';
   errorProvider = '';
   readonly emptyModel: AiProviderModelSelection = {
@@ -70,6 +72,7 @@ export class AiSettingsComponent implements OnInit, OnChanges {
   private originalAgentId = '';
   private originalRouting = {agentId: '', providerId: ''};
   private originalProviders: Record<string, AiProviderModelSelection> = {};
+  private originalConfigurations: Record<string, AiProviderConfiguration> = {};
   private previousImports: Record<string, AiProvider> = {};
   private errorProviderId = '';
 
@@ -104,6 +107,8 @@ export class AiSettingsComponent implements OnInit, OnChanges {
           this.providerFor(id)
         ) {
           this.providerDrafts[id] = this.normalizeModel(id);
+          this.configurationDrafts[id] = this.configurationFor(provider);
+          this.originalConfigurations[id] = {...this.configurationDrafts[id]};
           this.draft.providerId = id;
           this.clearError();
         }
@@ -132,15 +137,10 @@ export class AiSettingsComponent implements OnInit, OnChanges {
   }
 
   get sections(): Array<{id: string; name: string}> {
-    const sections = [
-      {id: 'codex', name: 'Codex'},
-      {id: 'claude', name: 'Claude'},
-    ];
     const provider = this.provider;
-    if (provider && !sections.some((section) => section.id === provider.id)) {
-      sections.push({id: provider.id, name: provider.name || provider.id});
-    }
-    return sections;
+    return provider
+      ? [{id: provider.id, name: provider.name || provider.id}]
+      : [];
   }
 
   get agentDescription(): string {
@@ -194,9 +194,42 @@ export class AiSettingsComponent implements OnInit, OnChanges {
         return 'Credentials configured';
       case 'cli-managed':
         return 'Managed by local CLI';
+      case 'not-configured':
+        return 'API key environment variable is not set';
       default:
         return 'Not read';
     }
+  }
+
+  isConfigured(id: string): boolean {
+    return !!(
+      this.providerFor(id)?.configured ||
+      this.providerFor(id)?.importedFrom ||
+      this.importedProviders[id]
+    );
+  }
+
+  canConfigureProvider(id: string): boolean {
+    return (
+      !!this.providerFor(id)?.configuration || id === 'codex' || id === 'claude'
+    );
+  }
+
+  configurationChanged<K extends keyof AiProviderConfiguration>(
+    id: string,
+    key: K,
+    value: AiProviderConfiguration[K],
+  ): void {
+    if (this.runtimeDisabled || !this.canConfigureProvider(id)) return;
+    this.configurationDrafts[id][key] = value;
+    this.modelEdited(id);
+  }
+
+  providerChanged(id: string): void {
+    if (this.runtimeDisabled || (id && !this.providerFor(id))) return;
+    this.draft.providerId = id;
+    this.clearError();
+    this.synchronizeActiveModel();
   }
 
   readConfiguration(providerId: string): void {
@@ -257,7 +290,9 @@ export class AiSettingsComponent implements OnInit, OnChanges {
     }
     const model = provider ? this.providerDrafts[provider.id] : this.emptyModel;
     if (provider) {
-      const error = this.validateModel(provider, model);
+      const error =
+        this.validateModel(provider, model) ||
+        this.validateConfiguration(provider.id);
       if (error) {
         this.error = error;
         this.errorProviderId = provider.id;
@@ -278,6 +313,14 @@ export class AiSettingsComponent implements OnInit, OnChanges {
         providerId: provider?.id ?? '',
       },
       providerSelections: provider ? {[provider.id]: {...savedModel}} : {},
+      ...(provider && this.canConfigureProvider(provider.id)
+        ? {
+            configuration: {
+              ...this.configurationDrafts[provider.id],
+              baseUrl: this.configurationDrafts[provider.id].baseUrl.trim(),
+            },
+          }
+        : {}),
     });
   }
 
@@ -288,13 +331,32 @@ export class AiSettingsComponent implements OnInit, OnChanges {
       this.originalProviders[id] = {...this.providerDrafts[id]};
     }
     this.addProviderDrafts();
-    this.synchronizeSelection();
+    const configured = this.catalog.providers.find((provider) =>
+      this.isConfigured(provider.id),
+    );
+    const saved = !this.existingSession ? this.catalog.selection : undefined;
+    this.synchronizeSelection(
+      saved ??
+        (!this.existingSession && !this.selection.providerId && configured
+          ? {
+              ...this.selection,
+              ...this.providerDrafts[configured.id],
+              providerId: configured.id,
+            }
+          : this.selection),
+    );
     this.previousImports = {...this.importedProviders};
     this.initialized = true;
   }
 
   private addProviderDrafts(): void {
     for (const provider of this.catalog.providers) {
+      if (!this.configurationDrafts[provider.id]) {
+        this.configurationDrafts[provider.id] = this.configurationFor(provider);
+        this.originalConfigurations[provider.id] = {
+          ...this.configurationDrafts[provider.id],
+        };
+      }
       if (!this.providerDrafts[provider.id]) {
         this.providerDrafts[provider.id] = this.normalizeModel(provider.id);
         this.originalProviders[provider.id] = {
@@ -304,9 +366,9 @@ export class AiSettingsComponent implements OnInit, OnChanges {
     }
   }
 
-  private synchronizeSelection(): void {
-    this.draft = {...this.selection};
-    this.originalAgentId = this.selection.agentId;
+  private synchronizeSelection(selection = this.selection): void {
+    this.draft = {...selection};
+    this.originalAgentId = selection.agentId;
     if (
       !this.existingSession &&
       !this.catalog.agents.some((agent) => agent.id === this.draft.agentId)
@@ -321,7 +383,7 @@ export class AiSettingsComponent implements OnInit, OnChanges {
     if (provider) {
       this.providerDrafts[provider.id] = this.normalizeModel(
         provider.id,
-        this.selection,
+        selection,
       );
       this.originalProviders[provider.id] = {
         ...this.providerDrafts[provider.id],
@@ -329,6 +391,66 @@ export class AiSettingsComponent implements OnInit, OnChanges {
     }
     this.clearError();
     this.synchronizeActiveModel();
+  }
+
+  private configurationFor(provider: AiProvider): AiProviderConfiguration {
+    return {
+      baseUrl:
+        provider.configuration?.baseUrl ?? provider.localConfig?.baseUrl ?? '',
+      providerName:
+        provider.configuration?.providerName ??
+        provider.localConfig?.providerName ??
+        '',
+      apiKeyEnv: provider.configuration?.apiKeyEnv ?? '',
+      timeoutMs: provider.configuration?.timeoutMs ?? 120_000,
+    };
+  }
+
+  private validateConfiguration(id: string): string {
+    if (!this.canConfigureProvider(id)) return '';
+    const configuration = this.configurationDrafts[id];
+    const baseUrl = configuration.baseUrl.trim();
+    if (baseUrl) {
+      try {
+        const url = new URL(baseUrl);
+        if (
+          !['http:', 'https:'].includes(url.protocol) ||
+          !/^https?:\/\//i.test(baseUrl) ||
+          !url.hostname ||
+          url.username ||
+          url.password ||
+          /^https?:\/\/[^/]*@/i.test(baseUrl) ||
+          /[?#\\]/.test(baseUrl) ||
+          /[\s\p{Cc}]/u.test(baseUrl) ||
+          /%(?:0[0-9a-f]|1[0-9a-f]|7f)/i.test(baseUrl) ||
+          baseUrl.length > 2048
+        ) {
+          return 'Enter an HTTP or HTTPS service URL without credentials, query parameters or fragments.';
+        }
+      } catch {
+        return 'Enter an HTTP or HTTPS service URL without credentials, query parameters or fragments.';
+      }
+    }
+    if (
+      configuration.apiKeyEnv &&
+      !/^[A-Za-z_][A-Za-z0-9_]{0,127}$/.test(configuration.apiKeyEnv)
+    ) {
+      return 'Enter a valid API key environment variable name.';
+    }
+    if (
+      !Number.isInteger(configuration.timeoutMs) ||
+      configuration.timeoutMs < 1000 ||
+      configuration.timeoutMs > 600_000
+    ) {
+      return 'Enter a timeout between 1000 and 600000 milliseconds.';
+    }
+    if (
+      configuration.providerName.length > 128 ||
+      /\p{Cc}/u.test(configuration.providerName)
+    ) {
+      return 'Enter a provider name of up to 128 characters.';
+    }
+    return '';
   }
 
   private normalizeModel(
@@ -433,6 +555,11 @@ export class AiSettingsComponent implements OnInit, OnChanges {
       this.draft.providerId === this.originalRouting.providerId &&
       Object.keys(this.providerDrafts).every((id) =>
         this.providerIsPristine(id),
+      ) &&
+      Object.keys(this.configurationDrafts).every(
+        (id) =>
+          JSON.stringify(this.configurationDrafts[id]) ===
+          JSON.stringify(this.originalConfigurations[id]),
       )
     );
   }

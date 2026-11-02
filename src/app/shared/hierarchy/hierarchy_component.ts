@@ -25,6 +25,7 @@ import {TreeComponent} from '@app/shared/tree/tree_component';
 import {TreeNodeComponent} from '@app/shared/tree/tree_node_component';
 import {UserOptionsComponent} from '@app/shared/user_options/user_options_component';
 import {isElementOverflowing} from '@common/dom';
+import { translate, TranslatePipe, } from '@common/i18n';
 import {InMemoryStorage} from '@common/store/in_memory_storage';
 import {PersistentStore} from '@common/store/persistent_store';
 import {Analytics} from '@logging/analytics';
@@ -48,6 +49,7 @@ import {PropertiesTableComponent} from './properties_table_component';
   selector: 'hierarchy-view',
   standalone: true,
   imports: [
+    TranslatePipe,
     CommonModule,
     MatDividerModule,
     MatIconModule,
@@ -91,14 +93,19 @@ export class HierarchyComponent {
   });
 
   readonly getPlaceholderText = computed(() => {
+    const dependency = this.dependencies()[0];
+    const state =
+      dependency !== undefined
+        ? translate('{trace} state', {
+            trace: translate(TRACE_INFO[dependency].name),
+          })
+        : translate('state for this trace');
     return (
-      this.placeholderText() +
-      ` There may be no ${
-        this.dependencies().length > 0
-          ? TRACE_INFO[this.dependencies()[0]].name + ' state'
-          : 'state for this trace'
-      } associated with the current state in the active trace.` +
-      ' Try changing timeline position.'
+      translate(this.placeholderText()) +
+      translate(
+        ' There may be no {state} associated with the current state in the active trace. Try changing timeline position.',
+        {state},
+      )
     );
   });
 

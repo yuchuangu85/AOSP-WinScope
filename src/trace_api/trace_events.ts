@@ -15,6 +15,7 @@
  */
 
 import {Timestamp} from '@common/time/time';
+import {UserNotification} from '@messaging/user_notification';
 import {WinscopeEvent} from '@messaging/winscope_event';
 import {MediaBasedTraceEntry} from '@trace/media_based/media_based_trace_entry';
 
@@ -69,7 +70,10 @@ export class TraceSearchInitialized implements WinscopeEvent {
 export class TraceSearchCompleted implements WinscopeEvent {}
 
 export class ShowTraceUploadWarning implements WinscopeEvent {
-  constructor(readonly message: string) {}
+  constructor(
+    readonly message: string,
+    readonly localization?: UserNotification['localization'],
+  ) {}
 }
 
 export class ActiveTraceChanged implements WinscopeEvent {

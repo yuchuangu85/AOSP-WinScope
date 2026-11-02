@@ -531,7 +531,7 @@ export class Mediator {
 
     for (const warning of result.warnings) {
       await this.uploadTracesComponent?.onWinscopeEvent(
-        new ShowTraceUploadWarning(warning.message),
+        new ShowTraceUploadWarning(warning.message, warning.localization),
       );
     }
     this.loadedFileData.addFiles(result, source);

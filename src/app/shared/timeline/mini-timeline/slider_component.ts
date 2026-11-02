@@ -73,7 +73,9 @@ export class SliderComponent {
   }
 
   ngAfterViewChecked() {
-    this.syncDragPositionTo(this.zoomRange());
+    if (!this.dragging) {
+      this.syncDragPositionTo(this.zoomRange());
+    }
     this.cdr.detectChanges();
   }
 
@@ -85,7 +87,7 @@ export class SliderComponent {
 
   onSlideStart(e: CdkDragStart) {
     this.dragging = true;
-    this.slideStartX = e.source.freeDragPosition.x;
+    this.slideStartX = e.source.freeDragPosition.x / this.getDragScale();
     document.body.classList.add('inheritCursors');
     document.body.style.cursor = 'grabbing';
   }
@@ -100,15 +102,20 @@ export class SliderComponent {
 
   onSliderMove(e: CdkDragMove) {
     const zoomRange = this.zoomRange();
-    let newX = assertDefined(this.slideStartX) + e.distance.x;
-    if (newX < 0) {
-      newX = 0;
-    }
+    const newX = assertDefined(this.slideStartX) + e.distance.x / this.getDragScale();
 
     // Calculation to adjust for min width slider
-    const from = this.getTransformer()
+    let from = this.getTransformer()
       .untransform(newX + this.sliderWidth / 2)
       .minus(zoomRange.to.minus(zoomRange.from).div(2n));
+    const fullRange = this.fullRange();
+    const latestFrom = fullRange.to.minus(zoomRange.to.minus(zoomRange.from));
+    if (from.getValueNs() < fullRange.startNs) {
+      from = fullRange.from;
+    }
+    if (from.getValueNs() > latestFrom.getValueNs()) {
+      from = latestFrom;
+    }
 
     const to = this.timestampConverter().makeTimestampFromNs(
       from.getValueNs() + zoomRange.endNs - zoomRange.startNs,
@@ -120,11 +127,11 @@ export class SliderComponent {
   startMoveLeft(e: MouseEvent) {
     e.preventDefault();
 
-    const startPos = e.pageX;
+    const startPos = e.clientX;
     const startOffset = this.getTransformer().transform(this.zoomRange().from);
 
     const listener = (event: MouseEvent) => {
-      const movedX = event.pageX - startPos;
+      const movedX = (event.clientX - startPos) / this.getDragScale();
       let from = this.getTransformer().untransform(startOffset + movedX);
       const fullRange = this.fullRange();
       const zoomRange = this.zoomRange();
@@ -150,11 +157,11 @@ export class SliderComponent {
   startMoveRight(e: MouseEvent) {
     e.preventDefault();
 
-    const startPos = e.pageX;
+    const startPos = e.clientX;
     const startOffset = this.getTransformer().transform(this.zoomRange().to);
 
     const listener = (event: MouseEvent) => {
-      const movedX = event.pageX - startPos;
+      const movedX = (event.clientX - startPos) / this.getDragScale();
       const fullRange = this.fullRange();
       const zoomRange = this.zoomRange();
       const from = zoomRange.from;
@@ -177,6 +184,15 @@ export class SliderComponent {
     addEventListener('mouseup', mouseUpListener);
   }
 
+  getDragScale(): number {
+    if (!this.viewInitialized) {
+      return 1;
+    }
+    const box = this.sliderBox().nativeElement;
+    const width = box.getBoundingClientRect().width;
+    return box.offsetWidth > 0 && width > 0 ? width / box.offsetWidth : 1;
+  }
+
   private syncDragPositionTo(zoomRange: TimeRange) {
     this.sliderWidth = this.computeSliderWidth();
     const middleOfZoomRange = zoomRange.from.add(
@@ -184,10 +200,10 @@ export class SliderComponent {
     );
 
     this.dragPosition = {
-      // Calculation to account for there being a min width of the slider
+      // CDK applies the inverse scale to both the initial position and drag deltas.
       x:
-        this.getTransformer().transform(middleOfZoomRange) -
-        this.sliderWidth / 2,
+        (this.getTransformer().transform(middleOfZoomRange) -
+          this.sliderWidth / 2) * this.getDragScale(),
       y: 0,
     };
   }

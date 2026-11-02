@@ -23,6 +23,7 @@ import {PropertiesComponent} from '@app/shared/properties/properties_component';
 import {RectsComponent} from '@app/shared/rects/rects_component';
 import {ResizerComponent} from '@app/shared/resizer/resizer_component';
 import {assertDefined} from '@common/assert';
+import {TranslatePipe} from '@common/i18n';
 import {CollapsibleSectionType} from '@ui/shared/collapsible_sections/collapsible_section_type';
 import {CollapsibleSections} from '@ui/shared/collapsible_sections/collapsible_sections';
 import {TraceRectType} from '@ui/shared/rects/rect_spec';
@@ -35,6 +36,7 @@ import {SurfaceFlingerPropertyGroupsComponent} from './surface_flinger_property_
   selector: 'viewer-surface-flinger',
   standalone: true,
   imports: [
+    TranslatePipe,
     CommonModule,
     CollapsedSectionsComponent,
     RectsComponent,

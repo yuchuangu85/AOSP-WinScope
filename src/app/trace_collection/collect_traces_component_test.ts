@@ -34,6 +34,7 @@ import {MatTabsModule} from '@angular/material/tabs';
 import {NoopAnimationsModule} from '@angular/platform-browser/animations';
 import {LoadProgressComponent} from '@app/trace_loading/load_progress_component';
 import {assertDefined} from '@common/assert';
+import {language} from '@common/i18n';
 import {InMemoryStorage} from '@common/store/in_memory_storage';
 import {DOMTestHelper} from '@common/testing/dom_test_helpers';
 import {WinscopeEvent} from '@messaging/winscope_event';
@@ -145,6 +146,36 @@ describe('CollectTracesComponent', () => {
     setSpyWithDevices([]);
     const el = dom.get('.devices-connecting');
     el.checkText('No devices detected');
+  });
+
+  it('centers the no-device state in the available collection area', async () => {
+    setSpyWithDevices([]);
+    dom.get('.collect-card').getHTMLElement().style.height = '600px';
+    await dom.detectChangesAndWaitStable();
+
+    const section = dom
+      .get('.connection-section')
+      .getHTMLElement()
+      .getBoundingClientRect();
+    const empty = dom
+      .get('.no-device-detected')
+      .getHTMLElement()
+      .getBoundingClientRect();
+    expect(section.height).toBeGreaterThan(400);
+    expect(empty.height).toBeCloseTo(section.height, 0);
+    expect(empty.top).toBeCloseTo(section.top, 0);
+    const icon = dom
+      .get('.no-device-detected .icon')
+      .getHTMLElement()
+      .getBoundingClientRect();
+    const message = dom
+      .get('.no-device-detected .message')
+      .getHTMLElement()
+      .getBoundingClientRect();
+    expect((icon.top + message.bottom) / 2).toBeCloseTo(
+      section.top + section.height / 2,
+      0,
+    );
   });
 
   it('displays connected authorized devices', () => {
@@ -511,10 +542,7 @@ describe('CollectTracesComponent', () => {
     newDom.setComponentInput('store', storage);
     await newDom.detectChangesAndWaitStable();
     newComponent.onAvailableTracesChange(
-      [
-        UiTraceTarget.WINDOW_MANAGER_DUMP,
-        UiTraceTarget.SURFACE_FLINGER_DUMP,
-      ],
+      [UiTraceTarget.WINDOW_MANAGER_DUMP, UiTraceTarget.SURFACE_FLINGER_DUMP],
       [],
     );
     const controller = assertDefined(newComponent.controller);
@@ -615,7 +643,32 @@ describe('CollectTracesComponent', () => {
 
   it('rejects non-configured connection types', async () => {
     await component.onConnectionChange(AdbConnectionType.WDP);
-    expect(component.errorText).toContain('file-only mode');
+    expect(component.errorText).toContain('standalone launcher');
+  });
+
+  it('localizes launcher errors in place while leaving external error payloads unchanged', async () => {
+    language.set('en');
+    try {
+      await component.onConnectionChange(AdbConnectionType.WDP);
+      component.onConnectionTabAnimationDone();
+      const source = component.errorText;
+      const message = dom.get('.unknown-error pre');
+      message.checkText(source);
+      language.set('zh-CN');
+      dom.detectChanges();
+      message.checkText('仅支持独立启动器采集提供方。');
+      expect(component.errorText).toBe(source);
+      language.set('en');
+      dom.detectChanges();
+      message.checkText(source);
+
+      language.set('zh-CN');
+      await component.onError('Save');
+      dom.get('.unknown-error pre').checkText('Save');
+      expect(component.errorText).toBe('Save');
+    } finally {
+      language.set('en');
+    }
   });
 
   it('cancels device requests', async () => {

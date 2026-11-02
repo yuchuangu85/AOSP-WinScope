@@ -1,3 +1,4 @@
+import {CdkAccordionItem, CdkAccordionModule} from '@angular/cdk/accordion';
 /*
  * Copyright (C) 2024 The Android Open Source Project
  *
@@ -14,7 +15,6 @@
  * limitations under the License.
  */
 
-import {CdkAccordionItem, CdkAccordionModule} from '@angular/cdk/accordion';
 import {CdkMenuModule} from '@angular/cdk/menu';
 import {CommonModule} from '@angular/common';
 import {ChangeDetectorRef, Component, effect, ElementRef, HostListener, Inject, output, TemplateRef, viewChild, viewChildren,} from '@angular/core';
@@ -33,6 +33,7 @@ import {LogComponent} from '@app/shared/log_view/log_component';
 import {ViewerComponent} from '@app/shared/viewers/viewer_component';
 import {assertDefined} from '@common/assert';
 import {downloadFromUrl} from '@common/download';
+import {translate, TranslatePipe} from '@common/i18n';
 import {Timestamp} from '@common/time/time';
 import {TimeDuration} from '@common/time/time_duration';
 import {TIME_UNIT_TO_NANO} from '@common/time/time_units';
@@ -52,6 +53,7 @@ import {SEARCH_VIEWS} from './trace_search_initializer';
 @Component({
   standalone: true,
   imports: [
+    TranslatePipe,
     CommonModule,
     CollapsedSectionsComponent,
     CollapsibleSectionTitleComponent,
@@ -268,7 +270,7 @@ export class ViewerSearchComponent extends ViewerComponent<UiData> {
   }
 
   getQueryLabel(uid: number): string {
-    return 'Query ' + uid;
+    return translate('Query {number}', {number: uid});
   }
 
   showResultsPlaceholder(): boolean {

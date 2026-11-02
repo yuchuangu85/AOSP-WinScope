@@ -1,3 +1,4 @@
+import {CommonModule} from '@angular/common';
 /*
  * Copyright (C) 2024 The Android Open Source Project
  *
@@ -14,7 +15,6 @@
  * limitations under the License.
  */
 
-import {CommonModule} from '@angular/common';
 import {Component, ElementRef, Inject, input, output, TemplateRef, viewChild,} from '@angular/core';
 import {FormControl, ReactiveFormsModule, Validators} from '@angular/forms';
 import {MatButtonModule} from '@angular/material/button';
@@ -24,12 +24,14 @@ import {MatInputModule} from '@angular/material/input';
 import {MatProgressSpinnerModule} from '@angular/material/progress-spinner';
 import {assertDefined} from '@common/assert';
 import {KeyboardEventKey} from '@common/dom';
+import {TranslatePipe} from '@common/i18n';
 import {Analytics} from '@logging/analytics';
 
 @Component({
   selector: 'active-search',
   standalone: true,
   imports: [
+    TranslatePipe,
     CommonModule,
     ReactiveFormsModule,
     MatButtonModule,

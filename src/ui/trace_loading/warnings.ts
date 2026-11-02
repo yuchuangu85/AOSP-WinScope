@@ -47,6 +47,7 @@ export function makeWarningCorruptedArchive(file: File) {
   return new UserWarning(
     'corrupted archive',
     `${file.name}: corrupted archive`,
+    {source: '{filename}: corrupted archive', params: {filename: file.name}},
   );
 }
 
@@ -67,6 +68,7 @@ export function makeWarningIncompleteFrameMapping(errorMessage: string) {
   return new UserWarning(
     'incomplete frame mapping',
     `Error occurred in frame mapping: ${errorMessage}`,
+    {source: 'Error occurred in frame mapping: {error}', params: {error: errorMessage}},
   );
 }
 
@@ -82,6 +84,7 @@ export function makeWarningTraceProcessorError(
   return new UserWarning(
     'trace processor error',
     `Trace processor errors were identified on the following traces: ${traceTypeNames}`,
+    {source: 'Trace processor errors were identified on the following traces: {traces}', params: {traces: traceTypeNames}},
   );
 }
 
@@ -98,6 +101,7 @@ export function makeWarningMissingPersistentTrace(
       bugreportData,
       persistentTracingProperty,
     ),
+    missingPersistentTraceLocalization(bugreportData, persistentTracingProperty),
   );
 }
 
@@ -109,6 +113,19 @@ export function makeWarningNoTraceTargetsSelected() {
     'No trace targets selected.',
     'No trace targets selected.',
   );
+}
+
+function missingPersistentTraceLocalization(
+  bugreportData: BugreportData,
+  property: string,
+): UserWarning['localization'] {
+  if (bugreportData.buildType === BuildType.USER) {
+    return {source: "No Winscope Perfetto trace found in bug report. This is expected on 'user' builds. Persistent tracing usually requires a 'userdebug' or 'eng' build, or root access."};
+  }
+  if (!bugreportData.isPersistentTracingEnabled) {
+    return {source: "No Winscope Perfetto trace found in bug report. The persistent tracing property ('{property}') seems to be disabled. You can try enabling it via: '{command}' Then, reproduce the issue and capture a new bug report.", params: {property, command: `adb shell setprop ${property} 1 && adb reboot`}};
+  }
+  return {source: "No Winscope Perfetto trace found in bug report. Ensure the bugreport comes from a device where persistent tracing is enabled (e.g., dogfood devices or using '{command}').", params: {command: `adb shell setprop ${property} 1`}};
 }
 
 function makeMissingPersistentTraceErrorMessage(
@@ -145,7 +162,7 @@ export function makeWarningProxyTraceTimeout() {
 export function makeWarningNoValidFiles(traces?: string[]) {
   const message =
     'No valid trace files found' + (traces ? ` for ${traces.join(', ')}` : '');
-  return new UserWarning('no valid files', message);
+  return new UserWarning('no valid files', message, traces ? {source: 'No valid trace files found for {traces}', params: {traces: traces.join(', ')}} : undefined);
 }
 
 /**
@@ -156,6 +173,7 @@ export function makeWarningTraceHasElapsedTimestamps(descriptor: string) {
     'elapsed trace',
     `${descriptor}: trace contains only elapsed timestamps` +
       ' so many not be accurately synced with other real-time traces.',
+    {source: '{descriptor}: trace contains only elapsed timestamps so many not be accurately synced with other real-time traces.', params: {descriptor}},
   );
 }
 
@@ -172,7 +190,7 @@ export function makeWarningTraceHasOldData(
   const message =
     `${descriptors.join(', ')}: discarded because data is old` +
     (timeGap ? `er than ${elapsedTime?.format()}` : '');
-  return new UserWarning('old trace', message);
+  return new UserWarning('old trace', message, {source: timeGap ? '{descriptors}: discarded because data is older than {duration}' : '{descriptors}: discarded because data is old', params: {descriptors: descriptors.join(', '), duration: elapsedTime?.format() ?? ''}});
 }
 
 /**
@@ -185,6 +203,7 @@ export function makeWarningTraceOverridden(
   return new UserWarning(
     'trace overridden',
     makeWarningTraceErrorMessage(descriptor, overridingType),
+    {source: overridingType === undefined ? '{descriptor}: overridden by another trace of same type' : '{descriptor}: overridden by another trace of type {type}', params: {descriptor, type: overridingType === undefined ? '' : TraceType[overridingType]}},
   );
 }
 
@@ -207,6 +226,7 @@ export function makeWarningUnsupportedFileFormat(descriptor: string) {
   return new UserWarning(
     'unsupported format',
     `${descriptor}: file format was not recognized as a supported Winscope trace`,
+    {source: '{descriptor}: file format was not recognized as a supported Winscope trace', params: {descriptor}},
   );
 }
 
@@ -231,5 +251,6 @@ export function makeWarningExportTooLarge(maxRows: number) {
   return new UserWarning(
     'Export too large',
     `Result set is too large for CSV export (max ${maxRows} rows). Try narrowing your query.`,
+    {source: 'Result set is too large for CSV export (max {maxRows} rows). Try narrowing your query.', params: {maxRows}},
   );
 }

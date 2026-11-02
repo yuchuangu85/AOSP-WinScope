@@ -39,7 +39,7 @@ limitations under the License.
         ></collapsible-section-title>
         @if (initializing) {
           <span class="mat-body-2 message-with-spinner text-no-overflow">
-            <span>Initializing</span>
+            <span>{{ 'Initializing' | tr }}</span>
             <mat-spinner [diameter]="20"></mat-spinner>
           </span>
         }
@@ -52,9 +52,9 @@ limitations under the License.
         [style.height]="getTabsHeight()"
         (animationDone)="onSearchTabChanged()"
       >
-        <mat-tab label="Search">
+        <mat-tab [label]="'Search' | tr">
           <div class="body">
-            <span class="mat-body-2"> {{ globalSearchText }} </span>
+            <span class="mat-body-2"> {{ globalSearchText | tr }} </span>
 
             @for (section of searchSections; track section.uid; let i = $index) {
               @if (i > 0) {
@@ -79,20 +79,20 @@ limitations under the License.
           </div>
         </mat-tab>
 
-        <mat-tab label="Saved">
+        <mat-tab [label]="'Saved' | tr">
           <search-list
             class="body"
             [searches]="data.savedSearches"
-            placeholderText="Saved queries will appear here."
+            [placeholderText]="'Saved queries will appear here.' | tr"
             [listItemOptions]="savedSearchOptions"
           ></search-list>
         </mat-tab>
 
-        <mat-tab label="Recent">
+        <mat-tab [label]="'Recent' | tr">
           <search-list
             class="body"
             [searches]="data.recentSearches"
-            placeholderText="Recent queries will appear here."
+            [placeholderText]="'Recent queries will appear here.' | tr"
             [listItemOptions]="recentSearchOptions"
             [control]="menuSaveQueryNameControl"
           ></search-list>
@@ -107,7 +107,7 @@ limitations under the License.
                 (keydown.enter)="onSaveQueryClick(query, control)"
               />
               @if (control.invalid && control.value) {
-                <mat-error>Query with that name already exists.</mat-error>
+                <mat-error>{{ 'Query with that name already exists.' | tr }}</mat-error>
               }
             </mat-form-field>
             <button
@@ -117,7 +117,7 @@ limitations under the License.
               [disabled]="control.invalid"
               (click)="onSaveQueryClick(query, control)"
             >
-              Save
+              {{ 'Save' | tr }}
             </button>
           </div>
         </ng-template>
@@ -138,7 +138,7 @@ limitations under the License.
       </div>
       @if (showResultsPlaceholder()) {
         <div class="results-placeholder placeholder-text mat-body-1">
-          Run a search to view tabulated results.
+          {{ 'Run a search to view tabulated results.' | tr }}
         </div>
       }
       <mat-tab-group
@@ -152,12 +152,13 @@ limitations under the License.
               <div class="result-actions">
                 <button mat-stroked-button color="primary" (click)="exportToCsv(curr)">
                   <mat-icon>download</mat-icon>
-                  Export to CSV
+                  {{ 'Export to CSV' | tr }}
                 </button>
               </div>
               <div class="results-table">
                 <log-view
                   class="results-log-view"
+                  [localizeLabels]="false"
                   [entries]="curr.result?.entries ?? []"
                   [headers]="curr.result?.headers ?? []"
                   [selectedIndex]="curr.result?.selectedIndex"
@@ -195,8 +196,10 @@ limitations under the License.
 
       <div class="body">
         <span class="mat-body-1">
-          Run custom SQL queries on Perfetto traces. Use specialized SQL views to aid with
-          searching:
+          {{
+            'Run custom SQL queries on Perfetto traces. Use specialized SQL views to aid with searching:'
+              | tr
+          }}
         </span>
 
         <cdk-accordion class="how-to-accordion" [multi]="true">
@@ -214,30 +217,32 @@ limitations under the License.
                     class="open-docs-icon"
                     [matTooltipShowDelay]="500"
                     matTooltipPosition="left"
-                    matTooltip="Open full documentation"
+                    [matTooltip]="'Open full documentation' | tr"
                     >open_in_new</mat-icon
                   >
                 </a>
               </span>
               @if (accordionItem.expanded) {
                 <div class="accordion-item-body">
-                  <span class="mat-body-1"> Use to search {{ searchView.dataType }} data. </span>
-                  <span class="mat-body-2">Spec:</span>
+                  <span class="mat-body-1">
+                    {{ 'Use to search {type} data.' | tr: {type: (searchView.dataType | tr)} }}
+                  </span>
+                  <span class="mat-body-2">{{ 'Spec:' | tr }}</span>
                   <table>
                     @for (column of searchView.columns; track column.name) {
                       <tr>
                         <td
                           ><code>{{ column.name }}</code></td
                         >
-                        <td class="mat-body-1">{{ column.desc }}</td>
+                        <td class="mat-body-1">{{ column.desc | tr }}</td>
                       </tr>
                     }
                   </table>
-                  <span class="mat-body-2"> Examples: </span>
+                  <span class="mat-body-2"> {{ 'Examples:' | tr }} </span>
                   @for (example of searchView.examples; track example.query) {
                     <pre><code>{{example.query}}</code></pre>
                     <span class="mat-body-1 indented"
-                      ><i>{{ example.desc }}</i></span
+                      ><i>{{ example.desc | tr }}</i></span
                     >
                   }
                 </div>

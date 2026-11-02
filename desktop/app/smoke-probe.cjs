@@ -29,6 +29,9 @@ async function run({ app, getWindow, services }) {
     "homepage",
   );
   const initialLanguage = await evaluate("document.documentElement.lang");
+  const initialConfirmTraceReset = await evaluate(
+    "localStorage.getItem('confirm-trace-reset') !== 'false'",
+  );
   const initialLanguagePreference = await evaluate(
     "localStorage.getItem('language') || 'system'",
   );
@@ -78,6 +81,13 @@ async function run({ app, getWindow, services }) {
         evaluate("document.querySelector('.display-scale-select') !== null"),
       "display-size presets",
     );
+    assert.equal(
+      await evaluate(
+        "document.querySelector('.confirm-trace-reset input[type=checkbox]').checked",
+      ),
+      await evaluate("localStorage.getItem('confirm-trace-reset') !== 'false'"),
+      "General settings reflects the restored confirmation preference",
+    );
     const presets = await evaluate(
       "[...document.querySelector('.display-scale-select').options].map(option=>option.textContent.trim())",
     );
@@ -125,8 +135,9 @@ async function run({ app, getWindow, services }) {
   async function checkTitleBar(label) {
     const metrics = await evaluate(`(() => {
       const box = e => {const r=e.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom};};
-      const bar=document.querySelector('.toolbar'),logo=bar.querySelector('.logo'),actions=bar.querySelector('.icon-actions');
+      const bar=document.querySelector('.toolbar'),logo=bar.querySelector('.logo'),actions=bar.querySelector('.icon-actions'),file=bar.querySelector('.download-file-info');
       return {viewport:{width:innerWidth,height:innerHeight},bar:box(bar),logo:box(logo),actions:box(actions),drag:getComputedStyle(bar).webkitAppRegion,actionsDrag:getComputedStyle(actions).webkitAppRegion,
+        fileCenterOffset:file?Math.abs((file.getBoundingClientRect().y+file.getBoundingClientRect().height/2)-(bar.getBoundingClientRect().y+bar.getBoundingClientRect().height/2)):null,
         buttons:[...bar.querySelectorAll('button')].filter(e=>e.getClientRects().length).map(e=>({name:e.className,...box(e),drag:getComputedStyle(e).webkitAppRegion}))};
     })()`);
     assert.equal(
@@ -141,6 +152,11 @@ async function run({ app, getWindow, services }) {
     );
     assert.equal(metrics.drag, "drag");
     assert.equal(metrics.actionsDrag, "no-drag");
+    if (metrics.fileCenterOffset !== null)
+      assert.ok(
+        metrics.fileCenterOffset < 1,
+        `${label}: filename text is vertically centered`,
+      );
     if (process.platform === "darwin")
       assert.ok(
         metrics.logo.x >= 88,
@@ -290,6 +306,7 @@ async function run({ app, getWindow, services }) {
 
   let traceLoaded = false;
   let traceResetVerified = false;
+  let resetConfirmationVerified = false;
   const paneHeaderEvidence = [];
   const fixture = process.env.WINSCOPE_DESKTOP_SMOKE_TRACE;
   if (fixture) {
@@ -381,13 +398,130 @@ async function run({ app, getWindow, services }) {
         ),
         false,
       );
-      await evaluate("document.querySelector('.reset-traces-button').click()");
+      async function openResetConfirmation() {
+        await evaluate(
+          "document.querySelector('.reset-traces-button').click()",
+        );
+        await until(
+          () => evaluate("document.querySelector('warning-dialog') !== null"),
+          "reset confirmation",
+        );
+        await until(
+          () =>
+            evaluate(
+              "document.activeElement?.matches('warning-dialog .warning-action-buttons button.not-last')",
+            ),
+          "Cancel receives initial focus",
+        );
+        assert.equal(
+          await evaluate("document.querySelector('.viewers') !== null"),
+          true,
+          "Opening confirmation must not clear trace data",
+        );
+        const bounds = await evaluate(
+          "(()=>{const r=document.querySelector('.cdk-overlay-pane:has(warning-dialog)').getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:innerWidth,height:innerHeight}})()",
+        );
+        assert.ok(
+          bounds.left >= -1 &&
+            bounds.right <= bounds.width + 1 &&
+            bounds.top >= -1 &&
+            bounds.bottom <= bounds.height + 1,
+          JSON.stringify(bounds),
+        );
+      }
+      async function closeResetConfirmation(confirm, doNotAskAgain) {
+        await evaluate(`(() => {
+          const dialog=document.querySelector('warning-dialog'),checkbox=dialog.querySelector('input[type=checkbox]');
+          if(checkbox.checked!==${doNotAskAgain}) checkbox.click();
+          dialog.querySelector(${JSON.stringify(confirm ? ".warning-action-buttons button:last-child" : ".warning-action-buttons button.not-last")}).click();
+        })()`);
+        await until(
+          () => evaluate("document.querySelector('warning-dialog') === null"),
+          "reset confirmation closes",
+        );
+      }
+      async function waitForCollection() {
+        await until(
+          () =>
+            evaluate(
+              "document.querySelector('.landing-grid .collect-card') !== null && document.querySelector('.landing-grid .upload-card') !== null && document.querySelector('.viewers') === null && document.querySelector('timeline') === null && document.querySelector('.reset-traces-button').disabled && Math.abs(document.querySelector('.landing-status-bar').getBoundingClientRect().bottom-innerHeight)<1",
+            ),
+          "reset returns to empty collection workspace",
+        );
+      }
+      async function setResetConfirmation(enabled) {
+        await evaluate(
+          "document.querySelector('.toolbar .settings-button').click()",
+        );
+        await until(
+          () =>
+            evaluate(
+              "document.querySelector('.confirm-trace-reset input[type=checkbox]') !== null",
+            ),
+          "reset confirmation setting",
+        );
+        await evaluate(
+          `(() => {const checkbox=document.querySelector('.confirm-trace-reset input[type=checkbox]');if(checkbox.checked!==${enabled}) checkbox.click();})()`,
+        );
+        await until(
+          () =>
+            evaluate(
+              `localStorage.getItem('confirm-trace-reset') === '${enabled}'`,
+            ),
+          "confirmation preference persists",
+        );
+        await evaluate(
+          "document.querySelector('.settings-close-button').click()",
+        );
+        await until(
+          () => evaluate("document.querySelector('app-settings') === null"),
+          "settings close",
+        );
+      }
+
+      await selectDisplayScale(140);
+      win.setContentSize(800, 600);
+      await openResetConfirmation();
+      await fs.writeFile(
+        path.join(output, "reset-confirmation-scaled.png"),
+        (await contents.capturePage()).toPNG(),
+      );
+      await closeResetConfirmation(false, true);
+      assert.equal(
+        await evaluate(
+          "document.querySelector('.viewers') !== null && localStorage.getItem('confirm-trace-reset') !== 'false'",
+        ),
+        true,
+        "Cancel must not suppress future confirmation",
+      );
+      win.setContentSize(1440, 960);
+      await selectDisplayScale(100);
+      await openResetConfirmation();
+      await contents.debugger.sendCommand("Input.dispatchKeyEvent", {
+        type: "keyDown",
+        key: "Escape",
+        code: "Escape",
+        windowsVirtualKeyCode: 27,
+      });
+      await contents.debugger.sendCommand("Input.dispatchKeyEvent", {
+        type: "keyUp",
+        key: "Escape",
+        code: "Escape",
+        windowsVirtualKeyCode: 27,
+      });
       await until(
         () =>
           evaluate(
-            "document.querySelector('.landing-grid .collect-card') !== null && document.querySelector('.landing-grid .upload-card') !== null && document.querySelector('.viewers') === null && document.querySelector('timeline') === null && document.querySelector('.reset-traces-button').disabled",
+            "document.querySelector('warning-dialog') === null && document.querySelector('.viewers') !== null",
           ),
-        "reset returns to empty collection workspace",
+        "Escape cancels without clearing data",
+      );
+      await openResetConfirmation();
+      await closeResetConfirmation(true, true);
+      await waitForCollection();
+      assert.equal(
+        await evaluate("localStorage.getItem('confirm-trace-reset')"),
+        "false",
       );
       assert.deepEqual(
         await evaluate(
@@ -405,6 +539,23 @@ async function run({ app, getWindow, services }) {
       );
       traceResetVerified = true;
       await loadFixture();
+      await evaluate("document.querySelector('.reset-traces-button').click()");
+      await waitForCollection();
+      assert.equal(
+        await evaluate("document.querySelector('warning-dialog') === null"),
+        true,
+        "Do not ask again bypasses the dialog",
+      );
+      await setResetConfirmation(true);
+      await loadFixture();
+      await openResetConfirmation();
+      await closeResetConfirmation(false, false);
+      assert.equal(
+        await evaluate("document.querySelector('.viewers') !== null"),
+        true,
+      );
+      await setResetConfirmation(false);
+      resetConfirmationVerified = true;
     } finally {
       contents.debugger.detach();
     }
@@ -425,10 +576,12 @@ async function run({ app, getWindow, services }) {
     initialLanguagePreference,
     systemLanguage,
     initialDisplayScale,
+    initialConfirmTraceReset,
     displayScale: 80,
     homepageScaleEvidence,
     paneHeaderEvidence,
     traceResetVerified,
+    resetConfirmationVerified,
     aiOrigin: services.aiOrigin,
     launcherPid: services.launcherPid,
     aiPid: services.aiPid,
@@ -449,6 +602,9 @@ async function run({ app, getWindow, services }) {
             "toolbar-reset-and-reload-trace",
             "pane-header-equal-height-and-vertical-centering",
           ]
+        : []),
+      ...(resetConfirmationVerified
+        ? ["reset-confirm-cancel-escape-suppress-and-restore"]
         : []),
     ],
     devicesDetected: devices.value.length,

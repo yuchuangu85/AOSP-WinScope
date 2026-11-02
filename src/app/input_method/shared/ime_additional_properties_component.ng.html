@@ -17,7 +17,7 @@ limitations under the License.
 <div class="title-section">
   <collapsible-section-title
     class="view-header"
-    title="WM & SF PROPERTIES"
+    [title]="'WM & SF PROPERTIES' | tr"
     (collapseButtonClicked)="collapseButtonClicked.emit()"
   ></collapsible-section-title>
 </div>
@@ -25,14 +25,16 @@ limitations under the License.
 @let props = additionalProperties();
 
 @if (!props) {
-  <span class="mat-body-1 placeholder-text"> No IME entry found. </span>
+  <span class="mat-body-1 placeholder-text"> {{ 'No IME entry found.' | tr }} </span>
 } @else {
   <div class="additional-properties-content">
     @if (isAllPropertiesUndefined()) {
       <div class="group">
         <p class="mat-body-1">
-          There is no corresponding WM / SF properties for this IME entry – no WM / SF entry is
-          recorded before this IME entry in time. View later frames for WM & SF properties.
+          {{
+            'There is no corresponding WM / SF properties for this IME entry – no WM / SF entry is recorded before this IME entry in time. View later frames for WM & SF properties.'
+              | tr
+          }}
         </p>
       </div>
     }
@@ -57,7 +59,7 @@ limitations under the License.
             <p class="mat-body-1">{{ wmRootLabel() }}</p>
           }
           @if (!props.wm) {
-            <p class="mat-body-1">There is no corresponding WMState entry.</p>
+            <p class="mat-body-1">{{ 'There is no corresponding WMState entry.' | tr }}</p>
           }
         </div>
       </div>
@@ -72,23 +74,23 @@ limitations under the License.
               onClickShowInPropertiesPanelWm(wmInsetsSourceProvider(), 'Ime Insets Source Provider')
             "
           >
-            IME Insets Source Provider
+            {{ 'IME Insets Source Provider' | tr }}
           </button>
           <div class="left-column">
-            <p class="mat-body-2">Source Frame:</p>
+            <p class="mat-body-2">{{ 'Source Frame:' | tr }}</p>
             <coordinates-table
               [coordinates]="wmInsetsSourceProviderSourceFrame()"
             ></coordinates-table>
             <p class="mat-body-1">
-              <span class="mat-body-2">Source Visible:</span>
+              <span class="mat-body-2">{{ 'Source Visible:' | tr }}</span>
               &ngsp; {{ wmInsetsSourceProviderSourceVisible() }}
             </p>
-            <p class="mat-body-2">Source Visible Frame:</p>
+            <p class="mat-body-2">{{ 'Source Visible Frame:' | tr }}</p>
             <coordinates-table
               [coordinates]="wmInsetsSourceProviderSourceVisibleFrame()"
             ></coordinates-table>
             <p class="mat-body-1">
-              <span class="mat-body-2">Position:</span>
+              <span class="mat-body-2">{{ 'Position:' | tr }}</span>
               &ngsp; {{ wmInsetsSourceProviderPosition() }}
             </p>
             <p class="mat-body-1">
@@ -96,7 +98,7 @@ limitations under the License.
               &ngsp; {{ wmInsetsSourceProviderIsLeashReady() }}
             </p>
             <p class="mat-body-1">
-              <span class="mat-body-2">Controllable:</span>
+              <span class="mat-body-2">{{ 'Controllable:' | tr }}</span>
               &ngsp; {{ wmInsetsSourceProviderControllable() }}
             </p>
           </div>
@@ -111,12 +113,12 @@ limitations under the License.
             [class]="{selected: isHighlighted(wmImeControlTarget())}"
             (click)="onClickShowInPropertiesPanelWm(wmImeControlTarget(), 'Ime Control Target')"
           >
-            IME Control Target
+            {{ 'IME Control Target' | tr }}
           </button>
           <div class="left-column">
             @if (wmImeControlTargetTitle()) {
               <p class="mat-body-1">
-                <span class="mat-body-2">Title:</span>
+                <span class="mat-body-2">{{ 'Title:' | tr }}</span>
                 &ngsp; {{ wmImeControlTargetTitle() }}
               </p>
             }
@@ -132,12 +134,12 @@ limitations under the License.
             [class]="{selected: isHighlighted(wmImeInputTarget())}"
             (click)="onClickShowInPropertiesPanelWm(wmImeInputTarget(), 'Ime Input Target')"
           >
-            IME Input Target
+            {{ 'IME Input Target' | tr }}
           </button>
           <div class="left-column">
             @if (wmImeInputTargetTitle()) {
               <p class="mat-body-1">
-                <span class="mat-body-2">Title:</span>
+                <span class="mat-body-2">{{ 'Title:' | tr }}</span>
                 &ngsp; {{ wmImeInputTargetTitle() }}
               </p>
             }
@@ -153,12 +155,12 @@ limitations under the License.
             [class]="{selected: isHighlighted(wmImeLayeringTarget())}"
             (click)="onClickShowInPropertiesPanelWm(wmImeLayeringTarget(), 'Ime Layering Target')"
           >
-            IME Layering Target
+            {{ 'IME Layering Target' | tr }}
           </button>
           <div class="left-column">
             @if (wmImeLayeringTargetTitle()) {
               <p class="mat-body-1">
-                <span class="mat-body-2">Title:</span>
+                <span class="mat-body-2">{{ 'Title:' | tr }}</span>
                 &ngsp; {{ wmImeLayeringTargetTitle() }}
               </p>
             }
@@ -185,7 +187,7 @@ limitations under the License.
           @if (props.wm) {
             <p class="mat-body-1">{{ wmRootLabel() }}</p>
           } @else {
-            <p class="mat-body-1">There is no corresponding WMState entry.</p>
+            <p class="mat-body-1">{{ 'There is no corresponding WMState entry.' | tr }}</p>
           }
         </div>
       </div>
@@ -195,49 +197,49 @@ limitations under the License.
           @if (props.sf) {
             <p class="mat-body-1">{{ sfRootLabel() }}</p>
           } @else {
-            <p class="mat-body-1">There is no corresponding SFLayer entry.</p>
+            <p class="mat-body-1">{{ 'There is no corresponding SFLayer entry.' | tr }}</p>
           }
         </div>
       </div>
       @if (props.wm) {
         <div class="group focus">
-          <h3 class="group-header mat-subtitle-1">Focus</h3>
+          <h3 class="group-header mat-subtitle-1">{{ 'Focus' | tr }}</h3>
           <div class="left-column">
             <p class="mat-body-1">
-              <span class="mat-body-2">Focused App:</span>
+              <span class="mat-body-2">{{ 'Focused App:' | tr }}</span>
               &ngsp; {{ props.wm.wmStateProperties.focusedApp }}
             </p>
             <p class="mat-body-1">
-              <span class="mat-body-2">Focused Activity:</span>
+              <span class="mat-body-2">{{ 'Focused Activity:' | tr }}</span>
               &ngsp; {{ props.wm.wmStateProperties.focusedActivity }}
             </p>
             <p class="mat-body-1">
-              <span class="mat-body-2">Focused Window:</span>
+              <span class="mat-body-2">{{ 'Focused Window:' | tr }}</span>
               &ngsp; {{ props.wm.wmStateProperties.focusedWindow ?? 'null' }}
             </p>
             @if (props.sf) {
               <p class="mat-body-1">
-                <span class="mat-body-2">Focused Window Color:</span>
+                <span class="mat-body-2">{{ 'Focused Window Color:' | tr }}</span>
                 &ngsp; {{ formattedWindowColor() }}
               </p>
             }
-            <p class="mat-body-2">Input Control Target Frame:</p>
+            <p class="mat-body-2">{{ 'Input Control Target Frame:' | tr }}</p>
             <coordinates-table [coordinates]="wmControlTargetFrame()"></coordinates-table>
           </div>
         </div>
       }
       <div class="group visibility">
-        <h3 class="group-header mat-subtitle-1">Visibility</h3>
+        <h3 class="group-header mat-subtitle-1">{{ 'Visibility' | tr }}</h3>
         <div class="left-column">
           @if (props.wm) {
             <p class="mat-body-1">
-              <span class="mat-body-2">InputMethod Window:</span>
+              <span class="mat-body-2">{{ 'InputMethod Window:' | tr }}</span>
               &ngsp; {{ props.wm.wmStateProperties.isInputMethodWindowVisible }}
             </p>
           }
           @if (props.sf) {
             <p class="mat-body-1">
-              <span class="mat-body-2">InputMethod Surface:</span>
+              <span class="mat-body-2">{{ 'InputMethod Surface:' | tr }}</span>
               &ngsp; {{ props.sf.properties.inputMethodSurface?.isVisible ?? false }}
             </p>
           }
@@ -253,7 +255,7 @@ limitations under the License.
               [class]="{selected: isHighlighted(imeContainer)}"
               (click)="onClickShowInPropertiesPanelSf($any(imeContainer))"
             >
-              Ime Container
+              {{ 'Ime Container' | tr }}
             </button>
           }
           <div class="left-column">
@@ -278,15 +280,15 @@ limitations under the License.
               }"
               (click)="onClickShowInPropertiesPanelSf($any(inputMethodSurface))"
             >
-              Input Method Surface
+              {{ 'Input Method Surface' | tr }}
             </button>
           }
           <div class="left-column">
-            <p class="mat-body-2">Screen Bounds:</p>
+            <p class="mat-body-2">{{ 'Screen Bounds:' | tr }}</p>
             <coordinates-table [coordinates]="sfImeContainerScreenBounds()"></coordinates-table>
           </div>
           <div class="right-column">
-            <p class="mat-body-2">Rect:</p>
+            <p class="mat-body-2">{{ 'Rect:' | tr }}</p>
             <coordinates-table [coordinates]="sfImeContainerRect()"></coordinates-table>
           </div>
         </div>

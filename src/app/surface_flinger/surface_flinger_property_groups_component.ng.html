@@ -16,27 +16,30 @@ limitations under the License.
 
 <div class="title-section">
   <collapsible-section-title
-    title="PROPERTIES"
+    [title]="'PROPERTIES' | tr"
     (collapseButtonClicked)="collapseButtonClicked.emit()"
   ></collapsible-section-title>
 </div>
 
 @let props = properties();
 @if (!props) {
-  <span class="mat-body-1 placeholder-text"> Layer not selected. </span>
+  <span class="mat-body-1 placeholder-text"> {{ 'Layer not selected.' | tr }} </span>
 } @else {
   <div class="property-groups-content">
     <div class="group">
-      <h3 class="group-header mat-subtitle-1">Visibility</h3>
+      <h3 class="group-header mat-subtitle-1">{{ 'Visibility' | tr }}</h3>
       <div class="left-column">
         <p class="mat-body-2 flags">
-          <span class="mat-body-1">Flags:</span>
+          <span class="mat-body-1">{{ 'Flags:' | tr }}</span>
           &ngsp; {{ props.flags }}
         </p>
         @for (summaryProperty of props.summary; track summaryProperty.key) {
           <span class="mat-body-2 summary inline">
-            <span class="mat-body-1" [matTooltip]="summaryProperty.desc" [matTooltipShowDelay]="400"
-              >{{ summaryProperty.key }}:</span
+            <span
+              class="mat-body-1"
+              [matTooltip]="summaryProperty.desc ?? '' | tr"
+              [matTooltipShowDelay]="400"
+              >{{ summaryProperty.key | tr }}:</span
             >
             @if (summaryProperty.simpleValue) {
               {{ summaryProperty.simpleValue }}
@@ -63,15 +66,17 @@ limitations under the License.
     <mat-divider></mat-divider>
 
     <div class="group geometry">
-      <h3 class="group-header mat-subtitle-1">Geometry</h3>
+      <h3 class="group-header mat-subtitle-1">{{ 'Geometry' | tr }}</h3>
       <div class="left-column">
-        <p class="column-header mat-small">Calculated</p>
+        <p class="column-header mat-small">{{ 'Calculated' | tr }}</p>
         <p
           class="property mat-body-1"
-          matTooltip="Requested transform multiplied by any parent transforms.
-                  Used on calculated crop to generate final bounds."
+          [matTooltip]="
+            'Requested transform multiplied by any parent transforms. Used on calculated crop to generate final bounds.'
+              | tr
+          "
         >
-          Transform:
+          {{ 'Transform:' | tr }}
         </p>
         @if ((props.calcTransform?.getAllChildren()?.length ?? 0) > 0) {
           <transform-matrix
@@ -82,9 +87,11 @@ limitations under the License.
         <p class="mat-body-2 crop">
           <span
             class="mat-body-1"
-            matTooltip="Raw value read from proto.bounds. This is the buffer size or
-                    requested crop, cropped by parent bounds."
-            >Crop:</span
+            [matTooltip]="
+              'Raw value read from proto.bounds. This is the buffer size or requested crop, cropped by parent bounds.'
+                | tr
+            "
+            >{{ 'Crop:' | tr }}</span
           >
           &ngsp; {{ props.calcCrop }}
         </p>
@@ -92,20 +99,24 @@ limitations under the License.
         <p class="mat-body-2 final-bounds">
           <span
             class="mat-body-1"
-            matTooltip="Raw value read from proto.screenBounds. This is the calculated crop
-                    transformed by calculated transform."
-            >Final Bounds:</span
+            [matTooltip]="
+              'Raw value read from proto.screenBounds. This is the calculated crop transformed by calculated transform.'
+                | tr
+            "
+            >{{ 'Final Bounds:' | tr }}</span
           >
           &ngsp; {{ props.finalBounds }}
         </p>
       </div>
       <div class="right-column">
-        <p class="column-header mat-small">Requested</p>
+        <p class="column-header mat-small">{{ 'Requested' | tr }}</p>
         <p
           class="property mat-body-1"
-          matTooltip="Transform requested for this layer, not accounting for parent transforms."
+          [matTooltip]="
+            'Transform requested for this layer, not accounting for parent transforms.' | tr
+          "
         >
-          Transform:
+          {{ 'Transform:' | tr }}
         </p>
         @if ((props.reqTransform?.getAllChildren()?.length ?? 0) > 0) {
           <transform-matrix
@@ -114,7 +125,7 @@ limitations under the License.
           ></transform-matrix>
         }
         <p class="mat-body-2 crop">
-          <span class="mat-body-1" matTooltip="Requested crop">Crop:</span>
+          <span class="mat-body-1" [matTooltip]="'Requested crop' | tr">{{ 'Crop:' | tr }}</span>
           &ngsp; {{ props.reqCrop }}
         </p>
       </div>
@@ -123,26 +134,27 @@ limitations under the License.
     <mat-divider></mat-divider>
 
     <div class="group buffer">
-      <h3 class="group-header mat-subtitle-1">Buffer</h3>
+      <h3 class="group-header mat-subtitle-1">{{ 'Buffer' | tr }}</h3>
       <div class="left-column">
         <p
           class="mat-body-2 size"
-          matTooltip="Width, height, stride and format of active buffer, if available."
+          [matTooltip]="'Width, height, stride and format of active buffer, if available.' | tr"
         >
-          <span class="mat-body-1">Size:</span>
+          <span class="mat-body-1">{{ 'Size:' | tr }}</span>
           &ngsp; {{ props.bufferSize }}
         </p>
         <p class="mat-body-2 frame-number">
-          <span class="mat-body-1">Frame Number:</span>
+          <span class="mat-body-1">{{ 'Frame Number:' | tr }}</span>
           &ngsp; {{ props.frameNumber }}
         </p>
         <p class="mat-body-2 transform">
           <span
             class="mat-body-1"
-            matTooltip="Rotates or flips the buffer in place. Used with display transform
-                    hint to cancel out any buffer transformation when sending to
-                    HWC."
-            >Transform:</span
+            [matTooltip]="
+              'Rotates or flips the buffer in place. Used with display transform hint to cancel out any buffer transformation when sending to HWC.'
+                | tr
+            "
+            >{{ 'Transform:' | tr }}</span
           >
           &ngsp; {{ props.bufferTransformType }}
         </p>
@@ -151,15 +163,18 @@ limitations under the License.
         <p class="mat-body-2 dest-frame">
           <span
             class="mat-body-1"
-            matTooltip="Scales buffer to the frame by overriding the requested transform
-                    for this item."
-            >Destination Frame:</span
+            [matTooltip]="
+              'Scales buffer to the frame by overriding the requested transform for this item.' | tr
+            "
+            >{{ 'Destination Frame:' | tr }}</span
           >
           &ngsp; {{ props.destinationFrame }}
         </p>
         @if (props.ignoreDestinationFrame) {
           <p class="mat-body-2 ignore-frame">
-            Destination Frame ignored because item has eIgnoreDestinationFrame flag set.
+            {{
+              'Destination Frame ignored because item has eIgnoreDestinationFrame flag set.' | tr
+            }}
           </p>
         }
       </div>
@@ -168,18 +183,20 @@ limitations under the License.
     <mat-divider></mat-divider>
 
     <div class="group hierarchy-info">
-      <h3 class="group-header mat-subtitle-1">Hierarchy</h3>
+      <h3 class="group-header mat-subtitle-1">{{ 'Hierarchy' | tr }}</h3>
       <div class="left-column">
         <p class="mat-body-2 z-order">
-          <span class="mat-body-1">Z-order:</span>
+          <span class="mat-body-1">{{ 'Z-order:' | tr }}</span>
           &ngsp; {{ props.z }}
         </p>
         <p class="mat-body-2 rel-parent inline">
           <span
             class="mat-body-1"
-            matTooltip="Item is z-ordered relative to its relative parents but its bounds
-                    and other properties are inherited from its parents."
-            >Relative Parent:</span
+            [matTooltip]="
+              'Item is z-ordered relative to its relative parents but its bounds and other properties are inherited from its parents.'
+                | tr
+            "
+            >{{ 'Relative Parent:' | tr }}</span
           >
           &ngsp;
           @if (!isSfLayerSummary(props.relativeParent)) {
@@ -196,10 +213,10 @@ limitations under the License.
           }
         </p>
         <span class="mat-body-2 rel-children inline">
-          <span class="mat-body-1">Relative Children:</span>
+          <span class="mat-body-1">{{ 'Relative Children:' | tr }}</span>
           &ngsp;
           @if (props.relativeChildren.length === 0) {
-            none
+            {{ 'none' | tr }}
           } @else {
             @for (layer of props.relativeChildren; track layer.nodeId; let i = $index) {
               <button
@@ -220,57 +237,66 @@ limitations under the License.
     <mat-divider></mat-divider>
 
     <div class="group effects">
-      <h3 class="group-header mat-subtitle-1">Effects</h3>
+      <h3 class="group-header mat-subtitle-1">{{ 'Effects' | tr }}</h3>
       <div class="left-column">
-        <p class="column-header mat-small">Calculated</p>
+        <p class="column-header mat-small">{{ 'Calculated' | tr }}</p>
         <p class="mat-body-2 color">
           <span
             class="mat-body-1"
-            matTooltip="Final color - alpha may be inherited from a parent layer."
-            >Color:</span
+            [matTooltip]="'Final color - alpha may be inherited from a parent layer.' | tr"
+            >{{ 'Color:' | tr }}</span
           >
           &ngsp; {{ props.calcColor }}
         </p>
         <p class="mat-body-2 corner-radius">
           <span
             class="mat-body-1"
-            matTooltip="Final corner radii (<TL>, <TR>, <BL>, <BR>) - may be affected by parent corner radii."
-            >Corner Radii:</span
+            [matTooltip]="
+              'Final corner radii (<TL>, <TR>, <BL>, <BR>) - may be affected by parent corner radii.'
+                | tr
+            "
+            >{{ 'Corner Radii:' | tr }}</span
           >
           &ngsp; {{ props.calcCornerRadii }}
         </p>
         <p class="mat-body-2 shadow">
-          <span class="mat-body-1">Shadow Radius:</span>
+          <span class="mat-body-1">{{ 'Shadow Radius:' | tr }}</span>
           &ngsp; {{ props.calcShadowRadius }}
         </p>
         <p class="mat-body-2">
           <span
             class="mat-body-1"
-            matTooltip="Crop used to define the bounds of the corner radii. If the bounds
-                    are greater than the item bounds then the rounded corner will not
-                    be visible."
-            >Corner Radius Crop:</span
+            [matTooltip]="
+              'Crop used to define the bounds of the corner radii. If the bounds are greater than the item bounds then the rounded corner will not be visible.'
+                | tr
+            "
+            >{{ 'Corner Radius Crop:' | tr }}</span
           >
           &ngsp; {{ props.calcCornerRadiusCrop }}
         </p>
         <p class="mat-body-2 blur">
-          <span class="mat-body-1">Blur Radius:</span>
+          <span class="mat-body-1">{{ 'Blur Radius:' | tr }}</span>
           &ngsp; {{ props.backgroundBlurRadius }}
         </p>
       </div>
       <div class="right-column">
-        <p class="column-header mat-small">Requested</p>
+        <p class="column-header mat-small">{{ 'Requested' | tr }}</p>
         <p class="mat-body-2">
-          <span class="mat-body-1" matTooltip="Requested color and alpha for this layer."
-            >Color:</span
+          <span
+            class="mat-body-1"
+            [matTooltip]="'Requested color and alpha for this layer.' | tr"
+            >{{ 'Color:' | tr }}</span
           >
           &ngsp; {{ props.reqColor }}
         </p>
         <p class="mat-body-2 corner-radius">
           <span
             class="mat-body-1"
-            matTooltip="Requested corner radii (<TL>, <TR>, <BL>, <BR>) not accounting for any parent values."
-            >Corner Radii:</span
+            [matTooltip]="
+              'Requested corner radii (<TL>, <TR>, <BL>, <BR>) not accounting for any parent values.'
+                | tr
+            "
+            >{{ 'Corner Radii:' | tr }}</span
           >
           &ngsp; {{ props.reqCornerRadii }}
         </p>
@@ -280,10 +306,10 @@ limitations under the License.
     <mat-divider></mat-divider>
 
     <div class="group inputs">
-      <h3 class="group-header mat-subtitle-1">Input</h3>
+      <h3 class="group-header mat-subtitle-1">{{ 'Input' | tr }}</h3>
       @if (props.hasInputChannel) {
         <div class="left-column">
-          <p class="property mat-body-1">To Display Transform:</p>
+          <p class="property mat-body-1">{{ 'To Display Transform:' | tr }}</p>
           @if ((props.inputTransform?.getAllChildren()?.length ?? 0) > 0) {
             <transform-matrix
               [matTooltip]="getTransformType(props.inputTransform)"
@@ -291,34 +317,34 @@ limitations under the License.
             ></transform-matrix>
           }
           <p class="mat-body-2">
-            <span class="mat-body-1">Touchable Region:</span>
+            <span class="mat-body-1">{{ 'Touchable Region:' | tr }}</span>
             &ngsp; {{ props.inputRegion }}
           </p>
         </div>
         <div class="right-column">
-          <p class="column-header mat-small">Config</p>
+          <p class="column-header mat-small">{{ 'Config' | tr }}</p>
           <p class="mat-body-2 focusable">
-            <span class="mat-body-1">Focusable:</span>
+            <span class="mat-body-1">{{ 'Focusable:' | tr }}</span>
             &ngsp; {{ props.focusable }}
           </p>
           <p class="mat-body-2 crop-touch-region">
-            <span class="mat-body-1">Crop touch region with item:</span>
+            <span class="mat-body-1">{{ 'Crop touch region with item:' | tr }}</span>
             &ngsp; {{ props.cropTouchRegionWithItem }}
           </p>
           <p class="mat-body-2 replace-touch-region">
-            <span class="mat-body-1">Replace touch region with crop:</span>
+            <span class="mat-body-1">{{ 'Replace touch region with crop:' | tr }}</span>
             &ngsp; {{ props.replaceTouchRegionWithCrop }}
           </p>
           <p class="mat-body-2 input-config">
-            <span class="mat-body-1">Input Config:</span>
+            <span class="mat-body-1">{{ 'Input Config:' | tr }}</span>
             &ngsp; {{ props.inputConfig }}
           </p>
         </div>
       } @else {
         <div class="left-column">
           <p class="mat-body-2">
-            <span class="mat-body-1">Input Channel:</span>
-            &ngsp; not set
+            <span class="mat-body-1">{{ 'Input Channel:' | tr }}</span>
+            {{ 'not set' | tr }}
           </p>
         </div>
       }

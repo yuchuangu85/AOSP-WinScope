@@ -20,6 +20,7 @@ import {MatCheckboxModule} from '@angular/material/checkbox';
 import {MAT_DIALOG_DATA, MatDialog, MatDialogModule, MatDialogRef,} from '@angular/material/dialog';
 import {MatIconModule} from '@angular/material/icon';
 import {BrowserAnimationsModule, NoopAnimationsModule,} from '@angular/platform-browser/animations';
+import {language} from '@common/i18n';
 import {DOMTestHelper} from '@common/testing/dom_test_helpers';
 
 import {WarningDialogComponent, WarningDialogData, WarningDialogResult,} from './warning_dialog_component';
@@ -51,13 +52,72 @@ describe('WarningDialogComponent', () => {
     dom.detectChanges();
   });
 
+  afterEach(() => language.set('en'));
+
+  it('translates warning actions without changing dialog result identities', async () => {
+    const data: WarningDialogData = {
+      message: 'No trace targets selected.',
+      actions: ['Go back'],
+      options: ['Do not show again'],
+      closeText: 'Collect traces anyway',
+    };
+    const ref = component.dialog.open(WarningDialogComponent, {data});
+    language.set('zh-CN');
+    ref.componentRef?.changeDetectorRef.detectChanges();
+    dom.detectChanges();
+    const dialog = dom.getInDocument('warning-dialog');
+    dialog.get('.warning-message').checkText('未选择跟踪目标。');
+    dialog.get('.warning-action-buttons').checkText('返回');
+    dialog.get('.warning-action-buttons').checkText('仍然采集跟踪');
+    ref.componentInstance.updateSelectedOptions('Do not show again');
+    expect(
+      ref.componentInstance.getDialogResult('Collect traces anyway'),
+    ).toEqual({
+      selectedOptions: ['Do not show again'],
+      closeActionText: 'Collect traces anyway',
+    });
+    expect(data.closeText).toBe('Collect traces anyway');
+    ref.close();
+    await dom.whenStable();
+  });
+
+  it('does not translate filename options that happen to match a UI label', async () => {
+    const ref = component.dialog.open(WarningDialogComponent, {data: {
+      message: 'Multiple Perfetto traces found. Select one to process:',
+      actions: [], options: ['Save'], closeText: 'Process selected trace', localizeOptions: false,
+    }});
+    language.set('zh-CN');
+    dom.detectChanges();
+    await dom.whenStable();
+    const dialog = dom.findInDocument('warning-dialog');
+    expect(dialog?.getHTMLElement().querySelector('mat-checkbox')?.textContent?.trim()).toBe('Save');
+    ref.close();
+    await dom.whenStable();
+  });
+
   it('can be created', () => {
     expect(dom.findInDocument('warning-dialog')).toBeUndefined();
     openAndReturnDialog();
   });
 
+  it('supports a translated confirmation title', async () => {
+    const ref = component.dialog.open(WarningDialogComponent, {data: {
+      title: 'Reset trace data?',
+      message: 'Clear the loaded trace data and return to collection? Original files will not be deleted.',
+      actions: ['Cancel'], options: ['Do not ask again'], closeText: 'Reset trace data',
+    }});
+    language.set('zh-CN');
+    ref.componentRef?.changeDetectorRef.detectChanges();
+    const dialog = dom.getInDocument('warning-dialog');
+    dialog.get('.warning-dialog-title').checkText('确认重置数据？');
+    dialog.get('.warning-action-boxes').checkText('不再提示');
+    ref.close();
+    await dom.whenStable();
+  });
+
   it('renders warning message, action boxes and buttons', () => {
     const dialog = openAndReturnDialog();
+    dialog.get('.warning-dialog-title').checkText('Warning');
 
     const content = dialog.get('.warning-content');
     content.get('.warning-message').checkText('test message');

@@ -18,7 +18,7 @@ import {CommandProvider, createDefaultProviderRegistry} from '../providers';
 import {AgentRegistry} from '../registry';
 import {AgentRuntime} from '../runtime';
 import {SkillRegistry} from '../skills';
-import {ProviderDescriptor} from '../types';
+import {AiSelection, ProviderDescriptor} from '../types';
 
 async function fixture(
   options: {
@@ -200,7 +200,7 @@ test('Claude imports configured default, aliases and custom picker without expos
     );
     assert.doesNotMatch(
       JSON.stringify(provider.descriptor),
-      /SECRET_TOKEN|URL_PASSWORD|QUERY_SECRET|FRAGMENT_SECRET|url-user|ANTHROPIC_AUTH_TOKEN/,
+      /SECRET_TOKEN|URL_PASSWORD|QUERY_SECRET|FRAGMENT_SECRET|url-user/,
     );
     const result = JSON.parse(
       (
@@ -259,7 +259,7 @@ test('Codex metadata counts only selected provider credentials and supported eff
         ...(item.providerName ? {providerName: item.providerName} : {}),
         ...(item.reasoningLevel ? {reasoningLevel: item.reasoningLevel} : {}),
       });
-      assert.doesNotMatch(JSON.stringify(provider.descriptor), /SECRET_TOKEN|UNRELATED_SECRET|env_key|api_key|experimental_bearer_token|WINSCOPE_TEST_PROVIDER_KEY/);
+      assert.doesNotMatch(JSON.stringify(provider.descriptor), /SECRET_TOKEN|UNRELATED_SECRET|env_key|api_key|experimental_bearer_token/);
     } finally {
       await context.cleanup();
     }
@@ -284,7 +284,8 @@ test('Claude metadata follows merged environment and never mistakes CLI-managed 
       baseUrl: 'http://127.0.0.1:8080/v1',
       reasoningLevel: 'medium',
     });
-    assert.doesNotMatch(JSON.stringify(provider.descriptor), /SECRET|url-user|ANTHROPIC_/);
+    assert.equal(provider.descriptor.configuration?.apiKeyEnv, 'ANTHROPIC_API_KEY');
+    assert.doesNotMatch(JSON.stringify(provider.descriptor), /SECRET|url-user/);
     for (const effortLevel of ['low', 'medium', 'high', 'max', null, {secret: 'SECRET_TOKEN'}]) {
       await writeFile(join(context.home, '.claude/settings.json'), JSON.stringify({
         effortLevel,
@@ -529,6 +530,9 @@ test('gateway serializes imports and blocks starting turns while their provider 
     });
     assert.equal(duplicate.status, 409);
     await duplicate.text();
+    const save = await post('/api/settings', {selection: {agentId: 'display-anomaly', providerId: 'codex', modelId: 'default', customModel: '', reasoningLevel: 'medium'}});
+    assert.equal(save.status, 409);
+    await save.text();
     const start = await post('/api/analyze', {
       providerId: 'codex',
       prompt: 'must not start',
@@ -722,3 +726,81 @@ test('CLI default and omitted models inherit configured model effort restriction
     }
   }
 });
+
+for (const id of ['codex', 'claude'] as const) {
+  test(`${id} import persists only a marker; unchanged saves and restart preserve CLI ownership`, async () => {
+    const context = await fixture();
+    const settingsPath = join(context.home, '.winscope', 'ai-settings.json');
+    const sourcePath = join(context.home, id === 'codex' ? '.codex/config.toml' : '.claude/settings.json');
+    const originalSource = await readFile(sourcePath, 'utf8');
+    let providers = createDefaultProviderRegistry();
+    let gateway = new AiGateway(new AgentRuntime(new AgentRegistry(), new SkillRegistry(), providers), context.options, {settingsPath});
+    const listen = async () => {
+      await gateway.listen(0);
+      const address = gateway.server.address(); assert.ok(address && typeof address === 'object');
+      return `http://127.0.0.1:${address.port}`;
+    };
+    let base = await listen();
+    const post = (path: string, body: unknown) => fetch(`${base}${path}`, {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify(body)});
+    try {
+      const imported = await post('/api/providers/import-local', {providerId: id});
+      assert.equal(imported.status, 200);
+      const value = await imported.json() as {provider: ProviderDescriptor; selection: AiSelection};
+      assert.equal(value.provider.configured, true);
+      assert.equal(value.provider.configuration?.apiKeyEnv, id === 'codex' ? 'WINSCOPE_TEST_PROVIDER_KEY' : 'ANTHROPIC_AUTH_TOKEN');
+      assert.equal(value.selection.providerId, id);
+      assert.equal(value.selection.modelId, value.provider.defaultModelId);
+      const saved = await post('/api/settings', {selection: value.selection, configuration: value.provider.configuration});
+      assert.equal(saved.status, 200);
+      await saved.text();
+      assert.deepEqual((providers.get(id) as CommandProvider).configurationOverrides, {});
+      let args = JSON.parse((await providers.get(id).run({prompt: 'baseline'})).output).args as string[];
+      assert.ok(!args.some((arg) => /base_url|env_key|model_provider=/.test(arg)), 'sanitized display values must not become CLI overrides');
+      assert.equal(await readFile(sourcePath, 'utf8'), originalSource);
+      let stored = await readFile(settingsPath, 'utf8');
+      assert.doesNotMatch(stored, /SECRET_TOKEN|URL_PASSWORD|QUERY_SECRET|FRAGMENT_SECRET|url-user|executable|cwd|http_headers|rawConfig/);
+      assert.deepEqual(JSON.parse(stored).providers, [{id, importLocal: true, configuration: {}}]);
+      const editedConfiguration = {...value.provider.configuration!, baseUrl: 'https://manual.example/edited', apiKeyEnv: 'MANUAL_AUTH_ENV', timeoutMs: 4321};
+      const edited = await post('/api/settings', {selection: value.selection, configuration: editedConfiguration});
+      assert.equal(edited.status, 200); await edited.text();
+      await gateway.close();
+      providers = createDefaultProviderRegistry();
+      gateway = new AiGateway(new AgentRuntime(new AgentRegistry(), new SkillRegistry(), providers), context.options, {settingsPath});
+      base = await listen();
+      const catalog = await (await fetch(`${base}/api/providers`)).json() as {providers: ProviderDescriptor[]; selection: AiSelection};
+      assert.deepEqual(catalog.selection, value.selection);
+      assert.deepEqual(catalog.providers.find((provider) => provider.id === id)?.configuration, editedConfiguration);
+      const run = JSON.parse((await providers.get(id).run({prompt: 'restored'})).output);
+      args = run.args;
+      if (id === 'codex') {
+        assert.ok(args.some((arg) => arg.includes('base_url="https://manual.example/edited"')));
+        assert.ok(args.some((arg) => arg.includes('env_key="MANUAL_AUTH_ENV"')));
+        assert.equal(run.codexHome, join(context.home, '.codex'));
+      } else {
+        assert.equal(run.claudeHome, join(context.home, '.claude'));
+        assert.ok(args.includes('--setting-sources'));
+        assert.ok(args.includes('--no-session-persistence'));
+      }
+      const cleared = await post('/api/settings', {selection: value.selection, configuration: {...value.provider.configuration!, apiKeyEnv: ''}});
+      assert.equal(cleared.status, 200); await cleared.text();
+      assert.deepEqual((providers.get(id) as CommandProvider).configurationOverrides, {});
+      args = JSON.parse((await providers.get(id).run({prompt: 'cleared'})).output).args;
+      assert.ok(!args.some((arg) => arg.includes('env_key=')));
+      const reedited = await post('/api/settings', {selection: value.selection, configuration: editedConfiguration});
+      assert.equal(reedited.status, 200); await reedited.text();
+      const reset = await post('/api/providers/import-local', {providerId: id});
+      assert.equal(reset.status, 200);
+      assert.deepEqual((await reset.json() as {provider: ProviderDescriptor}).provider.configuration, value.provider.configuration);
+      stored = await readFile(settingsPath, 'utf8');
+      assert.deepEqual(JSON.parse(stored).providers, [{id, importLocal: true}]);
+      await gateway.close();
+      await rm(sourcePath);
+      providers = createDefaultProviderRegistry();
+      gateway = new AiGateway(new AgentRuntime(new AgentRegistry(), new SkillRegistry(), providers), context.options, {settingsPath});
+      base = await listen();
+      const failedRestore = await (await fetch(`${base}/api/providers`)).json() as {providers: ProviderDescriptor[]};
+      assert.equal(failedRestore.providers.find((provider) => provider.id === id)?.configured, false);
+      assert.equal(failedRestore.providers.find((provider) => provider.id === id)?.importedFrom, undefined);
+    } finally { await gateway.close(); await context.cleanup(); }
+  });
+}

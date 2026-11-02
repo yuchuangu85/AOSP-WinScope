@@ -21,7 +21,7 @@ limitations under the License.
       <div class="icon-wrapper">
         <mat-icon
           class="icon"
-          [matTooltip]="TRACE_INFO[trace.type].name"
+          [matTooltip]="TRACE_INFO[trace.type].name | tr"
           [style]="{color: TRACE_INFO[trace.type].color}"
         >
           {{ TRACE_INFO[trace.type].icon }}

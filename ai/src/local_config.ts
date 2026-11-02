@@ -4,6 +4,7 @@ import {access, open} from 'node:fs/promises';
 import {homedir} from 'node:os';
 import {delimiter, join, resolve} from 'node:path';
 import {isRecord} from './json';
+import {isEnvName} from './settings';
 import {CommandProvider, localCommandConfig, sanitizeLocalConfig} from './providers';
 import {LocalConfigMetadata, ModelDescriptor, ReasoningLevel} from './types';
 
@@ -39,7 +40,7 @@ export async function importLocalProvider(
       join(codexHome, 'config.toml'),
       'Codex configuration was not found.',
     );
-    const {model, models, localConfig} = await readCodex(
+    const {model, models, localConfig, apiKeyEnv, providerId, commandAuth} = await readCodex(
       executable,
       home,
       {...env, CODEX_HOME: codexHome},
@@ -47,12 +48,14 @@ export async function importLocalProvider(
     );
     return new CommandProvider({
       ...config,
-      args: [...config.args!, '--skip-git-repo-check'],
       models,
       defaultModelId: model,
       env: {CODEX_HOME: codexHome},
       importedFrom: 'Codex local configuration',
       localConfig,
+      importedApiKeyEnv: apiKeyEnv,
+      importedProviderId: providerId,
+      importedCommandAuth: commandAuth,
     });
   }
   const directory = resolve(home, env.CLAUDE_CONFIG_DIR ?? '.claude');
@@ -104,6 +107,9 @@ export async function importLocalProvider(
     defaultModelId: isModelId(model) ? model : 'default',
     env: {CLAUDE_CONFIG_DIR: directory},
     importedFrom: 'Claude local configuration',
+    importedApiKeyEnv: hasCredential(environment.ANTHROPIC_AUTH_TOKEN)
+      ? 'ANTHROPIC_AUTH_TOKEN'
+      : hasCredential(environment.ANTHROPIC_API_KEY) ? 'ANTHROPIC_API_KEY' : undefined,
     localConfig: sanitizeLocalConfig({
       baseUrl: environment.ANTHROPIC_BASE_URL,
       providerName: 'Claude',
@@ -224,6 +230,9 @@ interface CodexConfiguration {
   model?: string;
   models: ModelDescriptor[];
   localConfig: LocalConfigMetadata;
+  apiKeyEnv?: string;
+  providerId?: string;
+  commandAuth?: boolean;
 }
 
 // Let Codex parse TOML, profiles, provider overrides and its own model catalog.
@@ -246,6 +255,9 @@ function readCodex(
     let total = 0;
     let model: string | undefined;
     let localConfig: LocalConfigMetadata = {authentication: 'cli-managed'};
+    let apiKeyEnv: string | undefined;
+    let providerId: string | undefined;
+    let commandAuth = false;
     let nextId = 3;
     let settled = false;
     let completed = false;
@@ -282,7 +294,7 @@ function readCodex(
       clearTimeout(timer);
       outcome = error
         ? {error}
-        : {value: {model, models: [...models.values()], localConfig}};
+        : {value: {model, models: [...models.values()], localConfig, apiKeyEnv, providerId, commandAuth}};
       child.stdin.end();
       terminate('SIGTERM');
       // Descendants may retain stdio even after the CLI exits. Never wait
@@ -373,6 +385,11 @@ function readCodex(
             ? result.config.model
             : undefined;
           localConfig = codexMetadata(result.config, env);
+          const selected = typeof result.config.model_provider === 'string' ? result.config.model_provider : 'openai';
+          const provider = isRecord(result.config.model_providers) && Object.hasOwn(result.config.model_providers, selected) && isRecord(result.config.model_providers[selected]) ? result.config.model_providers[selected] : {};
+          if (sanitizeLocalConfig({providerName: selected})?.providerName === selected) providerId = selected;
+          commandAuth = provider.auth !== undefined && provider.auth !== null;
+          apiKeyEnv = isEnvName(provider.env_key) ? provider.env_key : selected === 'openai' || provider.requires_openai_auth === true ? 'OPENAI_API_KEY' : undefined;
           if (model) models.set(model, {id: model, name: model});
           send(nextId, 'model/list', {limit: 100, includeHidden: false});
         } else if (message.id === nextId) {

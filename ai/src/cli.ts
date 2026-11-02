@@ -3,6 +3,7 @@ import {readFile} from 'node:fs/promises';
 import {AiGateway} from './gateway';
 import {loadRuntime} from './config';
 import {runMcpServer} from './mcp';
+import {defaultSettingsPath} from './settings';
 
 const args = process.argv.slice(2);
 const command = args[0] ?? 'help';
@@ -22,7 +23,7 @@ async function main(): Promise<void> {
   }
   if (command === 'mcp') return runMcpServer(runtime);
   if (command === 'serve') {
-    const gateway = new AiGateway(runtime); const port = Number(value('--port') ?? 7341); await gateway.listen(port); console.error(`winscope-ai listening on http://127.0.0.1:${port}`); await new Promise<void>(() => {}); return;
+    const gateway = new AiGateway(runtime, {}, {settingsPath: defaultSettingsPath()}); const port = Number(value('--port') ?? 7341); await gateway.listen(port); console.error(`winscope-ai listening on http://127.0.0.1:${port}`); await new Promise<void>(() => {}); return;
   }
   console.log('Usage: winscope-ai <serve|mcp|run-agent|list-agents|list-skills|import-agent|import-skill>');
 }

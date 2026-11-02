@@ -16,12 +16,13 @@
 import {CommonModule} from '@angular/common';
 import {Component, input} from '@angular/core';
 import {MatDividerModule} from '@angular/material/divider';
+import {TranslatePipe} from '@common/i18n';
 import {VcCuratedProperties} from '@ui/shared/properties/curated_properties';
 
 @Component({
   selector: 'view-capture-property-groups',
   standalone: true,
-  imports: [CommonModule, MatDividerModule],
+  imports: [TranslatePipe, CommonModule, MatDividerModule],
   templateUrl: './view_capture_property_groups_component.ng.html',
   styleUrls: ['view_capture_property_groups_component.scss'],
 })

@@ -25,6 +25,7 @@ export class UserWarning implements UserNotification, Warning {
   constructor(
     readonly descriptor: string,
     readonly message: string,
+    readonly localization?: UserNotification['localization'],
   ) {}
 
   getNotificationType(): NotificationType {

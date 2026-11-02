@@ -2,10 +2,11 @@ import {CdkTrapFocus} from '@angular/cdk/a11y';
 import {Component, EventEmitter, forwardRef, Input, OnInit, Output,} from '@angular/core';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {FormsModule} from '@angular/forms';
+import {MatTooltip} from '@angular/material/tooltip';
 import {By} from '@angular/platform-browser';
 import {NoopAnimationsModule} from '@angular/platform-browser/animations';
-import {language, setLanguage, translate} from '@common/i18n';
-import {AiCatalog, AiGatewayClient, AiProvider,} from '@services/ai_gateway_client';
+import {initializeLanguage, language, LANGUAGE_PREFERENCE_KEY, languagePreference, setLanguage, translate} from '@common/i18n';
+import {AiCatalog, AiGatewayClient, AiProvider, AiProviderConfiguration,} from '@services/ai_gateway_client';
 
 import {AiModelSelection, AiProviderModelSelection, AiSettingsComponent, AiSettingsValue,} from './ai_settings_component';
 import {AppSettingsComponent, ThemeMode} from './app_settings_component';
@@ -119,6 +120,7 @@ describe('AppSettingsComponent', () => {
   let component: AppSettingsComponent;
   let catalogSpy: jasmine.Spy<AiGatewayClient['catalog']>;
   let importSpy: jasmine.Spy<AiGatewayClient['importLocalConfig']>;
+  let saveSpy: jasmine.Spy<AiGatewayClient['saveSettings']>;
 
   beforeEach(async () => {
     setLanguage('en');
@@ -130,6 +132,9 @@ describe('AppSettingsComponent', () => {
       'importLocalConfig',
     ).and.callFake(async (providerId) =>
       providerId === 'codex' ? codexProvider : claudeProvider,
+    );
+    saveSpy = spyOn(AiGatewayClient.prototype, 'saveSettings').and.callFake(
+      async (savedSelection) => ({selection: {...savedSelection}}),
     );
     await TestBed.configureTestingModule({
       imports: [AppSettingsComponent, NoopAnimationsModule],
@@ -177,6 +182,187 @@ describe('AppSettingsComponent', () => {
     fixture.detectChanges();
   }
 
+  function selectDisplayScale(value: number): void {
+    const select = element<HTMLSelectElement>('.display-scale-select');
+    select.selectedIndex = Array.from(select.options).findIndex(
+      (option) => option.textContent?.trim() === `${value}%`,
+    );
+    select.dispatchEvent(new Event('change', {bubbles: true}));
+    fixture.detectChanges();
+  }
+
+  function displayScaleLabel(): string | undefined {
+    return element<HTMLSelectElement>('.display-scale-select')
+      .selectedOptions[0]?.textContent?.trim();
+  }
+
+  function resetConfirmation(): HTMLInputElement {
+    return element<HTMLInputElement>(
+      '.confirm-trace-reset input[type="checkbox"]',
+    );
+  }
+
+  it('shows a checked reset confirmation under General without an AI endpoint', async () => {
+    component.endpoint = undefined;
+    await render();
+    expect(element('.settings-confirmations h3').textContent).toBe(
+      'Confirmations',
+    );
+    expect(element('.confirm-trace-reset label').textContent?.trim()).toBe(
+      'Confirm before resetting trace data',
+    );
+    expect(resetConfirmation().getAttribute('aria-label')).toBe(
+      'Confirm before resetting trace data',
+    );
+    expect(resetConfirmation().checked).toBeTrue();
+    expect(resetConfirmation().disabled).toBeFalse();
+    expect(element('#settings-ai-panel .confirm-trace-reset')).toBeNull();
+    const changed = spyOn(component.confirmTraceResetChanged, 'emit');
+    resetConfirmation().click();
+    expect(changed).toHaveBeenCalledOnceWith(false);
+    expect(component.confirmTraceReset).toBeTrue();
+    expect(catalogSpy).not.toHaveBeenCalled();
+    expect(saveSpy).not.toHaveBeenCalled();
+  });
+
+  it('emits reset confirmation changes immediately without changing inputs or AI drafts', async () => {
+    await render();
+    const child = form();
+    child.draftModel = 'unsaved-model';
+    const selectionInput = component.selection;
+    const providerSelectionsInput = component.providerSelections;
+    const changed = spyOn(component.confirmTraceResetChanged, 'emit');
+    const applied = spyOn(component.applied, 'emit');
+    const closed = spyOn(component.closed, 'emit');
+    const save = spyOn(child, 'save');
+    resetConfirmation().click();
+    expect(changed).toHaveBeenCalledOnceWith(false);
+    expect(component.confirmTraceReset).toBeTrue();
+    fixture.componentRef.setInput('confirmTraceReset', false);
+    await render();
+    resetConfirmation().click();
+    expect(changed.calls.allArgs()).toEqual([[false], [true]]);
+    expect(component.confirmTraceReset).toBeFalse();
+    expect(component.selection).toBe(selectionInput);
+    expect(component.selection).toEqual(selection);
+    expect(component.providerSelections).toBe(providerSelectionsInput);
+    expect(form()).toBe(child);
+    expect(child.draftModel).toBe('unsaved-model');
+    expect(save).not.toHaveBeenCalled();
+    expect(saveSpy).not.toHaveBeenCalled();
+    expect(importSpy).not.toHaveBeenCalled();
+    expect(catalogSpy).toHaveBeenCalledTimes(1);
+    expect(applied).not.toHaveBeenCalled();
+    expect(closed).not.toHaveBeenCalled();
+  });
+
+  it('reflects controlled reset confirmation updates without emitting', async () => {
+    await render();
+    const changed = spyOn(component.confirmTraceResetChanged, 'emit');
+    for (const value of [false, true, false]) {
+      fixture.componentRef.setInput('confirmTraceReset', value);
+      await render();
+      expect(resetConfirmation().checked).toBe(value);
+    }
+    expect(changed).not.toHaveBeenCalled();
+  });
+
+  it('localizes reset confirmation labels without changing confirmation or AI state', async () => {
+    fixture.componentRef.setInput('confirmTraceReset', false);
+    await render();
+    const child = form();
+    child.draftModel = 'unsaved-model';
+    const changed = spyOn(component.confirmTraceResetChanged, 'emit');
+    for (const locale of ['zh-CN', 'en'] as const) {
+      setLanguage(locale);
+      await render();
+      if (locale === 'zh-CN') {
+        expect(translate('Confirmations')).not.toBe('Confirmations');
+        expect(translate('Confirm before resetting trace data')).not.toBe(
+          'Confirm before resetting trace data',
+        );
+      }
+      expect(element('.settings-confirmations').getAttribute('aria-label')).toBe(
+        translate('Confirmations'),
+      );
+      expect(element('.settings-confirmations h3').textContent).toBe(
+        translate('Confirmations'),
+      );
+      expect(element('.confirm-trace-reset label').textContent?.trim()).toBe(
+        translate('Confirm before resetting trace data'),
+      );
+      expect(resetConfirmation().getAttribute('aria-label')).toBe(
+        translate('Confirm before resetting trace data'),
+      );
+      expect(resetConfirmation().checked).toBeFalse();
+      expect(component.confirmTraceReset).toBeFalse();
+      expect(form()).toBe(child);
+      expect(child.draftModel).toBe('unsaved-model');
+      expect(component.selection).toEqual(selection);
+    }
+    expect(changed).not.toHaveBeenCalled();
+    expect(saveSpy).not.toHaveBeenCalled();
+  });
+
+  it('preserves an immediate reset confirmation choice across tabs and Cancel', async () => {
+    await render();
+    const child = form();
+    child.draftModel = 'unsaved-model';
+    const changed = spyOn(component.confirmTraceResetChanged, 'emit');
+    const closed = spyOn(component.closed, 'emit');
+    resetConfirmation().click();
+    fixture.componentRef.setInput('confirmTraceReset', false);
+    await render();
+    selectSection('ai');
+    selectSection('general');
+    expect(resetConfirmation().checked).toBeFalse();
+    expect(form()).toBe(child);
+    expect(child.draftModel).toBe('unsaved-model');
+    element('.settings-cancel').click();
+    expect(changed).toHaveBeenCalledOnceWith(false);
+    expect(component.confirmTraceReset).toBeFalse();
+    expect(closed).toHaveBeenCalledTimes(1);
+    expect(saveSpy).not.toHaveBeenCalled();
+  });
+
+  for (const state of [
+    'running',
+    'loadingConversation',
+    'loading',
+    'saving',
+  ] as const) {
+    it(`keeps reset confirmation usable while AI is ${state}`, async () => {
+      await render();
+      component[state] = true;
+      fixture.detectChanges();
+      const changed = spyOn(component.confirmTraceResetChanged, 'emit');
+      expect(element<HTMLButtonElement>('.settings-save').disabled).toBeTrue();
+      expect(resetConfirmation().disabled).toBeFalse();
+      resetConfirmation().click();
+      expect(changed).toHaveBeenCalledOnceWith(false);
+      expect(component.confirmTraceReset).toBeTrue();
+      expect(saveSpy).not.toHaveBeenCalled();
+    });
+  }
+
+  it('insets every General dropdown arrow without intercepting selection', async () => {
+    await render();
+    const selects: HTMLSelectElement[] = Array.from(
+      fixture.nativeElement.querySelectorAll('.general-settings select'),
+    );
+    expect(selects.length).toBe(3);
+    for (const select of selects) {
+      const arrow = select.parentElement?.querySelector('.settings-select-arrow');
+      expect(arrow).not.toBeNull();
+      expect(arrow?.getAttribute('aria-hidden')).toBe('true');
+      expect(getComputedStyle(select).appearance).toBe('none');
+      expect(getComputedStyle(select).paddingRight).toBe('36px');
+      expect(getComputedStyle(select).height).toBe('32px');
+      expect(getComputedStyle(arrow!).right).toBe('8px');
+      expect(getComputedStyle(arrow!).pointerEvents).toBe('none');
+    }
+  });
+
   it('opens General without a gateway or an AI workspace and leaves General usable', async () => {
     component.endpoint = undefined;
     await render();
@@ -205,6 +391,7 @@ describe('AppSettingsComponent', () => {
     expect(element('#settings-ai-panel').hidden).toBeTrue();
     expect(element('#settings-ai-panel .interface-language-select')).toBeNull();
     expect(element('#settings-ai-panel .theme-mode-select')).toBeNull();
+    expect(element('#settings-ai-panel .display-scale-control')).toBeNull();
   });
 
   it('captures heading focus and traps focus between the close and save controls', async () => {
@@ -238,6 +425,94 @@ describe('AppSettingsComponent', () => {
     expect(child.draftModel).toBe('unsaved-model');
     expect(component.selection).toEqual(selection);
     expect(applied).not.toHaveBeenCalled();
+  });
+
+  it('offers Follow system, English and Chinese and selects the restored system preference', async () => {
+    localStorage.setItem(LANGUAGE_PREFERENCE_KEY, 'system');
+    initializeLanguage(['en-US']);
+    await render();
+    const select = element<HTMLSelectElement>('.interface-language-select');
+    expect(Array.from(select.options, (option) => [option.value, option.textContent]))
+      .toEqual([
+        ['system', 'Follow system'],
+        ['en', 'English'],
+        ['zh-CN', '简体中文'],
+      ]);
+    expect(languagePreference()).toBe('system');
+    expect(language()).toBe('en');
+    expect(select.value).toBe('system');
+  });
+
+  it('keeps Follow system selected and localized across system changes without applying or losing AI drafts', async () => {
+    const browserLanguages = spyOnProperty(navigator, 'languages', 'get')
+      .and.returnValue(['en-US']);
+    await render();
+    const child = form();
+    const input = element<HTMLInputElement>('ai-settings input');
+    input.value = 'unsaved-model';
+    input.dispatchEvent(new Event('input', {bubbles: true}));
+    await render();
+    const applied = spyOn(component.applied, 'emit');
+    const closed = spyOn(component.closed, 'emit');
+    const save = spyOn(child, 'save');
+    const selectionInput = component.selection;
+    const select = element<HTMLSelectElement>('.interface-language-select');
+    select.value = 'system';
+    select.dispatchEvent(new Event('change', {bubbles: true}));
+    await render();
+    expect(localStorage.getItem(LANGUAGE_PREFERENCE_KEY)).toBe('system');
+    expect(select.selectedOptions[0].textContent).toBe('Follow system');
+
+    for (const [locales, resolved, label] of [
+      [['zh-TW'], 'zh-CN', '跟随系统'],
+      [['en-GB'], 'en', 'Follow system'],
+    ] as const) {
+      browserLanguages.and.returnValue([...locales]);
+      window.dispatchEvent(new Event('languagechange'));
+      await render();
+      expect(language()).toBe(resolved);
+      expect(document.documentElement.lang).toBe(resolved);
+      expect(select.value).toBe('system');
+      expect(select.selectedOptions[0].textContent).toBe(label);
+      expect(element('.interface-language-select')).toBe(select);
+      expect(form()).toBe(child);
+      expect(element('ai-settings input')).toBe(input);
+      expect(input.value).toBe('unsaved-model');
+      expect(child.draftModel).toBe('unsaved-model');
+      expect(component.selection).toBe(selectionInput);
+    }
+    selectSection('ai');
+    expect(form()).toBe(child);
+    expect(catalogSpy).toHaveBeenCalledTimes(1);
+    expect(save).not.toHaveBeenCalled();
+    expect(applied).not.toHaveBeenCalled();
+    expect(closed).not.toHaveBeenCalled();
+  });
+
+  it('selects explicit interface overrides and ignores system events until Follow system is selected again', async () => {
+    const browserLanguages = spyOnProperty(navigator, 'languages', 'get')
+      .and.returnValue(['zh-CN']);
+    await render();
+    const select = element<HTMLSelectElement>('.interface-language-select');
+    for (const preference of ['zh-CN', 'en'] as const) {
+      select.value = preference;
+      select.dispatchEvent(new Event('change', {bubbles: true}));
+      browserLanguages.and.returnValue([preference === 'en' ? 'zh-CN' : 'en-US']);
+      window.dispatchEvent(new Event('languagechange'));
+      await render();
+      expect(languagePreference()).toBe(preference);
+      expect(language()).toBe(preference);
+      expect(select.value).toBe(preference);
+      expect(localStorage.getItem(LANGUAGE_PREFERENCE_KEY)).toBe(preference);
+    }
+    select.value = 'system';
+    select.dispatchEvent(new Event('change', {bubbles: true}));
+    await render();
+    expect(languagePreference()).toBe('system');
+    expect(language()).toBe('zh-CN');
+    expect(select.value).toBe('system');
+    expect(select.selectedOptions[0].textContent).toBe('跟随系统');
+    expect(localStorage.getItem(LANGUAGE_PREFERENCE_KEY)).toBe('system');
   });
 
   it('emits all three theme modes without mutating the root-owned input or applying AI settings', async () => {
@@ -313,6 +588,168 @@ describe('AppSettingsComponent', () => {
     expect(closed).toHaveBeenCalledTimes(1);
   });
 
+  it('renders a labeled preset selector and a disabled default reset', async () => {
+    component.endpoint = undefined;
+    await render();
+    const select = element<HTMLSelectElement>('.display-scale-select');
+    expect(select.tagName).toBe('SELECT');
+    expect(Array.from(select.options).map((option) => option.textContent?.trim()))
+      .toEqual(['80%', '90%', '100%', '110%', '120%', '130%', '140%']);
+    expect(select.disabled).toBeFalse();
+    expect(select.getAttribute('aria-label')).toBe('Display size');
+    expect(select.labels?.[0].textContent?.trim()).toBe('Display size');
+    expect(displayScaleLabel()).toBe('100%');
+    expect(element('input[type="range"]')).toBeNull();
+    const reset = element<HTMLButtonElement>('.display-scale-reset');
+    expect(reset.disabled).toBeTrue();
+    expect(reset.getAttribute('aria-label')).toBe('Reset display size');
+    expect(reset.querySelector('mat-icon')?.textContent).toBe('restart_alt');
+    const changed = spyOn(component.displayScaleChanged, 'emit');
+    reset.click();
+    expect(changed).not.toHaveBeenCalled();
+  });
+
+  it('emits numeric display size changes immediately without mutating inputs or saving AI drafts', async () => {
+    await render();
+    const child = form();
+    child.draftModel = 'unsaved-model';
+    const changed = spyOn(component.displayScaleChanged, 'emit');
+    const applied = spyOn(component.applied, 'emit');
+    const closed = spyOn(component.closed, 'emit');
+    const save = spyOn(child, 'save');
+    const selectionInput = component.selection;
+    const providerSelectionsInput = component.providerSelections;
+    for (const value of [80, 110, 140]) {
+      selectDisplayScale(value);
+    }
+    expect(changed.calls.allArgs()).toEqual([[80], [110], [140]]);
+    expect(component.displayScale).toBe(100);
+    expect(component.selection).toBe(selectionInput);
+    expect(component.selection).toEqual(selection);
+    expect(component.providerSelections).toBe(providerSelectionsInput);
+    expect(form()).toBe(child);
+    expect(child.draftModel).toBe('unsaved-model');
+    expect(save).not.toHaveBeenCalled();
+    expect(applied).not.toHaveBeenCalled();
+    expect(closed).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid display size events without changing the controlled value', async () => {
+    await render();
+    const changed = spyOn(component.displayScaleChanged, 'emit');
+    const select = fixture.debugElement.query(By.css('.display-scale-select'));
+    for (const value of [
+      undefined,
+      null,
+      '',
+      '110',
+      false,
+      {},
+      [],
+      NaN,
+      Infinity,
+      -Infinity,
+      0,
+      79,
+      81,
+      105,
+      110.5,
+      141,
+    ]) {
+      select.triggerEventHandler('ngModelChange', value);
+    }
+    fixture.detectChanges();
+    expect(changed).not.toHaveBeenCalled();
+    expect(component.displayScale).toBe(100);
+    expect(displayScaleLabel()).toBe('100%');
+  });
+
+  it('reflects root display size updates in the selected preset and reset state without emitting', async () => {
+    await render();
+    const changed = spyOn(component.displayScaleChanged, 'emit');
+    for (const value of [80, 110, 140, 100]) {
+      fixture.componentRef.setInput('displayScale', value);
+      await render();
+      expect(displayScaleLabel()).toBe(`${value}%`);
+      expect(element<HTMLButtonElement>('.display-scale-reset').disabled).toBe(
+        value === 100,
+      );
+    }
+    expect(changed).not.toHaveBeenCalled();
+  });
+
+  it('emits reset to 100 without applying AI edits or reverting the root value on Cancel', async () => {
+    fixture.componentRef.setInput('displayScale', 140);
+    await render();
+    const changed = spyOn(component.displayScaleChanged, 'emit');
+    const applied = spyOn(component.applied, 'emit');
+    const closed = spyOn(component.closed, 'emit');
+    const child = form();
+    child.draftModel = 'unsaved-model';
+    const save = spyOn(child, 'save');
+    element('.display-scale-reset').click();
+    expect(changed).toHaveBeenCalledOnceWith(100);
+    expect(component.displayScale).toBe(140);
+    fixture.componentRef.setInput('displayScale', 100);
+    await render();
+    selectDisplayScale(110);
+    fixture.componentRef.setInput('displayScale', 110);
+    await render();
+    selectSection('ai');
+    expect(form()).toBe(child);
+    expect(child.draftModel).toBe('unsaved-model');
+    element('.settings-cancel').click();
+    expect(changed.calls.allArgs()).toEqual([[100], [110]]);
+    expect(component.displayScale).toBe(110);
+    expect(component.selection).toEqual(selection);
+    expect(save).not.toHaveBeenCalled();
+    expect(applied).not.toHaveBeenCalled();
+    expect(closed).toHaveBeenCalledTimes(1);
+  });
+
+  it('localizes display size and reset labels without changing the percentage', async () => {
+    fixture.componentRef.setInput('displayScale', 110);
+    await render();
+    const changed = spyOn(component.displayScaleChanged, 'emit');
+    for (const [locale, label, resetLabel] of [
+      ['en', 'Display size', 'Reset display size'],
+      ['zh-CN', '显示大小', '重置显示大小'],
+    ] as const) {
+      setLanguage(locale);
+      await render();
+      const select = element<HTMLSelectElement>('.display-scale-select');
+      expect(select.getAttribute('aria-label')).toBe(label);
+      expect(select.labels?.[0].textContent?.trim()).toBe(label);
+      expect(element('.display-scale-reset').getAttribute('aria-label')).toBe(
+        resetLabel,
+      );
+      expect(
+        fixture.debugElement
+          .query(By.css('.display-scale-reset'))
+          .injector.get(MatTooltip).message,
+      ).toBe(resetLabel);
+      expect(displayScaleLabel()).toBe('110%');
+    }
+    expect(changed).not.toHaveBeenCalled();
+  });
+
+  it('keeps display size changes and reset available without an AI endpoint', async () => {
+    component.endpoint = undefined;
+    fixture.componentRef.setInput('displayScale', 110);
+    await render();
+    const changed = spyOn(component.displayScaleChanged, 'emit');
+    expect(
+      element<HTMLSelectElement>('.display-scale-select').disabled,
+    ).toBeFalse();
+    expect(
+      element<HTMLButtonElement>('.display-scale-reset').disabled,
+    ).toBeFalse();
+    selectDisplayScale(80);
+    element('.display-scale-reset').click();
+    expect(changed.calls.allArgs()).toEqual([[80], [100]]);
+    expect(catalogSpy).not.toHaveBeenCalled();
+  });
+
   it('supports vertical roving tabs with Up, Down, Home and End', async () => {
     await render();
     expect(element('.settings-menu').getAttribute('role')).toBe('tablist');
@@ -379,6 +816,7 @@ describe('AppSettingsComponent', () => {
     const request = deferred<AiCatalog>();
     catalogSpy.and.returnValue(request.promise);
     component.selection = {...selection, agentId: ''};
+    fixture.componentRef.setInput('displayScale', 110);
     fixture.detectChanges();
     expect(element('ai-settings')).toBeNull();
     expect(component.catalogReady).toBeFalse();
@@ -389,6 +827,16 @@ describe('AppSettingsComponent', () => {
     const changed = spyOn(component.themeModeChanged, 'emit');
     selectThemeMode('light');
     expect(changed).toHaveBeenCalledOnceWith('light');
+    const scaleChanged = spyOn(component.displayScaleChanged, 'emit');
+    expect(
+      element<HTMLSelectElement>('.display-scale-select').disabled,
+    ).toBeFalse();
+    expect(
+      element<HTMLButtonElement>('.display-scale-reset').disabled,
+    ).toBeFalse();
+    selectDisplayScale(140);
+    element('.display-scale-reset').click();
+    expect(scaleChanged.calls.allArgs()).toEqual([[140], [100]]);
     request.resolve(catalog);
     await request.promise;
     await render();
@@ -645,22 +1093,214 @@ describe('AppSettingsComponent', () => {
     expect(form().catalog).toBe(catalog);
   });
 
-  it('calls the form Save and emits its value without mutating incoming defaults', async () => {
+  it('calls the form Save and persists its value before emitting and closing without mutating inputs', async () => {
     await render();
     const child = form();
     child.draftModel = 'unsaved-model';
+    const request = deferred<Awaited<ReturnType<AiGatewayClient['saveSettings']>>>();
+    saveSpy.and.returnValue(request.promise);
     const save = spyOn(child, 'save').and.callThrough();
     const applied = spyOn(component.applied, 'emit');
     const closed = spyOn(component.closed, 'emit');
     element('.settings-save').click();
+    fixture.detectChanges();
     expect(save).toHaveBeenCalledTimes(1);
+    const savedSelection = {...selection, customModel: 'unsaved-model'};
+    expect(saveSpy).toHaveBeenCalledOnceWith(
+      savedSelection, undefined, jasmine.any(AbortSignal),
+    );
+    expect(component.saving).toBeTrue();
+    expect(component.runtimeDisabled).toBeTrue();
+    expect(form().disabled).toBeTrue();
+    expect(element<HTMLButtonElement>('.settings-save').disabled).toBeTrue();
+    expect(applied).not.toHaveBeenCalled();
+    expect(closed).not.toHaveBeenCalled();
+    request.resolve({selection: savedSelection});
+    await render();
     expect(applied).toHaveBeenCalledOnceWith({
-      selection: {...selection, customModel: 'unsaved-model'},
+      selection: savedSelection,
       providerSelections: {},
     });
     expect(closed).toHaveBeenCalledTimes(1);
     expect(component.selection).toEqual(selection);
   });
+
+  it('forwards manual configuration and publishes the persisted selection and configured provider before closing', async () => {
+    await render();
+    const configuration: AiProviderConfiguration = {
+      baseUrl: 'https://service.example/v1',
+      providerName: 'Private provider',
+      apiKeyEnv: 'CODEX_API_KEY',
+      timeoutMs: 30_000,
+    };
+    const value: AiSettingsValue = {
+      selection: {...selection, modelId: '__custom__', customModel: 'draft/model'},
+      providerSelections: {
+        codex: {modelId: '__custom__', customModel: 'draft/model', reasoningLevel: 'medium'},
+      },
+      configuration,
+    };
+    const persisted = {...value.selection, customModel: 'persisted/model'};
+    const provider = {...codexProvider, configured: true, configuration};
+    saveSpy.and.resolveTo({selection: persisted, provider});
+    const order: string[] = [];
+    const changed = spyOn(component.catalogChanged, 'emit').and.callFake(() => order.push('catalog'));
+    const applied = spyOn(component.applied, 'emit').and.callFake(() => order.push('applied'));
+    const closed = spyOn(component.closed, 'emit').and.callFake(() => order.push('closed'));
+    await component.applySettings(value);
+    expect(saveSpy).toHaveBeenCalledOnceWith(value.selection, configuration, jasmine.any(AbortSignal));
+    expect(component.catalog.selection).toEqual(persisted);
+    expect(component.catalog.providers).toEqual([provider, claudeProvider]);
+    expect(changed).toHaveBeenCalledOnceWith(component.catalog);
+    expect(applied).toHaveBeenCalledOnceWith({...value, selection: persisted});
+    expect(closed).toHaveBeenCalledTimes(1);
+    expect(order).toEqual(['catalog', 'applied', 'closed']);
+    expect(component.selection).toEqual(selection);
+    expect(value.selection.customModel).toBe('draft/model');
+    expect(catalog.providers[0].configured).toBeUndefined();
+  });
+
+  it('shows a safe save error, retains drafts and remains open for a successful retry', async () => {
+    await render();
+    selectSection('ai');
+    const child = form();
+    child.draftModel = 'keep-after-failure';
+    saveSpy.and.rejectWith(new Error('/Users/private/config https://user:sk-secret@host'));
+    const changed = spyOn(component.catalogChanged, 'emit');
+    const applied = spyOn(component.applied, 'emit');
+    const closed = spyOn(component.closed, 'emit');
+    element('.settings-save').click();
+    await render();
+    expect(component.saveError).toBe(
+      'Could not save AI settings. Check the configuration and try again.',
+    );
+    expect(element('.settings-error').textContent).toBe(component.saveError);
+    expect(fixture.nativeElement.textContent).not.toContain('/Users/private');
+    expect(fixture.nativeElement.textContent).not.toContain('sk-secret');
+    expect(component.saving).toBeFalse();
+    expect(component.runtimeDisabled).toBeFalse();
+    expect(child.disabled).toBeFalse();
+    expect(child.draftModel).toBe('keep-after-failure');
+    expect(element<HTMLButtonElement>('.settings-save').disabled).toBeFalse();
+    expect(changed).not.toHaveBeenCalled();
+    expect(applied).not.toHaveBeenCalled();
+    expect(closed).not.toHaveBeenCalled();
+    const request = deferred<Awaited<ReturnType<AiGatewayClient['saveSettings']>>>();
+    saveSpy.and.returnValue(request.promise);
+    element('.settings-save').click();
+    fixture.detectChanges();
+    expect(component.saveError).toBe('');
+    expect(element('.settings-error')).toBeNull();
+    const saved = {...selection, customModel: 'keep-after-failure'};
+    expect(saveSpy.calls.mostRecent().args[0]).toEqual(saved);
+    request.resolve({selection: saved});
+    await render();
+    expect(saveSpy).toHaveBeenCalledTimes(2);
+    expect(applied).toHaveBeenCalledOnceWith({selection: saved, providerSelections: {}});
+    expect(closed).toHaveBeenCalledTimes(1);
+  });
+
+  it('blocks duplicate saves and imports while saving but leaves General and Cancel usable', async () => {
+    fixture.componentRef.setInput('displayScale', 110);
+    await render();
+    const request = deferred<Awaited<ReturnType<AiGatewayClient['saveSettings']>>>();
+    saveSpy.and.returnValue(request.promise);
+    const value = {selection, providerSelections: {}};
+    const task = component.applySettings(value);
+    fixture.detectChanges();
+    const save = spyOn(form(), 'save');
+    component.save();
+    await component.applySettings(value);
+    await component.importLocalConfig('codex');
+    expect(saveSpy).toHaveBeenCalledTimes(1);
+    expect(save).not.toHaveBeenCalled();
+    expect(importSpy).not.toHaveBeenCalled();
+    expect(form().disabled).toBeTrue();
+    expect(element<HTMLInputElement>('ai-settings input').disabled).toBeTrue();
+    expect(element<HTMLSelectElement>('.interface-language-select').disabled).toBeFalse();
+    expect(element<HTMLSelectElement>('.theme-mode-select').disabled).toBeFalse();
+    expect(element<HTMLSelectElement>('.display-scale-select').disabled).toBeFalse();
+    expect(element<HTMLButtonElement>('.settings-cancel').disabled).toBeFalse();
+    expect(element<HTMLButtonElement>('.settings-close-button').disabled).toBeFalse();
+    const changed = spyOn(component.themeModeChanged, 'emit');
+    selectThemeMode('light');
+    expect(changed).toHaveBeenCalledOnceWith('light');
+    const scaleChanged = spyOn(component.displayScaleChanged, 'emit');
+    selectDisplayScale(140);
+    expect(scaleChanged).toHaveBeenCalledOnceWith(140);
+    element('.settings-cancel').click();
+    request.resolve({selection});
+    await task;
+  });
+
+  for (const control of ['.settings-cancel', '.settings-close-button', 'destroy']) {
+    for (const outcome of ['success', 'failure']) {
+      it(`aborts a save on ${control} and ignores its late ${outcome}`, async () => {
+        await render();
+        const request = deferred<Awaited<ReturnType<AiGatewayClient['saveSettings']>>>();
+        saveSpy.and.returnValue(request.promise);
+        const applied = spyOn(component.applied, 'emit');
+        const changed = spyOn(component.catalogChanged, 'emit');
+        const closed = spyOn(component.closed, 'emit');
+        const task = component.applySettings({selection, providerSelections: {}});
+        const signal = saveSpy.calls.mostRecent().args[2];
+        if (control === 'destroy') fixture.destroy();
+        else element(control).click();
+        expect(signal?.aborted).toBeTrue();
+        expect(component.saving).toBeFalse();
+        if (outcome === 'success') {
+          request.resolve({selection: {...selection, providerId: 'claude'}});
+        } else {
+          request.reject(new Error('/private/stale sk-secret'));
+        }
+        await task;
+        expect(component.catalog).toBe(catalog);
+        expect(component.saveError).toBe('');
+        expect(applied).not.toHaveBeenCalled();
+        expect(changed).not.toHaveBeenCalled();
+        expect(closed).toHaveBeenCalledTimes(control === 'destroy' ? 0 : 1);
+      });
+    }
+  }
+
+  for (const outcome of ['success', 'failure']) {
+    it(`ignores a stale save ${outcome} after an endpoint change without releasing a newer save`, async () => {
+      fixture.componentRef.setInput('endpoint', 'http://old.test/');
+      await render();
+      const original = deferred<Awaited<ReturnType<AiGatewayClient['saveSettings']>>>();
+      saveSpy.and.returnValue(original.promise);
+      const oldTask = component.applySettings({selection, providerSelections: {}});
+      const oldSignal = saveSpy.calls.mostRecent().args[2];
+      const nextCatalog = {...catalog, selection: {...selection, providerId: 'claude'}};
+      catalogSpy.and.resolveTo(nextCatalog);
+      fixture.componentRef.setInput('endpoint', 'http://new.test/');
+      await render();
+      expect(oldSignal?.aborted).toBeTrue();
+      expect(component.saving).toBeFalse();
+      const current = deferred<Awaited<ReturnType<AiGatewayClient['saveSettings']>>>();
+      saveSpy.and.returnValue(current.promise);
+      const nextSelection = {...selection, providerId: 'claude', modelId: 'claude-model'};
+      const newTask = component.applySettings({selection: nextSelection, providerSelections: {}});
+      const newSignal = saveSpy.calls.mostRecent().args[2];
+      const changed = spyOn(component.catalogChanged, 'emit');
+      const applied = spyOn(component.applied, 'emit');
+      const closed = spyOn(component.closed, 'emit');
+      if (outcome === 'success') original.resolve({selection});
+      else original.reject(new Error('stale secret'));
+      await oldTask;
+      expect(component.catalog).toBe(nextCatalog);
+      expect(component.saveError).toBe('');
+      expect(component.saving).toBeTrue();
+      expect(newSignal?.aborted).toBeFalse();
+      expect(changed).not.toHaveBeenCalled();
+      expect(applied).not.toHaveBeenCalled();
+      expect(closed).not.toHaveBeenCalled();
+      current.resolve({selection: nextSelection});
+      await newTask;
+      expect(applied).toHaveBeenCalledOnceWith({selection: nextSelection, providerSelections: {}});
+      expect(closed).toHaveBeenCalledTimes(1);
+    });
+  }
 
   it('keeps the shell open when the embedded form rejects Save', async () => {
     await render();
@@ -669,6 +1309,7 @@ describe('AppSettingsComponent', () => {
     const closed = spyOn(component.closed, 'emit');
     element('.settings-save').click();
     expect(save).toHaveBeenCalledTimes(1);
+    expect(saveSpy).not.toHaveBeenCalled();
     expect(applied).not.toHaveBeenCalled();
     expect(closed).not.toHaveBeenCalled();
   });
@@ -717,6 +1358,38 @@ describe('AppSettingsComponent', () => {
   });
 
   for (const state of ['running', 'loadingConversation'] as const) {
+    for (const outcome of ['success', 'failure']) {
+      it(`aborts an in-flight save when ${state} begins and ignores its late ${outcome}`, async () => {
+        await render();
+        const request = deferred<Awaited<ReturnType<AiGatewayClient['saveSettings']>>>();
+        saveSpy.and.returnValue(request.promise);
+        const task = component.applySettings({selection, providerSelections: {}});
+        const signal = saveSpy.calls.mostRecent().args[2];
+        const restored = {...selection, providerId: 'claude', modelId: 'claude-model'};
+        fixture.componentRef.setInput('selection', restored);
+        fixture.componentRef.setInput(state, true);
+        fixture.detectChanges();
+        expect(signal?.aborted).toBeTrue();
+        expect(component.saving).toBeFalse();
+        expect(component.runtimeDisabled).toBeTrue();
+        const changed = spyOn(component.catalogChanged, 'emit');
+        const applied = spyOn(component.applied, 'emit');
+        const closed = spyOn(component.closed, 'emit');
+        if (outcome === 'success') request.resolve({selection});
+        else request.reject(new Error('stale secret'));
+        await task;
+        expect(component.selection).toEqual(restored);
+        expect(form().selection).toEqual(restored);
+        expect(component.saveError).toBe('');
+        expect(changed).not.toHaveBeenCalled();
+        expect(applied).not.toHaveBeenCalled();
+        expect(closed).not.toHaveBeenCalled();
+        fixture.componentRef.setInput(state, false);
+        await render();
+        expect(component.runtimeDisabled).toBeFalse();
+      });
+    }
+
     it(`ignores an import begun before ${state} locks the restored selection`, async () => {
       await render();
       const imported = deferred<AiProvider>();
@@ -734,6 +1407,7 @@ describe('AppSettingsComponent', () => {
     });
 
     it(`disables AI changes and Save while ${state}, without locking General or Cancel`, async () => {
+      fixture.componentRef.setInput('displayScale', 110);
       await render();
       fixture.componentRef.setInput(state, true);
       fixture.detectChanges();
@@ -762,6 +1436,16 @@ describe('AppSettingsComponent', () => {
       const changed = spyOn(component.themeModeChanged, 'emit');
       selectThemeMode('dark');
       expect(changed).toHaveBeenCalledOnceWith('dark');
+      const scaleChanged = spyOn(component.displayScaleChanged, 'emit');
+      expect(
+        element<HTMLSelectElement>('.display-scale-select').disabled,
+      ).toBeFalse();
+      expect(
+        element<HTMLButtonElement>('.display-scale-reset').disabled,
+      ).toBeFalse();
+      selectDisplayScale(140);
+      element('.display-scale-reset').click();
+      expect(scaleChanged.calls.allArgs()).toEqual([[140], [100]]);
       await component.importLocalConfig('codex');
       component.save();
       component.applySettings({selection, providerSelections: {}});

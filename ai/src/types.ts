@@ -3,10 +3,25 @@ export type JsonValue = null | boolean | number | string | JsonValue[] | JsonObj
 
 export type ReasoningLevel = 'low' | 'medium' | 'high';
 
+export interface ProviderConfiguration {
+  baseUrl: string;
+  providerName: string;
+  apiKeyEnv: string;
+  timeoutMs: number;
+}
+
+export interface AiSelection {
+  agentId: string;
+  providerId: string;
+  modelId: string;
+  customModel: string;
+  reasoningLevel: ReasoningLevel;
+}
+
 export interface LocalConfigMetadata {
   baseUrl?: string;
   providerName?: string;
-  authentication: 'configured' | 'cli-managed';
+  authentication: 'configured' | 'cli-managed' | 'not-configured';
   reasoningLevel?: ReasoningLevel;
 }
 
@@ -25,6 +40,8 @@ export interface ProviderDescriptor {
   defaultModelId?: string;
   importedFrom?: string;
   localConfig?: LocalConfigMetadata;
+  configuration?: ProviderConfiguration;
+  configured?: boolean;
 }
 
 export interface ChatTurn {
@@ -77,6 +94,13 @@ export interface CommandProviderConfig {
   importedFrom?: string;
   localConfig?: LocalConfigMetadata;
   timeoutMs?: number;
+  configurationKind?: 'codex' | 'claude';
+  importedApiKeyEnv?: string;
+  importedProviderId?: string;
+  importedCommandAuth?: boolean;
+  configuration?: ProviderConfiguration;
+  configurationOverrides?: Partial<ProviderConfiguration>;
+  configured?: boolean;
 }
 
 export interface OpenAICompatibleProviderConfig {
@@ -89,6 +113,9 @@ export interface OpenAICompatibleProviderConfig {
   reasoningLevels?: ReasoningLevel[];
   apiKeyEnv?: string;
   timeoutMs?: number;
+  configuration?: ProviderConfiguration;
+  configurationOverrides?: Partial<ProviderConfiguration>;
+  configured?: boolean;
 }
 
 export type ProviderConfig = CommandProviderConfig | OpenAICompatibleProviderConfig;

@@ -28,7 +28,7 @@ limitations under the License.
         (mouseenter)="onInteractionStart([shadingModeButton])"
         (mouseleave)="onInteractionEnd([shadingModeButton])"
         mat-icon-button
-        [matTooltip]="getShadingMode()"
+        [matTooltip]="getShadingMode() | tr"
         [disabled]="shadingModes().length < 2"
         (click)="onShadingModeButtonClicked()"
         #shadingModeButton
@@ -47,7 +47,7 @@ limitations under the License.
       <div class="slider-container">
         <mat-icon
           color="accent"
-          matTooltip="Rotation"
+          [matTooltip]="'Rotation' | tr"
           class="slider-icon icon-small"
           (mouseenter)="onInteractionStart([rotationSlider, rotationSliderIcon])"
           (mouseleave)="onInteractionEnd([rotationSlider, rotationSliderIcon])"
@@ -57,7 +57,7 @@ limitations under the License.
         </mat-icon>
         <mat-slider
           class="slider-rotation"
-          aria-label="units"
+          [attr.aria-label]="'units' | tr"
           color="accent"
           [step]="0.02"
           [min]="0"
@@ -75,7 +75,7 @@ limitations under the License.
         </mat-slider>
         <mat-icon
           color="accent"
-          matTooltip="Spacing"
+          [matTooltip]="'Spacing' | tr"
           class="slider-icon icon-small material-symbols-outlined"
           (mouseenter)="onInteractionStart([spacingSlider, spacingSliderIcon])"
           (mouseleave)="onInteractionEnd([spacingSlider, spacingSliderIcon])"
@@ -85,7 +85,7 @@ limitations under the License.
         </mat-icon>
         <mat-slider
           class="slider-spacing"
-          aria-label="units"
+          [attr.aria-label]="'units' | tr"
           color="accent"
           [step]="0.02"
           [min]="0.02"
@@ -135,7 +135,7 @@ limitations under the License.
         (mouseenter)="onInteractionStart([resetZoomButton])"
         (mouseleave)="onInteractionEnd([resetZoomButton])"
         mat-icon-button
-        matTooltip="Restore camera settings"
+        [matTooltip]="'Restore camera settings' | tr"
         class="reset-button"
         (click)="resetCamera()"
         #resetZoomButton
@@ -168,7 +168,7 @@ limitations under the License.
             <mat-button-toggle [value]="spec">
               <mat-icon
                 [color]="spec === currentSpec ? 'primary' : 'accent'"
-                [matTooltip]="'Show ' + spec.type"
+                [matTooltip]="'Show {type}' | tr: {type: (spec.type | tr)}"
                 class="rect-type-icon material-symbols-outlined"
                 >{{ spec.icon }}</mat-icon
               >
@@ -176,7 +176,7 @@ limitations under the License.
           }
         </mat-button-toggle-group>
       }
-      <span class="mat-body-1">{{ groupLabel() }}:</span>
+      <span class="mat-body-1">{{ groupLabel() | tr }}:</span>
       <mat-form-field class="displays-select" subscriptSizing="dynamic" appearance="outline">
         @let allDisplays = displays();
         <mat-select
@@ -194,7 +194,7 @@ limitations under the License.
           @for (display of allDisplays; track display.displayId) {
             <mat-option
               [value]="display"
-              [matTooltip]="'Display Id: ' + display.displayId"
+              [matTooltip]="'Display Id: {id}' | tr: {id: display.displayId}"
               matTooltipPosition="right"
             >
               <div class="option-with-chip">
@@ -203,7 +203,7 @@ limitations under the License.
                   class="option-only-button"
                   (click)="onOnlyButtonClick($event, display)"
                 >
-                  Only
+                  {{ 'Only' | tr }}
                 </button>
                 <span class="option-label-text text-no-overflow">{{ display.name }}</span>
               </div>
@@ -219,15 +219,18 @@ limitations under the License.
   <span class="mat-body-1 warning">
     <mat-icon class="warning-icon icon-small"> warning </mat-icon>
     <span class="warning-message text-no-overflow">
-      Showing {{ currentSpec?.type }} - change rect type via toggle above
+      {{
+        'Showing {type} - change rect type via toggle above'
+          | tr: {type: (currentSpec?.type ?? '' | tr)}
+      }}
     </span>
   </span>
 }
 @if (rects().length === 0) {
-  <span class="mat-body-1 placeholder-text"> No rects found. </span>
+  <span class="mat-body-1 placeholder-text"> {{ 'No rects found.' | tr }} </span>
 }
 @if (currentDisplays.length === 0) {
-  <span class="mat-body-1 placeholder-text"> No displays selected. </span>
+  <span class="mat-body-1 placeholder-text"> {{ 'No displays selected.' | tr }} </span>
 }
 <div class="rects-content">
   <div class="canvas-container">
@@ -261,7 +264,7 @@ limitations under the License.
                 class="square"
               ></div>
             }
-            <span class="mat-body-1 shading-opt-desc">{{ opt.desc }}</span>
+            <span class="mat-body-1 shading-opt-desc">{{ opt.desc | tr }}</span>
           </span>
         }
       }

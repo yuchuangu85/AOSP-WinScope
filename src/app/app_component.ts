@@ -21,7 +21,7 @@ import {ChangeDetectorRef, Component, ErrorHandler, Inject, Injector, NgZone, On
 import {FormControl, FormsModule, ReactiveFormsModule, Validators,} from '@angular/forms';
 import {MatButtonModule} from '@angular/material/button';
 import {MatCheckboxModule} from '@angular/material/checkbox';
-import {MatDialog, MatDialogModule} from '@angular/material/dialog';
+import {MatDialog, MatDialogModule, MatDialogRef} from '@angular/material/dialog';
 import {MatDividerModule} from '@angular/material/divider';
 import {MatFormFieldModule} from '@angular/material/form-field';
 import {MatIconModule} from '@angular/material/icon';
@@ -42,6 +42,7 @@ import {CollectTracesComponent} from '@app/trace_collection/collect_traces_compo
 import {WarningDialogComponent, WarningDialogData, WarningDialogResult,} from '@app/trace_collection/warning_dialog_component';
 import {UploadTracesComponent} from '@app/trace_loading/upload_traces_component';
 import {DIAGNOSTIC_FILENAME, DIAGNOSTIC_PREVIEW, makeDiagnosticBlob,} from '@common/diagnostics';
+import {DEFAULT_DISPLAY_SCALE, DISPLAY_SCALE_PREFERENCE_KEY, isDisplayScale, parseDisplayScale,} from '@common/display_scale';
 import {downloadFromUrl, DownloadRequest} from '@common/download';
 import {translate, TranslatePipe} from '@common/i18n';
 import {DOWNLOAD_FILENAME_REGEX} from '@common/io';
@@ -75,6 +76,7 @@ import {TabbedViewSwitchRequest} from '@ui/shared/events/tabbed_view_events';
 import {TimelineData} from '@ui/timeline/timeline_data';
 import {LoadedFileData} from '@ui/trace_loading/loaded_file_data';
 import {ParsingErrorType} from '@ui/trace_loading/parsing_error_type';
+import {firstValueFrom} from 'rxjs';
 
 import {AiPanelComponent} from './ai_panel_component';
 import {AiModelSelection, AiSettingsValue} from './ai_settings_component';
@@ -82,6 +84,10 @@ import {AppSettingsComponent, ThemeMode} from './app_settings_component';
 import {AngularViewer} from './shared/angular_viewer';
 import {TraceViewComponent} from './trace_view_component';
 import {ViewersLoaded, ViewersUnloaded} from './viewers_events';
+
+const TRACE_RESET_CONFIRMATION_KEY = 'confirm-trace-reset';
+const RESET_TRACE_ACTION = 'Reset';
+const DO_NOT_ASK_AGAIN = 'Do not ask again';
 
 /**
  * The root component of the Winscope app.
@@ -131,6 +137,9 @@ export class AppComponent implements WinscopeEventListener, OnDestroy {
   crossToolProtocol: CrossToolProtocol;
   dataLoaded = false;
   showDataLoadedElements = false;
+  resettingTraces = false;
+  confirmingTraceReset = false;
+  confirmTraceReset = true;
   isBeta = /beta(_[a-z]+)?\/index\.html/.test(window.location.href);
   collapsedTimelineHeight = 0;
   isEditingFilename = false;
@@ -161,6 +170,7 @@ export class AppComponent implements WinscopeEventListener, OnDestroy {
 
   isDarkModeOn = false;
   themeMode: ThemeMode = 'system';
+  displayScale = DEFAULT_DISPLAY_SCALE;
   changeDetectorRef: ChangeDetectorRef;
   loadedFileData: LoadedFileData;
   mediator: Mediator;
@@ -180,7 +190,10 @@ export class AppComponent implements WinscopeEventListener, OnDestroy {
   };
 
   private sendRefreshDumpsRequest = false;
+  private resetConfirmationDialog?: MatDialogRef<WarningDialogComponent, WarningDialogResult>;
   private systemThemeQuery?: MediaQueryList;
+  private displayScaleResize?: number;
+  private readonly previousDisplayZoom = document.documentElement.style.getPropertyValue('zoom');
   private readonly onSystemThemeChange = (event: MediaQueryListEvent) => {
     if (this.themeMode === 'system') {
       this.ngZone.run(() => void this.applyDarkMode(event.matches));
@@ -228,6 +241,18 @@ export class AppComponent implements WinscopeEventListener, OnDestroy {
       ? savedThemeMode
       : savedDarkMode === 'true' ? 'dark' : savedDarkMode === 'false' ? 'light' : 'system';
     void this.setThemeMode(initialTheme);
+    let displayScale: string | undefined;
+    try {
+      displayScale = this.persistentStore.get(DISPLAY_SCALE_PREFERENCE_KEY);
+    } catch {
+      // Display preferences must not prevent startup when storage is blocked.
+    }
+    this.applyDisplayScale(parseDisplayScale(displayScale));
+    try {
+      this.confirmTraceReset = this.persistentStore.get(TRACE_RESET_CONFIRMATION_KEY) !== 'false';
+    } catch {
+      // An unavailable preference store must never disable confirmation.
+    }
 
     const isProdMode = globalConfig.isProdMode();
 
@@ -256,7 +281,11 @@ export class AppComponent implements WinscopeEventListener, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.closeResetConfirmation();
     this.systemThemeQuery?.removeEventListener('change', this.onSystemThemeChange);
+    if (this.displayScaleResize !== undefined) cancelAnimationFrame(this.displayScaleResize);
+    if (this.previousDisplayZoom) document.documentElement.style.setProperty('zoom', this.previousDisplayZoom);
+    else document.documentElement.style.removeProperty('zoom');
   }
 
   ngAfterViewChecked() {
@@ -298,10 +327,16 @@ export class AppComponent implements WinscopeEventListener, OnDestroy {
   async openAiPanel(): Promise<void> {
     this.closeApplicationSettings();
     this.aiPanelOpen = true;
+    const loadedFileData = this.loadedFileData;
     try {
-      this.aiEvidence = await buildDisplayEvidence(this.loadedFileData.getTraces());
+      const evidence = await buildDisplayEvidence(loadedFileData.getTraces());
+      if (this.aiPanelOpen && this.loadedFileData === loadedFileData) {
+        this.aiEvidence = evidence;
+      }
     } catch {
-      this.aiEvidence = undefined;
+      if (this.aiPanelOpen && this.loadedFileData === loadedFileData) {
+        this.aiEvidence = undefined;
+      }
     }
   }
 
@@ -367,6 +402,26 @@ export class AppComponent implements WinscopeEventListener, OnDestroy {
     await this.applyDarkMode(enabled);
   }
 
+  setDisplayScale(scale: number): void {
+    if (!isDisplayScale(scale)) return;
+    this.applyDisplayScale(scale);
+    try {
+      this.persistentStore.add(DISPLAY_SCALE_PREFERENCE_KEY, String(scale));
+    } catch {
+      // Keep the in-memory choice when browser storage is unavailable.
+    }
+  }
+
+  private applyDisplayScale(scale: number): void {
+    this.displayScale = scale;
+    document.documentElement.style.setProperty('zoom', String(scale / 100));
+    if (this.displayScaleResize !== undefined) cancelAnimationFrame(this.displayScaleResize);
+    this.displayScaleResize = requestAnimationFrame(() => {
+      this.displayScaleResize = undefined;
+      window.dispatchEvent(new Event('resize'));
+    });
+  }
+
   private async applyDarkMode(enabled: boolean): Promise<void> {
     document.body.classList.toggle('dark-mode', enabled);
     // Existing viewer presenters read the resolved value, not the preference.
@@ -421,8 +476,79 @@ export class AppComponent implements WinscopeEventListener, OnDestroy {
   }
 
   async onUploadNewButtonClick() {
-    await this.mediator.onWinscopeEvent(new AppResetRequest());
-    this.persistentStore.clear('treeView');
+    await this.resetTraceData();
+  }
+
+  get traceResetDisabled(): boolean {
+    return this.resettingTraces || this.confirmingTraceReset || this.downloadProgress !== undefined ||
+      (!this.dataLoaded && this.loadedFileData.getLoadedFileReaders().length === 0);
+  }
+
+  setConfirmTraceReset(enabled: boolean): void {
+    if (typeof enabled !== 'boolean') return;
+    this.confirmTraceReset = enabled;
+    try {
+      this.persistentStore.add(TRACE_RESET_CONFIRMATION_KEY, String(enabled));
+    } catch {
+      // The current window still honors the choice when storage is blocked.
+    }
+  }
+
+  async requestTraceReset(): Promise<void> {
+    if (this.traceResetDisabled) return;
+    if (!this.confirmTraceReset) {
+      await this.resetTraceData();
+      return;
+    }
+    const files = this.loadedFileData;
+    const data: WarningDialogData = {
+      title: 'Reset trace data?',
+      message: 'Clear the loaded trace data and return to collection? Original files will not be deleted.',
+      actions: ['Cancel'],
+      options: [DO_NOT_ASK_AGAIN],
+      closeText: RESET_TRACE_ACTION,
+    };
+    const dialog = this.dialog.open<WarningDialogComponent, WarningDialogData, WarningDialogResult>(WarningDialogComponent, {
+      data,
+      width: '440px',
+      maxWidth: 'calc(100% - 32px)',
+      disableClose: false,
+      autoFocus: '.warning-action-buttons .not-last',
+      panelClass: 'warning-panel',
+    });
+    this.resetConfirmationDialog = dialog;
+    this.confirmingTraceReset = true;
+    try {
+      const result = await firstValueFrom(dialog.afterClosed(), {defaultValue: undefined});
+      if (this.resetConfirmationDialog !== dialog) return;
+      this.resetConfirmationDialog = undefined;
+      this.confirmingTraceReset = false;
+      if (result?.closeActionText !== RESET_TRACE_ACTION || this.loadedFileData !== files || this.traceResetDisabled) return;
+      await this.resetTraceData();
+      if (result.selectedOptions.includes(DO_NOT_ASK_AGAIN)) {
+        this.setConfirmTraceReset(false);
+      }
+    } finally {
+      if (this.resetConfirmationDialog === dialog) this.closeResetConfirmation();
+    }
+  }
+
+  private closeResetConfirmation(): void {
+    const dialog = this.resetConfirmationDialog;
+    this.resetConfirmationDialog = undefined;
+    this.confirmingTraceReset = false;
+    dialog?.close();
+  }
+
+  async resetTraceData(): Promise<void> {
+    if (this.traceResetDisabled) return;
+    this.resettingTraces = true;
+    try {
+      await this.mediator.onWinscopeEvent(new AppResetRequest());
+      this.persistentStore.clear('treeView');
+    } finally {
+      this.resettingTraces = false;
+    }
   }
 
   clearLocalState() {
@@ -739,6 +865,7 @@ export class AppComponent implements WinscopeEventListener, OnDestroy {
           message: `Multiple Perfetto traces found. Select one to process:`,
           actions: [],
           options: filenames,
+          localizeOptions: false,
           closeText: 'Process selected trace',
           singleSelection: true,
         };
@@ -806,6 +933,7 @@ export class AppComponent implements WinscopeEventListener, OnDestroy {
   }
 
   private async onViewersUnloaded() {
+    this.closeResetConfirmation();
     this.loadedFileData.onDestroy();
     this.loadedFileData = this.createNewLoadedFileData();
     this.timelineData = new TimelineData();
@@ -820,6 +948,15 @@ export class AppComponent implements WinscopeEventListener, OnDestroy {
 
     this.dataLoaded = false;
     this.showDataLoadedElements = false;
+    this.viewers = [];
+    this.initialTimelineTabTraceType = undefined;
+    this.currentTimestamp = undefined;
+    this.collapsedTimelineHeight = 0;
+    this.isEditingFilename = false;
+    this.filenameFormControl.reset('winscope');
+    this.aiEvidence = undefined;
+    this.aiPanelOpen = false;
+    this.closeApplicationSettings();
     this.pageTitle.setTitle('Winscope');
     this.changeDetectorRef.detectChanges();
     this.updateShareState();

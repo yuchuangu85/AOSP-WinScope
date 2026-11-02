@@ -23,6 +23,10 @@ export function makeWarningProxyTracingErrors(errorMessages: string[]) {
   return new UserWarning(
     'proxy tracing errors',
     `Trace collection errors: ${errorMessages.join(', ')}`,
+    {
+      source: 'Trace collection errors: {errors}',
+      params: {errors: errorMessages.join(', ')},
+    },
   );
 }
 
@@ -33,5 +37,9 @@ export function makeWarningProxyTracingWarnings(warnings: string[]) {
   return new UserWarning(
     'proxy tracing warnings',
     `Trace collection warning: ${warnings.join(', ')}`,
+    {
+      source: 'Trace collection warning: {warnings}',
+      params: {warnings: warnings.join(', ')},
+    },
   );
 }

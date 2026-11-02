@@ -3,9 +3,11 @@ import {CommonModule} from '@angular/common';
 import {Component, ElementRef, EventEmitter, Input, OnChanges, OnDestroy, OnInit, Output, SimpleChanges, ViewChild,} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {MatButtonModule} from '@angular/material/button';
+import {MatCheckboxModule} from '@angular/material/checkbox';
 import {MatIconModule} from '@angular/material/icon';
 import {MatTooltipModule} from '@angular/material/tooltip';
-import {language, setLanguage, SUPPORTED_LANGUAGES, TranslatePipe,} from '@common/i18n';
+import {DEFAULT_DISPLAY_SCALE, DISPLAY_SCALE_OPTIONS, isDisplayScale,} from '@common/display_scale';
+import {languagePreference, setLanguage, SUPPORTED_LANGUAGES, TranslatePipe,} from '@common/i18n';
 import {AiCatalog, AiGatewayClient, AiProvider,} from '@services/ai_gateway_client';
 
 import {AiModelSelection, AiProviderModelSelection, AiSettingsComponent, AiSettingsValue,} from './ai_settings_component';
@@ -28,6 +30,7 @@ export type ThemeMode = 'system' | 'dark' | 'light';
     CommonModule,
     FormsModule,
     MatButtonModule,
+    MatCheckboxModule,
     MatIconModule,
     MatTooltipModule,
     TranslatePipe,
@@ -37,9 +40,11 @@ export type ThemeMode = 'system' | 'dark' | 'light';
   styleUrls: ['./app_settings_component.scss'],
 })
 export class AppSettingsComponent implements OnInit, OnChanges, OnDestroy {
-  readonly language = language;
+  readonly languagePreference = languagePreference;
   readonly setLanguage = setLanguage;
   readonly supportedLanguages = SUPPORTED_LANGUAGES;
+  readonly defaultDisplayScale = DEFAULT_DISPLAY_SCALE;
+  readonly displayScaleOptions = DISPLAY_SCALE_OPTIONS;
 
   @Input() endpoint?: string;
   @Input() section: SettingsSection = 'general';
@@ -55,10 +60,14 @@ export class AppSettingsComponent implements OnInit, OnChanges, OnDestroy {
   @Input() loadingConversation = false;
   @Input() existingSession = false;
   @Input() themeMode: ThemeMode = 'system';
+  @Input() displayScale: number = DEFAULT_DISPLAY_SCALE;
+  @Input() confirmTraceReset = true;
   @Output() readonly closed = new EventEmitter<void>();
   @Output() readonly applied = new EventEmitter<AiSettingsValue>();
   @Output() readonly catalogChanged = new EventEmitter<AiCatalog>();
   @Output() readonly themeModeChanged = new EventEmitter<ThemeMode>();
+  @Output() readonly displayScaleChanged = new EventEmitter<number>();
+  @Output() readonly confirmTraceResetChanged = new EventEmitter<boolean>();
   @ViewChild(AiSettingsComponent) aiSettings?: AiSettingsComponent;
   @ViewChild('generalTab') generalTab?: ElementRef<HTMLButtonElement>;
   @ViewChild('aiTab') aiTab?: ElementRef<HTMLButtonElement>;
@@ -70,10 +79,13 @@ export class AppSettingsComponent implements OnInit, OnChanges, OnDestroy {
   importingProvider: ImportProvider | '' = '';
   importErrors: Record<string, string> = {};
   importedProviders: Record<string, AiProvider> = {};
+  saving = false;
+  saveError = '';
 
   private client?: AiGatewayClient;
   private catalogController?: AbortController;
   private importController?: AbortController;
+  private saveController?: AbortController;
   private initialized = false;
   private inactive = false;
 
@@ -97,6 +109,7 @@ export class AppSettingsComponent implements OnInit, OnChanges, OnDestroy {
       (changes['loadingConversation'] && this.loadingConversation)
     ) {
       this.abortImport();
+      this.abortSave();
     }
   }
 
@@ -111,6 +124,7 @@ export class AppSettingsComponent implements OnInit, OnChanges, OnDestroy {
       this.running ||
       this.loadingConversation ||
       this.loading ||
+      this.saving ||
       !!this.importingProvider
     );
   }
@@ -126,6 +140,12 @@ export class AppSettingsComponent implements OnInit, OnChanges, OnDestroy {
 
   selectSection(section: SettingsSection): void {
     this.section = section;
+  }
+
+  onDisplayScaleChange(value: unknown): void {
+    if (isDisplayScale(value)) {
+      this.displayScaleChanged.emit(value);
+    }
   }
 
   onMenuKeydown(event: KeyboardEvent, section: SettingsSection): void {
@@ -173,10 +193,46 @@ export class AppSettingsComponent implements OnInit, OnChanges, OnDestroy {
     this.aiSettings?.save();
   }
 
-  applySettings(value: AiSettingsValue): void {
-    if (this.runtimeDisabled || !this.canConfigureAi) return;
-    this.applied.emit(value);
-    this.close();
+  async applySettings(value: AiSettingsValue): Promise<void> {
+    if (this.runtimeDisabled || !this.canConfigureAi || !this.client) return;
+    const client = this.client;
+    const controller = new AbortController();
+    this.saveController = controller;
+    this.saving = true;
+    this.saveError = '';
+    const isCurrent = () =>
+      !this.inactive &&
+      !controller.signal.aborted &&
+      this.saveController === controller &&
+      this.client === client;
+    try {
+      const saved = await client.saveSettings(
+        value.selection,
+        value.configuration,
+        controller.signal,
+      );
+      if (!isCurrent()) return;
+      this.catalog = {
+        ...this.catalog,
+        selection: saved.selection,
+        providers: this.catalog.providers.map((provider) =>
+          provider.id === saved.provider?.id ? saved.provider : provider,
+        ),
+      };
+      this.catalogChanged.emit(this.catalog);
+      this.applied.emit({...value, selection: saved.selection});
+      this.close();
+    } catch {
+      if (isCurrent()) {
+        this.saveError =
+          'Could not save AI settings. Check the configuration and try again.';
+      }
+    } finally {
+      if (isCurrent()) {
+        this.saving = false;
+        this.saveController = undefined;
+      }
+    }
   }
 
   async importLocalConfig(providerId: ImportProvider): Promise<void> {
@@ -234,6 +290,7 @@ export class AppSettingsComponent implements OnInit, OnChanges, OnDestroy {
     this.loadError = '';
     this.importErrors = {};
     this.importedProviders = {};
+    this.saveError = '';
     this.client = this.endpoint
       ? new AiGatewayClient(this.endpoint)
       : undefined;
@@ -269,10 +326,17 @@ export class AppSettingsComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   private abortRequests(): void {
+    this.abortSave();
     this.catalogController?.abort();
     this.catalogController = undefined;
     this.loading = false;
     this.abortImport();
+  }
+
+  private abortSave(): void {
+    this.saveController?.abort();
+    this.saveController = undefined;
+    this.saving = false;
   }
 
   private abortImport(): void {

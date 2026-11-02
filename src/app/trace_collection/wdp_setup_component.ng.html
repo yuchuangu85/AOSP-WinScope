@@ -17,12 +17,14 @@ limitations under the License.
 @let currState = state();
 @switch (currState) {
   @case (ConnectionState.CONNECTING) {
-    <p class="connecting-message mat-body-1">Connecting...</p>
+    <p class="connecting-message mat-body-1">{{ 'Connecting...' | tr }}</p>
   }
   @case (ConnectionState.NOT_FOUND) {
     <div class="further-adb-info-text">
-      <p class="mat-body-1">Failed to connect. Web Device Proxy doesn't seem to be running.</p>
-      <p class="mat-body-1">Please check you have Web Device Proxy installed.</p>
+      <p class="mat-body-1">{{
+        "Failed to connect. Web Device Proxy doesn't seem to be running." | tr
+      }}</p>
+      <p class="mat-body-1">{{ 'Please check you have Web Device Proxy installed.' | tr }}</p>
     </div>
     <div class="further-adb-info-actions">
       <button
@@ -30,34 +32,31 @@ limitations under the License.
         mat-stroked-button
         class="install no-touch-target-button"
         (click)="onInstallExternalButtonClick()"
+        >{{ 'Install (Non-Google users)' | tr }}</button
       >
-        Install (Non-Google users)
-      </button>
       <button
         color="primary"
         mat-stroked-button
         class="install no-touch-target-button"
         (click)="onInstallGoogleButtonClick()"
+        >{{ 'Install (Google employees only)' | tr }}</button
       >
-        Install (Google employees only)
-      </button>
       <button
         color="primary"
         mat-stroked-button
         class="retry no-touch-target-button"
         (click)="onRetryButtonClick()"
+        >{{ 'Retry' | tr }}</button
       >
-        Retry
-      </button>
     </div>
   }
   @case (ConnectionState.UNAUTH) {
     <div class="further-adb-info-text">
       <p class="icon-information mat-body-1">
         <mat-icon class="adb-icon">lock</mat-icon>
-        <span class="adb-info"
-          >Web Device Proxy not yet authorized. Enable popups and try again.</span
-        >
+        <span class="adb-info">{{
+          'Web Device Proxy not yet authorized. Enable popups and try again.' | tr
+        }}</span>
       </p>
     </div>
 
@@ -67,9 +66,8 @@ limitations under the License.
         mat-stroked-button
         class="retry no-touch-target-button"
         (click)="onRetryButtonClick()"
+        >{{ 'Retry' | tr }}</button
       >
-        Retry
-      </button>
     </div>
   }
 }

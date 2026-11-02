@@ -21,10 +21,12 @@ import {MatCheckboxModule} from '@angular/material/checkbox';
 import {MatIconModule} from '@angular/material/icon';
 import {MatListModule} from '@angular/material/list';
 import {MatTooltipModule} from '@angular/material/tooltip';
+import {translate, TranslatePipe} from '@common/i18n';
 import {Store} from '@common/store/store';
 import {getLogger} from '@compat/logging';
 import {LegacyFileReader} from '@legacy_file_readers/common/legacy_file_reader';
 import {ProgressListener} from '@messaging/progress_listener';
+import {UserNotification} from '@messaging/user_notification';
 import {WinscopeEvent} from '@messaging/winscope_event';
 import {WinscopeEventListener} from '@messaging/winscope_event_listener';
 import {FileReader} from '@trace_api/file_reader';
@@ -42,6 +44,7 @@ import {LoadProgressComponent} from './load_progress_component';
   selector: 'upload-traces',
   standalone: true,
   imports: [
+    TranslatePipe,
     CommonModule,
     MatCardModule,
     MatButtonModule,
@@ -64,6 +67,10 @@ export class UploadTracesComponent
   lastUiProgressUpdateTimeMs?: number;
   viewersLoading = signal(false);
   warningMessages: string[] = [];
+  private readonly warningLocalizations = new Map<
+    string,
+    NonNullable<UserNotification['localization']>
+  >();
   discardLegacyFiles = false;
 
   readonly legacyTraceWarningTooltip =
@@ -128,6 +135,14 @@ export class UploadTracesComponent
 
   clearAllWarnings() {
     this.warningMessages = [];
+    this.warningLocalizations.clear();
+  }
+
+  warningText(message: string): string {
+    const localization = this.warningLocalizations.get(message);
+    return localization
+      ? translate(localization.source, localization.params)
+      : translate(message);
   }
 
   async onWinscopeEvent(event: WinscopeEvent) {
@@ -240,7 +255,8 @@ export class UploadTracesComponent
   }
 
   clearWarning(index: number) {
-    this.warningMessages.splice(index, 1);
+    const [message] = this.warningMessages.splice(index, 1);
+    this.warningLocalizations.delete(message);
     this.changeDetectorRef.detectChanges(); // Trigger UI update
   }
 
@@ -263,6 +279,9 @@ export class UploadTracesComponent
   private async onShowTraceUploadWarning(event: ShowTraceUploadWarning) {
     if (event.message && !this.warningMessages.includes(event.message)) {
       this.warningMessages.push(event.message);
+    }
+    if (event.message && event.localization) {
+      this.warningLocalizations.set(event.message, event.localization);
     }
     this.changeDetectorRef.detectChanges();
   }
