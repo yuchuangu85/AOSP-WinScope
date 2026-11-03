@@ -103,11 +103,18 @@ jobs:
             echo "release already exists: $RELEASE_TAG" >&2
             exit 1
           fi
+          # The candidate commit predates this publisher, so fall back to the
+          # reviewed notes on the default branch.
+          notes=.github/release-notes/desktop-candidate.md
+          if [ ! -f "$notes" ]; then
+            git show "origin/main:$notes" > "$RUNNER_TEMP/notes.md"
+            notes="$RUNNER_TEMP/notes.md"
+          fi
           gh release create "$RELEASE_TAG" publication/* \
             --draft \
             --target "$CANDIDATE_SHA" \
             --title "AOSP-WinScope $VERSION desktop installers (candidate)" \
-            --notes-file .github/release-notes/desktop-candidate.md
+            --notes-file "$notes"
           gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" > "$RUNNER_TEMP/uploaded-release.json"
           node --input-type=module -e '
             import fs from "node:fs";
