@@ -156,9 +156,22 @@ def production_host():
     require(os.getuid() != 0, "Run the bundler as an unprivileged build user")
     for tool in ("dpkg-deb", "readelf", "gpgv", "curl"):
         require(shutil.which(tool), "Missing build tool: " + tool)
-    info = KEYRING.lstat()
+    keyring = KEYRING
+    info = keyring.lstat()
+    if stat.S_ISLNK(info.st_mode):
+        # Some images ship the package keyring as a link to the installed file.
+        # The link is only trustworthy while its own directory is root-owned and
+        # not writable by the unprivileged build user.
+        directory = keyring.parent.stat()
+        require(stat.S_ISDIR(directory.st_mode) and directory.st_uid == 0
+                and not directory.st_mode & 0o022,
+                "Ubuntu keyring link must live in a root-owned, non-writable directory")
+        keyring = keyring.resolve(strict=True)
+        info = keyring.lstat()
     require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and not info.st_mode & 0o022,
-            "Ubuntu keyring must be an installed, root-owned, non-writable regular file")
+            "Ubuntu keyring must be an installed, root-owned, non-writable regular file "
+            f"(path={keyring}, type={stat.S_IFMT(info.st_mode):#o}, "
+            f"uid={info.st_uid}, mode={stat.S_IMODE(info.st_mode):#o})")
 
 
 def command(args, **kwargs):

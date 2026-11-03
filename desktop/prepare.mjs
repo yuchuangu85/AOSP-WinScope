@@ -528,12 +528,17 @@ export async function verifyRuntime(root, target) {
   }
   if (!actual.some((asset) => asset.path.startsWith("capture/_internal/")))
     throw new Error("Capture is missing its embedded Python runtime");
+  // NTFS and Windows build hosts do not carry POSIX execute bits, so the
+  // permission contract can only be asserted from a POSIX host. Cross-platform
+  // fixtures staged on Windows describe other targets without those bits.
+  const executableBitsApply = process.platform !== "win32";
   for (const file of [
     `launcher/winscope-launcher${target.suffix}`,
     `capture/winscope-capture${target.suffix}`,
     `platform-tools/adb${target.suffix}`,
   ]) {
     if (
+      executableBitsApply &&
       target.platform !== "win32" &&
       !((await fs.stat(path.join(root, file))).mode & 0o111)
     )
