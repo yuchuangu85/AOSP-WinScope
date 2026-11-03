@@ -179,12 +179,55 @@ export interface TransactionEvidence {
   notes?: string[];
 }
 
+export type WinscopeTraceSnapshotEntry = JsonObject & {
+  traceType: string;
+  sourceIndex: number;
+  index: number;
+  timestampNs: string;
+  time: string;
+  match: string;
+  data: JsonValue;
+  incompleteReasons: string[];
+  truncated: boolean;
+};
+
+export type WinscopeTraceSnapshot = JsonObject & {
+  schemaVersion: '1';
+  mode: 'current' | 'timestamp';
+  requestedTimestampNs: string;
+  entries: WinscopeTraceSnapshotEntry[];
+  incompleteReasons: string[];
+  truncated: boolean;
+  windowManager?: JsonObject & {
+    status: 'available' | 'partial' | 'unavailable';
+    entries: Array<JsonObject & {
+      sourceIndex: number;
+      index: number;
+      requestedTimestampNs: string;
+      timestampNs: string;
+      time: string;
+      deltaNs?: string;
+      match: string;
+      dataPath: string;
+      incompleteReasons: string[];
+      truncated: boolean;
+    }>;
+    incompleteReasons: string[];
+  };
+};
+
 export interface EvidenceInput {
   video?: VideoEvidence;
   surfaceFlinger?: SurfaceFlingerEvidence;
   windowManager?: WindowManagerEvidence;
   transactions?: TransactionEvidence;
   metadata?: JsonObject;
+  // Kept open for older generic snapshots; validate timed WM data at consumption.
+  winscope?: JsonObject;
+}
+
+export interface TraceDataQuery {
+  time?: string;
 }
 
 export type FindingKind = 'black-screen' | 'flicker';
@@ -208,6 +251,7 @@ export interface EvidenceAnalysisResult {
     frameLuma: boolean;
     frameDiff: boolean;
     surfaceFlinger: boolean;
+    // An actual observation is available, possibly partial; not causal proof.
     windowManager: boolean;
     transactions: boolean;
   };
@@ -224,6 +268,7 @@ export interface AgentRunRequest {
   modelId?: string;
   history?: ChatTurn[];
   attachments?: TextAttachment[];
+  queryTrace?: (query: TraceDataQuery) => Promise<JsonObject>;
 }
 
 export interface AgentRunResult {

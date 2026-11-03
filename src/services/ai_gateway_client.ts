@@ -72,6 +72,7 @@ export interface AiSessionDetail extends AiSessionSummary {
   events: Array<{id: number; event: AiEvent}>;
   result?: unknown;
   error?: string;
+  pendingTraceQuery?: AiTraceQueryRequest;
 }
 
 export interface AiAttachment {
@@ -86,6 +87,14 @@ export interface AiAnalysisOptions {
   modelId?: string;
   reasoningLevel?: string;
   attachments?: AiAttachment[];
+  traceQueryEnabled?: boolean;
+  traceQueryContextId?: string;
+}
+
+export interface AiTraceQueryRequest {
+  queryId: string;
+  contextId: string;
+  query: {time?: string};
 }
 
 export type AiSessionResponse = AiSessionSummary;
@@ -194,11 +203,29 @@ export class AiGatewayClient {
     );
   }
 
+  async respondToTraceQuery(
+    sessionId: string,
+    queryId: string,
+    contextId: string,
+    response: {result: unknown} | {error: string},
+    signal?: AbortSignal,
+  ): Promise<void> {
+    await this.getJson(
+      `api/sessions/${encodeURIComponent(sessionId)}/trace-query/${encodeURIComponent(queryId)}`,
+      signal,
+      {
+        method: 'POST',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify({contextId, ...response}),
+      },
+    );
+  }
+
   async report(
     sessionId: string,
     format: 'markdown' | 'html' = 'markdown',
   ): Promise<Blob> {
-    const response = await this.fetcher(
+    const response = await this.request(
       this.url(
         `api/sessions/${encodeURIComponent(sessionId)}/report?format=${format}`,
       ),
@@ -214,7 +241,7 @@ export class AiGatewayClient {
     signal?: AbortSignal,
     after = 0,
   ): Promise<void> {
-    const response = await this.fetcher(
+    const response = await this.request(
       this.url(
         `api/sessions/${encodeURIComponent(sessionId)}/stream?after=${after}`,
       ),
@@ -224,6 +251,7 @@ export class AiGatewayClient {
         signal,
         headers: {Accept: 'text/event-stream'},
       },
+      true,
     );
     if (!response.ok || !response.body) {
       throw new Error(`AI stream failed (${response.status})`);
@@ -250,6 +278,12 @@ export class AiGatewayClient {
       }
       const finalEvent = parseSseEventBlock(buffer);
       if (finalEvent) onEvent(finalEvent);
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      if (error instanceof TypeError) {
+        throw new Error('The AI connection was interrupted. Reopen this conversation to reconnect.');
+      }
+      throw error;
     } finally {
       await reader.cancel().catch(() => undefined);
       reader.releaseLock();
@@ -261,7 +295,7 @@ export class AiGatewayClient {
     signal?: AbortSignal,
     init: RequestInit = {},
   ): Promise<T> {
-    const response = await this.fetcher(this.url(path), {
+    const response = await this.request(this.url(path), {
       ...init,
       cache: 'no-store',
       signal,
@@ -281,6 +315,20 @@ export class AiGatewayClient {
       throw new Error(message);
     }
     return body as T;
+  }
+
+  private async request(url: string, init: RequestInit, streaming = false): Promise<Response> {
+    try {
+      return await this.fetcher(url, init);
+    } catch (error) {
+      if (init.signal?.aborted) throw error;
+      if (error instanceof TypeError) {
+        throw new Error(streaming
+          ? 'The AI connection was interrupted. Reopen this conversation to reconnect.'
+          : 'Could not reach the AI gateway. Check the connection and try again.');
+      }
+      throw error;
+    }
   }
 
   private url(path: string): string {

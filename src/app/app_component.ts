@@ -50,6 +50,8 @@ import {InMemoryStorage} from '@common/store/in_memory_storage';
 import {clearPersistentState, isPersistenceEnabled, PersistentStore,} from '@common/store/persistent_store';
 import {Store} from '@common/store/store';
 import {Timestamp} from '@common/time/time';
+import {TIME_UNITS} from '@common/time/time_units';
+import {UserTimestamp} from '@common/time/user_timestamp';
 import {getRootUrl} from '@common/window';
 import {globalConfig} from '@compat/global_config';
 import {getLogger} from '@compat/logging';
@@ -64,8 +66,10 @@ import {getRuntimeConfig, getRuntimeConfigDiagnostic} from '@runtime/runtime_con
 import {AiCatalog} from '@services/ai_gateway_client';
 import {buildDisplayEvidence} from '@services/display_evidence_builder';
 import {UserNotifier} from '@services/user_notifier';
+import {queryWinscopeTraceData, WinscopeTraceQuery, WinscopeTraceSnapshot} from '@services/winscope_trace_query';
 import {FileReader} from '@trace_api/file_reader';
 import {ActiveTraceChanged, TracePositionUpdate, TraceSearchRequest,} from '@trace_api/trace_events';
+import {TracePosition} from '@trace_api/trace_position';
 import {TraceType} from '@trace_api/trace_type';
 import {AdbFiles} from '@trace_collection/adb_files';
 import {MediaBasedTraceEntry} from '@trace/media_based/media_based_trace_entry';
@@ -160,6 +164,7 @@ export class AppComponent implements WinscopeEventListener, OnDestroy {
   };
   settingsSelection: AiModelSelection = {...this.aiDefaults.selection};
   aiEvidence: unknown;
+  aiTraceQuery?: (query: WinscopeTraceQuery) => Promise<WinscopeTraceSnapshot>;
 
   shareOptions = {
     location: true,
@@ -328,8 +333,19 @@ export class AppComponent implements WinscopeEventListener, OnDestroy {
     this.closeApplicationSettings();
     this.aiPanelOpen = true;
     const loadedFileData = this.loadedFileData;
+    const loadedTraces = this.dataLoaded ? loadedFileData.getTraces() : undefined;
+    const sources = loadedTraces ? [...loadedTraces] : [];
+    const unchanged = () => this.loadedFileData === loadedFileData &&
+      loadedFileData.getTraces() === loadedTraces && sources.length === loadedTraces?.getSize() &&
+      sources.every((trace) => loadedTraces?.hasTrace(trace));
+    this.aiTraceQuery = loadedTraces?.getSize() ? async (query) => {
+      if (!unchanged()) throw new Error('The loaded traces have changed.');
+      const snapshot = await this.queryAiTraceData(query);
+      if (!unchanged()) throw new Error('The loaded traces have changed.');
+      return snapshot;
+    } : undefined;
     try {
-      const evidence = await buildDisplayEvidence(loadedFileData.getTraces());
+      const evidence = loadedTraces ? await buildDisplayEvidence(loadedTraces) : undefined;
       if (this.aiPanelOpen && this.loadedFileData === loadedFileData) {
         this.aiEvidence = evidence;
       }
@@ -338,6 +354,51 @@ export class AppComponent implements WinscopeEventListener, OnDestroy {
         this.aiEvidence = undefined;
       }
     }
+  }
+
+  async queryAiTraceData(query: WinscopeTraceQuery = {}): Promise<WinscopeTraceSnapshot> {
+    const traces = this.loadedFileData.getTraces();
+    if (!traces.getSize()) throw new Error('No WinScope traces are loaded.');
+    let position = this.timelineData.getCurrentPosition();
+    if (query.time !== undefined) {
+      const text = query.time.trim();
+      if (!text || text.length > 128) throw new Error('Invalid trace query time.');
+      const converter = this.timelineData.getTimestampConverter();
+      let input = new UserTimestamp(text);
+      let timestamp: Timestamp;
+      if (input.isNsFormat()) {
+        const ns = BigInt(text.replace(/\s*ns\s*$/, '').trim());
+        timestamp = ns < 3n * 365n * 24n * 60n * 60n * 1_000_000_000n
+          ? converter.makeTimestampFromBootTimeNs(ns)
+          : converter.makeTimestampFromNs(ns);
+      } else if (input.isHumanElapsedTimeFormat()) {
+        let ns = 0n;
+        for (const part of text.matchAll(/([0-9]+)([a-z]+)/g)) {
+          const unit = TIME_UNITS.find((candidate) => candidate.unit === part[2]);
+          if (!unit) throw new Error('Invalid trace query time.');
+          ns += BigInt(part[1]) * unit.nanosInUnit;
+        }
+        timestamp = converter.makeTimestampFromBootTimeNs(ns);
+      } else {
+        if (input.isRealTimeOnlyFormat()) {
+          const date = position && new UserTimestamp(position.timestamp.format()).extractDate();
+          if (!date) throw new Error('A date is required for this trace query time.');
+          input = new UserTimestamp(`${date}T${text}`);
+        }
+        if (!converter.validateHumanInput(input.timestampHuman)) throw new Error('Invalid trace query time.');
+        timestamp = converter.makeTimestampFromHuman(input);
+      }
+      if (!this.timelineData.hasTimestamps() || !timestamp.in(this.timelineData.getFullTimeRange())) {
+        throw new Error('The requested time is outside the loaded trace range.');
+      }
+      position = this.timelineData.makePositionFromActiveTrace(timestamp);
+    }
+    if (!position) {
+      const trace = [...traces].find((candidate) => candidate.lengthEntries > 0);
+      if (trace) position = TracePosition.fromTraceEntry(trace.getEntry(0));
+    }
+    if (!position) throw new Error('No trace entry is available at the current position.');
+    return queryWinscopeTraceData(traces, position, query.time === undefined ? 'current' : 'timestamp');
   }
 
   openApplicationSettings(section: 'general' | 'ai' = 'general'): void {
@@ -955,6 +1016,7 @@ export class AppComponent implements WinscopeEventListener, OnDestroy {
     this.isEditingFilename = false;
     this.filenameFormControl.reset('winscope');
     this.aiEvidence = undefined;
+    this.aiTraceQuery = undefined;
     this.aiPanelOpen = false;
     this.closeApplicationSettings();
     this.pageTitle.setTitle('Winscope');

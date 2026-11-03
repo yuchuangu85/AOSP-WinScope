@@ -53,8 +53,10 @@ import {waitToBeCalled} from '@common/spy_utils';
 import {setPersistenceEnabledForTest} from '@common/store/persistent_store';
 import {Store} from '@common/store/store';
 import {DOMTestHelper} from '@common/testing/dom_test_helpers';
-import {makeConverterZeroRteOffsets, makeRealTimestamp,} from '@common/time/testing/test_helpers';
+import {makeConverterNoRteOffsets, makeConverterZeroRteOffsets, makeElapsedTimestamp, makeRealTimestamp,} from '@common/time/testing/test_helpers';
 import {Timestamp} from '@common/time/time';
+import {TimestampConverter} from '@common/time/timestamp_converter';
+import {UserTimestamp} from '@common/time/user_timestamp';
 import {RequestData} from '@cross_tool/g3_proxy';
 import {TestFileReaderAndParserBuilder} from '@legacy_file_readers/testing/test_file_reader_and_parser_builder';
 import {TestFileReaderBuilder} from '@legacy_file_readers/testing/test_file_reader_builder';
@@ -63,8 +65,10 @@ import {EmitEvent} from '@messaging/winscope_event_emitter';
 import {TraceGeometryData} from '@parsers/helpers/trace_geometry_data';
 import {UserNotifier} from '@services/user_notifier';
 import {FilesSource} from '@trace_api/files_source';
+import {TraceBuilder} from '@trace_api/testing/trace_builder';
 import {TracesBuilder} from '@trace_api/testing/traces_builder';
 import {TracePositionUpdate, TraceSearchRequest} from '@trace_api/trace_events';
+import {TracePosition} from '@trace_api/trace_position';
 import {TraceType} from '@trace_api/trace_type';
 import {Traces} from '@trace_api/traces';
 import {AppRefreshDumpsRequest, AppResetRequest,} from '@ui/shared/events/app_events';
@@ -278,6 +282,135 @@ describe('AppComponent', () => {
 
   it('can be created', () => {
     expect(component).toBeTruthy();
+  });
+
+  describe('AI timeline query API', () => {
+    async function loadQueryTraces() {
+      const trace = new TraceBuilder()
+        .setType(TraceType.SURFACE_FLINGER)
+        .setEntries([{layer: 'first', alpha: 0}, {layer: 'second', alpha: 1}, {layer: 'third', alpha: 0.5}])
+        .setTimestamps([1n, 2n, 3n].map((seconds) => makeElapsedTimestamp(seconds * 1_000_000_000n)))
+        .build();
+      const traces = new Traces();
+      traces.addTrace(trace);
+      (component.loadedFileData.getTraces as jasmine.Spy).and.returnValue(traces);
+      (component.timelineData.getTimestampConverter as jasmine.Spy).and.returnValue(makeConverterNoRteOffsets());
+      (component.timelineData.hasTimestamps as jasmine.Spy).and.callThrough();
+      component.timelineData = new TimelineData();
+      await component.timelineData.initialize(traces, undefined, makeConverterNoRteOffsets());
+      component.timelineData.setPosition(TracePosition.fromTraceEntry(trace.getEntry(1)));
+      return {trace, traces};
+    }
+
+    it('reads the manual position afresh without moving the timeline', async () => {
+      const {trace} = await loadQueryTraces();
+      const position = component.timelineData.getCurrentPosition();
+      const snapshot = await component.queryAiTraceData();
+      expect(snapshot.mode).toBe('current');
+      expect(snapshot.requestedTimestampNs).toBe('2000000000');
+      expect(snapshot.entries[0].index).toBe(1);
+      expect(JSON.stringify(snapshot.entries[0].data)).toContain('second');
+      expect(component.timelineData.getCurrentPosition()).toBe(position);
+      component.timelineData.setPosition(TracePosition.fromTraceEntry(trace.getEntry(2)));
+      expect((await component.queryAiTraceData()).entries[0].index).toBe(2);
+    });
+
+    it('includes WindowManager data aligned to the current or requested time without moving the viewer', async () => {
+      const {traces} = await loadQueryTraces();
+      traces.addTrace(new TraceBuilder().setType(TraceType.WINDOW_MANAGER)
+        .setEntries([{focusedWindow: 'app.first'}, {focusedWindow: 'app.second'}])
+        .setTimestamps([makeElapsedTimestamp(800_000_000n), makeElapsedTimestamp(1_800_000_000n)]).build());
+      const position = component.timelineData.getCurrentPosition();
+      for (const query of [{}, {time: '2s'}]) {
+        const snapshot = await component.queryAiTraceData(query);
+        const wm = snapshot.windowManager!;
+        expect(wm.status).toBe('available');
+        expect(wm.entries[0].requestedTimestampNs).toBe('2000000000');
+        expect(wm.entries[0].timestampNs).toBe('1800000000');
+        expect(wm.entries[0].deltaNs).toBe('-200000000');
+        const data = snapshot.entries.find((entry) => entry.traceType === 'WINDOW_MANAGER')!.data;
+        expect(JSON.stringify(data)).toContain('app.second');
+      }
+      expect(component.timelineData.getCurrentPosition()).toBe(position);
+    });
+
+    for (const time of ['1s500ms', '1500000000 ns', '1500000000']) {
+      it(`queries ${time} with the same active-trace mapping without changing selection`, async () => {
+        const {trace} = await loadQueryTraces();
+        const position = component.timelineData.getCurrentPosition();
+        const expected = component.timelineData.makePositionFromActiveTrace(makeElapsedTimestamp(1_500_000_000n));
+        const snapshot = await component.queryAiTraceData({time});
+        expect(snapshot.mode).toBe('timestamp');
+        expect(snapshot.requestedTimestampNs).toBe('1500000000');
+        expect(snapshot.entries[0].index).toBe(expected.entry!.getIndex());
+        expect(snapshot.entries[0].timestampNs).toBe(trace.getEntry(snapshot.entries[0].index).getTimestamp().getValueNs().toString());
+        expect(component.timelineData.getCurrentPosition()).toBe(position);
+      });
+    }
+
+    it('rejects missing traces, invalid times and out-of-range times without moving selection', async () => {
+      await expectAsync(component.queryAiTraceData()).toBeRejectedWithError('No WinScope traces are loaded.');
+      await loadQueryTraces();
+      const position = component.timelineData.getCurrentPosition();
+      for (const time of ['', 'yesterday', '-1ns', '10s', '0ns']) {
+        await expectAsync(component.queryAiTraceData({time})).toBeRejected();
+      }
+      expect(component.timelineData.getCurrentPosition()).toBe(position);
+    });
+
+    it('accepts full timestamps, current-date shorthand and preserves absolute nanosecond precision', async () => {
+      const timestamp = 1_793_621_012_123_456_789n;
+      const realConverter = makeConverterZeroRteOffsets();
+      const trace = new TraceBuilder().setType(TraceType.SURFACE_FLINGER)
+        .setEntries([{alpha: 0}, {alpha: 1}])
+        .setTimestamps([realConverter.makeTimestampFromRealNs(timestamp), realConverter.makeTimestampFromRealNs(timestamp + 2_000_000_000n)]).build();
+      const traces = new Traces();
+      traces.addTrace(trace);
+      (component.loadedFileData.getTraces as jasmine.Spy).and.returnValue(traces);
+      (component.timelineData.getTimestampConverter as jasmine.Spy).and.returnValue(realConverter);
+      (component.timelineData.hasTimestamps as jasmine.Spy).and.callThrough();
+      component.timelineData = new TimelineData();
+      await component.timelineData.initialize(traces, undefined, realConverter);
+      component.timelineData.setPosition(TracePosition.fromTraceEntry(trace.getEntry(0)));
+      const exact = await component.queryAiTraceData({time: `${timestamp} ns`});
+      expect(exact.requestedTimestampNs).toBe(timestamp.toString());
+      const fullTime = new Date(Number(timestamp / 1_000_000_000n) * 1000)
+        .toISOString().replace('.000Z', '.123456789Z');
+      expect((await component.queryAiTraceData({time: fullTime})).requestedTimestampNs).toBe(timestamp.toString());
+      const timeOnly = new UserTimestamp(fullTime).extractTime()!;
+      expect((await component.queryAiTraceData({time: timeOnly})).requestedTimestampNs).toBe(timestamp.toString());
+    });
+
+    it('invalidates the panel query capability when loaded traces change', async () => {
+      const {trace, traces} = await loadQueryTraces();
+      component.dataLoaded = true;
+      await component.openAiPanel();
+      const query = component.aiTraceQuery!;
+      expect((await query({})).entries[0].index).toBe(1);
+      traces.deleteTrace(trace);
+      await expectAsync(query({})).toBeRejectedWithError('The loaded traces have changed.');
+    });
+
+    it('converts elapsed strings through the real trace boot offset with exact bigint arithmetic', async () => {
+      const offset = 1_793_621_000_000_000_000n;
+      const realConverter = makeConverterZeroRteOffsets();
+      // A distinct converter is needed because offsets are immutable once set.
+      const bootConverter = new TimestampConverter(undefined, offset);
+      const trace = new TraceBuilder().setType(TraceType.SURFACE_FLINGER)
+        .setEntries([{alpha: 0}, {alpha: 1}])
+        .setTimestamps([bootConverter.makeTimestampFromBootTimeNs(1_000_000_000n), bootConverter.makeTimestampFromBootTimeNs(3_000_000_000n)]).build();
+      const traces = new Traces();
+      traces.addTrace(trace);
+      (component.loadedFileData.getTraces as jasmine.Spy).and.returnValue(traces);
+      (component.timelineData.getTimestampConverter as jasmine.Spy).and.returnValue(bootConverter);
+      (component.timelineData.hasTimestamps as jasmine.Spy).and.callThrough();
+      component.timelineData = new TimelineData();
+      await component.timelineData.initialize(traces, undefined, realConverter);
+      const elapsed = await component.queryAiTraceData({time: '1s200ms1ns'});
+      const numeric = await component.queryAiTraceData({time: '1200000001 ns'});
+      expect(elapsed.requestedTimestampNs).toBe((offset + 1_200_000_001n).toString());
+      expect(numeric.requestedTimestampNs).toBe(elapsed.requestedTimestampNs);
+    });
   });
 
   describe('display size preference', () => {

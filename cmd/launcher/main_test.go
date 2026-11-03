@@ -15,7 +15,10 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -23,6 +26,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestValidManifestPath(t *testing.T) {
@@ -205,6 +209,111 @@ func TestAIProxyUsesSameOriginPathAndRuntimeConfig(t *testing.T) {
 	ai, ok := config["ai"].(map[string]any)
 	if !ok || ai["provider"] != "loopback-ai-v1" || ai["endpoint"] != "./ai/" {
 		t.Fatalf("runtime AI config = %#v", config["ai"])
+	}
+}
+
+func TestAIEventStreamOutlivesServerWriteTimeout(t *testing.T) {
+	for _, flushEarly := range []bool{false, true} {
+		t.Run(fmt.Sprintf("flushEarly=%t", flushEarly), func(t *testing.T) {
+			gateway := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				writer.Header().Set("Content-Type", "text/event-stream")
+				if flushEarly {
+					_, _ = io.WriteString(writer, "event: analysis_started\ndata: {}\n\n")
+					writer.(http.Flusher).Flush()
+				}
+				time.Sleep(200 * time.Millisecond)
+				_, _ = io.WriteString(writer, "event: analysis_completed\ndata: {\"answer\":\"delayed\"}\n\n")
+			}))
+			defer gateway.Close()
+			target, _ := url.Parse(gateway.URL)
+			launcher := httptest.NewUnstartedServer(newHandler(t.TempDir(), nil, "http://127.0.0.1:1234", nil, target))
+			launcher.Config.WriteTimeout = 50 * time.Millisecond
+			launcher.Start()
+			defer launcher.Close()
+			client := &http.Client{Timeout: 3 * time.Second}
+			response, err := client.Get(launcher.URL + "/ai/api/sessions/slow/stream?after=0")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer response.Body.Close()
+			body, err := io.ReadAll(response.Body)
+			if err != nil {
+				t.Fatalf("event stream interrupted: %v", err)
+			}
+			if response.StatusCode != http.StatusOK || !strings.Contains(string(body), "analysis_completed") {
+				t.Fatalf("missing delayed completion: status=%d body=%q", response.StatusCode, body)
+			}
+		})
+	}
+}
+
+func TestAIEventStreamDisconnectCancelsUpstream(t *testing.T) {
+	cancelled := make(chan struct{})
+	gateway := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(writer, "event: analysis_started\ndata: {}\n\n")
+		writer.(http.Flusher).Flush()
+		<-request.Context().Done()
+		close(cancelled)
+	}))
+	defer gateway.Close()
+	target, _ := url.Parse(gateway.URL)
+	launcher := httptest.NewUnstartedServer(newHandler(t.TempDir(), nil, "http://127.0.0.1:1234", nil, target))
+	launcher.Config.WriteTimeout = 50 * time.Millisecond
+	launcher.Start()
+	defer launcher.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	request, _ := http.NewRequestWithContext(ctx, http.MethodGet, launcher.URL+"/ai/api/sessions/slow/stream", nil)
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cancel()
+	response.Body.Close()
+	select {
+	case <-cancelled:
+	case <-time.After(2 * time.Second):
+		t.Fatal("browser disconnect did not cancel upstream stream")
+	}
+}
+
+type deadlineRecorder struct {
+	*httptest.ResponseRecorder
+	deadlines []time.Time
+}
+
+func (writer *deadlineRecorder) SetWriteDeadline(deadline time.Time) error {
+	writer.deadlines = append(writer.deadlines, deadline)
+	return nil
+}
+
+func TestOnlyAIEventStreamClearsWriteDeadline(t *testing.T) {
+	gateway := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		_, _ = io.WriteString(writer, "ok")
+	}))
+	defer gateway.Close()
+	target, _ := url.Parse(gateway.URL)
+	handler := newHandler(t.TempDir(), nil, "http://127.0.0.1:1234", nil, target)
+	for _, test := range []struct {
+		method string
+		path   string
+		clear  bool
+	}{
+		{http.MethodGet, "/ai/api/sessions/a/stream?after=0", true},
+		{http.MethodPost, "/ai/api/analyze", false},
+		{http.MethodGet, "/ai/api/sessions/a/report?format=markdown", false},
+		{http.MethodGet, "/ai/other/stream", false},
+		{http.MethodPost, "/ai/api/sessions/a/stream", false},
+		{http.MethodGet, "/ai/api/sessions/a/stream?secret=x", false},
+	} {
+		t.Run(test.method+test.path, func(t *testing.T) {
+			writer := &deadlineRecorder{ResponseRecorder: httptest.NewRecorder()}
+			handler.ServeHTTP(writer, httptest.NewRequest(test.method, "http://127.0.0.1:1234"+test.path, nil))
+			if got := len(writer.deadlines) == 1 && writer.deadlines[0].IsZero(); got != test.clear {
+				t.Fatalf("cleared deadline = %t, want %t", got, test.clear)
+			}
+		})
 	}
 }
 

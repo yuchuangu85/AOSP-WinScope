@@ -1,6 +1,39 @@
 import {AiGatewayClient, AiProviderConfiguration, AiSettingsSelection, parseSseEventBlock} from './ai_gateway_client';
 
 describe('AiGatewayClient', () => {
+  it('explains a failed send without retrying a potentially accepted POST', async () => {
+    const fetcher = jasmine.createSpy('fetch').and.rejectWith(new TypeError('Failed to fetch'));
+    const client = new AiGatewayClient('./ai/', fetcher);
+    await expectAsync(client.startAnalysis('Question', 'display')).toBeRejectedWithError(
+      'Could not reach the AI gateway. Check the connection and try again.',
+    );
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it('distinguishes connection and reader failures on the event stream from a failed send', async () => {
+    const fetcher = jasmine.createSpy('fetch').and.rejectWith(new TypeError('NetworkError'));
+    const client = new AiGatewayClient('./ai/', fetcher);
+    await expectAsync(client.stream('a', () => undefined)).toBeRejectedWithError(
+      'The AI connection was interrupted. Reopen this conversation to reconnect.',
+    );
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) { controller.error(new TypeError('network error')); },
+    });
+    fetcher.and.resolveTo(new Response(body));
+    await expectAsync(client.stream('a', () => undefined)).toBeRejectedWithError(
+      'The AI connection was interrupted. Reopen this conversation to reconnect.',
+    );
+  });
+
+  it('preserves an explicit abort rather than describing it as a network failure', async () => {
+    const controller = new AbortController();
+    const reason = new DOMException('Cancelled', 'AbortError');
+    controller.abort(reason);
+    const fetcher = jasmine.createSpy('fetch').and.rejectWith(reason);
+    await expectAsync(new AiGatewayClient('./ai/', fetcher).startAnalysis('Question', 'display', undefined, controller.signal))
+      .toBeRejectedWith(reason);
+  });
+
   const selection: AiSettingsSelection = {
     agentId: 'display',
     providerId: 'codex',
@@ -104,6 +137,25 @@ describe('AiGatewayClient', () => {
       message: undefined,
       data: {skillId: 'x'},
     });
+  });
+  it('posts read-only trace query results to the exact session and query with an abort signal', async () => {
+    const fetcher = jasmine.createSpy('fetch').and.resolveTo(new Response('{"ok":true}'));
+    const client = new AiGatewayClient('./ai/', fetcher);
+    const controller = new AbortController();
+    const result = {requestedTimestampNs: '1793621012123456789', entries: [{alpha: 0}]};
+    await client.respondToTraceQuery('session/1', 'query/2', 'context-3', {result}, controller.signal);
+    const [url, init] = fetcher.calls.mostRecent().args;
+    expect(url).toContain('/api/sessions/session%2F1/trace-query/query%2F2');
+    expect(JSON.parse(init.body)).toEqual({contextId: 'context-3', result});
+    expect(init.signal).toBe(controller.signal);
+    expect(init.method).toBe('POST');
+    expect(init.cache).toBe('no-store');
+  });
+
+  it('posts trace query errors without fabricating a snapshot', async () => {
+    const fetcher = jasmine.createSpy('fetch').and.resolveTo(new Response('{"ok":true}'));
+    await new AiGatewayClient('./ai/', fetcher).respondToTraceQuery('a', 'q', 'c', {error: 'No trace data'});
+    expect(JSON.parse(fetcher.calls.mostRecent().args[1].body)).toEqual({contextId: 'c', error: 'No trace data'});
   });
   it('rejects empty SSE blocks and safely handles primitive data', () => {
     expect(parseSseEventBlock('event: progress')).toBeUndefined();

@@ -8,9 +8,11 @@ import {MatMenuModule} from '@angular/material/menu';
 import {MatProgressBarModule} from '@angular/material/progress-bar';
 import {MatTooltipModule} from '@angular/material/tooltip';
 import {language, translate, TranslatePipe} from '@common/i18n';
-import {AiChatTurn, formatConversationResponse, projectConversation,} from '@services/ai_conversation';
-import {AiAttachment, AiCatalog, AiEvent, AiGatewayClient, AiProvider, AiSessionSummary,} from '@services/ai_gateway_client';
+import {AiChatTurn, formatAnalysisDuration, formatConversationResponse, projectConversation,} from '@services/ai_conversation';
+import {AiAttachment, AiCatalog, AiEvent, AiGatewayClient, AiProvider, AiSessionSummary, AiTraceQueryRequest,} from '@services/ai_gateway_client';
+import {WinscopeTraceQuery, WinscopeTraceSnapshot} from '@services/winscope_trace_query';
 
+import {AiMarkdownComponent} from './ai_markdown_component';
 import {AiModelSelection, AiSettingsValue} from './ai_settings_component';
 
 interface Draft {
@@ -24,6 +26,7 @@ interface Draft {
   standalone: true,
   imports: [
     A11yModule,
+    AiMarkdownComponent,
     CommonModule,
     FormsModule,
     MatButtonModule,
@@ -40,6 +43,7 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
   readonly language = language;
   @Input() endpoint: string | undefined;
   @Input() evidence: unknown;
+  @Input() traceQuery?: (query: WinscopeTraceQuery) => Promise<WinscopeTraceSnapshot>;
   @Input() suspended = false;
   @Input() defaults?: AiSettingsValue;
   @Input() settingsCatalog?: AiCatalog;
@@ -118,12 +122,21 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
   private streamController?: AbortController;
   private customModelProviderId?: string;
   private revision = 0;
+  private sessionRefresh = 0;
   private initialized = false;
   private settingsPending = false;
   private catalogPending = false;
   private readonly drafts = new Map<string, Draft>();
+  private traceQueryRun?: {
+    contextId: string;
+    sessionId?: string;
+    query: NonNullable<AiPanelComponent['traceQuery']>;
+    handled: Map<string, symbol>;
+    cancelled?: boolean;
+  };
 
   ngOnChanges(changes: SimpleChanges): void {
+    if (changes['traceQuery'] && !changes['traceQuery'].firstChange) this.traceQueryRun = undefined;
     if (changes['settingsCatalog'] && this.settingsCatalog) {
       this.catalogPending = true;
     }
@@ -190,6 +203,7 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
   }
 
   ngOnDestroy(): void {
+    this.traceQueryRun = undefined;
     this.revision++;
     this.composerObserver?.disconnect();
     this.windowObserver?.disconnect();
@@ -327,6 +341,10 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
 
   responseText(turn: AiChatTurn): string {
     return formatConversationResponse(turn, translate);
+  }
+
+  durationText(durationMs: number): string {
+    return formatAnalysisDuration(durationMs, translate);
   }
 
   errorText(error: string): string {
@@ -575,17 +593,25 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
     this.focusComposer();
   }
 
-  async refreshSessions(): Promise<void> {
+  toggleTraceContext(): void {
+    this.includeEvidence = !this.includeEvidence;
+    if (!this.includeEvidence) this.traceQueryRun = undefined;
+  }
+
+  async refreshSessions(background = false): Promise<void> {
     if (!this.client) return;
+    const revision = this.revision;
+    const refresh = ++this.sessionRefresh;
     try {
       const sessions = await this.client.listSessions(this.controller.signal);
-      if (!this.controller.signal.aborted) this.sessions = sessions;
+      if (!this.controller.signal.aborted && revision === this.revision && refresh === this.sessionRefresh) this.sessions = sessions;
     } catch (error) {
-      this.showError(error);
+      if (!background && revision === this.revision && refresh === this.sessionRefresh && !this.error) this.showError(error);
     }
   }
 
   newSession(): void {
+    this.traceQueryRun = undefined;
     this.saveDraft();
     this.revision++;
     this.streamController?.abort();
@@ -608,6 +634,7 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
 
   async selectSession(id: string): Promise<void> {
     if (!this.client) return;
+    if (this.traceQueryRun?.sessionId !== id) this.traceQueryRun = undefined;
     this.saveDraft();
     const revision = ++this.revision;
     this.streamController?.abort();
@@ -646,7 +673,12 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
       this.applyPendingSettings();
       this.rememberActiveSession(id);
       this.scrollToLatest();
-      if (this.running) void this.watchSession(id, revision);
+      if (this.running) {
+        if (session.pendingTraceQuery) {
+          this.traceQueryRun?.handled.delete(session.pendingTraceQuery.queryId);
+        }
+        void this.watchSession(id, revision, session.pendingTraceQuery);
+      }
     } catch (error) {
       if (revision === this.revision) this.showError(error);
     } finally {
@@ -701,6 +733,14 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
       attachments: [...this.attachments],
       includeEvidence: this.includeEvidence,
     };
+    const traceQueryRun = draft.includeEvidence && this.traceQuery ? {
+      contextId: crypto.randomUUID(),
+      query: this.traceQuery,
+      handled: new Map<string, symbol>(),
+      sessionId: undefined as string | undefined,
+    } : undefined;
+    this.traceQueryRun = traceQueryRun;
+    const baseEvidence = draft.includeEvidence ? this.evidence : undefined;
     this.error = '';
     this.notice = '';
     this.running = true;
@@ -712,10 +752,19 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
     this.attachments = [];
     this.resizeComposer();
     try {
+      const current = traceQueryRun ? await traceQueryRun.query({}) : undefined;
+      if (revision !== this.revision || this.controller.signal.aborted) return;
+      if (traceQueryRun && (this.traceQueryRun !== traceQueryRun || !this.includeEvidence)) {
+        throw new Error('Trace context changed. Send the message again.');
+      }
+      const evidence = current ? {
+        ...(typeof baseEvidence === 'object' && baseEvidence !== null ? baseEvidence : {}),
+        winscope: current,
+      } : baseEvidence;
       const session = await this.client.startAnalysis(
         prompt,
         this.selectedAgent,
-        this.includeEvidence ? this.evidence : undefined,
+        evidence,
         this.controller.signal,
         {
           sessionId: this.sessionId || undefined,
@@ -726,13 +775,18 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
               : this.selectedModel,
           reasoningLevel: this.levels.length ? this.selectedLevel : undefined,
           attachments: draft.attachments,
+          ...(traceQueryRun ? {
+            traceQueryEnabled: true,
+            traceQueryContextId: traceQueryRun.contextId,
+          } : {}),
         },
       );
       if (revision !== this.revision) {
-        void this.refreshSessions();
+        void this.refreshSessions(true);
         return;
       }
       this.submitting = false;
+      if (traceQueryRun) traceQueryRun.sessionId = session.sessionId;
       if (!this.sessionId) this.drafts.delete('');
       this.sessionId = session.sessionId;
       this.rememberActiveSession(this.sessionId);
@@ -752,12 +806,14 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
         }
       }
     } finally {
-      void this.refreshSessions();
+      void this.refreshSessions(true);
     }
   }
 
   async cancel(): Promise<void> {
     if (!this.client || !this.sessionId || this.submitting) return;
+    if (this.traceQueryRun) this.traceQueryRun.cancelled = true;
+    this.traceQueryRun = undefined;
     try {
       await this.client.cancel(this.sessionId);
     } catch (error) {
@@ -985,6 +1041,10 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
     }
   }
 
+  onResponseLayoutChanged(): void {
+    if (this.followTail) this.scrollToLatest();
+  }
+
   scrollToLatest(): void {
     this.followTail = true;
     requestAnimationFrame(() => {
@@ -995,10 +1055,11 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
     });
   }
 
-  private async watchSession(id: string, revision: number): Promise<void> {
+  private async watchSession(id: string, revision: number, pending?: AiTraceQueryRequest): Promise<void> {
     this.streamController?.abort();
     const controller = new AbortController();
     this.streamController = controller;
+    if (pending) void this.answerTraceQuery(id, pending, revision, controller.signal);
     let terminal = false;
     try {
       const after = this.events[this.events.length - 1]?.id ?? 0;
@@ -1011,6 +1072,9 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
           }
           this.events = [...this.events, event];
           this.turns = projectConversation(this.events);
+          if (event.type === 'trace_query_requested') {
+            void this.answerTraceQuery(id, event.data, revision, controller.signal);
+          }
           if (
             event.type === 'analysis_completed' ||
             event.type === 'analysis_cancelled' || event.type === 'error'
@@ -1029,7 +1093,7 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
         }
       }
     } catch (error) {
-      if (revision === this.revision && !controller.signal.aborted) {
+      if (!terminal && revision === this.revision && !controller.signal.aborted) {
         this.showError(error);
       }
     } finally {
@@ -1037,7 +1101,61 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
         this.running = !terminal;
         this.applyPendingSettings();
       }
-      void this.refreshSessions();
+      void this.refreshSessions(true);
+    }
+  }
+
+  private async answerTraceQuery(
+    sessionId: string,
+    data: unknown,
+    revision: number,
+    signal: AbortSignal,
+  ): Promise<void> {
+    const run = this.traceQueryRun;
+    if (revision !== this.revision || signal.aborted || this.controller.signal.aborted ||
+      typeof data !== 'object' || data === null) return;
+    const request = data as AiTraceQueryRequest;
+    if (typeof request.contextId !== 'string' || !request.contextId.trim() || request.contextId.length > 128 ||
+      typeof request.queryId !== 'string' || !/^[a-zA-Z0-9-]{1,128}$/.test(request.queryId)) return;
+    const query = request.query;
+    if (!query || typeof query !== 'object' || Array.isArray(query) ||
+      Object.keys(query).some((key) => key !== 'time') ||
+      (query.time !== undefined && (typeof query.time !== 'string' || !query.time.trim() || query.time.length > 128))) return;
+    if (!run) {
+      await this.declineTraceQuery(sessionId, request, revision, signal);
+      return;
+    }
+    if (run.sessionId !== sessionId || request.contextId !== run.contextId || run.handled.has(request.queryId)) return;
+    const attempt = Symbol();
+    run.handled.set(request.queryId, attempt);
+    let response: {result: WinscopeTraceSnapshot} | {error: string};
+    try {
+      response = {result: await run.query(query)};
+    } catch (error) {
+      response = {error: (error instanceof Error ? error.message : 'Trace query failed.').slice(0, 512)};
+    }
+    if (this.traceQueryRun !== run || revision !== this.revision || signal.aborted || this.controller.signal.aborted) {
+      if (run.handled.get(request.queryId) === attempt) run.handled.delete(request.queryId);
+      if (!run.cancelled && revision === this.revision && !signal.aborted && !this.controller.signal.aborted) {
+        await this.declineTraceQuery(sessionId, request, revision, signal);
+      }
+      return;
+    }
+    try {
+      await this.client?.respondToTraceQuery(sessionId, request.queryId, run.contextId, response, signal);
+    } catch (error) {
+      if (run.handled.get(request.queryId) === attempt) run.handled.delete(request.queryId);
+      if (!signal.aborted && revision === this.revision) this.showError(error);
+    }
+  }
+
+  private async declineTraceQuery(sessionId: string, request: AiTraceQueryRequest,
+    revision: number, signal: AbortSignal): Promise<void> {
+    try {
+      await this.client?.respondToTraceQuery(sessionId, request.queryId, request.contextId,
+        {error: 'Trace query authorization is no longer available.'}, signal);
+    } catch (error) {
+      if (!signal.aborted && revision === this.revision) this.showError(error);
     }
   }
 

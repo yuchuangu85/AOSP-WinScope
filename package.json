@@ -87,6 +87,7 @@
     "@angular/platform-browser-dynamic": "20.3.29",
     "@angular/router": "20.3.29",
     "@auth0/auth0-angular": "^2.3.0",
+    "@shikijs/langs": "4.4.3",
     "@swc/core": "^1.15.5",
     "auth0": "^5.2.0",
     "dateformat": "^5.0.3",
@@ -96,8 +97,21 @@
     "jsbn": "^1.1.0",
     "jszip": "^3.10.1",
     "karma-spec-reporter": "^0.0.36",
+    "katex": "0.18.7",
+    "mdast-util-from-markdown": "2.0.3",
+    "mdast-util-gfm": "3.1.0",
+    "mdast-util-math": "3.0.0",
+    "micromark-core-commonmark": "2.0.3",
+    "micromark-extension-gfm": "3.0.0",
+    "micromark-extension-math": "3.1.0",
+    "micromark-factory-space": "2.0.1",
+    "micromark-util-character": "2.1.1",
+    "micromark-util-classify-character": "2.0.1",
+    "micromark-util-symbol": "2.0.1",
+    "micromark-util-types": "2.0.2",
     "mp4box": "^2.3.0",
     "rxjs": "~7.8.2",
+    "shiki": "4.4.3",
     "three": "^0.182.0",
     "tslib": "^2.8.1",
     "typescript": "5.9.3",
@@ -115,6 +129,8 @@
     "@types/gtag.js": "^0.0.20",
     "@types/jasmine": "~5.1.4",
     "@types/jquery": "^3.5.30",
+    "@types/katex": "0.16.8",
+    "@types/mdast": "4.0.4",
     "@types/node": "^24.10.0",
     "@types/selenium-webdriver": "^4.35.6",
     "@types/three": "^0.182.0",
@@ -142,6 +158,11 @@
     "sass": "^1.77.8",
     "selenium-webdriver": "^4.47.0",
     "ts-protoc-gen": "^0.15.0"
+  },
+  "overrides": {
+    "micromark-extension-math": {
+      "katex": "$katex"
+    }
   },
   "packageManager": "npm@12.2.0",
   "engines": {

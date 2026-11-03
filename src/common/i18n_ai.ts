@@ -1,6 +1,13 @@
 export const AI_TRANSLATIONS: Record<string, string> = {
   'Observed evidence · {skill}': '已观察到的证据 · {skill}',
   'Incomplete evidence: {reasons}': '证据不完整：{reasons}',
+  'screen recording evidence is missing': '缺少屏幕录制证据',
+  'video luminance evidence is missing': '缺少视频亮度证据',
+  'video frame-difference evidence is missing': '缺少视频帧差异证据',
+  'SurfaceFlinger evidence is missing': '缺少 SurfaceFlinger 跟踪证据',
+  'WindowManager evidence is missing': '缺少 WindowManager 跟踪证据',
+  'WindowManager evidence is incomplete': 'WindowManager 跟踪证据不完整',
+  'Transactions evidence is missing': '缺少 Transactions 跟踪证据',
   'No anomaly conclusion can be established from this incomplete evidence.':
     '现有证据不完整，无法据此得出异常结论。',
   'No anomaly found in the available evidence.': '现有证据中未发现异常。',
@@ -14,6 +21,10 @@ export const AI_TRANSLATIONS: Record<string, string> = {
   'AI stream failed ({status})': 'AI 流式连接失败（{status}）',
   'AI stream event is too large': 'AI 流式事件过大',
   'AI gateway returned invalid JSON': 'AI 网关返回了无效的 JSON',
+  'Could not reach the AI gateway. Check the connection and try again.':
+    '无法连接 AI 网关，请检查连接后重试。',
+  'The AI connection was interrupted. Reopen this conversation to reconnect.':
+    'AI 连接已中断，请重新打开此会话以恢复连接。',
   'AI analysis workspace': 'AI 分析工作区',
   'Resize AI window': '调整 AI 窗口大小',
   'Close conversation browser': '关闭会话浏览器',
@@ -83,6 +94,12 @@ export const AI_TRANSLATIONS: Record<string, string> = {
   'Conversation messages': '会话消息',
   'You': '您',
   'Copy response': '复制回答',
+  'Footnotes': '脚注',
+  'Response table': '回答表格',
+  'Not completed': '未完成',
+  'Image': '图片',
+  'Disable code wrapping': '关闭代码换行',
+  'Enable code wrapping': '开启代码换行',
   'Retry prompt': '重试提问',
   'What would you like to investigate?': '您想排查什么问题？',
   'Ask about black screens, flicker, or display behavior.':
@@ -91,6 +108,21 @@ export const AI_TRANSLATIONS: Record<string, string> = {
     '添加跟踪上下文或文本备注，为分析提供依据。',
   'Investigate a black screen': '排查黑屏',
   'Find flicker evidence': '查找闪烁证据',
+  'Analyze current frame': '分析当前帧',
+  'Analyze the WinScope data at the current timeline position':
+    '获取当前时间轴位置的 WinScope 数据并进行分析。',
+  'Allow read-only queries of current or specified trace times':
+    '允许只读查询当前帧或指定时间的跟踪数据',
+  'Reading trace data…': '正在读取跟踪数据…',
+  'Trace data received': '已获取跟踪数据',
+  'The loaded traces have changed.': '已加载的跟踪数据发生变化。',
+  'No WinScope traces are loaded.': '尚未加载 WinScope 跟踪数据。',
+  'Invalid trace query time.': '跟踪数据查询时间无效。',
+  'A date is required for this trace query time.': '此查询时间需要包含日期。',
+  'The requested time is outside the loaded trace range.': '查询时间超出已加载跟踪数据的范围。',
+  'No trace entry is available at the current position.': '当前位置没有可用的跟踪条目。',
+  'Trace query failed.': '跟踪数据查询失败。',
+  'Trace context changed. Send the message again.': '跟踪上下文已变更，请重新发送消息。',
   'Investigate black-screen intervals in the available evidence':
     '排查现有证据中的黑屏时间段。',
   'Find flicker and explain what evidence is missing':
@@ -131,6 +163,10 @@ export const AI_TRANSLATIONS: Record<string, string> = {
   'Completed skill: {id}': '已完成技能：{id}',
   'Waiting for {id}…': '正在等待 {id}…',
   'Completed': '已完成',
+  'Elapsed: {time}': '用时：{time}',
+  '{seconds} s': '{seconds} 秒',
+  '{minutes} min {seconds} s': '{minutes} 分 {seconds} 秒',
+  '{hours} h {minutes} min {seconds} s': '{hours} 小时 {minutes} 分 {seconds} 秒',
   'Failed': '失败',
   'Stopped': '已停止',
   'The previous conversation is no longer available. Gateway history is kept in memory.':

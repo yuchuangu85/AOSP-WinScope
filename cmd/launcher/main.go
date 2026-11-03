@@ -458,6 +458,15 @@ func serveAI(writer http.ResponseWriter, request *http.Request, proxy *httputil.
 		http.Error(writer, "invalid AI request", http.StatusBadRequest)
 		return
 	}
+	parts := strings.Split(strings.TrimPrefix(request.URL.Path, aiPrefix), "/")
+	if request.Method == http.MethodGet && len(parts) == 4 && parts[0] == "api" && parts[1] == "sessions" && parts[2] != "" && parts[3] == "stream" {
+		// SSE waits can outlive the normal response deadline while a model runs.
+		// Browser disconnects still cancel the proxied request via its context.
+		if err := http.NewResponseController(writer).SetWriteDeadline(time.Time{}); err != nil && !errors.Is(err, http.ErrNotSupported) {
+			http.Error(writer, "AI stream is unavailable", http.StatusServiceUnavailable)
+			return
+		}
+	}
 	forwarded := request.Clone(request.Context())
 	forwarded.URL.Path = strings.TrimPrefix(request.URL.Path, strings.TrimSuffix(aiPrefix, "/"))
 	if forwarded.URL.Path == "" {

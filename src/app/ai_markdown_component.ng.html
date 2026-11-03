@@ -1,0 +1,71 @@
+<ng-container *ngTemplateOutlet="nodes; context: {$implicit: document.nodes}"></ng-container>
+@if (document.footnotes.length) {
+  <section class="footnotes" [attr.aria-label]="'Footnotes' | tr">
+    <h2>{{ 'Footnotes' | tr }}</h2>
+    <ol>
+      @for (footnote of document.footnotes; track footnote.number) {
+        <li><ng-container *ngTemplateOutlet="nodes; context: {$implicit: footnote.nodes}"></ng-container></li>
+      }
+    </ol>
+  </section>
+}
+<ng-template #nodes let-items>
+  @for (node of items; track $index) {
+    @switch (node.type) {
+      @case ('text') {<ng-container>{{ node.value }}</ng-container>}
+      @case ('plain') {<span class="markdown-plain">{{ node.value }}</span>}
+      @case ('group') { <ng-container *ngTemplateOutlet="nodes; context: {$implicit: node.children}"></ng-container> }
+      @case ('paragraph') { <p><ng-container *ngTemplateOutlet="nodes; context: {$implicit: node.children}"></ng-container></p> }
+      @case ('heading') {
+        @switch (node.depth) {
+          @case (1) { <h1><ng-container *ngTemplateOutlet="nodes; context: {$implicit: node.children}"></ng-container></h1> }
+          @case (2) { <h2><ng-container *ngTemplateOutlet="nodes; context: {$implicit: node.children}"></ng-container></h2> }
+          @case (3) { <h3><ng-container *ngTemplateOutlet="nodes; context: {$implicit: node.children}"></ng-container></h3> }
+          @case (4) { <h4><ng-container *ngTemplateOutlet="nodes; context: {$implicit: node.children}"></ng-container></h4> }
+          @case (5) { <h5><ng-container *ngTemplateOutlet="nodes; context: {$implicit: node.children}"></ng-container></h5> }
+          @default { <h6><ng-container *ngTemplateOutlet="nodes; context: {$implicit: node.children}"></ng-container></h6> }
+        }
+      }
+      @case ('strong') { <strong><ng-container *ngTemplateOutlet="nodes; context: {$implicit: node.children}"></ng-container></strong> }
+      @case ('emphasis') { <em><ng-container *ngTemplateOutlet="nodes; context: {$implicit: node.children}"></ng-container></em> }
+      @case ('delete') { <del><ng-container *ngTemplateOutlet="nodes; context: {$implicit: node.children}"></ng-container></del> }
+      @case ('inlineCode') {
+        <code>@if (node.href) {<a [href]="node.href" target="_blank" rel="noopener noreferrer">{{ node.value }}</a>} @else {<ng-container>{{ node.value }}</ng-container>}</code>
+      }
+      @case ('code') { <ai-code-block [code]="node.value" [language]="node.language" (layoutChanged)="layoutChanged.emit()"></ai-code-block> }
+      @case ('math') { <ai-math [text]="node.value" [display]="true"></ai-math> }
+      @case ('inlineMath') { <ai-math [text]="node.value" [display]="false"></ai-math> }
+      @case ('break') { <br /> }
+      @case ('thematicBreak') { <hr /> }
+      @case ('blockquote') { <blockquote><ng-container *ngTemplateOutlet="nodes; context: {$implicit: node.children}"></ng-container></blockquote> }
+      @case ('list') {
+        @if (node.ordered) {
+          <ol [attr.start]="node.start === 1 ? null : node.start"><ng-container *ngTemplateOutlet="nodes; context: {$implicit: node.children}"></ng-container></ol>
+        } @else {
+          <ul><ng-container *ngTemplateOutlet="nodes; context: {$implicit: node.children}"></ng-container></ul>
+        }
+      }
+      @case ('listItem') {
+        <li [class.task-list-item]="node.checked !== undefined">
+          @if (node.checked !== undefined) { <input type="checkbox" [checked]="node.checked" disabled [attr.aria-label]="(node.checked ? 'Completed' : 'Not completed') | tr" /> }
+          <ng-container *ngTemplateOutlet="nodes; context: {$implicit: node.children}"></ng-container>
+        </li>
+      }
+      @case ('table') {
+        <div class="table-scroll" [class.table-fill]="!node.wide" [class.md-table-wide]="node.wide" tabindex="0" role="region" [attr.aria-label]="'Response table' | tr">
+          <table>
+            <thead><tr>@for (cell of node.children[0]?.children; track $index) {<th scope="col" [style.text-align]="cell.align"><ng-container *ngTemplateOutlet="nodes; context: {$implicit: cell.children}"></ng-container></th>}</tr></thead>
+            <tbody>@for (row of node.children.slice(1); track $index) {<tr>@for (cell of row.children; track $index) {<td [style.text-align]="cell.align"><ng-container *ngTemplateOutlet="nodes; context: {$implicit: cell.children}"></ng-container></td>}</tr>}</tbody>
+          </table>
+        </div>
+      }
+      @case ('link') {
+        @if (node.href) {
+          <a [href]="node.href" [attr.title]="node.title" target="_blank" rel="noopener noreferrer"><ng-container *ngTemplateOutlet="nodes; context: {$implicit: node.children}"></ng-container></a>
+        } @else { <ng-container *ngTemplateOutlet="nodes; context: {$implicit: node.children}"></ng-container> }
+      }
+      @case ('image') { <span class="image-alt">{{ node.value || ('Image' | tr) }}</span> }
+      @case ('footnoteReference') { <sup>{{ node.number }}</sup> }
+    }
+  }
+</ng-template>

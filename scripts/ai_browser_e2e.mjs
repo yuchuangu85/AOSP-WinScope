@@ -92,6 +92,37 @@ async function typeMessage(text) {
     `(() => {const input = document.querySelector('.composer-input'); input.focus(); input.value = ${JSON.stringify(text)}; input.dispatchEvent(new Event('input', {bubbles:true}));})()`,
   );
 }
+async function composerSpaceKeyRegression() {
+  const initial = await evaluate("document.querySelector('.composer-input').value");
+  await evaluate(`(() => {
+    globalThis.__winscopeKeyboardProbe={seen:0};
+    globalThis.__winscopeKeyboardHandler=event=>{
+      if(event.code==='Space'||event.key.startsWith('Arrow')) {
+        globalThis.__winscopeKeyboardProbe.seen++;
+        event.preventDefault();
+      }
+    };
+    document.addEventListener('keydown',globalThis.__winscopeKeyboardHandler);
+  })()`);
+  try {
+    await typeMessage('alphaomega');
+    await evaluate("document.querySelector('.composer-input').setSelectionRange(5,5)");
+    const key = async (key, code, virtualKeyCode, text) => {
+      await cdp('Input.dispatchKeyEvent', {type:'keyDown',key,code,windowsVirtualKeyCode:virtualKeyCode,...(text?{text,unmodifiedText:text}:{})});
+      await cdp('Input.dispatchKeyEvent', {type:'keyUp',key,code,windowsVirtualKeyCode:virtualKeyCode});
+    };
+    await key(' ','Space',32,' ');
+    assert.equal(await evaluate("document.querySelector('.composer-input').value"),'alpha omega');
+    await key('ArrowLeft','ArrowLeft',37);
+    await key(' ','Space',32,' ');
+    assert.equal(await evaluate("document.querySelector('.composer-input').value"),'alpha  omega');
+    assert.equal(await evaluate("document.querySelector('.composer-input').selectionStart"),6);
+    assert.equal(await evaluate("globalThis.__winscopeKeyboardProbe.seen"),0);
+  } finally {
+    await evaluate(`document.removeEventListener('keydown',globalThis.__winscopeKeyboardHandler);delete globalThis.__winscopeKeyboardHandler;delete globalThis.__winscopeKeyboardProbe;`);
+    await typeMessage(initial);
+  }
+}
 async function chooseProviderField(provider, field, value) {
   await chooseProvider(provider);
   const selector = `.provider-settings[data-provider="${provider}"] [data-field="${field}"]`;
@@ -265,6 +296,8 @@ async function aiMouseClick(selector, {double = false, rightEdge = false} = {}) 
   await settleAiWindow();
 }
 async function aiGripKey(key, shift = false) {
+  // Modal close restores focus asynchronously after the settings DOM is gone.
+  await settleAiWindow();
   await evaluate("document.querySelector('.ai-window-resize').focus()");
   assert.equal(await evaluate("document.activeElement === document.querySelector('.ai-window-resize')"), true);
   const code = {ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40, Home: 36, Escape: 27}[key];
@@ -534,6 +567,331 @@ async function aiWindowRunningRegression() {
 async function screenshot(name) {
   const result = await cdp("Page.captureScreenshot", { format: "png" });
   await writeFile(join(evidenceDir, name), Buffer.from(result.data, "base64"));
+}
+const markdownFixtureCode = JSON.stringify({
+  status: "evidence incomplete",
+  notesIncluded: true,
+  label: "中文渲染证据",
+  escaped: "first line\nsecond line",
+  longLine: "Keep code scrolling inside its own pre element, never the page or AI panel. ".repeat(4),
+}, null, 2);
+const markdownRawImage = '<img src="https://markdown-fixture.invalid/raw.png" onerror="globalThis.__aiMarkdownExecuted = true">';
+const markdownRawScript = '<script>globalThis.__aiMarkdownExecuted = true</script>';
+const markdownFixture = [
+  "# Markdown browser fixture",
+  "A paragraph with **deterministic rendering**, *emphasis*, ~~removed text~~ and `inline code`. 中文**渲染证据。**继续。",
+  "- [x] Completed evidence check\n- [ ] Pending device evidence",
+  "1. Inspect the recording\n2. Correlate the trace",
+  "> Browser evidence is separate from device evidence.",
+  "[Reference evidence][browser-reference] and [blocked link](javascript:globalThis.__aiMarkdownExecuted=true).",
+  "| Region | Signal | Observation | Boundary |\n| :--- | :---: | ---: | --- |\n| Display pipeline | SurfaceFlinger | Recording correlation pending | Browser evidence only |\n| Conversation | Attached notes | Context preserved | No device conclusion |",
+  "| Stage | Input | Result | Limitation |\n| --- | --- | --- | --- |\n| Markdown parsing | Deterministic fixture | Semantic browser nodes | Not a live reference |\n| Table scrolling | Four independent columns | Local horizontal overflow | No page overflow |",
+  "```json\n" + markdownFixtureCode + "\n```",
+  "Inline math $E = mc^2$ and a display equation:",
+  "$$\n\\sum_{i=1}^{3} i = 6\n$$",
+  "The result has a qualification note.[^browser-evidence]",
+  markdownRawImage,
+  markdownRawScript,
+  "![Remote image stays inert](https://markdown-fixture.invalid/remote.png)",
+  '[browser-reference]: https://example.invalid/winscope-markdown "Browser fixture reference"',
+  "[^browser-evidence]: Browser-only evidence does not establish pixel parity.",
+].join("\n\n");
+const markdownFixtureAnswer = "The available evidence is incomplete. Load a screen recording and SurfaceFlinger trace to correlate black-screen intervals. Your attached notes have been included in the analysis context.\n\n" + markdownFixture;
+const markdownHost = '.chat-turn[data-status="completed"] .ai-markdown';
+const markdownBrowserEvidence = {
+  ok: false,
+  browser: "chrome-cdp-headless",
+  transport: "real-go-launcher-and-gateway-fixture-provider",
+  fixtureSha256: createHash("sha256").update(markdownFixtureAnswer).digest("hex"),
+  codeSha256: createHash("sha256").update(markdownFixtureCode).digest("hex"),
+  checks: [],
+  metrics: [],
+  screenshots: [],
+  inertResourceRequests: [],
+  limitations: [
+    "Deterministic local provider output, not a live model or reference-app capture.",
+    "Typography and interaction assertions plus screenshots do not establish pixel parity.",
+    "Clipboard writeText is temporarily stubbed; OS clipboard permissions are not exercised.",
+    "Zoom uses the application's root CSS zoom mechanism; settings persistence is covered separately.",
+    "Table scrollLeft checks prove independent scroll containers, not native touch or wheel gestures.",
+  ],
+};
+async function markdownMetrics() {
+  return evaluate(`(() => {
+    const host=document.querySelector(${JSON.stringify(markdownHost)});
+    const box=e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom};};
+    const measure=e=>({...box(e),clientWidth:e.clientWidth,scrollWidth:e.scrollWidth,overflowX:getComputedStyle(e).overflowX});
+    const panel=document.querySelector('.ai-panel'),transcript=document.querySelector('.ai-transcript');
+    const pre=host.querySelector('.code-content > pre'),banner=host.querySelector('.code-banner');
+    const x=scrollX,y=scrollY;
+    window.scrollTo({left:10000000,top:y,behavior:'instant'});
+    const pageScrollRange=scrollX;
+    window.scrollTo({left:x,top:y,behavior:'instant'});
+    const tables=[...host.querySelectorAll('.table-scroll')];
+    const tableMetrics=tables.map((table,index)=>{
+      const before=tables.map(e=>e.scrollLeft);
+      const parents=[panel.scrollLeft,transcript.scrollLeft,host.scrollLeft,scrollX];
+      try {
+        table.scrollLeft=table.scrollWidth-table.clientWidth;
+        const after=tables.map(e=>e.scrollLeft);
+        return {index,...measure(table),before,after,ownScroll:table.scrollLeft,
+          othersUnchanged:after.every((value,i)=>i===index||value===before[i]),
+          ancestorsUnchanged:JSON.stringify(parents)===JSON.stringify([panel.scrollLeft,transcript.scrollLeft,host.scrollLeft,scrollX])};
+      } finally {table.scrollLeft=before[index];}
+    });
+    return {
+      viewport:{width:innerWidth,height:innerHeight},zoom:Number(document.documentElement.style.zoom)||1,
+      dark:document.body.classList.contains('dark-mode'),pageScrollRange,
+      panel:measure(panel),main:measure(document.querySelector('.ai-main')),transcript:measure(transcript),host:measure(host),
+      tables:tableMetrics,
+      code:{...measure(pre),whiteSpace:getComputedStyle(pre).whiteSpace,wrapped:host.querySelector('.code-wrap').getAttribute('aria-pressed'),
+        banner:box(banner),language:box(banner.querySelector('.code-language')),
+        buttons:[...banner.querySelectorAll('button')].map(e=>({label:e.getAttribute('aria-label'),...box(e)}))},
+      typography:Object.fromEntries([['body',host],['paragraph',host.querySelector('p')],['h1',host.querySelector('h1')]].map(([key,e])=>{
+        const s=getComputedStyle(e);return [key,{fontSize:s.fontSize,lineHeight:s.lineHeight,fontFamily:s.fontFamily,color:s.color}];
+      })),
+      fonts:document.fonts.status,
+      tokenColors:[...new Set([...host.querySelectorAll('code .line > span')].map(e=>getComputedStyle(e).color))],
+    };
+  })()`);
+}
+function assertMarkdownFits(metrics, label) {
+  assert.equal(metrics.pageScrollRange, 0, `${label}: page has no horizontal scrolling`);
+  for (const key of ["panel", "main", "transcript", "host"]) {
+    const rect = metrics[key];
+    assert.ok(rect.width > 0 && rect.height > 0, `${label}: ${key} is rendered`);
+    assert.ok(rect.scrollWidth <= rect.clientWidth + 1, `${label}: ${key} has no horizontal overflow`);
+  }
+  assert.ok(metrics.panel.x >= -1 && metrics.panel.y >= -1 && metrics.panel.right <= metrics.viewport.width + 1 && metrics.panel.bottom <= metrics.viewport.height + 1, `${label}: panel fits viewport`);
+  for (const table of metrics.tables) {
+    assert.match(table.overflowX, /^(auto|scroll)$/, `${label}: table ${table.index} owns horizontal scrolling`);
+    assert.ok(table.x >= metrics.host.x - 1 && table.right <= metrics.host.right + 1, `${label}: table ${table.index} stays within Markdown`);
+    assert.ok(table.othersUnchanged && table.ancestorsUnchanged, `${label}: table ${table.index} scroll is isolated`);
+    if (table.scrollWidth > table.clientWidth + 1) assert.ok(table.ownScroll > 0, `${label}: table ${table.index} actually scrolls`);
+    if (metrics.viewport.width === 390) assert.ok(table.ownScroll > 0, `${label}: narrow table ${table.index} needs and supports its own scrolling`);
+  }
+  assert.equal(metrics.code.wrapped, "true", `${label}: code wrapping remains enabled`);
+  assert.equal(metrics.code.whiteSpace, "pre-wrap", `${label}: wrapping changes actual pre layout`);
+  assert.ok(metrics.code.scrollWidth <= metrics.code.clientWidth + 1, `${label}: wrapped code fits its container`);
+  for (const button of metrics.code.buttons) {
+    assert.ok(button.x >= metrics.code.banner.x - 1 && button.right <= metrics.code.banner.right + 1, `${label}: ${button.label} fits banner`);
+    near(button.width / metrics.zoom, 28, `${label}: stable code button width`);
+    near(button.height / metrics.zoom, 28, `${label}: stable code button height`);
+  }
+  assert.ok(metrics.code.language.right <= metrics.code.buttons[0].x + 1 && metrics.code.buttons[0].right <= metrics.code.buttons[1].x + 1, `${label}: code language and actions do not overlap`);
+  for (const key of ["body", "paragraph"]) {
+    assert.equal(metrics.typography[key].fontSize, "14px", `${label}: reference ${key} font size`);
+    assert.equal(metrics.typography[key].lineHeight, "24px", `${label}: reference ${key} line height`);
+  }
+  assert.equal(metrics.typography.h1.fontSize, "21px", `${label}: reference h1 font size`);
+  assert.equal(metrics.typography.h1.lineHeight, "30px", `${label}: reference h1 line height`);
+  assert.equal(metrics.fonts, "loaded", `${label}: font loading settled`);
+  assert.ok(metrics.tokenColors.length > 1, `${label}: Shiki tokens have distinct rendered colors`);
+}
+async function markdownScreenshot(name, selector) {
+  await evaluate(`(() => {
+    const transcript=document.querySelector('.ai-transcript'),target=document.querySelector(${JSON.stringify(`${markdownHost} ${selector}`)});
+    transcript.scrollTop=0;
+    const zoom=Number(document.documentElement.style.zoom)||1;
+    transcript.scrollTop=(target.getBoundingClientRect().top-transcript.getBoundingClientRect().top)/zoom-8;
+  })()`);
+  await settleAiWindow();
+  assert.equal(await evaluate(`(() => {
+    const t=document.querySelector('.ai-transcript').getBoundingClientRect(),r=document.querySelector(${JSON.stringify(`${markdownHost} ${selector}`)}).getBoundingClientRect();
+    return r.top<t.bottom && r.bottom>t.top && r.width>0 && r.height>0;
+  })()`), true, `${name}: screenshot subject is in the transcript viewport`);
+  await screenshot(name);
+  markdownBrowserEvidence.screenshots.push(name);
+}
+async function markdownRegression() {
+  const initialState = await aiWindowState();
+  const initial = await evaluate(`(() => {
+    const t=document.querySelector('.ai-transcript'),s=document.documentElement.style;
+    return {width:innerWidth,height:innerHeight,dpr:devicePixelRatio,dark:document.body.classList.contains('dark-mode'),
+      zoom:s.getPropertyValue('zoom'),zoomPriority:s.getPropertyPriority('zoom'),x:scrollX,y:scrollY,
+      transcript:{top:t.scrollTop,left:t.scrollLeft},sidebar:document.querySelector('.history-toggle').getAttribute('aria-expanded'),
+      turns:document.querySelectorAll('.chat-turn').length,completed:document.querySelectorAll('.chat-turn[data-status=completed]').length};
+  })()`);
+  let failure;
+  try {
+    await condition(`document.querySelector(${JSON.stringify(markdownHost)})?.querySelector('h1')?.textContent.trim() === 'Markdown browser fixture'`);
+    await condition(`(() => {
+      const host=document.querySelector(${JSON.stringify(markdownHost)});
+      return host.querySelectorAll('.katex').length===2 && [...host.querySelectorAll('code .line > span')].some(e=>e.style.color.includes('--shiki-') && getComputedStyle(e).color!==getComputedStyle(e.closest('pre')).color);
+    })()`);
+    await evaluate("document.fonts.ready.then(() => true)");
+    await settleAiWindow();
+    const semantic = await evaluate(`(() => {
+      const h=document.querySelector(${JSON.stringify(markdownHost)}),link=[...h.querySelectorAll('a')].find(e=>e.textContent.trim()==='Reference evidence');
+      return {heading:h.querySelector('h1').textContent.trim(),paragraph:h.querySelector('p')?.textContent,
+        strong:[...h.querySelectorAll('strong')].map(e=>e.textContent),emphasis:h.querySelector('em')?.textContent,deleted:h.querySelector('del')?.textContent,
+        tasks:[...h.querySelectorAll('ul > li.task-list-item input[type=checkbox]')].map(e=>({checked:e.checked,disabled:e.disabled})),
+        ordered:[...h.querySelectorAll(':scope > ol > li')].map(e=>e.textContent.trim()),blockquote:h.querySelector('blockquote')?.textContent.trim(),
+        tables:[...h.querySelectorAll('.table-scroll > table')].map(e=>({columns:e.querySelectorAll('thead th[scope=col]').length,rows:e.querySelectorAll('tbody tr').length})),
+        code:h.querySelector('.code-content > pre.shiki > code')?.textContent,lines:h.querySelectorAll('.code-content > pre > code > span.line').length,
+        language:h.querySelector('.code-banner .code-language')?.textContent.trim(),
+        math:{html:h.querySelectorAll('.katex-html').length,mathml:h.querySelectorAll('.katex-mathml math').length,display:h.querySelectorAll('.katex-display .katex').length,errors:h.querySelectorAll('.katex-error,.math-fallback').length},
+        footnote:h.querySelector('.footnotes ol li')?.textContent.trim(),footnoteReference:h.querySelector('p sup')?.textContent,
+        reference:link?{href:link.href,title:link.title}:null,
+        security:{elements:h.querySelectorAll('img,script,iframe,object,embed').length,
+          eventHandlers:[...h.querySelectorAll('*')].flatMap(e=>[...e.attributes].filter(a=>/^on/i.test(a.name)).map(a=>a.name)),
+          rawImage:h.textContent.includes(${JSON.stringify(markdownRawImage)}),rawScript:h.textContent.includes(${JSON.stringify(markdownRawScript)}),
+          remoteAlt:h.querySelector('.image-alt')?.textContent,
+          blockedLinkIsText:h.textContent.includes('blocked link') && ![...h.querySelectorAll('a')].some(e=>e.textContent.includes('blocked link')),
+          sentinelAbsent:!Object.hasOwn(globalThis,'__aiMarkdownExecuted'),
+          links:[...h.querySelectorAll('a')].map(e=>({href:e.href,protocol:e.protocol,target:e.target,rel:[...e.relList]}))}};
+    })()`);
+    markdownBrowserEvidence.semantic = semantic;
+    assert.equal(semantic.heading, "Markdown browser fixture");
+    assert.match(semantic.paragraph, /evidence is incomplete/);
+    assert.match(semantic.paragraph, /attached notes/);
+    assert.ok(semantic.strong.includes("deterministic rendering") && semantic.strong.includes("渲染证据。"), "English and adjacent CJK strong nodes render");
+    assert.equal(semantic.emphasis, "emphasis");
+    assert.equal(semantic.deleted, "removed text");
+    assert.deepEqual(semantic.tasks, [{checked: true, disabled: true}, {checked: false, disabled: true}]);
+    assert.deepEqual(semantic.ordered, ["Inspect the recording", "Correlate the trace"]);
+    assert.equal(semantic.blockquote, "Browser evidence is separate from device evidence.");
+    assert.deepEqual(semantic.tables, [{columns: 4, rows: 2}, {columns: 4, rows: 2}]);
+    assert.equal(semantic.code, markdownFixtureCode, "Rendered code preserves all source characters");
+    assert.equal(semantic.lines, markdownFixtureCode.split("\n").length);
+    assert.equal(semantic.language, "json");
+    assert.deepEqual(semantic.math, {html: 2, mathml: 2, display: 1, errors: 0});
+    assert.equal(semantic.footnote, "Browser-only evidence does not establish pixel parity.");
+    assert.equal(semantic.footnoteReference, "1");
+    assert.deepEqual(semantic.reference, {href: "https://example.invalid/winscope-markdown", title: "Browser fixture reference"});
+    assert.equal(semantic.security.elements, 0, "Model HTML and remote image cannot create executable/loading elements");
+    assert.deepEqual(semantic.security.eventHandlers, []);
+    assert.ok(semantic.security.rawImage && semantic.security.rawScript && semantic.security.blockedLinkIsText && semantic.security.sentinelAbsent);
+    assert.equal(semantic.security.remoteAlt, "Remote image stays inert");
+    assert.ok(semantic.security.links.length > 0);
+    for (const link of semantic.security.links) {
+      assert.match(link.protocol, /^(https?:|mailto:)$/);
+      assert.equal(link.target, "_blank");
+      assert.ok(link.rel.includes("noopener") && link.rel.includes("noreferrer"));
+    }
+    assert.deepEqual(markdownBrowserEvidence.inertResourceRequests, [], "Inert image URLs never reach the network");
+    markdownBrowserEvidence.checks.push("markdown-semantic-gfm-cjk-reference-links", "markdown-shiki-source-preservation", "markdown-katex-html-mathml-and-footnotes", "markdown-inert-html-images-and-safe-links");
+
+    const copied = await evaluate(`(async () => {
+      const clipboard=navigator.clipboard,original=clipboard.writeText,descriptor=Object.getOwnPropertyDescriptor(clipboard,'writeText'),writes=[];
+      const host=document.querySelector(${JSON.stringify(markdownHost)});
+      let feedback;
+      try {
+        Object.defineProperty(clipboard,'writeText',{configurable:true,value:async text=>{writes.push(text);}});
+        host.querySelector('.code-copy').click();
+        await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+        feedback={icon:host.querySelector('.code-copy mat-icon').textContent.trim(),status:host.querySelector('.code-status').textContent.trim(),disabled:host.querySelector('.code-copy').disabled};
+      } finally {
+        if(descriptor) Object.defineProperty(clipboard,'writeText',descriptor); else delete clipboard.writeText;
+      }
+      return {writes,feedback,restored:clipboard.writeText===original};
+    })()`);
+    markdownBrowserEvidence.copy = copied;
+    assert.deepEqual(copied.writes, [markdownFixtureCode], "Copy button writes exact original JSON, not highlighted HTML");
+    assert.deepEqual(copied.feedback, {icon: "check", status: "Copied to clipboard.", disabled: false});
+    assert.equal(copied.restored, true, "Clipboard method is restored even on failure");
+    markdownBrowserEvidence.checks.push("markdown-code-copy-exact-with-restored-clipboard-stub");
+    await condition(`(() => {
+      const h=document.querySelector(${JSON.stringify(markdownHost)});
+      return h.querySelector('.code-copy mat-icon').textContent.trim()==='content_copy' && h.querySelector('.code-status').textContent.trim()==='' && !h.querySelector('.code-copy').disabled;
+    })()`);
+
+    await aiViewport(1280, 1000);
+    await evaluate("document.documentElement.style.setProperty('zoom','1');window.dispatchEvent(new Event('resize'))");
+    await settleAiWindow();
+    const beforeWrap = await markdownMetrics();
+    await click(`${markdownHost} .code-wrap`);
+    await condition(`document.querySelector(${JSON.stringify(`${markdownHost} .md-code-block`)})?.getAttribute('data-code-wrap') === 'false'`);
+    await settleAiWindow();
+    const unwrapped = await markdownMetrics();
+    markdownBrowserEvidence.wrap = {before: beforeWrap.code, unwrapped: unwrapped.code};
+    assert.equal(unwrapped.code.wrapped, "false");
+    assert.equal(unwrapped.code.whiteSpace, "pre");
+    assert.match(unwrapped.code.overflowX, /^(auto|scroll)$/);
+    assert.ok(unwrapped.code.scrollWidth > unwrapped.code.clientWidth + 1, "Long unwrapped JSON scrolls inside pre");
+    assert.ok(unwrapped.panel.scrollWidth <= unwrapped.panel.clientWidth + 1 && unwrapped.host.scrollWidth <= unwrapped.host.clientWidth + 1);
+    for (let index = 0; index < beforeWrap.code.buttons.length; index++) {
+      near(unwrapped.code.buttons[index].width, beforeWrap.code.buttons[index].width, "Wrap toggle keeps action width stable");
+      near(unwrapped.code.buttons[index].height, beforeWrap.code.buttons[index].height, "Wrap toggle keeps action height stable");
+    }
+    await markdownScreenshot("ai-markdown-code-unwrapped.png", ".md-code-block");
+    await click(`${markdownHost} .code-wrap`);
+    await condition(`document.querySelector(${JSON.stringify(`${markdownHost} .md-code-block`)})?.getAttribute('data-code-wrap') === 'true'`);
+    markdownBrowserEvidence.checks.push("markdown-code-wrap-toggle-and-local-pre-scroll");
+
+    for (const width of [1280, 390]) {
+      for (const dark of [false, true]) {
+        for (const scale of [100, 80, 140]) {
+          await aiViewport(width, width === 390 ? 844 : 1000);
+          await evaluate(`document.body.classList.toggle('dark-mode',${dark});document.documentElement.style.setProperty('zoom',${JSON.stringify(String(scale / 100))});window.dispatchEvent(new Event('resize'))`);
+          await evaluate("document.fonts.ready.then(() => true)");
+          await settleAiWindow();
+          const label = `${width}-${dark ? "dark" : "light"}-${scale}`;
+          const metrics = await markdownMetrics();
+          markdownBrowserEvidence.metrics.push({label, ...metrics});
+          assert.equal(metrics.viewport.width, width);
+          assert.equal(metrics.zoom, scale / 100);
+          assert.equal(metrics.dark, dark);
+          assertMarkdownFits(metrics, label);
+          await markdownScreenshot(`ai-markdown-${label}.png`, "h1");
+          if (scale === 100) {
+            await markdownScreenshot(`ai-markdown-${label}-tables.png`, ".table-scroll");
+            await markdownScreenshot(`ai-markdown-${label}-code.png`, ".md-code-block");
+            await markdownScreenshot(`ai-markdown-${label}-math.png`, ".math-inline");
+            await markdownScreenshot(`ai-markdown-${label}-footnotes.png`, ".footnotes");
+          }
+        }
+      }
+    }
+    const light = markdownBrowserEvidence.metrics.find(e=>e.label === "1280-light-100");
+    const dark = markdownBrowserEvidence.metrics.find(e=>e.label === "1280-dark-100");
+    assert.notEqual(light.typography.body.color, dark.typography.body.color, "Dark mode changes rendered text colors");
+    assert.notDeepEqual(light.tokenColors, dark.tokenColors, "Dark mode changes actual Shiki token colors");
+    assert.deepEqual(markdownBrowserEvidence.inertResourceRequests, []);
+    markdownBrowserEvidence.checks.push("markdown-1280-390-light-dark-80-100-140-zoom-no-overflow", "markdown-independent-per-table-scroll", "markdown-reference-14-24-body-21-30-h1-typography", "markdown-loaded-fonts-and-themed-token-colors");
+  } catch (error) {
+    failure = error;
+    await screenshot("ai-markdown-failure.png").then(()=>markdownBrowserEvidence.screenshots.push("ai-markdown-failure.png")).catch(()=>{});
+  } finally {
+    try {
+      await evaluate(`(() => {
+        const h=document.querySelector(${JSON.stringify(markdownHost)});
+        if(h?.querySelector('.code-wrap')?.getAttribute('aria-pressed')==='false') h.querySelector('.code-wrap').click();
+        document.body.classList.toggle('dark-mode',${initial.dark});
+        const s=document.documentElement.style;
+        if(${JSON.stringify(initial.zoom)}) s.setProperty('zoom',${JSON.stringify(initial.zoom)},${JSON.stringify(initial.zoomPriority)}); else s.removeProperty('zoom');
+        window.dispatchEvent(new Event('resize'));
+      })()`);
+      await cdp("Emulation.setDeviceMetricsOverride", {width: initial.width, height: initial.height, deviceScaleFactor: initial.dpr, mobile: false});
+      await settleAiWindow();
+      await evaluate(`(() => {
+        const t=document.querySelector('.ai-transcript');
+        t.scrollTop=${initial.transcript.top};t.scrollLeft=${initial.transcript.left};
+        window.scrollTo({left:${initial.x},top:${initial.y},behavior:'instant'});
+      })()`);
+      await settleAiWindow();
+      assert.deepEqual(await aiWindowState(), initialState, "Markdown regression preserves draft, model, active session, context, attachments and storage");
+      assert.equal(await evaluate("document.querySelectorAll('.chat-turn').length"), initial.turns);
+      assert.equal(await evaluate("document.querySelectorAll('.chat-turn[data-status=completed]').length"), initial.completed);
+      assert.equal(await evaluate("document.querySelector('.history-toggle').getAttribute('aria-expanded')"), initial.sidebar);
+      assert.equal(await evaluate("document.body.classList.contains('dark-mode')"), initial.dark);
+      assert.equal(await evaluate("document.documentElement.style.getPropertyValue('zoom')"), initial.zoom);
+      assert.equal(await evaluate("document.documentElement.style.getPropertyPriority('zoom')"), initial.zoomPriority);
+      assert.deepEqual(await evaluate("({width:innerWidth,height:innerHeight})"), {width: initial.width, height: initial.height});
+      const restoredScroll = await evaluate("({x:scrollX,y:scrollY,top:document.querySelector('.ai-transcript').scrollTop,left:document.querySelector('.ai-transcript').scrollLeft})");
+      for (const [key, value] of Object.entries({x: initial.x, y: initial.y, top: initial.transcript.top, left: initial.transcript.left})) near(restoredScroll[key], value, `Markdown regression restores ${key} scrolling`);
+      markdownBrowserEvidence.restored = true;
+      markdownBrowserEvidence.checks.push("markdown-preserves-workflow-session-turn-count-draft-viewport-theme-zoom");
+    } catch (error) {
+      markdownBrowserEvidence.restored = false;
+      markdownBrowserEvidence.restorationError = String(error);
+      failure ??= error;
+    }
+    markdownBrowserEvidence.ok = !failure;
+    if (failure) markdownBrowserEvidence.error = String(failure);
+    await writeFile(join(evidenceDir, "ai-markdown-browser.json"), JSON.stringify(markdownBrowserEvidence, null, 2) + "\n");
+  }
+  if (failure) throw failure;
 }
 const languageBrowserEvidence = [];
 async function selectInterfaceLanguage(selector, value) {
@@ -1532,7 +1890,7 @@ try {
   const providerCapture = join(work, "provider-capture.json");
   await writeFile(
     providerFile,
-    `const fs=require('node:fs'); let text=''; process.stdin.setEncoding('utf8'); process.stdin.on('data',c=>text+=c); process.stdin.on('end',()=>{const answer=()=>{fs.writeFileSync(${JSON.stringify(providerCapture)},JSON.stringify({args:process.argv.slice(2),context:text,baseUrl:process.env.ANTHROPIC_BASE_URL}));console.log('The available evidence is incomplete. Load a screen recording and SurfaceFlinger trace to correlate black-screen intervals. Your attached notes have been included in the analysis context.');}; if(text.includes('wait-for-stop')) setTimeout(answer,30000); else answer();});`,
+    `const fs=require('node:fs'); let text=''; process.stdin.setEncoding('utf8'); process.stdin.on('data',c=>text+=c); process.stdin.on('end',()=>{const answer=()=>{fs.writeFileSync(${JSON.stringify(providerCapture)},JSON.stringify({args:process.argv.slice(2),context:text,baseUrl:process.env.ANTHROPIC_BASE_URL}));console.log(${JSON.stringify(markdownFixtureAnswer)});}; if(text.includes('wait-for-stop')) setTimeout(answer,30000); else answer();});`,
   );
   await writeFile(join(work, "notes.txt"), "ATTACHED_NOTE_EVIDENCE");
   const cliDirectory = join(work, "bin");
@@ -1735,6 +2093,8 @@ if(process.argv[2]==='app-server'){
     const message = JSON.parse(event.data);
     if (message.method === "Runtime.exceptionThrown")
       runtimeErrors.push(message.params.exceptionDetails.text);
+    if (message.method === "Network.requestWillBeSent" && new URL(message.params.request.url).hostname === "markdown-fixture.invalid")
+      markdownBrowserEvidence.inertResourceRequests.push(message.params.request.url);
     const item = pending.get(message.id);
     if (!item) return;
     pending.delete(message.id);
@@ -1744,6 +2104,7 @@ if(process.argv[2]==='app-server'){
   });
   await cdp("Runtime.enable");
   await cdp("Page.enable");
+  await cdp("Network.enable");
   await cdp("Browser.setDownloadBehavior", {
     behavior: "allow",
     downloadPath: join(work, "downloads"),
@@ -1794,6 +2155,7 @@ if(process.argv[2]==='app-server'){
     JSON.stringify(["browser-fixture", "fixture-model"]),
   );
   await conversationModelMenuRegression();
+  await composerSpaceKeyRegression();
   const initialGeometry = await evaluate(`(() => {
     const card=document.querySelector('.ai-composer'), input=document.querySelector('.composer-input'), plus=document.querySelector('.composer-add'), send=document.querySelector('.composer-primary');
     const c=getComputedStyle(card), i=getComputedStyle(input), box=element=>({width:element.getBoundingClientRect().width,height:element.getBoundingClientRect().height});
@@ -1877,6 +2239,8 @@ if(process.argv[2]==='app-server'){
   await condition(
     "document.querySelector('.chat-turn[data-status=completed]') !== null",
   );
+  await condition("document.querySelector('.chat-turn[data-status=completed] .turn-duration')?.textContent.includes('Elapsed:')");
+  await markdownRegression();
   const first = await evaluate(
     "fetch('./ai/api/sessions').then(r=>r.json()).then(r=>r.sessions[0])",
   );
@@ -2091,6 +2455,8 @@ if(process.argv[2]==='app-server'){
       "model-menu-selection-escape-focus-and-responsive-layout",
       "text-attachment-content",
       "enter-send",
+      "native-space-insertion-and-arrow-caret-isolated-from-timeline-shortcuts",
+      "completed-turn-displays-server-measured-elapsed-time",
       "multi-turn-history",
       "report-preview",
       "markdown-and-html-download",
@@ -2134,6 +2500,7 @@ if(process.argv[2]==='app-server'){
       "compact-material-density",
       "compact-desktop-mobile-light-dark",
       "640px-composer-and-scrollable-settings-footer",
+      ...markdownBrowserEvidence.checks,
       ...aiWindowChecks,
     ],
     screenshots: [
@@ -2166,12 +2533,14 @@ if(process.argv[2]==='app-server'){
       "ai-density-mobile-light.png",
       "ai-density-mobile-dark.png",
       "ai-density-mobile-settings.png",
+      ...markdownBrowserEvidence.screenshots,
       ...aiWindowScreenshots,
     ],
   };
   result.composerGeometry = initialGeometry;
   result.compactDensity = compactDensityEvidence;
   result.aiWindow = aiWindowEvidence;
+  result.markdown = markdownBrowserEvidence;
   await writeFile(
     join(evidenceDir, 'ai-window-browser.json'),
     JSON.stringify({ok: true, checks: aiWindowChecks, metrics: aiWindowEvidence, screenshots: aiWindowScreenshots}, null, 2) + '\n',

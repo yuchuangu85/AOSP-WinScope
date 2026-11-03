@@ -461,6 +461,9 @@ export class TimelineComponent
   @HostListener('document:keydown', ['$event'])
   async handleKeyboardEvent(event: KeyboardEvent) {
     if (
+      event.defaultPrevented ||
+      event.isComposing ||
+      (event.target instanceof HTMLElement && isInputTextField(event.target)) ||
       this.isDisabled ||
       this.isInputFormFocused ||
       !this.timelineData().hasMoreThanOneDistinctTimestamp() ||

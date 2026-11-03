@@ -5,6 +5,7 @@ import {By} from '@angular/platform-browser';
 import {NoopAnimationsModule} from '@angular/platform-browser/animations';
 import {setLanguage} from '@common/i18n';
 import {AiCatalog, AiEvent, AiGatewayClient, AiProvider, AiSessionDetail, AiSessionSummary,} from '@services/ai_gateway_client';
+import {WinscopeTraceSnapshot} from '@services/winscope_trace_query';
 
 import {AiPanelComponent} from './ai_panel_component';
 import {AiSettingsValue} from './ai_settings_component';
@@ -539,6 +540,10 @@ describe('AiPanelComponent', () => {
     expect(component.errorText('AI stream failed (404)')).toBe(
       'AI 流式连接失败（404）',
     );
+    expect(component.errorText('Could not reach the AI gateway. Check the connection and try again.'))
+      .toBe('无法连接 AI 网关，请检查连接后重试。');
+    expect(component.errorText('The AI connection was interrupted. Reopen this conversation to reconnect.'))
+      .toBe('AI 连接已中断，请重新打开此会话以恢复连接。');
     component.error = 'Provider diagnostic: keep exact IDs';
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.ai-error').textContent).toBe(
@@ -551,6 +556,278 @@ describe('AiPanelComponent', () => {
       'Copied to clipboard.',
     );
   });
+
+  it('renders assistant Markdown while copying its original source and leaving user messages literal', async () => {
+    await initialize();
+    const reply = '# Analysis\n\n**Observed:** `alpha = 0`\n\n| Layer | Alpha |\n|---|---|\n|app|0|';
+    component.turns = [{id: 1, prompt: '# User text **must stay literal**', response: reply,
+      attachments: [], links: [], status: 'completed', activity: 'Completed'}];
+    const copy = spyOn(component, 'copyText').and.resolveTo();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.assistant-content h1')?.textContent.trim()).toBe('Analysis');
+    expect(fixture.nativeElement.querySelector('.assistant-content table')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('.user-message h1, .user-message strong')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.user-message .message-text').textContent).toBe('# User text **must stay literal**');
+    fixture.nativeElement.querySelector('[aria-label="Copy response"]').click();
+    expect(copy).toHaveBeenCalledOnceWith(reply);
+  });
+  describe('read-only trace query bridge', () => {
+    const snapshot: WinscopeTraceSnapshot = {
+      schemaVersion: '1', mode: 'current', requestedTimestampNs: '2000000000',
+      requestedTime: '2s', entries: [], incompleteReasons: [], truncated: false,
+    };
+
+    it('sends WindowManager time alignment and actual window properties with the current snapshot', async () => {
+      await initialize();
+      const current: WinscopeTraceSnapshot = {
+        ...snapshot,
+        entries: [{traceType: 'WINDOW_MANAGER', sourceIndex: 0, descriptors: ['wm.trace'],
+          index: 12, timestampNs: '1999999990', time: '1s999ms999990ns', match: 'before',
+          data: {focusedWindow: 'app.window', alpha: 0}, incompleteReasons: [], truncated: false}],
+        windowManager: {status: 'available', incompleteReasons: [], entries: [{sourceIndex: 0,
+          index: 12, requestedTimestampNs: '2000000000', timestampNs: '1999999990',
+          time: '1s999ms999990ns', deltaNs: '-10', match: 'before', dataPath: 'entries.0.data',
+          incompleteReasons: [], truncated: false}]},
+      };
+      component.traceQuery = jasmine.createSpy('query').and.resolveTo(current);
+      component.prompt = 'Analyze WindowManager at the current time';
+      await component.submit();
+      const evidence = start.calls.mostRecent().args[2];
+      expect(evidence.winscope.windowManager.entries[0].deltaNs).toBe('-10');
+      expect(evidence.winscope.windowManager.entries[0].requestedTimestampNs).toBe('2000000000');
+      expect(evidence.winscope.entries[0].data.focusedWindow).toBe('app.window');
+    });
+
+    it('captures the current manual frame on send and answers a specified-time request once', async () => {
+      await initialize();
+      const query = jasmine.createSpy('query').and.callFake(async (request: {time?: string}) => ({
+        ...snapshot, ...(request.time ? {mode: 'timestamp', requestedTime: request.time} : {}),
+      }));
+      component.traceQuery = query;
+      const respond = spyOn(AiGatewayClient.prototype, 'respondToTraceQuery').and.resolveTo();
+      let requestEvent: AiEvent;
+      stream.and.callFake(async (_id: string, onEvent: (event: AiEvent) => void) => {
+        const options = start.calls.mostRecent().args[4];
+        requestEvent = {id: 2, type: 'trace_query_requested', data: {
+          contextId: options.traceQueryContextId, queryId: 'query-1', query: {time: '1s500ms'},
+        }};
+        onEvent({id: 1, type: 'analysis_started', data: {prompt: 'Analyze at 1s500ms'}});
+        onEvent(requestEvent);
+        onEvent(requestEvent);
+        await Promise.resolve();
+        await Promise.resolve();
+        onEvent({id: 3, type: 'analysis_completed', data: {provider: {output: 'Actual analysis'}}});
+      });
+      component.prompt = 'Analyze at 1s500ms';
+      await component.submit();
+      expect(query.calls.allArgs()).toEqual([[{}], [{time: '1s500ms'}]]);
+      expect(start.calls.mostRecent().args[2]).toEqual({winscope: snapshot});
+      expect(start.calls.mostRecent().args[4].traceQueryEnabled).toBeTrue();
+      expect(respond).toHaveBeenCalledTimes(1);
+      expect(respond.calls.mostRecent().args.slice(0, 4)).toEqual([
+        'a', 'query-1', start.calls.mostRecent().args[4].traceQueryContextId,
+        {result: {...snapshot, mode: 'timestamp', requestedTime: '1s500ms'}},
+      ]);
+      expect(component.turns[0].response).toBe('Actual analysis');
+    });
+
+    it('sends no trace or query capability when trace context is disabled', async () => {
+      await initialize();
+      component.traceQuery = jasmine.createSpy('query').and.resolveTo(snapshot);
+      component.includeEvidence = false;
+      component.evidence = {private: 'local data'};
+      component.prompt = 'General question';
+      await component.submit();
+      expect(component.traceQuery).not.toHaveBeenCalled();
+      expect(start.calls.mostRecent().args[2]).toBeUndefined();
+      expect(start.calls.mostRecent().args[4].traceQueryEnabled).toBeUndefined();
+      expect(start.calls.mostRecent().args[4].traceQueryContextId).toBeUndefined();
+    });
+
+    it('ignores stale context IDs and sends a bounded query error rather than old data', async () => {
+      await initialize();
+      const query = jasmine.createSpy('query').and.callFake(async (request: {time?: string}) => {
+        if (request.time) throw new Error('Invalid trace query time.');
+        return snapshot;
+      });
+      component.traceQuery = query;
+      const respond = spyOn(AiGatewayClient.prototype, 'respondToTraceQuery').and.resolveTo();
+      stream.and.callFake(async (_id: string, onEvent: (event: AiEvent) => void) => {
+        const contextId = start.calls.mostRecent().args[4].traceQueryContextId;
+        onEvent({id: 2, type: 'trace_query_requested', data: {contextId: 'old-context', queryId: 'old', query: {}}});
+        onEvent({id: 3, type: 'trace_query_requested', data: {contextId, queryId: 'current', query: {time: 'outside'}}});
+        await Promise.resolve();
+        await Promise.resolve();
+        onEvent({id: 4, type: 'analysis_completed', data: {}});
+      });
+      component.prompt = 'Analyze time';
+      await component.submit();
+      expect(query).toHaveBeenCalledTimes(2);
+      expect(respond).toHaveBeenCalledTimes(1);
+      expect(respond.calls.mostRecent().args[3]).toEqual({error: 'Invalid trace query time.'});
+    });
+
+    it('drops a pending result after cancellation', async () => {
+      await initialize();
+      let finishQuery!: (value: WinscopeTraceSnapshot) => void;
+      component.traceQuery = jasmine.createSpy('query').and.callFake(async (request: {time?: string}) => {
+        if (!request.time) return snapshot;
+        return new Promise<WinscopeTraceSnapshot>((resolve) => { finishQuery = resolve; });
+      });
+      const respond = spyOn(AiGatewayClient.prototype, 'respondToTraceQuery').and.resolveTo();
+      const cancel = spyOn(AiGatewayClient.prototype, 'cancel').and.resolveTo();
+      stream.and.callFake(async (_id: string, onEvent: (event: AiEvent) => void) => {
+        onEvent({id: 2, type: 'trace_query_requested', data: {
+          contextId: start.calls.mostRecent().args[4].traceQueryContextId,
+          queryId: 'pending', query: {time: '1s'},
+        }});
+        await component.cancel();
+        finishQuery(snapshot);
+        await Promise.resolve();
+        onEvent({id: 3, type: 'analysis_cancelled'});
+      });
+      component.prompt = 'Analyze time';
+      await component.submit();
+      expect(cancel).toHaveBeenCalledOnceWith('a');
+      expect(respond).not.toHaveBeenCalled();
+    });
+
+    it('preserves the draft and prevents sending when current data cannot be read', async () => {
+      await initialize();
+      component.traceQuery = jasmine.createSpy('query').and.rejectWith(new Error('The loaded traces have changed.'));
+      component.prompt = 'Analyze current time';
+      await component.submit();
+      expect(start).not.toHaveBeenCalled();
+      expect(component.prompt).toBe('Analyze current time');
+      expect(component.running).toBeFalse();
+      expect(component.error).toBe('The loaded traces have changed.');
+    });
+
+    it('revokes a pending result when trace context is turned off', async () => {
+      await initialize();
+      let finishQuery!: (value: WinscopeTraceSnapshot) => void;
+      component.traceQuery = jasmine.createSpy('query').and.callFake(async (request: {time?: string}) => {
+        if (!request.time) return snapshot;
+        return new Promise<WinscopeTraceSnapshot>((resolve) => { finishQuery = resolve; });
+      });
+      const respond = spyOn(AiGatewayClient.prototype, 'respondToTraceQuery').and.resolveTo();
+      stream.and.callFake(async (_id: string, onEvent: (event: AiEvent) => void) => {
+        onEvent({id: 2, type: 'trace_query_requested', data: {
+          contextId: start.calls.mostRecent().args[4].traceQueryContextId,
+          queryId: 'pending', query: {time: '1s'},
+        }});
+        component.toggleTraceContext();
+        finishQuery(snapshot);
+        await Promise.resolve();
+        onEvent({id: 3, type: 'analysis_completed', data: {}});
+      });
+      component.prompt = 'Analyze time';
+      await component.submit();
+      expect(component.includeEvidence).toBeFalse();
+      expect(respond).toHaveBeenCalledTimes(1);
+      expect(respond.calls.mostRecent().args[3]).toEqual({error: 'Trace query authorization is no longer available.'});
+    });
+
+    it('does not send the initial snapshot if trace consent is revoked during the read', async () => {
+      await initialize();
+      let finishQuery!: (value: WinscopeTraceSnapshot) => void;
+      component.traceQuery = () => new Promise((resolve) => { finishQuery = resolve; });
+      component.prompt = 'Private question';
+      const submission = component.submit();
+      component.toggleTraceContext();
+      finishQuery(snapshot);
+      await submission;
+      expect(start).not.toHaveBeenCalled();
+      expect(component.prompt).toBe('Private question');
+      expect(component.running).toBeFalse();
+      expect(component.submitting).toBeFalse();
+      expect(component.includeEvidence).toBeFalse();
+    });
+
+    it('recovers an authorized pending query when reconnecting the same running conversation', async () => {
+      await initialize();
+      const query = jasmine.createSpy('query').and.resolveTo(snapshot);
+      component.traceQuery = query;
+      const respond = spyOn(AiGatewayClient.prototype, 'respondToTraceQuery').and.resolveTo();
+      stream.and.callFake(async () => undefined);
+      component.prompt = 'Analyze current position';
+      await component.submit();
+      const contextId = start.calls.mostRecent().args[4].traceQueryContextId;
+      const pendingTraceQuery = {contextId, queryId: 'pending-reconnect', query: {time: '1s'}};
+      get.and.resolveTo({...detail, status: 'running', pendingTraceQuery,
+        events: [
+          {id: 1, event: {type: 'analysis_started', data: {prompt: 'Analyze current position'}}},
+          {id: 2, event: {type: 'trace_query_requested', data: pendingTraceQuery}},
+        ],
+      });
+      stream.and.callFake(async (_id: string, onEvent: (event: AiEvent) => void) => {
+        await Promise.resolve();
+        await Promise.resolve();
+        onEvent({id: 3, type: 'analysis_completed', data: {provider: {output: 'Reconnected answer'}}});
+      });
+      await component.selectSession('a');
+      await fixture.whenStable();
+      expect(query.calls.allArgs()).toEqual([[{}], [{time: '1s'}]]);
+      expect(respond).toHaveBeenCalledTimes(1);
+      expect(respond.calls.mostRecent().args.slice(0, 4)).toEqual(['a', 'pending-reconnect', contextId, {result: snapshot}]);
+    });
+
+    it('declines a restored pending query without reconstructing consent from server events', async () => {
+      await initialize();
+      const query = jasmine.createSpy('query').and.resolveTo(snapshot);
+      component.traceQuery = query;
+      const pendingTraceQuery = {contextId: 'old-context', queryId: 'old-query', query: {}};
+      get.and.resolveTo({...detail, status: 'running', pendingTraceQuery});
+      const respond = spyOn(AiGatewayClient.prototype, 'respondToTraceQuery').and.resolveTo();
+      stream.and.callFake(async (_id: string, onEvent: (event: AiEvent) => void) => {
+        onEvent({id: 3, type: 'analysis_completed', data: {}});
+      });
+      await component.selectSession('a');
+      expect(query).not.toHaveBeenCalled();
+      expect(respond.calls.mostRecent().args[3]).toEqual({error: 'Trace query authorization is no longer available.'});
+    });
+
+    it('declines later SSE queries after restoring a session without trace authorization', async () => {
+      await initialize();
+      const query = jasmine.createSpy('query').and.resolveTo(snapshot);
+      component.traceQuery = query;
+      get.and.resolveTo({...detail, status: 'running'});
+      const respond = spyOn(AiGatewayClient.prototype, 'respondToTraceQuery').and.resolveTo();
+      stream.and.callFake(async (_id: string, onEvent: (event: AiEvent) => void) => {
+        onEvent({id: 3, type: 'trace_query_requested', data: {
+          contextId: 'restored-context', queryId: 'later-query', query: {time: '1s'},
+        }});
+        await Promise.resolve();
+        onEvent({id: 4, type: 'analysis_completed', data: {}});
+      });
+      await component.selectSession('a');
+      await fixture.whenStable();
+      expect(query).not.toHaveBeenCalled();
+      expect(respond.calls.mostRecent().args.slice(0, 4)).toEqual([
+        'a', 'later-query', 'restored-context', {error: 'Trace query authorization is no longer available.'},
+      ]);
+    });
+
+    it('offers a localized current-frame question without sending automatically', async () => {
+      await initialize();
+      component.traceQuery = jasmine.createSpy('query').and.resolveTo(snapshot);
+      setLanguage('zh-CN');
+      fixture.detectChanges();
+      fixture.nativeElement.querySelector('.composer-add').click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      const overlay = TestBed.inject(OverlayContainer).getContainerElement();
+      const button = Array.from(overlay.querySelectorAll<HTMLButtonElement>('button'))
+        .find((item) => item.textContent?.includes('分析当前帧'))!;
+      expect(button.disabled).toBeFalse();
+      button.click();
+      await settleWindow();
+      expect(component.prompt).toBe('获取当前时间轴位置的 WinScope 数据并进行分析。');
+      expect(start).not.toHaveBeenCalled();
+      expect(component.traceQuery).not.toHaveBeenCalled();
+    });
+  });
+
   describe('localized prompt suggestions', () => {
     const suggestions = [
       {
@@ -740,6 +1017,56 @@ describe('AiPanelComponent', () => {
     component.onComposerKey(event);
     expect(event.defaultPrevented).toBeTrue();
     expect(submit).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows localized completion duration without changing the response or showing a timer on old turns', async () => {
+    await initialize();
+    component.turns = [
+      {id: 1, prompt: 'First', response: 'Answer', status: 'completed', activity: 'Completed', attachments: [], links: [], durationMs: 1250},
+      {id: 2, prompt: 'Legacy', response: 'Old answer', status: 'completed', activity: 'Completed', attachments: [], links: []},
+    ];
+    setLanguage('zh-CN');
+    fixture.detectChanges();
+    const statuses = fixture.nativeElement.querySelectorAll('.turn-status');
+    expect(statuses[0].textContent).toContain('已完成');
+    expect(statuses[0].textContent).toContain('用时：1.3 秒');
+    expect(statuses[1].querySelector('.turn-duration')).toBeNull();
+    setLanguage('en');
+    fixture.detectChanges();
+    expect(statuses[0].textContent).toContain('Elapsed: 1.3 s');
+  });
+
+  it('keeps space and arrow keys local to the AI window without cancelling native editing', async () => {
+    await initialize();
+    const submit = spyOn(component, 'submit').and.resolveTo();
+    const global = jasmine.createSpy('document shortcut');
+    document.addEventListener('keydown', global);
+    try {
+      for (const selector of ['.composer-input', '.session-search input', '.composer-add']) {
+        const target = fixture.nativeElement.querySelector(selector) as HTMLElement;
+        expect(target).withContext(selector).not.toBeNull();
+        for (const key of [' ', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']) {
+          const event = new KeyboardEvent('keydown', {key, keyCode: key === ' ' ? 32 : 0, bubbles: true, cancelable: true});
+          target.dispatchEvent(event);
+          expect(event.defaultPrevented).withContext(`${selector} ${key}`).toBeFalse();
+        }
+      }
+      expect(global).not.toHaveBeenCalled();
+      expect(submit).not.toHaveBeenCalled();
+    } finally { document.removeEventListener('keydown', global); }
+  });
+
+  it('still sends Enter and closes Escape after isolating keyboard events', async () => {
+    await initialize();
+    const submit = spyOn(component, 'submit').and.resolveTo();
+    const closed = spyOn(component.closed, 'emit');
+    const textarea: HTMLTextAreaElement = fixture.nativeElement.querySelector('.composer-input');
+    const enter = new KeyboardEvent('keydown', {key: 'Enter', bubbles: true, cancelable: true});
+    textarea.dispatchEvent(enter);
+    expect(enter.defaultPrevented).toBeTrue();
+    expect(submit).toHaveBeenCalledTimes(1);
+    textarea.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true, cancelable: true}));
+    expect(closed).toHaveBeenCalledTimes(1);
   });
   it('reads real text notes and rejects binary/oversized attachments', async () => {
     await initialize();
@@ -1219,6 +1546,71 @@ describe('AiPanelComponent', () => {
     component.prompt = 'Must wait for terminal';
     await component.submit();
     expect(start).not.toHaveBeenCalled();
+  });
+
+  for (const terminalType of ['analysis_completed', 'analysis_cancelled', 'error']) {
+    it(`does not replace ${terminalType} with a network error after the terminal event`, async () => {
+      await initialize();
+      stream.and.callFake(async (_id: string, onEvent: (event: AiEvent) => void) => {
+        onEvent(events[0]);
+        onEvent({type: terminalType, data: {provider: {output: 'Preserved answer'}}, message: 'Provider failure'});
+        throw new TypeError('network error');
+      });
+      component.prompt = 'Question';
+      await component.submit();
+      expect(component.error).toBe('');
+      expect(component.running).toBeFalse();
+      expect(component.turns[0].status).toBe(
+        terminalType === 'analysis_completed' ? 'completed' : terminalType === 'analysis_cancelled' ? 'cancelled' : 'failed',
+      );
+    });
+  }
+
+  it('keeps the stream error when a background history refresh also fails', async () => {
+    await initialize();
+    (AiGatewayClient.prototype.listSessions as jasmine.Spy).and.rejectWith(new TypeError('History network error'));
+    stream.and.rejectWith(new Error('The AI connection was interrupted. Reopen this conversation to reconnect.'));
+    component.prompt = 'Question';
+    await component.submit();
+    await fixture.whenStable();
+    expect(component.error).toBe('The AI connection was interrupted. Reopen this conversation to reconnect.');
+    expect(component.running).toBeTrue();
+  });
+
+  it('restores unsent text and notes after a failed POST without sending a duplicate request', async () => {
+    await initialize();
+    start.and.rejectWith(new Error('Could not reach the AI gateway. Check the connection and try again.'));
+    component.prompt = 'Keep this question';
+    component.attachments = [{name: 'notes.txt', mimeType: 'text/plain', content: 'Keep these notes'}];
+    await component.submit();
+    expect(start).toHaveBeenCalledTimes(1);
+    expect(component.prompt).toBe('Keep this question');
+    expect(component.attachments[0].content).toBe('Keep these notes');
+    expect(component.submitting).toBeFalse();
+    expect(component.running).toBeFalse();
+    expect(component.error).toBe('Could not reach the AI gateway. Check the connection and try again.');
+  });
+
+  it('keeps a completed answer usable when background history refresh fails', async () => {
+    await initialize();
+    (AiGatewayClient.prototype.listSessions as jasmine.Spy).and.rejectWith(new TypeError('History network error'));
+    component.prompt = 'Question';
+    await component.submit();
+    await fixture.whenStable();
+    expect(component.error).toBe('');
+    expect(component.running).toBeFalse();
+    expect(component.turns[0].response).toBe('Saved answer');
+  });
+
+  it('does not apply stale history refresh results after selecting a different conversation', async () => {
+    await initialize();
+    let finish!: (value: AiSessionSummary[]) => void;
+    (AiGatewayClient.prototype.listSessions as jasmine.Spy).and.returnValue(new Promise<AiSessionSummary[]>((resolve) => { finish = resolve; }));
+    const refreshing = component.refreshSessions(true);
+    component.newSession();
+    finish([{...session, sessionId: 'stale'}]);
+    await refreshing;
+    expect(component.sessions.some((item) => item.sessionId === 'stale')).toBeFalse();
   });
 
   it('preserves running historical routing after terminal when defaults have no explicit provider', async () => {

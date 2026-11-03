@@ -62,7 +62,7 @@ class DependencyClosureTest(unittest.TestCase):
         self.assertGreater(report["dependenciesVerified"], 1_000)
         self.assertEqual(report["floatingDependencies"], 0)
         self.assertEqual(report["unapprovedOrigins"], 0)
-        self.assertEqual(report["distributedDependencies"], 223)
+        self.assertEqual(report["distributedDependencies"], 316)
 
         grpc_platforms = {
             entry["platforms"][0]
@@ -84,6 +84,9 @@ class DependencyClosureTest(unittest.TestCase):
             if entry["distribution"] == "runtime"
         }
         self.assertEqual(runtime_by_name["jszip"]["license"], "MIT")
+        for name in ("mdast-util-from-markdown", "mdast-util-gfm", "shiki", "katex"):
+            self.assertEqual(runtime_by_name[name]["license"], "MIT")
+        self.assertEqual(runtime_by_name["katex"]["version"], "0.18.7")
         self.assertEqual(runtime_by_name["mp4box"]["license"], "BSD-3-Clause")
 
     def test_complete_lock_digest_rejects_non_npm_drift_without_a_cache(self):

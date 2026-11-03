@@ -13,6 +13,7 @@
   [style.display]="suspended ? 'none' : null"
   [cdkTrapFocus]="!suspended"
   [cdkTrapFocusAutoCapture]="!suspended"
+  (keydown)="$event.stopPropagation()"
   (keydown.escape)="onEscape($event)"
 >
   @if (compactWindow && sidebarOpen) {
@@ -208,11 +209,13 @@
                       class="turn-status"
                       [class.running]="turn.status === 'running'"
                       role="status"
-                      >{{ activityText(turn.activity) }}</span
+                      >{{ activityText(turn.activity) }}@if (turn.status === 'completed' && turn.durationMs !== undefined) {
+                        <span class="turn-duration"> · {{ 'Elapsed: {time}' | tr: {time: durationText(turn.durationMs)} }}</span>
+                      }</span
                     ></div
                   >
                   @if (turn.response) {
-                    <div class="message-text assistant-content">{{ responseText(turn) }}</div>
+                    <ai-markdown class="assistant-content" [text]="responseText(turn)" (layoutChanged)="onResponseLayoutChanged()"></ai-markdown>
                   }
                   @for (link of turn.links; track $index) {
                     <button mat-button class="finding-link" (click)="selectFrame(link.frameIndex)"
@@ -386,12 +389,19 @@
                 >
                 <button
                   mat-menu-item
-                  [disabled]="!evidence"
-                  (click)="includeEvidence = !includeEvidence"
+                  [disabled]="!evidence && !traceQuery"
+                  (click)="toggleTraceContext()"
                   ><mat-icon>{{ includeEvidence ? 'check_circle' : 'data_object' }}</mat-icon
                   ><span>{{
                     (includeEvidence ? 'Remove trace context' : 'Add trace context') | tr
                   }}</span></button
+                >
+                <button
+                  mat-menu-item
+                  [disabled]="!traceQuery"
+                  (click)="usePrompt('Analyze the WinScope data at the current timeline position')"
+                  ><mat-icon>my_location</mat-icon
+                  ><span>{{ 'Analyze current frame' | tr }}</span></button
                 >
                 <button
                   mat-menu-item
@@ -414,19 +424,20 @@
               <button
                 type="button"
                 class="context-chip"
-                [class.included]="includeEvidence && !!evidence"
-                [attr.aria-pressed]="includeEvidence && !!evidence"
-                [disabled]="!evidence"
+                [class.included]="includeEvidence && (!!evidence || !!traceQuery)"
+                [attr.aria-pressed]="includeEvidence && (!!evidence || !!traceQuery)"
+                [disabled]="!evidence && !traceQuery"
                 [matTooltip]="
-                  (evidence
-                    ? 'Include structured trace evidence in the next message'
+                  (traceQuery
+                    ? 'Allow read-only queries of current or specified trace times'
+                    : evidence ? 'Include structured trace evidence in the next message'
                     : 'Load a trace in WinScope to add evidence'
                   ) | tr
                 "
                 (mousedown)="$event.preventDefault()"
-                (click)="includeEvidence = !includeEvidence"
+                (click)="toggleTraceContext()"
                 ><mat-icon>data_object</mat-icon><span>{{ 'Trace context' | tr }}</span>
-                @if (includeEvidence && evidence) {
+                @if (includeEvidence && (evidence || traceQuery)) {
                   <mat-icon class="context-check">check</mat-icon>
                 }
               </button>

@@ -1,7 +1,8 @@
 import {createServer, IncomingMessage, Server, ServerResponse} from 'node:http';
 import {randomUUID} from 'node:crypto';
+import {performance} from 'node:perf_hooks';
 import {AgentRuntime} from './runtime';
-import {AiSelection, ChatTurn, EvidenceInput, JsonValue, Provider, ReasoningLevel, RuntimeEvent, TextAttachment} from './types';
+import {AiSelection, ChatTurn, EvidenceInput, JsonObject, JsonValue, Provider, ReasoningLevel, RuntimeEvent, TextAttachment, TraceDataQuery} from './types';
 import {buildHtmlReport, buildMarkdownReport} from './report';
 import {importLocalProvider, isModelId, LocalConfigOptions} from './local_config';
 import {isRecord} from './json';
@@ -9,8 +10,17 @@ import {CommandProvider, configureProvider, OpenAICompatibleProvider} from './pr
 import {GatewaySettingsOptions, hasOnlyFields, parseProviderConfiguration, readSettings, SavedAiSettings, SavedProviderSettings, writeSettings} from './settings';
 
 const SHUTDOWN_TIMEOUT_MS = 5000;
+const TRACE_QUERY_TIMEOUT_MS = 20_000;
+const MAX_TRACE_QUERY_RESULT_BYTES = 128 * 1024;
 
 type SessionStatus = 'running' | 'completed' | 'failed' | 'cancelled';
+interface PendingTraceQuery {
+  id: string;
+  contextId: string;
+  query: TraceDataQuery;
+  resolve: (result: JsonObject) => void;
+  reject: (error: Error) => void;
+}
 interface Session {
   id: string;
   title: string;
@@ -29,6 +39,8 @@ interface Session {
   updatedAt: number;
   result?: JsonValue;
   error?: string;
+  traceQueryContextId?: string;
+  pendingTraceQuery?: PendingTraceQuery;
 }
 interface TurnInput {
   prompt: string;
@@ -39,6 +51,8 @@ interface TurnInput {
   effectiveLevel?: ReasoningLevel;
   evidence?: EvidenceInput;
   attachments: TextAttachment[];
+  traceQueryEnabled: boolean;
+  traceQueryContextId?: string;
 }
 class HttpError extends Error {
   constructor(readonly statusCode: number, message: string) { super(message); }
@@ -115,10 +129,11 @@ export class AiGateway {
         return this.json(response, 200, {sessions: [...this.sessions.values()].sort((a, b) => b.updatedAt - a.updatedAt).map((session) => this.summary(session))});
       }
       if (method === 'POST' && url.pathname === '/api/analyze') return await this.startAnalysis(request, response);
-      const match = url.pathname.match(/^\/api\/sessions\/([^/]+)(?:\/(continue|stream|cancel|report))?$/);
+      const match = url.pathname.match(/^\/api\/sessions\/([^/]+)(?:\/(continue|stream|cancel|report|trace-query\/([^/]+)))?$/);
       if (!match) return this.json(response, 404, {error: 'not found'});
       const session = this.sessions.get(decodeURIComponent(match[1]));
       if (!session) return this.json(response, 404, {error: 'session not found'});
+      if (method === 'POST' && match[3]) return await this.acceptTraceQuery(request, response, session, match[3]);
       if (method === 'POST' && match[2] === 'continue') return await this.continueSession(request, response, session);
       if (method === 'GET' && match[2] === 'stream') {
         const after = Number(url.searchParams.get('after') ?? request.headers['last-event-id'] ?? 0);
@@ -130,7 +145,12 @@ export class AiGateway {
         return this.json(response, 202, {...this.summary(session), status: session.status === 'running' ? 'cancelling' : session.status});
       }
       if (method === 'GET' && match[2] === 'report') return this.report(response, session, url.searchParams.get('format'));
-      if (method === 'GET' && !match[2]) return this.json(response, 200, {...this.summary(session), events: session.events, result: session.result, error: session.error});
+      if (method === 'GET' && !match[2]) return this.json(response, 200, {...this.summary(session), events: session.events, result: session.result, error: session.error,
+        ...(session.pendingTraceQuery ? {pendingTraceQuery: {
+          queryId: session.pendingTraceQuery.id, contextId: session.pendingTraceQuery.contextId,
+          query: session.pendingTraceQuery.query,
+        }} : {}),
+      });
       this.json(response, 404, {error: 'not found'});
     } catch (error) {
       this.json(response, error instanceof HttpError ? error.statusCode : 500, {error: error instanceof Error ? error.message : String(error)});
@@ -284,7 +304,11 @@ export class AiGateway {
       if (levels.includes(level)) effectiveLevel = level;
     } else if (modelId && modelId !== 'default') throw new HttpError(400, 'a provider is required for model selection');
     if (body.evidence !== undefined && (typeof body.evidence !== 'object' || body.evidence === null || Array.isArray(body.evidence))) throw new HttpError(400, 'evidence must be an object');
-    return {prompt, agentId, providerId, modelId, reasoningLevel: level, effectiveLevel, evidence: body.evidence as EvidenceInput | undefined, attachments: parseAttachments(body.attachments)};
+    if (body.traceQueryEnabled !== undefined && typeof body.traceQueryEnabled !== 'boolean') throw new HttpError(400, 'traceQueryEnabled must be a boolean');
+    const traceQueryEnabled = body.traceQueryEnabled === true;
+    const traceQueryContextId = optionalString(body.traceQueryContextId, 'traceQueryContextId');
+    if (traceQueryEnabled && !traceQueryContextId) throw new HttpError(400, 'traceQueryContextId is required for trace queries');
+    return {prompt, agentId, providerId, modelId, reasoningLevel: level, effectiveLevel, evidence: body.evidence as EvidenceInput | undefined, attachments: parseAttachments(body.attachments), traceQueryEnabled, traceQueryContextId};
   }
   private async startAnalysis(request: IncomingMessage, response: ServerResponse): Promise<void> {
     const input = this.parseTurn(await readJson(request));
@@ -322,6 +346,9 @@ export class AiGateway {
     this.json(response, 202, this.summary(session));
   }
   private async runSession(session: Session, input: TurnInput): Promise<void> {
+    const startedAt = performance.now();
+    const signal = session.controller.signal;
+    session.traceQueryContextId = input.traceQueryEnabled ? input.traceQueryContextId : undefined;
     session.prompts.push(input.prompt);
     this.emit(session, {type: 'analysis_started', data: {
       sessionId: session.id, agentId: session.agentId, prompt: input.prompt, turn: session.prompts.length,
@@ -334,9 +361,10 @@ export class AiGateway {
       const result = await this.runtime.run(session.agentId, {
         prompt: input.prompt, evidence: input.evidence, providerId: session.providerId,
         modelId: session.modelId, reasoningLevel: input.effectiveLevel,
-        history: session.history, attachments: input.attachments, signal: session.controller.signal,
+        history: session.history, attachments: input.attachments, signal,
+        ...(input.traceQueryEnabled ? {queryTrace: (query: TraceDataQuery) => this.queryTrace(session, signal, input.traceQueryContextId!, query)} : {}),
       }, {onEvent: (event) => this.emit(session, event)});
-      if (session.controller.signal.aborted || result.provider?.cancelled) {
+      if (signal.aborted || result.provider?.cancelled) {
         session.status = 'cancelled';
         this.emit(session, {type: 'analysis_cancelled', message: 'Analysis stopped'});
       } else {
@@ -346,17 +374,67 @@ export class AiGateway {
         session.history.push({role: 'user', content: boundedHistoryText(input.prompt + attachmentContext)}, {role: 'assistant', content: boundedHistoryText(result.provider?.output ?? JSON.stringify(result.skillResults))});
         // Keep recent full turns within a bounded model context; never silently truncate the current prompt.
         while (session.history.length > 2 && session.history.reduce((sum, turn) => sum + turn.content.length, 0) > 65_536) session.history.splice(0, 2);
-        this.emit(session, {type: 'analysis_completed', data: result as unknown as JsonValue});
+        this.emit(session, {type: 'analysis_completed', data: {
+          ...result as unknown as Record<string, JsonValue>,
+          durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
+        }});
       }
     } catch (error) {
-      session.status = session.controller.signal.aborted ? 'cancelled' : 'failed';
+      session.status = signal.aborted ? 'cancelled' : 'failed';
       session.error = error instanceof Error ? error.message : String(error);
       this.emit(session, {type: session.status === 'cancelled' ? 'analysis_cancelled' : 'error', message: session.error});
     } finally {
+      session.pendingTraceQuery?.reject(new Error('Trace query turn ended'));
+      session.traceQueryContextId = undefined;
       session.updatedAt = Date.now();
       for (const watcher of session.watchers) watcher.end();
       session.watchers.clear();
     }
+  }
+  private async queryTrace(session: Session, signal: AbortSignal, contextId: string, query: TraceDataQuery): Promise<JsonObject> {
+    if (this.closePromise || signal.aborted || session.controller.signal !== signal || session.status !== 'running' || session.traceQueryContextId !== contextId) throw new Error('Trace query turn is no longer running');
+    if (session.pendingTraceQuery) throw new Error('A trace query is already pending');
+    return new Promise<JsonObject>((resolve, reject) => {
+      const cleanup = () => {
+        clearTimeout(timer);
+        signal.removeEventListener('abort', onAbort);
+        if (session.pendingTraceQuery === pending) session.pendingTraceQuery = undefined;
+      };
+      const pending: PendingTraceQuery = {
+        id: randomUUID(), contextId, query,
+        resolve: (result) => { cleanup(); resolve(result); },
+        reject: (error) => { cleanup(); reject(error); },
+      };
+      const onAbort = () => pending.reject(new Error('Trace query cancelled'));
+      const timer = setTimeout(() => pending.reject(new Error('Trace query timed out')), TRACE_QUERY_TIMEOUT_MS);
+      session.pendingTraceQuery = pending;
+      signal.addEventListener('abort', onAbort, {once: true});
+      try {
+        this.emit(session, {type: 'trace_query_requested', data: {
+          queryId: pending.id, contextId, query: query.time === undefined ? {} : {time: query.time},
+        }});
+      } catch (error) { pending.reject(error instanceof Error ? error : new Error('Trace query request failed')); }
+    });
+  }
+  private async acceptTraceQuery(request: IncomingMessage, response: ServerResponse, session: Session, queryId: string): Promise<void> {
+    const pending = session.pendingTraceQuery;
+    if (!pending) throw new HttpError(409, 'trace query is no longer pending');
+    const isCurrent = () => !this.closePromise && session.status === 'running' && !session.controller.signal.aborted && session.pendingTraceQuery === pending && pending.id === queryId && session.traceQueryContextId === pending.contextId;
+    if (!isCurrent()) throw new HttpError(409, 'trace query is no longer pending');
+    const body = await readJson(request);
+    // The turn may have ended or this query may have settled while the body was read.
+    if (!isCurrent()) throw new HttpError(409, 'trace query is no longer pending');
+    if (!hasOnlyFields(body, ['contextId', 'result', 'error']) || typeof body.contextId !== 'string' || Object.hasOwn(body, 'result') === Object.hasOwn(body, 'error')) throw new HttpError(400, 'expected contextId and exactly one trace query result or error');
+    if (body.contextId !== pending.contextId) throw new HttpError(409, 'trace query context does not match');
+    if (Object.hasOwn(body, 'result')) {
+      if (!isRecord(body.result)) throw new HttpError(400, 'trace query result must be an object');
+      if (Buffer.byteLength(JSON.stringify(body.result), 'utf8') > MAX_TRACE_QUERY_RESULT_BYTES) throw new HttpError(413, 'trace query result exceeds the 128 KiB limit');
+      pending.resolve(body.result as JsonObject);
+    } else {
+      if (typeof body.error !== 'string' || !body.error.trim() || body.error.length > 512) throw new HttpError(400, 'trace query error must contain 1 to 512 characters');
+      pending.reject(new Error(body.error));
+    }
+    this.json(response, 200, {ok: true});
   }
   private summary(session: Session): Record<string, unknown> {
     return {

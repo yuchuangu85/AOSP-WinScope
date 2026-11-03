@@ -40,16 +40,17 @@ export function isElementOverflowing(element: HTMLElement) {
 }
 
 /**
- * Checks if an element is an input text field.
+ * Checks whether typing or caret movement belongs to an editable text control.
  *
  * @param element The element to check.
- * @return True if the element is an input text field, false otherwise.
+ * @return True for text inputs, textareas and editable content descendants.
  */
 export function isInputTextField(element: HTMLElement): boolean {
   return (
-    element instanceof HTMLInputElement &&
-    element.tagName === 'INPUT' &&
-    element.type === 'text'
+    element instanceof HTMLTextAreaElement ||
+    element.isContentEditable ||
+    (element instanceof HTMLInputElement &&
+      ['text', 'search', 'email', 'password', 'tel', 'url', 'number'].includes(element.type))
   );
 }
 

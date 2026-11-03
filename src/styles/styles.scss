@@ -15,6 +15,8 @@
  */
 
 @use './ai_window';
+@use './ai_markdown';
+@import 'katex/dist/katex.min.css';
 
 @font-face {
   font-family: 'Material Symbols Sharp';

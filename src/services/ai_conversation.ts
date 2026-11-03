@@ -6,6 +6,7 @@ export type AiResponsePart =
       kind: 'localized';
       source: string;
       params?: Record<string, string | number>;
+      evidenceReasons?: string[];
     };
 
 export interface AiChatTurn {
@@ -18,6 +19,7 @@ export interface AiChatTurn {
   status: 'running' | 'completed' | 'failed' | 'cancelled';
   activity: string;
   links: AiFindingLink[];
+  durationMs?: number;
 }
 
 // The server event log is the only conversation source of truth. Replaying it
@@ -53,12 +55,18 @@ export function projectConversation(events: AiEvent[]): AiChatTurn[] {
     if (event.type === 'provider_started') {
       turn.activity = `Waiting for ${data['providerId'] ?? 'model'}…`;
     }
+    if (event.type === 'trace_query_requested') turn.activity = 'Reading trace data…';
+    if (event.type === 'trace_query_completed') turn.activity = 'Trace data received';
     if (event.type === 'analysis_completed') {
       turn.responseParts = responseParts(event.data);
       turn.response = formatConversationResponse(turn, interpolateEnglish);
       turn.links = findingLinks(event.data);
       turn.status = 'completed';
       turn.activity = 'Completed';
+      const duration = data['durationMs'];
+      if (typeof duration === 'number' && Number.isFinite(duration) && duration >= 0) {
+        turn.durationMs = duration;
+      }
     }
     if (event.type === 'error' || event.type === 'analysis_cancelled') {
       turn.status = event.type === 'error' ? 'failed' : 'cancelled';
@@ -81,6 +89,20 @@ export function projectConversation(events: AiEvent[]): AiChatTurn[] {
   return turns;
 }
 
+export function formatAnalysisDuration(
+  durationMs: number,
+  localize: (source: string, params?: Record<string, string | number>) => string,
+): string {
+  const seconds = Math.max(0, Math.round(durationMs / 100));
+  if (seconds < 600) return localize('{seconds} s', {seconds: seconds / 10});
+  const wholeSeconds = Math.floor(seconds / 10);
+  const minutes = Math.floor(wholeSeconds / 60);
+  if (minutes < 60) return localize('{minutes} min {seconds} s', {minutes, seconds: wholeSeconds % 60});
+  return localize('{hours} h {minutes} min {seconds} s', {
+    hours: Math.floor(minutes / 60), minutes: minutes % 60, seconds: wholeSeconds % 60,
+  });
+}
+
 /** Localize only explicitly owned prose, never provider output or skill payloads. */
 export function formatConversationResponse(
   turn: Pick<AiChatTurn, 'response' | 'responseParts'>,
@@ -92,11 +114,24 @@ export function formatConversationResponse(
   return turn.responseParts
     ? turn.responseParts
         .map((part) =>
-          part.kind === 'raw' ? part.text : localize(part.source, part.params),
+          part.kind === 'raw' ? part.text : localize(part.source, part.evidenceReasons
+            ? {...part.params, reasons: part.evidenceReasons.map((reason) =>
+              OWNED_EVIDENCE_REASONS.has(reason) ? localize(reason) : reason).join('; ')}
+            : part.params),
         )
         .join('\n\n')
     : turn.response;
 }
+
+const OWNED_EVIDENCE_REASONS = new Set([
+  'screen recording evidence is missing',
+  'video luminance evidence is missing',
+  'video frame-difference evidence is missing',
+  'SurfaceFlinger evidence is missing',
+  'WindowManager evidence is missing',
+  'WindowManager evidence is incomplete',
+  'Transactions evidence is missing',
+]);
 
 function interpolateEnglish(
   source: string,
@@ -149,6 +184,7 @@ function responseParts(value: unknown): AiResponsePart[] {
         kind: 'localized',
         source: 'Incomplete evidence: {reasons}',
         params: {reasons: reasons.join('; ')},
+        evidenceReasons: reasons.map(String),
       });
     }
   }

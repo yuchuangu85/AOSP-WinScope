@@ -23,6 +23,58 @@ npm start -- --offline-only --open --ai-url http://127.0.0.1:7341
 
 ## Providers
 
+### Read-only timeline queries
+
+With trace context enabled, a submitted conversation includes a fresh snapshot
+of the manually selected timeline position and authorizes the model to query
+other times in the same loaded traces. For example: `Analyze the current frame`
+or `Get WinScope data at 1s200ms and explain the visible layers`. This is a
+browser-backed API, not filesystem access or an external MCP trace reader.
+
+The provider-neutral tool protocol accepts a whole JSON response:
+
+```json
+{"tool":"winscope_query_trace","arguments":{"time":"1s200ms"}}
+```
+
+Omit `time` for the latest manually selected position. Accepted formats match
+the timeline: integer nanoseconds with optional `ns`, elapsed units, full date
+and time, or time of day using the current trace date. The query reuses viewer
+frame/entry matching without moving the timeline. Snapshot entries contain
+actual hierarchy and property values, requested/matched nanosecond timestamps,
+source identities and partial/truncation reasons; raw media is excluded.
+Each snapshot also exposes `windowManager` time-alignment metadata. Its entries
+give the exact requested and matched nanosecond timestamps, signed `deltaNs`,
+matching strategy and a `dataPath` into the snapshot's actual window hierarchy.
+The hierarchy is not duplicated, preserving the payload budget. `available`,
+`partial` and `unavailable` distinguish a usable timed match from truncated,
+untimed or absent data. A point-in-time match is not proof of a complete timeline
+or of the display's on/off state.
+After an accepted query, deterministic evidence checks are rerun against the
+latest snapshot and their results replace the earlier checks for that turn.
+WindowManager missing-data warnings therefore clear only after a usable WM
+observation is actually received. Partial/untimed data remains qualified;
+failed, oversized or cancelled queries do not upgrade prior evidence claims.
+
+The initiating request opts in with `traceQueryEnabled: true` and a fresh
+`traceQueryContextId`. The gateway emits `trace_query_requested` through the
+session SSE stream with `{queryId, contextId, query}`. The initiating browser
+replies to `POST /api/sessions/:sessionId/trace-query/:queryId` with
+`{contextId, result}` or `{contextId, error}`. Only the matching pending request
+in that running turn is accepted. Results are not saved in event logs or
+conversation history. Stale replies fail with 409; results over 128 KiB fail
+with 413. Each run permits at most four queries, a query waits at most 20 seconds,
+and cancellation/shutdown releases pending requests.
+Session detail exposes only the currently pending query metadata so an owning
+browser can reconnect. That metadata does not authorize local reads: a restored
+browser without the original in-memory consent replies with an error.
+
+Snapshot reads have a shared 10-second deadline and a 96 KiB UTF-8 output cap.
+The provider context has a cumulative 192 KiB evidence budget. Missing data,
+range errors and truncated results must not be presented as complete evidence.
+
+### Provider configuration
+
 Built-in command provider IDs are `codex`, `claude` and `ds`. They execute the
 configured executable without a shell and send the prompt through stdin. The
 actual command flags are intentionally configurable because local CLI versions

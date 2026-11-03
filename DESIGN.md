@@ -2,7 +2,7 @@
 
 ## Source of truth
 
-Status: Active. Updated: 2026-11-02. Surface: independent application settings,
+Status: Active. Updated: 2026-11-03. Surface: independent application settings,
 WinScope AI conversation workspace and shared compact control density.
 The current iteration implements the user's requested conversation workflow,
 not full DeepSeek Harness product or pixel parity. Reference code is read-only.
@@ -75,8 +75,15 @@ context/attachment chips and a labelled model menu trigger.
 
 Target WCAG 2.2 AA: labelled controls, visible focus, semantic buttons, polite
 status announcements, keyboard-operable history and composer. Enter sends;
-Shift+Enter inserts a newline; IME composition never submits. Text is rendered
-as text, not trusted HTML. Do not rely on hover or color alone for actions/state.
+Shift+Enter inserts a newline; IME composition never submits. User messages stay
+plain text; assistant Markdown is rendered as semantic elements, with authored
+HTML kept literal. Do not rely on hover or color alone for actions/state.
+Keyboard events inside the AI dialog stay local without cancelling native text
+editing. Global timeline shortcuts ignore textareas, text inputs and editable
+content; Space toggles playback only outside those editing surfaces.
+Completed turns show localized elapsed time measured by the gateway for that
+turn, including rule execution, model calls and trace-query round trips. Replay
+preserves each turn's duration. Legacy events without timing show no estimate.
 
 ## Responsive behavior
 
@@ -121,6 +128,34 @@ and the local provider/runtime boundary without claiming full device diagnosis.
 Angular 20/Material, existing CSS tokens, no new dependencies. Do not store
 prompts, attachment content, credentials or raw traces in browser storage.
 Text attachments are bounded UTF-8 notes; trace evidence is opt-in per draft.
+The trace-context toggle also authorizes read-only `winscope_query_trace` calls
+for that submitted turn. Queries reuse viewer entry/frame matching and never
+move the timeline. Omitted time reads the latest manually selected position;
+specified times use the timeline's existing timestamp formats. Results contain
+actual bounded hierarchy/property values, exact nanosecond strings, entry
+identity and explicit partial/truncated diagnostics. Raw media is excluded.
+The gateway binds each query to its session, turn context and query ID; results
+are not retained in event/history storage. Each run permits at most four calls.
+
+## Assistant Markdown
+
+Assistant responses use DeepSeek Harness's mdast/GFM parsing stack and vendored
+CJK strong-emphasis and TeX compatibility extensions at reference revision
+`ce7073d51254c26cd63b22a60835b8f948deb447`. Angular renders a semantic node tree;
+raw HTML stays literal text and unsafe/local links stay inert. No trusted-HTML
+bypass is permitted. KaTeX uses untrusted mode and Shiki supplies token spans.
+Source libraries are explicitly authorized for this requested integration.
+
+Match the reference Markdown typography: 14/24 body, 21/30 h1, 19/28 h2,
+18/26 h3, 13/22 tables, 11/19 fenced code, 16px paragraph spacing. Code blocks
+retain the reference's 16px radius and language banner, with local Material copy
+and wrap icons. Tables and code have their own scrollports at narrow widths.
+Copy response, copied code, history and exports retain original source, not
+rendered HTML. Owned control labels follow language; reply content does not.
+
+Remote images, file-opening delegates and the reference's React/host framework
+are not imported. Image alt text remains visible without automatic network
+requests. See `docs/AI_MARKDOWN_PARITY.md` for provenance and measured boundaries.
 Verify projection/state/client unit tests, gateway tests, production build and
 browser workflow E2E separately. Visual screenshots support layout inspection,
 not a claim of complete reference parity.

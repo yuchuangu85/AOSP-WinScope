@@ -1,9 +1,65 @@
 import {setLanguage, translate} from '@common/i18n';
 
-import {formatConversationResponse, projectConversation,} from './ai_conversation';
+import {formatAnalysisDuration, formatConversationResponse, projectConversation,} from './ai_conversation';
 
 describe('AI conversation projection', () => {
   afterEach(() => setLanguage('en'));
+
+  it('keeps each completed turn duration when replaying a multi-turn conversation', () => {
+    const turns = projectConversation([
+      {type: 'analysis_started', data: {prompt: 'First'}},
+      {type: 'analysis_completed', data: {durationMs: 1250, provider: {output: 'First answer'}}},
+      {type: 'analysis_started', data: {prompt: 'Second'}},
+      {type: 'analysis_completed', data: {durationMs: 65000, provider: {output: 'Second answer'}}},
+    ]);
+    expect(turns.map((turn) => turn.durationMs)).toEqual([1250, 65000]);
+    expect(turns[0].response).toBe('First answer');
+    expect(formatAnalysisDuration(1250, translate)).toBe('1.3 s');
+    expect(formatAnalysisDuration(65000, translate)).toBe('1 min 5 s');
+    setLanguage('zh-CN');
+    expect(formatAnalysisDuration(1250, translate)).toBe('1.3 秒');
+    expect(formatAnalysisDuration(3665000, translate)).toBe('1 小时 1 分 5 秒');
+  });
+
+  it('does not invent elapsed time for legacy or invalid completion events', () => {
+    for (const durationMs of [undefined, -1, NaN, Infinity, '1200']) {
+      const [turn] = projectConversation([
+        {type: 'analysis_started'}, {type: 'analysis_completed', data: {durationMs}},
+      ]);
+      expect(turn.durationMs).toBeUndefined();
+    }
+  });
+
+  it('localizes only owned missing-evidence reasons while preserving identical model text and unknown diagnostics', () => {
+    const raw = 'WindowManager evidence is missing';
+    const [turn] = projectConversation([
+      {type: 'analysis_started', data: {prompt: 'Analyze'}},
+      {type: 'analysis_completed', data: {
+        provider: {output: raw}, skillResults: [{skillId: 'black-screen-diagnosis', result: {
+          findings: [], complete: false, incompleteReasons: [raw, 'CustomWindow ID=123', 'WindowManager evidence is incomplete'],
+        }}],
+      }},
+    ]);
+    setLanguage('zh-CN');
+    const translated = formatConversationResponse(turn, translate);
+    expect(translated.startsWith(raw)).toBeTrue();
+    expect(translated).toContain('缺少 WindowManager 跟踪证据; CustomWindow ID=123; WindowManager 跟踪证据不完整');
+    expect(turn.response).toContain(raw);
+    setLanguage('en');
+    expect(formatConversationResponse(turn, translate)).toBe(turn.response);
+  });
+
+  it('projects localized trace query progress without rendering raw snapshot data', () => {
+    const started = {type: 'analysis_started', data: {prompt: 'Analyze current time'}};
+    const requested = {type: 'trace_query_requested', data: {queryId: 'q', query: {time: '1s'}}};
+    const [reading] = projectConversation([started, requested]);
+    expect(reading.activity).toBe('Reading trace data…');
+    const [received] = projectConversation([started, requested, {type: 'trace_query_completed'}]);
+    expect(received.activity).toBe('Trace data received');
+    expect(received.response).toBe('');
+    setLanguage('zh-CN');
+    expect(translate(reading.activity)).toBe('正在读取跟踪数据…');
+  });
 
   it('localizes owned deterministic response sections without translating identical provider output', () => {
     const providerOutput = 'No anomaly found in the available evidence.';
