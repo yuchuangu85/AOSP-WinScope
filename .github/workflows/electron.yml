@@ -109,6 +109,13 @@ jobs:
           python-version: "3.12"
           check-latest: false
 
+      - name: Install the pinned npm release
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global "npm@$(node -p 'require("./package.json").engines.npm')"
+          npm --version
+
       - name: Prepare and verify the pinned shared build inputs
         run: |
           set -euo pipefail
