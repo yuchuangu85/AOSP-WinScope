@@ -593,6 +593,18 @@ credentials and a credentialed release policy. This lane does not use those
 credentials and does not promise unsigned packages will pass Gatekeeper or
 SmartScreen.
 
+The candidate macOS jobs do ad-hoc sign the packaged bundle
+(`codesign --force --deep --sign -`) after the unpacked application is produced
+and before smoke testing and installer creation. That is not Developer ID trust
+or notarization, but it makes the bundle signature structurally valid, so a
+quarantined download reports the standard unverified-developer prompt with an
+"Open Anyway" entry instead of Gatekeeper's "damaged" refusal. The signing step
+does not touch `Contents/Resources/runtime` binaries because they are packaged
+resources rather than nested code, so the runtime inventory digests recorded by
+`desktop/prepare.mjs` remain valid and the packaged smoke still asserts the
+bundled runtime. Local `desktop:dist` runs remain unsigned unless the operator
+signs them explicitly.
+
 A candidate downloaded through a browser carries the macOS quarantine flag.
 Because the bundle has no Developer ID signature, Gatekeeper refuses it as
 "damaged" instead of offering an identity prompt. After copying the application

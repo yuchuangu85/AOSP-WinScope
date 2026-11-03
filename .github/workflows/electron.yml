@@ -320,6 +320,20 @@ jobs:
           fi
           printf 'app=%s\nexecutable=%s\n' "$app" "$executable" >> "$GITHUB_OUTPUT"
 
+      - name: Ad-hoc sign the packaged macOS application
+        if: runner.os == 'macOS'
+        env:
+          PACKAGED_APP: ${{ steps.unpacked.outputs.app }}
+        run: |
+          set -euo pipefail
+          # Gatekeeper treats an unsealed bundle as damaged and offers no
+          # Open Anyway entry. An ad-hoc signature is not Developer ID trust, but
+          # it makes the bundle structurally valid so users get the standard
+          # unverified-developer prompt. extraResources binaries are not nested
+          # code, so their runtime-manifest digests stay unchanged.
+          /usr/bin/codesign --force --deep --sign - "$PACKAGED_APP"
+          /usr/bin/codesign --verify --deep --strict --verbose=2 "$PACKAGED_APP"
+
       - name: Smoke the packaged runtime under Xvfb
         if: runner.os == 'Linux'
         env:
