@@ -4,7 +4,7 @@ name: Publish desktop candidate
 # already-successful "Electron desktop candidates" run as a pre-release so the
 # installers can be distributed without a local transfer. It does not replace the
 # protected official-release workflow: no OIDC attestation, no protected
-# environment, and the release is always created as a draft first.
+# environment, and the release is always created as a draft before publication.
 on:
   workflow_dispatch:
     inputs:
@@ -17,7 +17,7 @@ on:
         required: true
         type: string
       publish:
-        description: Publish the draft instead of keeping it as a draft
+        description: Publish the verified draft as a pre-release
         required: true
         default: false
         type: boolean
@@ -43,7 +43,6 @@ jobs:
       contents: write
     steps:
       - name: Resolve and validate the requested candidate run
-        id: candidate
         run: |
           set -euo pipefail
           [[ "$RUN_ID" =~ ^[0-9]+$ ]] || { echo "run-id must be numeric" >&2; exit 1; }
@@ -51,19 +50,21 @@ jobs:
             echo "unsupported candidate tag: $RELEASE_TAG" >&2
             exit 1
           }
-          gh api "repos/$GH_REPO/actions/runs/$RUN_ID" > candidate-run.json
+          gh api "repos/$GH_REPO/actions/runs/$RUN_ID" > "$RUNNER_TEMP/candidate-run.json"
           node --input-type=module -e '
             import fs from "node:fs";
-            const run = JSON.parse(fs.readFileSync("candidate-run.json", "utf8"));
+            const run = JSON.parse(
+              fs.readFileSync(process.env.RUNNER_TEMP + "/candidate-run.json", "utf8"),
+            );
             if (run.name !== "Electron desktop candidates")
               throw new Error("Run is not an Electron desktop candidates run");
             if (run.status !== "completed" || run.conclusion !== "success")
               throw new Error("Run did not complete successfully");
             if (!/^[0-9a-f]{40}$/.test(run.head_sha ?? ""))
               throw new Error("Run head SHA is missing");
-            fs.writeFileSync("candidate-sha", run.head_sha);
-          '
-          echo "sha=$(cat candidate-sha)" >> "$GITHUB_OUTPUT"
+            process.stdout.write(run.head_sha);
+          ' > "$RUNNER_TEMP/candidate-sha"
+          echo "CANDIDATE_SHA=$(cat "$RUNNER_TEMP/candidate-sha")" >> "$GITHUB_ENV"
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -77,29 +78,26 @@ jobs:
       - name: Check out the exact candidate commit
         run: |
           set -euo pipefail
-          SHA=$(cat candidate-sha)
-          git fetch --no-tags origin "$SHA"
-          git checkout --detach "$SHA"
-          test "$(git rev-parse HEAD)" = "$SHA"
+          test -n "$CANDIDATE_SHA"
+          git fetch --no-tags origin "$CANDIDATE_SHA"
+          git checkout --detach "$CANDIDATE_SHA"
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
 
       - name: Download the verified publication
         run: |
           set -euo pipefail
-          SHA=$(cat candidate-sha)
-          gh run download "$RUN_ID" -n "electron-publication-$SHA" -D publication
+          gh run download "$RUN_ID" -n "electron-publication-$CANDIDATE_SHA" -D publication
           ls publication
 
       - name: Verify the downloaded publication
         run: |
           set -euo pipefail
-          SHA=$(cat candidate-sha)
           VERSION=$(node -p "require('./package.json').version")
-          node desktop/release.mjs verify --directory publication --version "$VERSION" --commit "$SHA"
+          node desktop/release.mjs verify --directory publication --version "$VERSION" --commit "$CANDIDATE_SHA"
 
       - name: Create the candidate draft release and verify its assets
         run: |
           set -euo pipefail
-          SHA=$(cat candidate-sha)
           VERSION=$(node -p "require('./package.json').version")
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             echo "release already exists: $RELEASE_TAG" >&2
@@ -107,13 +105,15 @@ jobs:
           fi
           gh release create "$RELEASE_TAG" publication/* \
             --draft \
-            --target "$SHA" \
+            --target "$CANDIDATE_SHA" \
             --title "AOSP-WinScope $VERSION desktop installers (candidate)" \
             --notes-file .github/release-notes/desktop-candidate.md
-          gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" > uploaded-release.json
+          gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" > "$RUNNER_TEMP/uploaded-release.json"
           node --input-type=module -e '
             import fs from "node:fs";
-            const release = JSON.parse(fs.readFileSync("uploaded-release.json", "utf8"));
+            const release = JSON.parse(
+              fs.readFileSync(process.env.RUNNER_TEMP + "/uploaded-release.json", "utf8"),
+            );
             const expected = fs.readdirSync("publication").sort();
             const actual = release.assets.map((asset) => asset.name).sort();
             if (JSON.stringify(expected) !== JSON.stringify(actual))
