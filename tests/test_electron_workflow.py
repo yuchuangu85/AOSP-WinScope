@@ -305,7 +305,7 @@ class ElectronWorkflowTest(unittest.TestCase):
         self.assertNotIn("dist/desktop/packages", upload)
         self.assertNotIn("if:", upload)
 
-    def test_privileged_file_mutations_only_touch_the_generated_packaged_sandbox(self):
+    def test_privileged_file_mutations_are_limited_to_distro_packages_and_generated_runtime(self):
         native = self.job("native")
         resolve = self.step(native, "name: Resolve the actual unpacked application executable")
         self.assertIn("output=dist/desktop/packages", resolve)
@@ -316,6 +316,8 @@ class ElectronWorkflowTest(unittest.TestCase):
         self.assertEqual(privileged, [
             "sudo apt-get update",
             "sudo apt-get install -y binutils gpgv xz-utils rpm xvfb \\",
+            'sudo chown root:root "$keyring"',
+            'sudo chmod 0644 "$keyring"',
             'sudo chown root:root "$sandbox"',
             'sudo chmod 4755 "$sandbox"',
         ])
