@@ -593,6 +593,20 @@ credentials and a credentialed release policy. This lane does not use those
 credentials and does not promise unsigned packages will pass Gatekeeper or
 SmartScreen.
 
+A candidate downloaded through a browser carries the macOS quarantine flag.
+Because the bundle has no Developer ID signature, Gatekeeper refuses it as
+"damaged" instead of offering an identity prompt. After copying the application
+to `/Applications`, clear the download flag from the installed copy:
+
+```sh
+xattr -dr com.apple.quarantine "/Applications/AOSP WinScope.app"
+```
+
+That only removes the download-origin flag that makes Gatekeeper reject an
+unsigned bundle; it does not sign, notarize, or vouch for the application. The
+equivalent Windows SmartScreen and Linux package prompts are also not publisher
+authentication.
+
 Local unsigned installer identity is limited to names and package metadata:
 an app ID, bundle/package identifier, version, or installer filename is not an
 authenticated publisher identity. An unsigned macOS PKG has no trusted Developer

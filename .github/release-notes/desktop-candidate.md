@@ -43,6 +43,20 @@ and AI services, and owned-service shutdown. Installers were then produced from
 the smoke-tested unpacked application and re-verified by
 `desktop/release.mjs verify` before upload. Per-target reports are attached.
 
+### Installing on macOS
+
+The DMG/PKG are unsigned, so a browser-downloaded copy is quarantined and macOS
+reports it as damaged rather than offering a Developer ID prompt. After copying
+the application to `/Applications`, clear the download flag once:
+
+```sh
+xattr -dr com.apple.quarantine "/Applications/AOSP WinScope.app"
+```
+
+This removes only the download-origin flag; it does not sign, notarize, or vouch
+for the application. Equivalent Windows SmartScreen and Linux package prompts are
+not publisher authentication either.
+
 ### Trust and limitations
 
 - Packages are **unsigned and not Apple-notarized**. Gatekeeper/SmartScreen
