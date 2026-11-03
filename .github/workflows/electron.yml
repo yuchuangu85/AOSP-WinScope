@@ -224,6 +224,17 @@ jobs:
             libgtk-3-0 libnss3 libgbm1 libxss1 libdrm2 libxkbcommon0 \
             libnotify4 libatspi2.0-0 "$audio_package"
 
+      - name: Normalize the Linux archive keyring permissions
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          # The Ubuntu ARM64 bundler requires the archive keyring to be an
+          # installed, root-owned, non-writable regular file; hosted images can
+          # ship it with loosened permissions.
+          keyring=/usr/share/keyrings/ubuntu-archive-keyring.gpg
+          sudo chown root:root "$keyring"
+          sudo chmod 0644 "$keyring"
+
       - name: Install locked desktop build dependencies and check native target
         run: |
           set -euo pipefail

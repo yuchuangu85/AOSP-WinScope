@@ -95,11 +95,15 @@ async function inputTarget(root, target) {
   const sourceArchive = path.join(directory, "application-source.tar.gz");
   await write(sourceArchive, "test corresponding application source");
   const os = { darwin: "mac", win32: "win", linux: "linux" }[target.platform];
+  const builderArch = {
+    deb: { x64: "amd64", arm64: "arm64" },
+    rpm: { x64: "x86_64", arm64: "aarch64" },
+  };
   for (const format of target.formats)
     await write(
       path.join(
         packages,
-        `aosp-winscope-desktop-${version}-${os}-${target.arch}.${format}`,
+        `aosp-winscope-desktop-${version}-${os}-${builderArch[format]?.[target.arch] ?? target.arch}.${format}`,
       ),
       `${target.key}:${format}`,
     );
@@ -228,7 +232,7 @@ test("record requires all native package formats and raw smoke evidence", async 
   await fs.rm(
     path.join(
       options.packages,
-      `aosp-winscope-desktop-${version}-linux-arm64.rpm`,
+      `aosp-winscope-desktop-${version}-linux-aarch64.rpm`,
     ),
   );
   await assert.rejects(

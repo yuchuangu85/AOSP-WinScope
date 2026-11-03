@@ -595,10 +595,11 @@ test("manifests are schema 1 exact sorted inventories and never inventory themse
     await fs.readFile(path.join(root, "manifest.json"), "utf8"),
   );
   assert.ok(web.assets.every((asset) => asset.path.startsWith("web/")));
-  await assert.rejects(
-    verifyRuntime(root, targetFor("win32", "x64")),
-    /mismatch/,
-  );
+  const foreignTarget =
+    target.platform === "win32"
+      ? targetFor("linux", "x64")
+      : targetFor("win32", "x64");
+  await assert.rejects(verifyRuntime(root, foreignTarget), /mismatch/);
   await put(root, "web/index.html", "tampered");
   await assert.rejects(verifyRuntime(root, target), /checksum mismatch/);
 });

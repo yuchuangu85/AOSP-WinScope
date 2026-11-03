@@ -77,12 +77,20 @@ function targetByKey(key) {
   return target;
 }
 
+// electron-builder expands ${arch} with the distribution architecture for
+// DEB/RPM targets, so builder-local names differ from the published contract.
+const BUILDER_ARCH = {
+  deb: { x64: "amd64", arm64: "arm64" },
+  rpm: { x64: "x86_64", arm64: "aarch64" },
+};
+
 function packageName(target, version, format, builder = false) {
   const os = builder
     ? { darwin: "mac", win32: "win", linux: "linux" }[target.platform]
     : target.platform;
+  const arch = builder ? (BUILDER_ARCH[format]?.[target.arch] ?? target.arch) : target.arch;
   return basename(
-    `aosp-winscope-desktop-${version}-${os}-${target.arch}.${format}`,
+    `aosp-winscope-desktop-${version}-${os}-${arch}.${format}`,
   );
 }
 

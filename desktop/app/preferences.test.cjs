@@ -391,17 +391,23 @@ test("enforces UTF-8 key/value, key-count, and exact serialized-size limits", (t
 test("replaces snapshots including deletions and writes atomically at 0600", (t) => {
   const { store, file } = fixture(t);
   store.set({ language: "en", "dark-mode": "true" });
-  const oldFile = fs.openSync(file, "r");
-  t.after(() => fs.closeSync(oldFile));
-  assert.equal(store.set({ language: "zh-CN" }).ok, true);
-  assert.deepEqual(
-    JSON.parse(fs.readFileSync(oldFile, "utf8")),
-    {
-      "dark-mode": "true",
-      language: "en",
-    },
-    "an open reader retains the complete old file after replacement",
-  );
+  if (process.platform === "win32") {
+    // Windows rejects replacing a file that a reader still holds open, so the
+    // open-reader proof is only asserted on POSIX hosts.
+    assert.equal(store.set({ language: "zh-CN" }).ok, true);
+  } else {
+    const oldFile = fs.openSync(file, "r");
+    t.after(() => fs.closeSync(oldFile));
+    assert.equal(store.set({ language: "zh-CN" }).ok, true);
+    assert.deepEqual(
+      JSON.parse(fs.readFileSync(oldFile, "utf8")),
+      {
+        "dark-mode": "true",
+        language: "en",
+      },
+      "an open reader retains the complete old file after replacement",
+    );
+  }
   assert.deepEqual(new PreferenceStore(file).snapshot(), { language: "zh-CN" });
   if (process.platform !== "win32")
     assert.equal(fs.statSync(file).mode & 0o777, 0o600);
