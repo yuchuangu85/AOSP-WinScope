@@ -217,7 +217,7 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
     } finally {
       this.loading = false;
       this.initialized = true;
-      if (!this.sessionId && this.defaults) this.settingsPending = true;
+      if (!this.sessionId && this.defaultSelection) this.settingsPending = true;
       this.applyPendingSettings();
       this.selectionReady.emit(this.modelSelection);
     }
@@ -487,9 +487,15 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
   private get activeProviderId(): string {
     // A running conversation keeps its last-run routing until a terminal event.
     return (
-      (!this.running && this.defaults?.selection.providerId) ||
+      (!this.running && this.defaultSelection?.providerId) ||
       this.resolvedProviderId
     );
+  }
+
+  private get defaultSelection(): AiModelSelection | undefined {
+    return this.defaults?.selection.providerId
+      ? this.defaults.selection
+      : this.catalog.selection ?? this.defaults?.selection;
   }
 
   get levels(): string[] {
@@ -656,8 +662,9 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
     }
     if (this.settingsPending) {
       this.settingsPending = false;
-      if (this.defaults && (!this.sessionId || this.defaults.selection.providerId)) {
-        this.applySettings(this.defaults.selection);
+      const selection = this.defaultSelection;
+      if (selection && (!this.sessionId || selection.providerId)) {
+        this.applySettings(selection);
       }
     }
     if (catalogChanged) this.normalizeModel();
@@ -768,7 +775,7 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
     this.turns = [];
     this.running = false;
     this.loading = false;
-    this.settingsPending = !!this.defaults;
+    this.settingsPending = !!this.defaultSelection;
     this.applyPendingSettings();
     this.error = '';
     this.reportPreview = '';
@@ -817,7 +824,7 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
       this.turns = projectConversation(this.events);
       this.running = session.status === 'running';
       this.loading = false;
-      this.settingsPending = !!this.defaults?.selection.providerId;
+      this.settingsPending = !!this.defaultSelection?.providerId;
       this.applyPendingSettings();
       this.rememberActiveSession(id);
       this.scrollToLatest();
@@ -847,11 +854,9 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
       return;
     }
     this.applyPendingSettings();
-    if (
-      this.defaults?.selection.providerId &&
-      this.resolvedProviderId !== this.defaults.selection.providerId
-    ) {
-      this.applySettings(this.defaults.selection);
+    const selection = this.defaultSelection;
+    if (selection?.providerId && this.resolvedProviderId !== selection.providerId) {
+      this.applySettings(selection);
     }
     if (this.activeProviderId && !this.provider) {
       this.error = 'The selected provider is unavailable.';

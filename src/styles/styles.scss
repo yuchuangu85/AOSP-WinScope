@@ -385,6 +385,21 @@ log-view .headers .mat-mdc-form-field-infix {
 
 .conversation-model-list .model-option {
   min-height: 36px;
+  padding-inline: 16px;
+}
+
+.conversation-model-list .model-option-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.conversation-model-list .model-option .model-option-check {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  font-size: 20px;
 }
 
 .conversation-model-list .model-option[aria-checked='true'] {
@@ -397,6 +412,8 @@ log-view .headers .mat-mdc-form-field-infix {
 }
 
 .conversation-model-list .model-option-label {
+  flex: 1;
+  min-width: 0;
   white-space: normal;
   overflow-wrap: anywhere;
 }

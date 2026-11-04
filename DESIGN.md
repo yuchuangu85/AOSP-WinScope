@@ -193,11 +193,15 @@ not a claim of complete reference parity.
 The current user override (2026-11-02) uses a borderless **Conversation model**
 button in the composer. Clicking anywhere on its model label opens the complete
 available model menu above the composer, without a second dropdown action.
-The menu marks the selected model and supports keyboard navigation, Escape and
+The menu left-aligns model names with the provider heading, reserves a trailing
+column for the selected model's checkmark, and supports keyboard navigation, Escape and
 outside-click dismissal. It lists only the active provider's models;
 changing a model cannot activate another provider. Preserve supported reasoning
 effort and all message draft/history state. The active custom model remains
-selectable. Detailed agent,
+selectable. On opening, use the gateway's saved selection when no explicit
+frontend provider selection is available, so the composer immediately shows the
+configured model name after loading. Running sessions retain their last-run model
+until completion. Detailed agent,
 provider, model, custom identifier and reasoning controls remain in the dedicated
 **AI settings** Save/Cancel surface. This supersedes the earlier settings-only
 model decision; it does not move the detailed settings into the composer.

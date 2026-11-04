@@ -466,13 +466,17 @@
                           [disabled]="runtimeDisabled"
                           (click)="changeConversationModel(model.value)"
                         >
-                          <mat-icon
-                            [style.visibility]="
-                              model.value === conversationModel ? 'visible' : 'hidden'
-                            "
-                            >check</mat-icon
-                          >
-                          <span class="model-option-label">{{ model.name }}</span>
+                          <span class="model-option-content">
+                            <span class="model-option-label">{{ model.name }}</span>
+                            <mat-icon
+                              class="model-option-check"
+                              aria-hidden="true"
+                              [style.visibility]="
+                                model.value === conversationModel ? 'visible' : 'hidden'
+                              "
+                              >check</mat-icon
+                            >
+                          </span>
                         </button>
                       }
                     </div>

@@ -233,11 +233,24 @@ async function conversationModelMenuRegression() {
     await openConversationModels();
     const menu=await evaluate(`(() => {
       const trigger=document.querySelector('.model-select'),list=document.querySelector('.conversation-model-list'),panel=list.closest('.mat-mdc-menu-panel'),r=panel.getBoundingClientRect();
-      return {border:getComputedStyle(trigger).borderWidth,options:[...list.querySelectorAll('[data-model-value]')].map(option=>option.getAttribute('data-model-value')),checked:list.querySelectorAll('[aria-checked=true]').length,left:r.left,right:r.right,top:r.top,bottom:r.bottom};
+      const rows=[...list.querySelectorAll('[data-model-value]')].map(option=>{
+        const label=option.querySelector('.model-option-label'),check=option.querySelector('.model-option-check'),group=option.closest('.model-group').querySelector('.model-group-label');
+        const l=label.getBoundingClientRect(),c=check.getBoundingClientRect(),o=option.getBoundingClientRect(),g=group.getBoundingClientRect();
+        return {labelLeft:l.left,labelRight:l.right,checkLeft:c.left,checkRight:c.right,checkCenter:c.top+c.height/2,rowCenter:o.top+o.height/2,rowRight:o.right,groupTextLeft:g.left+parseFloat(getComputedStyle(group).paddingLeft),checked:option.getAttribute('aria-checked')==='true',checkVisible:getComputedStyle(check).visibility==='visible'};
+      });
+      return {border:getComputedStyle(trigger).borderWidth,options:[...list.querySelectorAll('[data-model-value]')].map(option=>option.getAttribute('data-model-value')),rows,checked:list.querySelectorAll('[aria-checked=true]').length,left:r.left,right:r.right,top:r.top,bottom:r.bottom};
     })()`);
     assert.equal(menu.border,'0px');
     assert.deepEqual(menu.options,[JSON.stringify(['browser-fixture','default']),JSON.stringify(['browser-fixture','fixture-model']),JSON.stringify(['browser-fixture','fixture-alternate'])]);
     assert.equal(menu.checked,1);
+    for (const row of menu.rows) {
+      near(row.labelLeft,row.groupTextLeft,'Model names align with group heading');
+      assert.ok(row.checkLeft>=row.labelRight,'Selection check follows model name');
+      assert.ok(row.checkRight<=row.rowRight,'Selection check stays inside its row');
+      near(row.checkRight,menu.rows[0].checkRight,'Selection check column is aligned');
+      near(row.checkCenter,row.rowCenter,'Selection check is vertically centered');
+      assert.equal(row.checkVisible,row.checked,'Only selected model shows a check');
+    }
     assert.ok(menu.left>=-1 && menu.right<=width+1 && menu.top>=-1 && menu.bottom<=height+1);
     await screenshot(`ai-model-menu-${width}-${dark?'dark':'light'}.png`);
     await cdp('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
@@ -2454,6 +2467,18 @@ if(process.argv[2]==='app-server'){
     ),
     JSON.stringify(["browser-fixture", "fixture-model"]),
   );
+  // A page reload discards frontend defaults; the gateway selection must still
+  // supply both the visible model name and the checked menu item on first open.
+  await cdp('Page.reload');
+  await condition("document.querySelector('.ai-open-button') !== null && document.querySelector('ai-panel') === null");
+  await click('.ai-open-button');
+  await condition("document.querySelector('.model-select:not(:disabled)') !== null");
+  assert.equal(await evaluate("document.querySelector('.model-select .model-label').textContent.trim()"),'Fixture model');
+  assert.equal(await evaluate("document.querySelector('.model-select').value"),JSON.stringify(['browser-fixture','fixture-model']));
+  await screenshot('ai-selected-model-on-open.png');
+  await openConversationModels();
+  assert.equal(await evaluate("document.querySelector('.conversation-model-list [aria-checked=true]').getAttribute('data-model-value')"),JSON.stringify(['browser-fixture','fixture-model']));
+  await chooseConversationModel(JSON.stringify(['browser-fixture','fixture-model']));
   await conversationModelMenuRegression();
   await composerSpaceKeyRegression();
   await diagnosticPromptRegression();
@@ -2750,6 +2775,7 @@ if(process.argv[2]==='app-server'){
       "model-and-effort",
       "borderless-model-label-opens-full-menu",
       "model-menu-selection-escape-focus-and-responsive-layout",
+      "saved-model-name-and-checked-item-on-first-open-after-reload",
       "text-attachment-content",
       "enter-send",
       "native-space-insertion-and-arrow-caret-isolated-from-timeline-shortcuts",
@@ -2809,6 +2835,7 @@ if(process.argv[2]==='app-server'){
       "ai-workflow-mobile.png",
       "ai-composer-empty.png",
       "ai-composer-settings.png",
+      "ai-selected-model-on-open.png",
       "ai-model-menu-1280-light.png",
       "ai-model-menu-1280-dark.png",
       "ai-model-menu-390-light.png",

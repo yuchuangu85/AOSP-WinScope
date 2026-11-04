@@ -771,6 +771,76 @@ describe('AiPanelComponent', () => {
     );
   });
 
+  for (const withPlaceholderDefaults of [false, true]) {
+    it(`shows the gateway-saved model on opening with ${withPlaceholderDefaults ? 'placeholder' : 'no'} frontend defaults`, async () => {
+      loadCatalog.and.resolveTo({...catalog, providers: [...catalog.providers, imported], selection: configuredDefaults.selection});
+      if (withPlaceholderDefaults) {
+        fixture.componentRef.setInput('defaults', {
+          selection: {...configuredDefaults.selection, providerId: '', modelId: 'default'},
+          providerSelections: {},
+        });
+      }
+      await initialize();
+      expect(component.modelSelection).toEqual(configuredDefaults.selection);
+      expect(modelTrigger().querySelector('.model-label')?.textContent).toBe('Preferred');
+      const menu = await openModelMenu();
+      expect(menu.querySelector('[aria-checked="true"] .model-option-label')?.textContent).toBe('Preferred');
+      expect(component.conversationModels.map((group) => group.providerId)).toEqual(['codex']);
+      component.newSession();
+      fixture.detectChanges();
+      expect(modelTrigger().querySelector('.model-label')?.textContent).toBe('Preferred');
+      component.prompt = 'Use the displayed saved model';
+      await component.submit();
+      expect(start.calls.mostRecent().args[4]).toEqual(jasmine.objectContaining({
+        providerId: 'codex', modelId: 'preferred[1m]', reasoningLevel: 'high',
+      }));
+    });
+  }
+
+  it('prefers newly applied frontend settings over an older gateway model selection', async () => {
+    loadCatalog.and.resolveTo({...catalog, providers: [...catalog.providers, imported], selection: configuredDefaults.selection});
+    fixture.componentRef.setInput('defaults', {
+      selection: {...configuredDefaults.selection, providerId: 'test', modelId: 'test-model'},
+      providerSelections: {},
+    });
+    await initialize();
+    expect(component.selectedProvider).toBe('test');
+    expect(modelTrigger().querySelector('.model-label')?.textContent).toBe('Test model');
+  });
+
+  it('shows a saved custom model name without replacing it with the provider default', async () => {
+    loadCatalog.and.resolveTo({
+      ...catalog, providers: [...catalog.providers, imported],
+      selection: {...configuredDefaults.selection, modelId: '__custom__', customModel: 'saved/custom-model'},
+    });
+    await initialize();
+    expect(component.selectedModel).toBe('__custom__');
+    expect(modelTrigger().querySelector('.model-label')?.textContent).toContain('saved/custom-model');
+  });
+
+  it('shows a running session model before applying gateway-saved defaults on completion', async () => {
+    loadCatalog.and.resolveTo({...catalog, providers: [...catalog.providers, imported], selection: configuredDefaults.selection});
+    sessionStorage.setItem('winscope.ai.active../ai/', 'a');
+    get.and.resolveTo({...detail, status: 'running', events: [detail.events[0]]});
+    let finish!: () => void;
+    let receive!: (event: AiEvent) => void;
+    stream.and.callFake((_id: string, onEvent: (event: AiEvent) => void) => {
+      receive = onEvent;
+      return new Promise<void>((resolve) => { finish = resolve; });
+    });
+    await initialize();
+    expect(component.running).toBeTrue();
+    expect(component.selectedProvider).toBe('test');
+    expect(modelTrigger().querySelector('.model-label')?.textContent).toBe('Test model');
+    receive(events[1]);
+    finish();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(component.running).toBeFalse();
+    expect(component.selectedProvider).toBe('codex');
+    expect(modelTrigger().querySelector('.model-label')?.textContent).toBe('Preferred');
+  });
+
   it('uses explicit saved defaults for restored and new conversations', async () => {
     fixture.componentRef.setInput('defaults', {
       selection: {
@@ -1759,6 +1829,19 @@ describe('AiPanelComponent', () => {
     expect(options.map((option) => option.querySelector('.model-option-label')?.textContent?.trim())).toEqual(['Default', 'Test model']);
     expect(options.map((option) => option.getAttribute('role'))).toEqual(['menuitemradio', 'menuitemradio']);
     expect(options.map((option) => option.getAttribute('aria-checked'))).toEqual(['true', 'false']);
+    const group = menu.querySelector<HTMLElement>('.model-group-label')!;
+    const labelLeft = group.getBoundingClientRect().left + parseFloat(getComputedStyle(group).paddingLeft);
+    for (const option of options) {
+      const label = option.querySelector<HTMLElement>('.model-option-label')!;
+      const check = option.querySelector<HTMLElement>('.model-option-check')!;
+      const labelRect = label.getBoundingClientRect();
+      const checkRect = check.getBoundingClientRect();
+      expect(label.nextElementSibling).toBe(check);
+      expect(labelRect.left).toBeCloseTo(labelLeft, 0);
+      expect(checkRect.left).toBeGreaterThanOrEqual(labelRect.right);
+      expect(checkRect.right).toBeLessThanOrEqual(option.getBoundingClientRect().right);
+      expect(getComputedStyle(check).visibility).toBe(option.getAttribute('aria-checked') === 'true' ? 'visible' : 'hidden');
+    }
     options[1].click();
     fixture.detectChanges();
     await fixture.whenStable();
