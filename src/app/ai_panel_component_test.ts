@@ -1,3 +1,4 @@
+import {CdkTrapFocus} from '@angular/cdk/a11y';
 import {OverlayContainer} from '@angular/cdk/overlay';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {MatTooltip} from '@angular/material/tooltip';
@@ -147,14 +148,443 @@ describe('AiPanelComponent', () => {
   }
 
   function pointerResize(type: string, x: number, y: number, pointerId = 1, button = 0): void {
-    resizeHandle().dispatchEvent(new PointerEvent(type, {pointerId, button, clientX: x, clientY: y, bubbles: true, cancelable: true}));
+    resizeHandle().dispatchEvent(new PointerEvent(type, {pointerId, button, isPrimary: true, clientX: x, clientY: y, bubbles: true, cancelable: true}));
   }
 
-  function mockPointerCapture(): jasmine.Spy {
-    spyOn(resizeHandle(), 'setPointerCapture');
-    spyOn(resizeHandle(), 'hasPointerCapture').and.returnValue(true);
-    return spyOn(resizeHandle(), 'releasePointerCapture');
+  function dragHandle(): HTMLElement {
+    return fixture.nativeElement.querySelector('.ai-window-drag');
   }
+
+  function pointerDrag(type: string, x: number, y: number, options: PointerEventInit = {}, target = dragHandle()): void {
+    target.dispatchEvent(new PointerEvent(type, {pointerId: 1, button: 0, isPrimary: true, clientX: x, clientY: y, bubbles: true, cancelable: true, ...options}));
+  }
+
+  function mockPointerCapture(handle: HTMLElement = resizeHandle()): jasmine.Spy {
+    spyOn(handle, 'setPointerCapture');
+    spyOn(handle, 'hasPointerCapture').and.returnValue(true);
+    return spyOn(handle, 'releasePointerCapture');
+  }
+
+  function availableWindow(): {width: number; height: number; gap: number; scale: number} {
+    const panel = component.windowPanel!.nativeElement;
+    const scale = panel.getBoundingClientRect().width / panel.offsetWidth;
+    const gap = parseFloat(getComputedStyle(panel).getPropertyValue('--ai-window-gap')) || 0;
+    return {
+      width: window.innerWidth / scale - 2 * gap,
+      height: window.innerHeight / scale - 32 - 2 * gap,
+      gap,
+      scale,
+    };
+  }
+
+  function expectWindowInViewport(): void {
+    const {gap, scale} = availableWindow();
+    const rect = component.windowPanel!.nativeElement.getBoundingClientRect();
+    expect(rect.left).toBeGreaterThanOrEqual(gap * scale - 1);
+    expect(rect.top).toBeGreaterThanOrEqual((32 + gap) * scale - 1);
+    expect(rect.right).toBeLessThanOrEqual(window.innerWidth - gap * scale + 1);
+    expect(rect.bottom).toBeLessThanOrEqual(window.innerHeight - gap * scale + 1);
+  }
+
+  it('renders a bounded floating default window with a keyboard-accessible header and no modal focus trap', async () => {
+    await initialize();
+    await settleWindow();
+    const panel = component.windowPanel!.nativeElement;
+    const available = availableWindow();
+    expect(component.windowSize).toBeUndefined();
+    expect(component.windowPosition).toBeUndefined();
+    expect(panel.offsetWidth).toBeCloseTo(Math.min(1040, available.width), 0);
+    expect(panel.offsetHeight).toBeCloseTo(Math.min(720, available.height), 0);
+    const rect = panel.getBoundingClientRect();
+    expect(rect.left / available.scale).toBeCloseTo(available.gap + (available.width - panel.offsetWidth) / 2, 0);
+    expect(rect.top / available.scale).toBeCloseTo(32 + available.gap + (available.height - panel.offsetHeight) / 2, 0);
+    expectWindowInViewport();
+    expect(dragHandle()).toBe(fixture.nativeElement.querySelector('.ai-panel-header'));
+    expect(dragHandle().tabIndex).toBe(0);
+    expect(dragHandle().getAttribute('title')).toMatch(/move/i);
+    expect(panel.hasAttribute('aria-modal')).toBeFalse();
+    expect(fixture.debugElement.query(By.directive(CdkTrapFocus))).toBeNull();
+    expect(fixture.nativeElement.querySelector('.cdk-focus-trap-anchor')).toBeNull();
+  });
+
+  it('keeps floating-window tooltips from intercepting pointer controls', async () => {
+    await initialize();
+    const tooltip = fixture.debugElement.query(By.css('.history-toggle')).injector.get(MatTooltip);
+    tooltip.show(0);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    fixture.detectChanges();
+    const panel = TestBed.inject(OverlayContainer).getContainerElement()
+      .querySelector('.mat-mdc-tooltip-panel');
+    expect(panel).not.toBeNull();
+    expect(panel!.classList.contains('mat-mdc-tooltip-panel-non-interactive')).toBeTrue();
+    expect(getComputedStyle(panel!).pointerEvents).toBe('none');
+    tooltip.hide(0);
+  });
+
+  it('drags a minimum-sized window within viewport padding and below the toolbar without resizing', async () => {
+    await initialize();
+    component.windowSize = {...component.minWindowSize};
+    await settleWindow();
+    const panel = component.windowPanel!.nativeElement;
+    const available = availableWindow();
+    const release = mockPointerCapture(dragHandle());
+    pointerDrag('pointerdown', 100, 100);
+    expect(dragHandle().setPointerCapture).toHaveBeenCalledOnceWith(1);
+    pointerDrag('pointermove', -10000, -10000);
+    fixture.detectChanges();
+    expect(component.windowPosition!.left).toBeCloseTo(available.gap, 0);
+    expect(component.windowPosition!.top).toBeCloseTo(32 + available.gap, 0);
+    expectWindowInViewport();
+    pointerDrag('pointermove', 10000, 10000);
+    fixture.detectChanges();
+    expect(component.windowPosition!.left).toBeCloseTo(available.gap + available.width - panel.offsetWidth, 0);
+    expect(component.windowPosition!.top).toBeCloseTo(32 + available.gap + available.height - panel.offsetHeight, 0);
+    expectWindowInViewport();
+    expect(component.windowSize).toEqual(component.minWindowSize);
+    pointerDrag('pointerup', 10000, 10000);
+    expect(release).toHaveBeenCalledOnceWith(1);
+    const position = {...component.windowPosition!};
+    pointerDrag('pointermove', 0, 0);
+    expect(component.windowPosition).toEqual(position);
+  });
+
+  for (const scale of [0.8, 1.4]) {
+    it(`converts physical pointer movement to logical drag coordinates at ${scale * 100}% display scale`, async () => {
+      await initialize();
+      component.windowSize = {...component.minWindowSize};
+      component.windowPosition = {left: 80, top: 48};
+      fixture.detectChanges();
+      const panel = component.windowPanel!.nativeElement;
+      spyOn(panel, 'getBoundingClientRect').and.callFake(() => new DOMRect(
+        component.windowPosition!.left * scale, component.windowPosition!.top * scale,
+        panel.offsetWidth * scale, panel.offsetHeight * scale,
+      ));
+      mockPointerCapture(dragHandle());
+      pointerDrag('pointerdown', 200, 100);
+      pointerDrag('pointermove', 200 + 40 * scale, 100 + 20 * scale);
+      fixture.detectChanges();
+      expect(component.windowPosition).toEqual({left: 120, top: 68});
+      expect(panel.style.left).toBe('120px');
+      expect(panel.style.top).toBe('68px');
+      expect(component.windowSize).toEqual(component.minWindowSize);
+      pointerDrag('pointerup', 200 + 40 * scale, 100 + 20 * scale);
+    });
+  }
+
+  it('ignores secondary and unrelated drag pointers without losing the active capture', async () => {
+    await initialize();
+    const release = mockPointerCapture(dragHandle());
+    pointerDrag('pointerdown', 100, 100, {pointerId: 2, button: 2});
+    pointerDrag('pointermove', 200, 200, {pointerId: 2});
+    pointerDrag('pointerdown', 100, 100, {pointerId: 2, isPrimary: false});
+    pointerDrag('pointermove', 200, 200, {pointerId: 2, isPrimary: false});
+    expect(dragHandle().setPointerCapture).not.toHaveBeenCalled();
+    expect(component.windowPosition).toBeUndefined();
+    pointerDrag('pointerdown', 100, 100);
+    pointerDrag('pointerdown', 100, 100, {pointerId: 2});
+    pointerDrag('pointermove', 200, 200, {pointerId: 2});
+    pointerDrag('pointerup', 200, 200, {pointerId: 2});
+    pointerDrag('pointercancel', 200, 200, {pointerId: 2});
+    expect(component.windowPosition).toBeUndefined();
+    expect(release).not.toHaveBeenCalled();
+    pointerDrag('pointermove', -10000, -10000);
+    expect(component.windowPosition).toBeDefined();
+    pointerDrag('pointerup', -10000, -10000);
+    expect(dragHandle().setPointerCapture).toHaveBeenCalledOnceWith(1);
+    expect(release).toHaveBeenCalledOnceWith(1);
+  });
+
+  for (const tag of ['input', 'button', 'a', 'select', 'textarea']) {
+    it(`does not drag or keyboard-move from a header ${tag} control`, async () => {
+      await initialize();
+      mockPointerCapture(dragHandle());
+      const control = document.createElement(tag);
+      dragHandle().appendChild(control);
+      let target = control;
+      if (tag === 'button' || tag === 'a') {
+        target = document.createElement('span');
+        control.appendChild(target);
+      }
+      pointerDrag('pointerdown', 100, 100, {}, target);
+      pointerDrag('pointermove', 200, 200);
+      target.dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true}));
+      expect(component.windowPosition).toBeUndefined();
+      expect(component.windowSize).toBeUndefined();
+      expect(dragHandle().setPointerCapture).not.toHaveBeenCalled();
+      control.remove();
+    });
+  }
+
+  for (const type of ['pointercancel', 'lostpointercapture']) {
+    it(`ends dragging on ${type} and ignores subsequent movement`, async () => {
+      await initialize();
+      const release = mockPointerCapture(dragHandle());
+      pointerDrag('pointerdown', 100, 100);
+      pointerDrag('pointermove', -10000, -10000);
+      const position = {...component.windowPosition!};
+      if (type === 'lostpointercapture') {
+        (dragHandle().hasPointerCapture as jasmine.Spy).and.returnValue(false);
+      }
+      pointerDrag(type, 100, 100);
+      if (type === 'pointercancel') expect(release).toHaveBeenCalledOnceWith(1);
+      else expect(release).not.toHaveBeenCalled();
+      pointerDrag('pointermove', 10000, 10000);
+      expect(component.windowPosition).toEqual(position);
+      pointerDrag('pointerdown', 100, 100);
+      expect(dragHandle().setPointerCapture).toHaveBeenCalledTimes(2);
+      pointerDrag('pointerup', 100, 100);
+    });
+  }
+
+  it('releases drag capture on suspension and refuses new interactions while hidden', async () => {
+    await initialize();
+    const release = mockPointerCapture(dragHandle());
+    pointerDrag('pointerdown', 100, 100);
+    fixture.componentRef.setInput('suspended', true);
+    fixture.detectChanges();
+    expect(release).toHaveBeenCalledOnceWith(1);
+    pointerDrag('pointermove', 200, 200);
+    pointerDrag('pointerdown', 100, 100);
+    dragHandle().dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true}));
+    expect(component.windowPosition).toBeUndefined();
+    expect(dragHandle().setPointerCapture).toHaveBeenCalledTimes(1);
+  });
+
+  for (const interaction of ['drag', 'resize']) {
+    it(`releases active ${interaction} capture when destroyed`, async () => {
+      await initialize();
+      const handle = interaction === 'drag' ? dragHandle() : resizeHandle();
+      const release = mockPointerCapture(handle);
+      handle.dispatchEvent(new PointerEvent('pointerdown', {pointerId: 1, button: 0, isPrimary: true, clientX: 100, clientY: 100, bubbles: true}));
+      fixture.destroy();
+      expect(release).toHaveBeenCalledOnceWith(1);
+    });
+
+    it(`ends ${interaction} on Escape without closing the workspace`, async () => {
+      await initialize();
+      const handle = interaction === 'drag' ? dragHandle() : resizeHandle();
+      const release = mockPointerCapture(handle);
+      const closed = spyOn(component.closed, 'emit');
+      handle.dispatchEvent(new PointerEvent('pointerdown', {pointerId: 1, button: 0, isPrimary: true, clientX: 100, clientY: 100, bubbles: true}));
+      handle.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
+      expect(release).toHaveBeenCalledOnceWith(1);
+      expect(closed).not.toHaveBeenCalled();
+      handle.dispatchEvent(new PointerEvent('pointermove', {pointerId: 1, clientX: 200, clientY: 200, bubbles: true}));
+      expect(component.windowPosition).toBeUndefined();
+      expect(component.windowSize).toBeUndefined();
+    });
+  }
+
+  it('keeps drag and resize interactions mutually exclusive', async () => {
+    await initialize();
+    component.windowSize = {...component.minWindowSize};
+    component.windowPosition = {left: 80, top: 80};
+    fixture.detectChanges();
+    mockPointerCapture(dragHandle());
+    mockPointerCapture();
+    pointerDrag('pointerdown', 100, 100);
+    pointerResize('pointerdown', 100, 100, 2);
+    pointerResize('pointermove', 200, 200, 2);
+    expect(resizeHandle().setPointerCapture).not.toHaveBeenCalled();
+    expect(component.windowSize).toEqual(component.minWindowSize);
+    pointerDrag('pointermove', 120, 140);
+    expect(component.windowPosition).toEqual({left: 100, top: 120});
+    pointerDrag('pointerup', 120, 140);
+    fixture.detectChanges();
+    pointerResize('pointerdown', 100, 100);
+    pointerDrag('pointerdown', 100, 100, {pointerId: 2});
+    pointerDrag('pointermove', 200, 200, {pointerId: 2});
+    expect(dragHandle().setPointerCapture).toHaveBeenCalledTimes(1);
+    expect(component.windowPosition).toEqual({left: 100, top: 120});
+    pointerResize('pointermove', 120, 120);
+    expect(component.windowSize).toEqual({width: 660, height: 440});
+    pointerResize('pointerup', 120, 120);
+    expect(resizeHandle().setPointerCapture).toHaveBeenCalledOnceWith(1);
+  });
+
+  it('moves the header with arrow keys, clamps at the edges and ignores modified shortcuts', async () => {
+    await initialize();
+    component.windowSize = {...component.minWindowSize};
+    component.windowPosition = {left: 80, top: 80};
+    fixture.detectChanges();
+    const right = new KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true, cancelable: true});
+    dragHandle().dispatchEvent(right);
+    expect(right.defaultPrevented).toBeTrue();
+    const position = {...component.windowPosition!};
+    expect(position.left).toBeGreaterThan(80);
+    expect(position.top).toBe(80);
+    fixture.detectChanges();
+    dragHandle().dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowDown', shiftKey: true, bubbles: true}));
+    expect(component.windowPosition!.left).toBe(position.left);
+    expect(component.windowPosition!.top - position.top).toBeGreaterThan(position.left - 80);
+    const moved = {...component.windowPosition!};
+    for (const modifier of ['altKey', 'ctrlKey', 'metaKey']) {
+      dragHandle().dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowRight', [modifier]: true, bubbles: true}));
+      expect(component.windowPosition).toEqual(moved);
+    }
+    const {gap} = availableWindow();
+    component.windowPosition = {left: gap, top: 32 + gap};
+    fixture.detectChanges();
+    dragHandle().dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowLeft', bubbles: true}));
+    dragHandle().dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowUp', bubbles: true}));
+    fixture.detectChanges();
+    expect(component.windowPosition).toEqual({left: gap, top: 32 + gap});
+    expect(component.windowSize).toEqual(component.minWindowSize);
+    expectWindowInViewport();
+  });
+
+  it('resets both size and position on header double-click and releases active drag capture', async () => {
+    await initialize();
+    component.windowSize = {width: 800, height: 500};
+    component.windowPosition = {left: 80, top: 80};
+    fixture.detectChanges();
+    const release = mockPointerCapture(dragHandle());
+    pointerDrag('pointerdown', 100, 100);
+    dragHandle().dispatchEvent(new MouseEvent('dblclick', {bubbles: true}));
+    await settleWindow();
+    expect(release).toHaveBeenCalledOnceWith(1);
+    expect(component.windowSize).toBeUndefined();
+    expect(component.windowPosition).toBeUndefined();
+    const panel = component.windowPanel!.nativeElement;
+    expect(panel.style.width).toBe('');
+    expect(panel.style.height).toBe('');
+    expect(panel.style.left).toBe('');
+    expect(panel.style.top).toBe('');
+    expect(panel.offsetWidth).toBeCloseTo(Math.min(1040, availableWindow().width), 0);
+    expect(panel.offsetHeight).toBeCloseTo(Math.min(720, availableWindow().height), 0);
+    expectWindowInViewport();
+    pointerDrag('pointermove', 200, 200);
+    expect(component.windowPosition).toBeUndefined();
+  });
+
+  it('restores the default bounds and releases an active resize on reset', async () => {
+    await initialize();
+    component.windowSize = {width: 800, height: 500};
+    component.windowPosition = {left: 80, top: 80};
+    fixture.detectChanges();
+    const release = mockPointerCapture();
+    pointerResize('pointerdown', 100, 100);
+    component.resetWindowSize();
+    fixture.detectChanges();
+    expect(release).toHaveBeenCalledOnceWith(1);
+    expect(component.windowSize).toBeUndefined();
+    expect(component.windowPosition).toBeUndefined();
+    pointerResize('pointermove', 200, 200);
+    expect(component.windowSize).toBeUndefined();
+    expectWindowInViewport();
+  });
+
+  it('reclamps position after size on viewport changes without growing a manually sized window', async () => {
+    await initialize();
+    component.windowSize = {width: 800, height: 500};
+    const available = availableWindow();
+    component.windowPosition = {left: available.gap + available.width - 800, top: 32 + available.gap + available.height - 500};
+    fixture.detectChanges();
+    const width = Object.getOwnPropertyDescriptor(window, 'innerWidth')!;
+    const height = Object.getOwnPropertyDescriptor(window, 'innerHeight')!;
+    try {
+      Object.defineProperty(window, 'innerWidth', {configurable: true, value: 900});
+      Object.defineProperty(window, 'innerHeight', {configurable: true, value: 700});
+      component.onViewportResize();
+      fixture.detectChanges();
+      expect(component.windowSize).toEqual({width: 800, height: 500});
+      expectWindowInViewport();
+      Object.defineProperty(window, 'innerWidth', {configurable: true, value: 780});
+      Object.defineProperty(window, 'innerHeight', {configurable: true, value: 480});
+      component.onViewportResize();
+      fixture.detectChanges();
+      const smaller = availableWindow();
+      expect(component.windowSize!.width).toBeCloseTo(smaller.width, 0);
+      expect(component.windowSize!.height).toBeCloseTo(smaller.height, 0);
+      expectWindowInViewport();
+      const size = {...component.windowSize!};
+      Object.defineProperty(window, 'innerWidth', width);
+      Object.defineProperty(window, 'innerHeight', height);
+      component.onViewportResize();
+      fixture.detectChanges();
+      expect(component.windowSize).toEqual(size);
+      expectWindowInViewport();
+    } finally {
+      Object.defineProperty(window, 'innerWidth', width);
+      Object.defineProperty(window, 'innerHeight', height);
+    }
+  });
+
+  it('clamps below the nominal minimum when the viewport cannot fit 640 by 420', async () => {
+    await initialize();
+    component.windowSize = {...component.minWindowSize};
+    component.windowPosition = {left: 80, top: 80};
+    fixture.detectChanges();
+    const panel = component.windowPanel!.nativeElement;
+    const width = Object.getOwnPropertyDescriptor(window, 'innerWidth')!;
+    const height = Object.getOwnPropertyDescriptor(window, 'innerHeight')!;
+    const gap = panel.style.getPropertyValue('--ai-window-gap');
+    try {
+      Object.defineProperty(window, 'innerWidth', {configurable: true, value: 390});
+      Object.defineProperty(window, 'innerHeight', {configurable: true, value: 400});
+      panel.style.setProperty('--ai-window-gap', '0px');
+      component.onViewportResize();
+      fixture.detectChanges();
+      expect(component.windowSize).toEqual({width: 390, height: 368});
+      expect(component.windowPosition).toEqual({left: 0, top: 32});
+      mockPointerCapture(dragHandle());
+      pointerDrag('pointerdown', 100, 100);
+      pointerDrag('pointermove', 10000, 10000);
+      expect(component.windowPosition).toEqual({left: 0, top: 32});
+      pointerDrag('pointerup', 10000, 10000);
+      mockPointerCapture();
+      pointerResize('pointerdown', 100, 100);
+      pointerResize('pointermove', -10000, -10000);
+      expect(component.windowSize).toEqual({width: 390, height: 368});
+      pointerResize('pointerup', -10000, -10000);
+    } finally {
+      Object.defineProperty(window, 'innerWidth', width);
+      Object.defineProperty(window, 'innerHeight', height);
+      if (gap) panel.style.setProperty('--ai-window-gap', gap);
+      else panel.style.removeProperty('--ai-window-gap');
+    }
+  });
+
+  it('preserves draft, session, transcript and model selection without persisting window interactions', async () => {
+    await initialize();
+    await component.selectSession('a');
+    component.prompt = 'Unsent floating-window draft';
+    component.searchQuery = 'Saved';
+    component.windowSize = {...component.minWindowSize};
+    fixture.detectChanges();
+    const selection = {...component.modelSelection};
+    const turns = component.turns.map((turn) => ({...turn}));
+    const storedSession = sessionStorage.getItem('winscope.ai.active../ai/');
+    const write = spyOn(Storage.prototype, 'setItem');
+    const remove = spyOn(Storage.prototype, 'removeItem');
+    const clear = spyOn(Storage.prototype, 'clear');
+    const ready = spyOn(component.selectionReady, 'emit');
+    mockPointerCapture(dragHandle());
+    mockPointerCapture();
+    pointerDrag('pointerdown', 100, 100);
+    pointerDrag('pointermove', -10000, -10000);
+    pointerDrag('pointerup', -10000, -10000);
+    fixture.detectChanges();
+    pointerResize('pointerdown', 100, 100);
+    pointerResize('pointermove', 120, 120);
+    pointerResize('pointerup', 120, 120);
+    fixture.detectChanges();
+    dragHandle().dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true}));
+    component.onViewportResize();
+    component.resetWindowSize();
+    await settleWindow();
+    expect(component.prompt).toBe('Unsent floating-window draft');
+    expect(component.searchQuery).toBe('Saved');
+    expect(component.sessionId).toBe('a');
+    expect(component.turns).toEqual(turns);
+    expect(component.modelSelection).toEqual(selection);
+    expect(sessionStorage.getItem('winscope.ai.active../ai/')).toBe(storedSession);
+    expect(write).not.toHaveBeenCalled();
+    expect(remove).not.toHaveBeenCalled();
+    expect(clear).not.toHaveBeenCalled();
+    expect(ready).not.toHaveBeenCalled();
+    expect(start).not.toHaveBeenCalled();
+  });
 
   it('collapses and reopens desktop history without changing the conversation, search or draft', async () => {
     await initialize();
@@ -225,7 +655,12 @@ describe('AiPanelComponent', () => {
   it('clamps pointer resizing to the minimum window dimensions and available viewport', async () => {
     await initialize();
     const panel = component.windowPanel!.nativeElement;
-    const maximum = {width: panel.offsetWidth, height: panel.offsetHeight};
+    const {gap, scale} = availableWindow();
+    const rect = panel.getBoundingClientRect();
+    const maximum = {
+      width: (window.innerWidth - rect.left) / scale - gap,
+      height: (window.innerHeight - rect.top) / scale - gap,
+    };
     const release = mockPointerCapture();
     pointerResize('pointerdown', 1000, 700);
     pointerResize('pointermove', -10000, -10000);
@@ -249,7 +684,10 @@ describe('AiPanelComponent', () => {
     const release = mockPointerCapture();
     pointerResize('pointerdown', 100, 100, 2, 2);
     pointerResize('pointermove', 0, 0, 2);
+    resizeHandle().dispatchEvent(new PointerEvent('pointerdown', {pointerId: 2, button: 0, isPrimary: false, clientX: 100, clientY: 100, bubbles: true}));
+    pointerResize('pointermove', 0, 0, 2);
     expect(component.windowSize).toBeUndefined();
+    expect(resizeHandle().setPointerCapture).not.toHaveBeenCalled();
     pointerResize('pointerdown', 100, 100);
     pointerResize('pointermove', 0, 0, 2);
     expect(component.windowSize).toBeUndefined();
@@ -266,6 +704,7 @@ describe('AiPanelComponent', () => {
   it('supports independent keyboard width and height resizing and resetting without clearing the draft', async () => {
     await initialize();
     component.windowSize = {width: 900, height: 650};
+    component.windowPosition = {left: 80, top: 80};
     component.prompt = 'Preserve this draft';
     await settleWindow();
     resizeHandle().dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowLeft', bubbles: true}));
@@ -279,27 +718,34 @@ describe('AiPanelComponent', () => {
     resizeHandle().dispatchEvent(new KeyboardEvent('keydown', {key: 'Home', bubbles: true}));
     fixture.detectChanges();
     expect(component.windowSize).toBeUndefined();
+    expect(component.windowPosition).toBeUndefined();
     expect(component.windowPanel!.nativeElement.style.width).toBe('');
+    expect(component.windowPanel!.nativeElement.style.left).toBe('');
+    expect(component.windowPanel!.nativeElement.style.top).toBe('');
     expect(component.prompt).toBe('Preserve this draft');
     component.windowSize = {width: 800, height: 500};
+    component.windowPosition = {left: 80, top: 80};
     fixture.detectChanges();
     resizeHandle().dispatchEvent(new MouseEvent('dblclick', {bubbles: true}));
     fixture.detectChanges();
     expect(component.windowSize).toBeUndefined();
+    expect(component.windowPosition).toBeUndefined();
   });
 
-  it('converts physical pointer movement to CSS size at a non-default display scale', async () => {
-    await initialize();
-    component.windowSize = {width: 900, height: 500};
-    fixture.detectChanges();
-    const panel = component.windowPanel!.nativeElement;
-    spyOn(panel, 'getBoundingClientRect').and.callFake(() => new DOMRect(10, 50, panel.offsetWidth * 1.25, panel.offsetHeight * 1.25));
-    mockPointerCapture();
-    pointerResize('pointerdown', 100, 100);
-    pointerResize('pointermove', 150, 125);
-    expect(component.windowSize).toEqual({width: 940, height: 520});
-    pointerResize('pointerup', 150, 125);
-  });
+  for (const scale of [0.8, 1.4]) {
+    it(`converts physical pointer movement to CSS size at ${scale * 100}% display scale`, async () => {
+      await initialize();
+      component.windowSize = {...component.minWindowSize};
+      fixture.detectChanges();
+      const panel = component.windowPanel!.nativeElement;
+      spyOn(panel, 'getBoundingClientRect').and.callFake(() => new DOMRect(10, 50, panel.offsetWidth * scale, panel.offsetHeight * scale));
+      mockPointerCapture();
+      pointerResize('pointerdown', 100, 100);
+      pointerResize('pointermove', 100 + 40 * scale, 100 + 20 * scale);
+      expect(component.windowSize).toEqual({width: 680, height: 440});
+      pointerResize('pointerup', 100 + 40 * scale, 100 + 20 * scale);
+    });
+  }
 
   it('keeps a long composer below the header and inside the minimum window height', async () => {
     await initialize();

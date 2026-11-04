@@ -110,14 +110,20 @@ draft, session or model. Keep the refresh action. At a measured panel width of
 overlay dismissed by its close icon, Escape or outside click. Desktop visibility
 and compact overlay state are independent, in-memory preferences.
 
-The AI window stays anchored at its original top-left position. A bottom-right
-**Resize AI window** icon (`south_east`) adjusts width and height, with a minimum
-of 640 x 420 logical CSS pixels and a maximum of the available viewport. Smaller
-screens clamp the minimum to the space available. Arrow keys resize one axis by
-16px, or 64px with Shift; Home and double-click restore the original
-viewport-filling geometry without a new header reset action. Respect display
-size at 80%-140% when converting physical pointer deltas, remeasure layout after
-resizing or viewport changes, and keep size in memory only. The composer stays
+The AI workspace is a non-modal floating window, initially centered below the
+32px toolbar at up to 1040 x 720 logical pixels. The existing header is a pointer
+and keyboard move handle; buttons and editable controls never initiate dragging.
+The background viewer remains interactive. Position is clamped so the entire
+window and its close/move/resize controls remain within the viewport.
+A bottom-right **Resize AI window** icon (`south_east`) adjusts width and height,
+with a minimum of 640 x 420 logical CSS pixels, clamped on smaller screens.
+Arrow keys resize from the grip or move from the focused header by 16px, or
+64px with Shift. Header Home centers the current size; grip Home/double-click
+restores the centered default geometry. Respect display size at 80%-140% when
+converting physical pointer deltas, remeasure and clamp after viewport/zoom
+changes, and keep size and position in memory only. Escape first ends an active
+drag/resize; pointer cancellation, settings suspension and destruction release
+only that interaction's pointer capture. The composer stays
 in layout and caps long drafts using panel height so header and send controls
 remain visible at the minimum size. No horizontal overflow at 390px; respect
 reduced motion and both WinScope themes. Hiding history, suspending or closing the

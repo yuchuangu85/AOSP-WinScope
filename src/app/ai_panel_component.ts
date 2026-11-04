@@ -1,4 +1,3 @@
-import {A11yModule} from '@angular/cdk/a11y';
 import {CommonModule} from '@angular/common';
 import {AfterViewInit, Component, ElementRef, EventEmitter, HostListener, inject, Input, NgZone, OnChanges, OnDestroy, OnInit, Output, SimpleChanges, ViewChild,} from '@angular/core';
 import {FormsModule} from '@angular/forms';
@@ -6,7 +5,7 @@ import {MatButtonModule} from '@angular/material/button';
 import {MatIconModule} from '@angular/material/icon';
 import {MatMenuModule} from '@angular/material/menu';
 import {MatProgressBarModule} from '@angular/material/progress-bar';
-import {MatTooltipModule} from '@angular/material/tooltip';
+import {MAT_TOOLTIP_DEFAULT_OPTIONS, MatTooltipModule} from '@angular/material/tooltip';
 import {language, translate, TranslatePipe} from '@common/i18n';
 import {AiChatTurn, formatAnalysisDuration, formatConversationResponse, projectConversation,} from '@services/ai_conversation';
 import {AI_DIAGNOSTIC_PROMPTS, AiDiagnosticExampleId, AiDiagnosticPromptId, diagnosticExamplePrompt, diagnosticExamples, diagnosticExampleText, diagnosticPrompt} from '@services/ai_diagnostic_prompts';
@@ -26,8 +25,11 @@ interface Draft {
 @Component({
   selector: 'ai-panel',
   standalone: true,
+  providers: [{
+    provide: MAT_TOOLTIP_DEFAULT_OPTIONS,
+    useFactory: () => ({...inject(MAT_TOOLTIP_DEFAULT_OPTIONS, {skipSelf: true}), disableTooltipInteractivity: true}),
+  }],
   imports: [
-    A11yModule,
     AiMarkdownComponent,
     CommonModule,
     FormsModule,
@@ -80,6 +82,7 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
 
   readonly minWindowSize = {width: 640, height: 420};
   windowSize?: {width: number; height: number};
+  windowPosition?: {left: number; top: number};
   compactWindow = window.innerWidth <= 760;
   sidebarCollapsed = false;
 
@@ -121,6 +124,15 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
     height: number;
     scale: number;
   };
+  private windowDrag?: {
+    pointerId: number;
+    handle: HTMLElement;
+    x: number;
+    y: number;
+    left: number;
+    top: number;
+    scale: number;
+  };
   private client?: AiGatewayClient;
   private events: AiEvent[] = [];
   private readonly controller = new AbortController();
@@ -149,11 +161,15 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
       this.settingsPending = true;
     }
     if (this.initialized) this.applyPendingSettings();
-    if (changes['suspended'] && this.suspended) this.endWindowResize();
+    if (changes['suspended'] && this.suspended) {
+      this.endWindowResize();
+      this.endWindowDrag();
+    }
     if (changes['suspended'] && !this.suspended && this.initialized) this.focusComposer();
   }
 
   ngAfterViewInit(): void {
+    this.focusComposer();
     if (typeof ResizeObserver !== 'undefined' && this.windowPanel) {
       this.windowObserver = new ResizeObserver(() => {
         if (!this.windowPanel?.nativeElement.offsetWidth) return;
@@ -213,6 +229,7 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
     this.composerObserver?.disconnect();
     this.windowObserver?.disconnect();
     this.endWindowResize();
+    this.endWindowDrag();
     this.controller.abort();
     this.streamController?.abort();
   }
@@ -234,7 +251,7 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
 
   beginWindowResize(event: PointerEvent): void {
     const panel = this.windowPanel?.nativeElement;
-    if (event.button !== 0 || this.suspended || this.windowResize || !panel?.offsetWidth) return;
+    if (event.button !== 0 || !event.isPrimary || this.suspended || this.windowResize || this.windowDrag || !panel?.offsetWidth) return;
     const handle = event.currentTarget as HTMLElement;
     const bounds = this.windowBounds();
     this.windowResize = {
@@ -279,13 +296,85 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
 
   resetWindowSize(): void {
     this.endWindowResize();
+    this.endWindowDrag();
     this.windowSize = undefined;
+    this.windowPosition = undefined;
+    this.resizeComposer();
+  }
+
+  beginWindowDrag(event: PointerEvent): void {
+    const panel = this.windowPanel?.nativeElement;
+    if (event.button !== 0 || !event.isPrimary || this.suspended || this.windowDrag || this.windowResize || !panel?.offsetWidth) return;
+    if (event.target instanceof Element && event.target.closest('button, input, textarea, select, a, [contenteditable]')) return;
+    const rect = panel.getBoundingClientRect();
+    const scale = this.viewportBounds().scale;
+    const handle = event.currentTarget as HTMLElement;
+    this.windowDrag = {pointerId: event.pointerId, handle, x: event.clientX, y: event.clientY,
+      left: rect.left / scale, top: rect.top / scale, scale};
+    handle.setPointerCapture(event.pointerId);
+    handle.focus({preventScroll: true});
+    event.preventDefault();
+  }
+
+  moveWindowDrag(event: PointerEvent): void {
+    const drag = this.windowDrag;
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    this.setWindowPosition(drag.left + (event.clientX - drag.x) / drag.scale,
+      drag.top + (event.clientY - drag.y) / drag.scale);
+    event.preventDefault();
+  }
+
+  endWindowDrag(event?: PointerEvent): void {
+    const drag = this.windowDrag;
+    if (!drag || (event && event.pointerId !== drag.pointerId)) return;
+    this.windowDrag = undefined;
+    if (drag.handle.hasPointerCapture(drag.pointerId)) drag.handle.releasePointerCapture(drag.pointerId);
+  }
+
+  moveWindowKey(event: KeyboardEvent): void {
+    if (event.target !== event.currentTarget || this.suspended || event.altKey || event.ctrlKey || event.metaKey) return;
+    const panel = this.windowPanel?.nativeElement;
+    if (!panel?.offsetWidth) return;
+    const step = event.shiftKey ? 64 : 16;
+    const delta: Record<string, [number, number]> = {ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step]};
+    if (event.key !== 'Home' && !delta[event.key]) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.key === 'Home') this.resetWindowPosition();
+    else {
+      const scale = this.viewportBounds().scale;
+      const rect = panel.getBoundingClientRect();
+      this.setWindowPosition(rect.left / scale + delta[event.key][0], rect.top / scale + delta[event.key][1]);
+    }
+  }
+
+  resetWindowPosition(): void {
+    this.endWindowDrag();
+    const panel = this.windowPanel?.nativeElement;
+    if (!panel?.offsetWidth) return;
+    const bounds = this.viewportBounds();
+    this.setWindowPosition(bounds.left + (bounds.width - panel.offsetWidth) / 2,
+      bounds.top + (bounds.height - panel.offsetHeight) / 2);
   }
 
   @HostListener('window:resize')
   onViewportResize(): void {
     if (!this.windowPanel?.nativeElement.offsetWidth) return;
-    if (this.windowSize) this.setWindowSize(this.windowSize.width, this.windowSize.height);
+    this.endWindowResize();
+    this.endWindowDrag();
+    const panel = this.windowPanel.nativeElement;
+    const bounds = this.viewportBounds();
+    if (this.windowSize) {
+      this.windowSize = {
+        width: Math.min(bounds.width, Math.max(Math.min(this.minWindowSize.width, bounds.width), this.windowSize.width)),
+        height: Math.min(bounds.height, Math.max(Math.min(this.minWindowSize.height, bounds.height), this.windowSize.height)),
+      };
+    }
+    if (this.windowPosition || this.windowSize) {
+      const rect = panel.getBoundingClientRect();
+      this.setWindowPosition(this.windowPosition?.left ?? rect.left / bounds.scale,
+        this.windowPosition?.top ?? rect.top / bounds.scale);
+    }
     this.updateWindowLayout();
     this.resizeComposer();
   }
@@ -296,6 +385,27 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
       width: Math.min(bounds.width, Math.max(Math.min(this.minWindowSize.width, bounds.width), Math.round(width))),
       height: Math.min(bounds.height, Math.max(Math.min(this.minWindowSize.height, bounds.height), Math.round(height))),
     };
+  }
+
+  private setWindowPosition(left: number, top: number): void {
+    const panel = this.windowPanel!.nativeElement;
+    const bounds = this.viewportBounds();
+    const width = Math.min(this.windowSize?.width ?? panel.offsetWidth, bounds.width);
+    const height = Math.min(this.windowSize?.height ?? panel.offsetHeight, bounds.height);
+    this.windowPosition = {
+      left: Math.min(bounds.left + bounds.width - width, Math.max(bounds.left, Math.round(left))),
+      top: Math.min(bounds.top + bounds.height - height, Math.max(bounds.top, Math.round(top))),
+    };
+  }
+
+  private viewportBounds(): {left: number; top: number; width: number; height: number; scale: number} {
+    const panel = this.windowPanel!.nativeElement;
+    const rect = panel.getBoundingClientRect();
+    const scale = panel.offsetWidth ? rect.width / panel.offsetWidth : 1;
+    const gap = parseFloat(getComputedStyle(panel).getPropertyValue('--ai-window-gap')) || 0;
+    return {left: gap, top: 32 + gap,
+      width: Math.max(1, window.innerWidth / scale - 2 * gap),
+      height: Math.max(1, window.innerHeight / scale - 32 - 2 * gap), scale};
   }
 
   private windowBounds(): {width: number; height: number; scale: number} {
@@ -572,6 +682,10 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
     event.stopPropagation();
     if (this.windowResize) {
       this.endWindowResize();
+      return;
+    }
+    if (this.windowDrag) {
+      this.endWindowDrag();
       return;
     }
     if (this.compactWindow && this.sidebarOpen) {

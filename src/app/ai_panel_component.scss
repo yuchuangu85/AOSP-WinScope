@@ -1,7 +1,6 @@
 .ai-panel {
   position: fixed;
   z-index: 20;
-  inset: 40px 8px 8px;
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr);
   background: var(--background-color);
@@ -560,7 +559,6 @@ select:focus-visible {
 @media (max-width: 760px) {
   .ai-panel {
     grid-template-columns: minmax(0, 1fr);
-    inset: 32px 0 0;
     border-radius: 0;
   }
   .ai-panel-header {

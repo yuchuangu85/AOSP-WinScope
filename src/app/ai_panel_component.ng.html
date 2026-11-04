@@ -5,14 +5,13 @@
   [class.sidebar-hidden]="!sidebarVisible"
   [style.width.px]="windowSize?.width"
   [style.height.px]="windowSize?.height"
+  [style.left.px]="windowPosition?.left"
+  [style.top.px]="windowPosition?.top"
   [style.--ai-window-min-width]="minWindowSize.width + 'px'"
   [style.--ai-window-min-height]="minWindowSize.height + 'px'"
   role="dialog"
-  aria-modal="true"
   [attr.aria-label]="'AI analysis workspace' | tr"
   [style.display]="suspended ? 'none' : null"
-  [cdkTrapFocus]="!suspended"
-  [cdkTrapFocusAutoCapture]="!suspended"
   (keydown)="$event.stopPropagation()"
   (keydown.escape)="onEscape($event)"
 >
@@ -92,7 +91,12 @@
   </aside>
 
   <main class="ai-main">
-    <header class="ai-panel-header">
+    <header class="ai-panel-header ai-window-drag"
+      tabindex="0" [attr.aria-label]="'Move AI window' | tr" [attr.title]="'Move AI window' | tr"
+      (pointerdown)="beginWindowDrag($event)" (pointermove)="moveWindowDrag($event)"
+      (pointerup)="endWindowDrag($event)" (pointercancel)="endWindowDrag($event)"
+      (lostpointercapture)="endWindowDrag($event)" (keydown)="moveWindowKey($event)"
+      (dblclick)="$event.target === $event.currentTarget && resetWindowSize()">
       <button
         #sidebarToggle
         mat-icon-button

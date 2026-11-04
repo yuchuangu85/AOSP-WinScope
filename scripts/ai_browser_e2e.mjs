@@ -254,7 +254,15 @@ async function conversationModelMenuRegression() {
 }
 const aiWindowEvidence = [];
 const aiWindowScreenshots = [];
+const aiWindowStreamRequests = [];
+const aiWindowStreamEnds = [];
 const aiWindowChecks = [
+  'floating-default-1040x720-capped-and-centered-below-toolbar',
+  'floating-trusted-header-blank-and-heading-pointer-capture-movement',
+  'floating-movement-extremes-clamp-and-header-buttons-do-not-drag',
+  'floating-position-limits-resize-until-moved-left-and-up',
+  'floating-viewport-resize-preserves-manual-size-and-repositions',
+  'floating-nonmodal-focus-with-settings-modal-trap-preserved',
   'history-toggle-visible-at-all-widths-and-aria-matches-hidden',
   'sidebar-close-refresh-and-reopen-preserve-draft-session-model',
   'desktop-history-preference-independent-from-compact-overlay',
@@ -262,11 +270,12 @@ const aiWindowChecks = [
   'compact-history-escape-and-outside-dismissal',
   'trusted-pointer-capture-two-axis-resize-minimum-and-maximum-clamps',
   'resize-grip-independent-axis-arrow-keys-and-shift-step',
-  'resize-home-and-double-click-restore-top-left-geometry',
+  'resize-home-and-double-click-restore-centered-floating-position-and-size',
   'resize-viewport-shrink-below-minimum-and-390px-no-overflow',
   'resize-80-140-display-zoom-physical-pointer-and-logical-key-deltas',
   'panel-height-long-draft-cap-minimum-window-light-dark',
-  'sidebar-and-window-size-never-persist',
+  'sidebar-window-size-and-position-never-persist',
+  'floating-movement-preserves-draft-model-history-and-running-stream',
   'layout-hide-and-destroy-never-cancel-running-analysis',
 ];
 const settleAiWindow = () => evaluate(
@@ -276,7 +285,7 @@ async function aiViewport(width, height) {
   await cdp('Emulation.setDeviceMetricsOverride', {width, height, deviceScaleFactor: 1, mobile: false});
   await settleAiWindow();
 }
-async function aiWindowState() {
+async function aiWindowState(includeHistory = false) {
   return evaluate(`(() => {
     const storage=s=>Object.keys(s).sort().map(key=>[key,s.getItem(key)]);
     return {
@@ -285,6 +294,8 @@ async function aiWindowState() {
       sessionId:Object.keys(sessionStorage).filter(key=>key.startsWith('winscope.ai.active.')).map(key=>sessionStorage.getItem(key)),
       context:document.querySelector('.context-chip')?.getAttribute('aria-pressed'),
       attachments:[...document.querySelectorAll('.attachment-info strong')].map(e=>e.textContent),
+      ...(${includeHistory} ? {history:[...document.querySelectorAll('.session-row')].map(e=>({text:e.textContent,current:e.getAttribute('aria-current')}))} : {}),
+      turns:[...document.querySelectorAll('.chat-turn')].map(e=>({status:e.getAttribute('data-status'),prompt:e.querySelector('.user-message .message-text')?.textContent})),
       local:storage(localStorage),session:storage(sessionStorage),
     };
   })()`);
@@ -297,8 +308,10 @@ async function aiWindowMetrics() {
     const zoom=Number(document.documentElement.style.zoom)||1,p=box(panel);
     return {
       viewport:{width:innerWidth,height:innerHeight},zoom,panel:p,
-      logical:{width:p.width/zoom,height:p.height/zoom},clientHeight:panel.clientHeight,
-      inline:{width:panel.style.width,height:panel.style.height},
+      logical:{left:p.x/zoom,top:p.y/zoom,width:p.width/zoom,height:p.height/zoom},clientHeight:panel.clientHeight,
+      gap:parseFloat(getComputedStyle(panel).getPropertyValue('--ai-window-gap'))||0,
+      inline:{left:panel.style.left,top:panel.style.top,width:panel.style.width,height:panel.style.height,maxWidth:panel.style.maxWidth,maxHeight:panel.style.maxHeight},
+      modal:panel.getAttribute('aria-modal'),focusAnchors:document.querySelector('ai-panel').querySelectorAll('.cdk-focus-trap-anchor').length,
       compact:panel.classList.contains('compact-window'),
       overflow:panel.scrollWidth>panel.clientWidth+1,
       header:box(header),headerControls:[...header.querySelectorAll('button')].filter(visible).map(e=>({label:e.getAttribute('aria-label'),...box(e)})),
@@ -315,10 +328,31 @@ async function aiWindowMetrics() {
 function near(actual, expected, label, tolerance = 1) {
   assert.ok(Math.abs(actual - expected) <= tolerance, `${label}: expected ${expected}, got ${actual}`);
 }
+function aiWindowBounds(metrics) {
+  const {zoom, gap, viewport, logical} = metrics;
+  const left = gap, top = 32 + gap;
+  const right = viewport.width / zoom - gap, bottom = viewport.height / zoom - gap;
+  return {left, top, right, bottom, width: right - left, height: bottom - top,
+    resizeWidth: right - logical.left, resizeHeight: bottom - logical.top};
+}
+function assertAiWindowDefault(metrics, label) {
+  const bounds = aiWindowBounds(metrics);
+  const width = Math.min(1040, bounds.width), height = Math.min(720, bounds.height);
+  near(metrics.logical.width, width, `${label}: capped default width`);
+  near(metrics.logical.height, height, `${label}: capped default height`);
+  near(metrics.logical.left, bounds.left + (bounds.width - width) / 2, `${label}: horizontally centered`);
+  near(metrics.logical.top, bounds.top + (bounds.height - height) / 2, `${label}: centered below toolbar`);
+  assert.deepEqual(metrics.inline, {left: '', top: '', width: '', height: '', maxWidth: '', maxHeight: ''}, `${label}: default geometry comes from CSS`);
+}
 function assertAiWindowFits(metrics, label) {
+  const bounds = aiWindowBounds(metrics);
   assert.equal(metrics.overflow, false, `${label}: no horizontal panel overflow`);
   assert.ok(metrics.panel.x >= -1 && metrics.panel.y >= -1, `${label}: top-left stays on screen`);
   assert.ok(metrics.panel.right <= metrics.viewport.width + 1 && metrics.panel.bottom <= metrics.viewport.height + 1, `${label}: panel fits viewport`);
+  assert.ok(metrics.logical.left >= bounds.left - 1 && metrics.logical.top >= bounds.top - 1, `${label}: panel clears toolbar and gap`);
+  assert.ok(metrics.logical.width >= Math.min(640, bounds.resizeWidth) - 1 && metrics.logical.height >= Math.min(420, bounds.resizeHeight) - 1, `${label}: minimum respects space available at current position`);
+  assert.equal(metrics.modal, null, `${label}: AI floating window is not aria-modal`);
+  assert.equal(metrics.focusAnchors, 0, `${label}: AI workspace has no focus trap`);
   assert.equal(metrics.toggle.visible, true, `${label}: history toggle is always visible`);
   assert.equal(metrics.toggle.expanded, String(metrics.aside.visible), `${label}: aria-expanded reflects actual visibility`);
   assert.equal(metrics.aside.hidden, !metrics.aside.visible, `${label}: hidden attribute reflects actual visibility`);
@@ -349,13 +383,19 @@ async function recordAiWindow(check, screenshotName) {
 }
 async function aiMouseClick(selector, {double = false, rightEdge = false} = {}) {
   await settleAiWindow();
-  const point = await evaluate(`(() => {const e=document.querySelector(${JSON.stringify(selector)}),r=e.getBoundingClientRect();if(e.hidden||!r.width||!r.height) throw new Error('Control is not visible');return {x:${rightEdge ? 'r.right-8' : 'r.x+r.width/2'},y:r.y+r.height/2};})()`);
+  const point = await evaluate(`(() => {const e=document.querySelector(${JSON.stringify(selector)}),r=e.getBoundingClientRect();if(e.hidden||!r.width||!r.height) throw new Error('Control is not visible');const point={x:${rightEdge ? 'r.right-8' : 'r.x+r.width/2'},y:r.y+r.height/2};if(!e.contains(document.elementFromPoint(point.x,point.y))) throw new Error('Control is obscured: '+${JSON.stringify(selector)});return point;})()`);
+  await evaluate(`(() => {
+    window.__aiClickRecorder?.abort();window.__aiClickRecorder=new AbortController();window.__aiClickEvents=[];
+    for(const type of ['pointerdown','pointerup','click']) document.addEventListener(type,e=>window.__aiClickEvents.push({type,target:e.target.tagName,classes:e.target.className?.baseVal??e.target.className,expanded:document.querySelector('.history-toggle')?.getAttribute('aria-expanded')}),{signal:window.__aiClickRecorder.signal});
+  })()`);
   await cdp('Input.dispatchMouseEvent', {type: 'mouseMoved', ...point});
   for (const clickCount of double ? [1, 2] : [1]) {
     await cdp('Input.dispatchMouseEvent', {type: 'mousePressed', ...point, button: 'left', buttons: 1, clickCount});
     await cdp('Input.dispatchMouseEvent', {type: 'mouseReleased', ...point, button: 'left', buttons: 0, clickCount});
   }
   await settleAiWindow();
+  aiWindowEvidence.push({check: 'pointer-click', selector, point, events: await evaluate('window.__aiClickEvents')});
+  await evaluate('window.__aiClickRecorder.abort()');
 }
 async function aiGripKey(key, shift = false) {
   // Modal close restores focus asynchronously after the settings DOM is gone.
@@ -398,6 +438,161 @@ async function dragAiWindow(dx, dy, label) {
   aiWindowEvidence.push({check: `${label}-pointer-events`, events});
   return after;
 }
+async function moveAiWindow(dx, dy, label, {heading = false} = {}) {
+  const before = await aiWindowMetrics();
+  const point = await evaluate(`(() => {
+    const handle=document.querySelector('.ai-window-drag');
+    if(!handle) throw new Error('AI header drag handle unavailable');
+    const interactive='button,input,textarea,select,a,[contenteditable]';
+    const target=${heading ? "handle.querySelector('.conversation-heading h2')" : 'handle'},r=target.getBoundingClientRect();
+    for(let y=r.top+2;y<r.bottom-1;y+=3) for(let x=r.left+2;x<r.right-1;x+=4) {
+      const hit=document.elementFromPoint(x,y);
+      if(hit&&!hit.closest(interactive)&&${heading ? 'target.contains(hit)' : 'hit===handle'}) return {x,y};
+    }
+    throw new Error('No exposed ${heading ? 'conversation heading' : 'blank header'} drag point');
+  })()`);
+  await evaluate(`(() => {
+    window.__aiMoveRecorder?.abort();window.__aiMoveRecorder=new AbortController();window.__aiMoveEvents=[];
+    const handle=document.querySelector('.ai-window-drag');
+    for(const type of ['pointerdown','gotpointercapture','pointermove','pointerup','lostpointercapture']) handle.addEventListener(type,e=>window.__aiMoveEvents.push({type:e.type,trusted:e.isTrusted,primary:e.isPrimary,pointerId:e.pointerId,captured:handle.hasPointerCapture(e.pointerId),x:e.clientX,y:e.clientY}),{signal:window.__aiMoveRecorder.signal});
+  })()`);
+  await cdp('Input.dispatchMouseEvent', {type: 'mouseMoved', ...point});
+  await cdp('Input.dispatchMouseEvent', {type: 'mousePressed', ...point, button: 'left', buttons: 1, clickCount: 1});
+  let active;
+  try {
+    for (let step = 1; step <= 4; step++) {
+      await cdp('Input.dispatchMouseEvent', {type: 'mouseMoved', x: point.x + dx * step / 4, y: point.y + dy * step / 4, button: 'left', buttons: 1});
+      await settleAiWindow();
+      active = await evaluate(`(() => {
+        const down=window.__aiMoveEvents.find(e=>e.type==='pointerdown');
+        return !!down&&document.querySelector('.ai-window-drag').hasPointerCapture(down.pointerId);
+      })()`);
+      assert.equal(active, true, `${label}: capture is active while pointer is held`);
+    }
+  } finally {
+    await cdp('Input.dispatchMouseEvent', {type: 'mouseReleased', x: point.x + dx, y: point.y + dy, button: 'left', buttons: 0, clickCount: 1});
+  }
+  await settleAiWindow();
+  const events = await evaluate('window.__aiMoveEvents');
+  for (const type of ['pointerdown', 'gotpointercapture', 'pointermove', 'pointerup', 'lostpointercapture']) {
+    assert.ok(events.some(e => e.type === type && e.trusted), `${label}: trusted ${type}`);
+  }
+  assert.ok(events.some(e => e.type === 'pointerdown' && e.trusted && e.primary), `${label}: trusted primary pointer starts the drag`);
+  assert.equal(await evaluate("document.querySelector('.ai-window-drag').hasPointerCapture(window.__aiMoveEvents.find(e=>e.type==='pointerdown').pointerId)"), false, `${label}: capture released`);
+  await evaluate('window.__aiMoveRecorder.abort()');
+  const after = await recordAiWindow(label);
+  const bounds = aiWindowBounds(before);
+  near(after.logical.left, Math.min(bounds.right - before.logical.width, Math.max(bounds.left, Math.round(before.logical.left + dx / before.zoom))), `${label}: logical horizontal delta/clamp`);
+  near(after.logical.top, Math.min(bounds.bottom - before.logical.height, Math.max(bounds.top, Math.round(before.logical.top + dy / before.zoom))), `${label}: logical vertical delta/clamp`);
+  near(after.logical.width, before.logical.width, `${label}: movement preserves width`);
+  near(after.logical.height, before.logical.height, `${label}: movement preserves height`);
+  aiWindowEvidence.push({check: `${label}-pointer-events`, activeCapture: active, point, dx, dy, events});
+  return after;
+}
+async function aiFloatingFocusRegression() {
+  await evaluate("document.querySelector('.ai-window-resize').focus()");
+  for (const type of ['keyDown', 'keyUp']) await cdp('Input.dispatchKeyEvent', {type, key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9});
+  await settleAiWindow();
+  assert.equal(await evaluate("document.querySelector('.ai-panel').contains(document.activeElement)"), false, 'Trusted Tab can leave the AI floating window');
+  await evaluate("document.querySelector('.toolbar .settings-button').focus()");
+  await settleAiWindow();
+  assert.equal(await evaluate("document.activeElement===document.querySelector('.toolbar .settings-button')"), true, 'AI allows focus outside its floating window');
+  await aiMouseClick('.toolbar .settings-button');
+  await condition("document.querySelector('.settings-dialog') !== null");
+  const modal = await evaluate(`(() => {
+    const host=document.querySelector('app-settings'),dialog=host.querySelector('.settings-dialog');
+    return {modal:dialog.getAttribute('aria-modal'),anchors:host.querySelectorAll('.cdk-focus-trap-anchor').length};
+  })()`);
+  assert.equal(modal.modal, 'true', 'Settings remains aria-modal');
+  assert.equal(modal.anchors, 2, 'Settings retains its focus trap');
+  await evaluate(`(() => {
+    const controls=[...document.querySelector('.settings-dialog').querySelectorAll('button,input,select,textarea,a[href],[tabindex]')].filter(e=>!e.disabled&&e.tabIndex>=0&&e.getClientRects().length&&getComputedStyle(e).visibility!=='hidden');
+    controls.at(-1).focus();
+  })()`);
+  for (const type of ['keyDown', 'keyUp']) await cdp('Input.dispatchKeyEvent', {type, key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9});
+  await settleAiWindow();
+  assert.equal(await evaluate("document.querySelector('.settings-dialog').contains(document.activeElement)"), true, 'Trusted Tab wraps inside Settings');
+  aiWindowEvidence.push({check: 'floating-ai-nonmodal-settings-still-modal', ...modal});
+  await aiMouseClick('.settings-close-button');
+  await condition("document.querySelector('app-settings') === null");
+}
+async function aiFloatingMovementRegression() {
+  const original = await recordAiWindow('floating-default', 'ai-floating-default.png');
+  assertAiWindowDefault(original, 'floating-default');
+  assert.equal(original.logical.width, 1040, 'Desktop starts at 1040 logical pixels');
+  assert.equal(original.logical.height, 720, 'Desktop starts at 720 logical pixels');
+  assert.ok(original.panel.width < original.viewport.width - 100 && original.panel.height < original.viewport.height - 100, 'Desktop default is not viewport-full');
+  const preserved = await aiWindowState(true);
+  const streamCount = aiWindowStreamRequests.length;
+  await aiFloatingFocusRegression();
+  await dragAiWindow(-original.panel.right, -original.panel.bottom, 'floating-shrink-before-movement');
+  if ((await aiWindowMetrics()).aside.visible) await aiMouseClick('.history-toggle');
+  const shrunk = await aiWindowMetrics();
+  const moved = await moveAiWindow(80, 64, 'floating-blank-header-movement');
+  near(moved.panel.x, shrunk.panel.x + 80, 'Blank header physical x movement');
+  near(moved.panel.y, shrunk.panel.y + 64, 'Blank header physical y movement');
+  await moveAiWindow(-32, -24, 'floating-conversation-heading-movement', {heading: true});
+  await recordAiWindow('floating-moved', 'ai-floating-moved.png');
+
+  const beforeButton = await aiWindowMetrics();
+  await evaluate(`(() => {
+    window.__aiButtonDragEvents=[];window.__aiButtonRecorder=new AbortController();
+    document.querySelector('.ai-window-drag').addEventListener('gotpointercapture',e=>window.__aiButtonDragEvents.push({trusted:e.isTrusted}),{signal:window.__aiButtonRecorder.signal});
+  })()`);
+  // Both the Material icon and its button must remain ordinary clickable controls.
+  await aiMouseClick('.history-toggle mat-icon');
+  await expectAiSidebar(true, 'floating-header-button-click-opens-history');
+  await aiMouseClick('.sidebar-heading [aria-label="Close conversation browser"]');
+  await expectAiSidebar(false, 'floating-overlay-close-after-icon-click');
+  await aiMouseClick('.history-toggle');
+  await expectAiSidebar(true, 'floating-header-button-body-opens-history');
+  await aiMouseClick('.sidebar-heading [aria-label="Close conversation browser"]');
+  await expectAiSidebar(false, 'floating-overlay-close-after-button-click');
+  assert.deepEqual((await aiWindowMetrics()).panel, beforeButton.panel, 'Header button clicks cannot move or resize the window');
+  assert.deepEqual(await evaluate('window.__aiButtonDragEvents'), [], 'Header buttons never capture the drag pointer');
+  await evaluate('window.__aiButtonRecorder.abort()');
+
+  const bottomRight = await moveAiWindow(2880, 1920, 'floating-bottom-right-clamp', {heading: true});
+  let bounds = aiWindowBounds(bottomRight);
+  near(bottomRight.logical.left + bottomRight.logical.width, bounds.right, 'Movement clamps at right edge');
+  near(bottomRight.logical.top + bottomRight.logical.height, bounds.bottom, 'Movement clamps at bottom edge');
+  const limited = await dragAiWindow(2880, 1920, 'floating-position-limits-resize');
+  near(limited.logical.width, bottomRight.logical.width, 'Rightmost position prevents width growth');
+  near(limited.logical.height, bottomRight.logical.height, 'Bottommost position prevents height growth');
+  const leftUp = await moveAiWindow(-80, -64, 'floating-left-up-restores-resize-space', {heading: true});
+  const expanded = await dragAiWindow(2880, 1920, 'floating-resize-uses-space-from-current-position');
+  bounds = aiWindowBounds(leftUp);
+  near(expanded.logical.width, bounds.resizeWidth, 'Moving left permits growth to current-position maximum');
+  near(expanded.logical.height, bounds.resizeHeight, 'Moving up permits growth to current-position maximum');
+  assert.ok(expanded.logical.width > limited.logical.width && expanded.logical.height > limited.logical.height);
+  await recordAiWindow('floating-position-dependent-maximum', 'ai-floating-position-max.png');
+  const topLeft = await moveAiWindow(-2880, -1920, 'floating-top-left-clamp', {heading: true});
+  near(topLeft.logical.left, aiWindowBounds(topLeft).left, 'Movement clamps at left gap');
+  near(topLeft.logical.top, aiWindowBounds(topLeft).top, 'Movement clamps below toolbar');
+  await aiGripKey('Home');
+  assertAiWindowDefault(await recordAiWindow('floating-home-position-and-size', 'ai-floating-home.png'), 'Home clears manual position and size');
+  await dragAiWindow(-2880, -1920, 'floating-shrink-before-double-click');
+  await moveAiWindow(64, 48, 'floating-move-before-double-click', {heading: true});
+  await aiMouseClick('.ai-window-resize', {double: true});
+  assertAiWindowDefault(await recordAiWindow('floating-double-click-position-and-size', 'ai-floating-double-click.png'), 'Double-click clears manual position and size');
+
+  await dragAiWindow(-2880, -1920, 'floating-shrink-before-viewport-resize');
+  const manual = await moveAiWindow(2880, 1920, 'floating-viewport-resize-start', {heading: true});
+  await aiViewport(900, 600);
+  const resized = await recordAiWindow('floating-viewport-reposition', 'ai-floating-viewport-reposition.png');
+  near(resized.logical.width, manual.logical.width, 'Viewport shrink preserves manual width that fits globally');
+  near(resized.logical.height, manual.logical.height, 'Viewport shrink preserves manual height that fits globally');
+  assert.ok(resized.panel.x < manual.panel.x && resized.panel.y < manual.panel.y, 'Viewport shrink repositions manual window to fit');
+  await aiViewport(original.viewport.width, original.viewport.height);
+  const grown = await recordAiWindow('floating-viewport-grow-preserves-manual-size');
+  near(grown.logical.width, manual.logical.width, 'Viewport growth preserves manual width');
+  near(grown.logical.height, manual.logical.height, 'Viewport growth preserves manual height');
+  await aiGripKey('Home');
+  if ((await aiWindowMetrics()).aside.visible !== original.aside.visible) await aiMouseClick('.history-toggle');
+  assertAiWindowDefault(await aiWindowMetrics(), 'Movement regression restores default');
+  assert.deepEqual(await aiWindowState(true), preserved, 'Movement, resize, reset and viewport changes preserve draft/model/history and both stores');
+  assert.equal(aiWindowStreamRequests.length, streamCount, 'Layout never restarts conversation streams');
+}
 async function expectAiSidebar(visible, label) {
   await condition(`document.querySelector('#ai-conversation-browser')?.hidden === ${!visible} && document.querySelector('.history-toggle')?.getAttribute('aria-expanded') === '${visible}'`);
   const metrics = await recordAiWindow(label);
@@ -417,6 +612,7 @@ async function aiWindowRegression() {
   await aiViewport(1440, 960);
   await aiGripKey('Home');
   const full = await expectAiSidebar(true, 'desktop-history-default-visible');
+  assertAiWindowDefault(full, 'desktop-default-centered-floating');
   assert.equal(full.compact, false);
   assert.equal(full.grip.label, 'Resize AI window');
   assert.equal(full.grip.icon, 'south_east');
@@ -432,6 +628,7 @@ async function aiWindowRegression() {
   await typeMessage(draft);
   const preserved = await aiWindowState();
   assert.equal(preserved.sessionId.length, 1, 'Layout preservation exercises a real active session');
+  await aiFloatingMovementRegression();
   assert.ok(await evaluate("document.querySelector('.sidebar-heading [aria-label=\"Refresh conversations\"] mat-icon')?.textContent.trim() === 'refresh'"), 'Sidebar retains refresh');
   assert.ok(await evaluate("document.querySelector('.sidebar-heading button[aria-label=\"Close conversation browser\"] mat-icon') !== null"), 'Sidebar has labelled icon-only close');
   await aiMouseClick('.sidebar-heading [aria-label="Close conversation browser"]');
@@ -490,23 +687,26 @@ async function aiWindowRegression() {
     previous = current;
   }
   const maximum = await dragAiWindow(2880, 1920, 'mouse-drag-past-viewport-maximum-clamps');
-  near(maximum.panel.width, full.panel.width, 'Maximum equals original available width');
-  near(maximum.panel.height, full.panel.height, 'Maximum equals original available height');
+  const available = aiWindowBounds(full);
+  near(maximum.logical.width, available.resizeWidth, 'Maximum uses viewport space from current left');
+  near(maximum.logical.height, available.resizeHeight, 'Maximum uses viewport space from current top');
   for (const key of ['ArrowRight', 'ArrowDown']) await aiGripKey(key, true);
   const keyMaximum = await recordAiWindow('keyboard-cannot-exceed-maximum');
-  near(keyMaximum.panel.width, full.panel.width, 'Keyboard maximum width');
-  near(keyMaximum.panel.height, full.panel.height, 'Keyboard maximum height');
+  near(keyMaximum.panel.width, maximum.panel.width, 'Keyboard maximum width');
+  near(keyMaximum.panel.height, maximum.panel.height, 'Keyboard maximum height');
   await aiGripKey('ArrowLeft');
   await aiGripKey('ArrowUp');
   await aiGripKey('Home');
   const home = await recordAiWindow('home-restores-original-geometry');
   near(home.panel.width, full.panel.width, 'Home restores width');
   near(home.panel.height, full.panel.height, 'Home restores height');
+  assertAiWindowDefault(home, 'Home restores centered default');
   await dragAiWindow(-full.panel.right, -full.panel.bottom, 'minimum-before-double-click');
   await aiMouseClick('.ai-window-resize', {double: true});
   const doubleClick = await recordAiWindow('double-click-restores-original-geometry');
   near(doubleClick.panel.width, full.panel.width, 'Double-click restores width');
   near(doubleClick.panel.height, full.panel.height, 'Double-click restores height');
+  assertAiWindowDefault(doubleClick, 'Double-click restores centered default');
   assert.deepEqual(await aiWindowState(), preserved, 'Sidebar and all resize controls preserve draft/session/model and both stores');
 
   const longDraft = Array.from({length: 60}, (_, index) => `Long draft ${index} must scroll inside the AI window`).join('\n');
@@ -536,6 +736,7 @@ async function aiWindowRegression() {
     await condition("document.querySelector('app-settings') === null && getComputedStyle(document.querySelector('.ai-panel')).display !== 'none'");
     await aiGripKey('Home');
     const zoomFull = await recordAiWindow(`zoom-${scale}-original-geometry`);
+    assertAiWindowDefault(zoomFull, `zoom-${scale}-default`);
     assert.equal(zoomFull.zoom, scale / 100);
     assert.equal(zoomFull.grip.label, scale === 140 ? '调整 AI 窗口大小' : 'Resize AI window');
     const beforeScaleResize = await aiWindowState();
@@ -555,11 +756,19 @@ async function aiWindowRegression() {
       const label = `zoom-${scale}-min-${dark ? 'dark' : 'light'}`;
       assertAiWindowCap(await recordAiWindow(label, `ai-window-${label}.png`), label);
     }
+    const moveStart = await aiWindowMetrics();
+    const zoomMoved = await moveAiWindow(32 * moveStart.zoom, 24 * moveStart.zoom, `floating-zoom-${scale}-heading-move`, {heading: true});
+    near(zoomMoved.logical.left, moveStart.logical.left + 32, `zoom ${scale}: physical pointer maps to logical left`);
+    near(zoomMoved.logical.top, moveStart.logical.top + 24, `zoom ${scale}: physical pointer maps to logical top`);
+    await recordAiWindow(`floating-zoom-${scale}-moved`, `ai-floating-zoom-${scale}.png`);
+    await moveAiWindow(-32 * moveStart.zoom, -24 * moveStart.zoom, `floating-zoom-${scale}-reverse-move`, {heading: true});
     assert.deepEqual(await aiWindowState(), beforeScaleResize, `Zoom ${scale}: layout never persists or mutates conversation`);
     await aiViewport(390, 844);
     await recordAiWindow(`zoom-${scale}-manual-size-clamped-on-mobile-viewport`);
     await aiGripKey('Home');
     const mobileFull = await aiWindowMetrics();
+    assertAiWindowDefault(mobileFull, `zoom ${scale}: mobile default capped below toolbar`);
+    await recordAiWindow(`floating-mobile-zoom-${scale}-default`, `ai-floating-mobile-zoom-${scale}.png`);
     const mobileMin = await dragAiWindow(-390, -844, `zoom-${scale}-mobile-minimum-clamps-to-screen`);
     near(mobileMin.logical.width, mobileFull.logical.width, `zoom ${scale}: mobile width minimum is available space`);
     near(mobileMin.logical.height, Math.min(420, mobileFull.logical.height), `zoom ${scale}: mobile height minimum`);
@@ -601,21 +810,29 @@ async function aiWindowRunningRegression() {
     aiWindowEvidence.push({check: label, sessionId, status: session.status});
   };
   await typeMessage('Unsent next-turn draft while analysis runs');
-  const preserved = await aiWindowState();
+  const preserved = await aiWindowState(true);
+  await waitUntil(() => aiWindowStreamRequests.some(request => request.url.includes(`/sessions/${encodeURIComponent(sessionId)}/stream`) && !aiWindowStreamEnds.some(end => end.requestId === request.requestId)), 'Running layout uses an observed active SSE request');
+  const streamCount = aiWindowStreamRequests.length, streamEndCount = aiWindowStreamEnds.length;
   if ((await aiWindowMetrics()).aside.visible) await aiMouseClick('.history-toggle');
   await expectAiSidebar(false, 'running-sidebar-hide');
   await aiMouseClick('.history-toggle');
   await expectAiSidebar(true, 'running-sidebar-reopen');
   await aiGripKey('ArrowLeft');
   await aiGripKey('ArrowUp');
-  assert.deepEqual(await aiWindowState(), preserved, 'Running layout interactions preserve draft/session/model and storage');
+  const beforeMove = await aiWindowMetrics();
+  await moveAiWindow(-16 * beforeMove.zoom, -16 * beforeMove.zoom, 'floating-running-stream-movement', {heading: true});
+  await recordAiWindow('floating-running-stream-preserved', 'ai-floating-running.png');
+  assert.deepEqual(await aiWindowState(true), preserved, 'Running layout interactions preserve draft/session/model/history and storage');
+  assert.equal(aiWindowStreamRequests.length, streamCount, 'Movement does not restart the active SSE request');
+  assert.equal(aiWindowStreamEnds.length, streamEndCount, 'Movement does not end or abort the active SSE request');
+  aiWindowEvidence.push({check: 'floating-running-stream-unchanged', requests: streamCount, ended: streamEndCount});
   await assertRunning('sidebar-and-resize-do-not-cancel-run');
   await openConversationSettings();
   await condition("document.querySelector('app-settings') !== null && getComputedStyle(document.querySelector('.ai-panel')).display === 'none'");
   await assertRunning('settings-suspension-does-not-cancel-run');
   await click('.settings-cancel');
   await condition("document.querySelector('app-settings') === null && getComputedStyle(document.querySelector('.ai-panel')).display !== 'none'");
-  assert.deepEqual(await aiWindowState(), preserved, 'Settings layout suspension preserves conversation state');
+  assert.deepEqual(await aiWindowState(true), preserved, 'Settings layout suspension preserves conversation state');
   await typeMessage(initial.draft);
   await click('.ai-panel-header [aria-label="Close AI analysis"]');
   await condition("document.querySelector('ai-panel') === null");
@@ -2175,6 +2392,10 @@ if(process.argv[2]==='app-server'){
       runtimeErrors.push(message.params.exceptionDetails.text);
     if (message.method === "Network.requestWillBeSent" && new URL(message.params.request.url).hostname === "markdown-fixture.invalid")
       markdownBrowserEvidence.inertResourceRequests.push(message.params.request.url);
+    if (message.method === 'Network.requestWillBeSent' && /\/ai\/api\/sessions\/[^/]+\/stream$/.test(new URL(message.params.request.url).pathname))
+      aiWindowStreamRequests.push({requestId: message.params.requestId, url: message.params.request.url});
+    if (['Network.loadingFinished', 'Network.loadingFailed'].includes(message.method) && aiWindowStreamRequests.some(request => request.requestId === message.params.requestId))
+      aiWindowStreamEnds.push({requestId: message.params.requestId, type: message.method, error: message.params.errorText});
     const item = pending.get(message.id);
     if (!item) return;
     pending.delete(message.id);
@@ -2622,7 +2843,7 @@ if(process.argv[2]==='app-server'){
   result.markdown = markdownBrowserEvidence;
   await writeFile(
     join(evidenceDir, 'ai-window-browser.json'),
-    JSON.stringify({ok: true, checks: aiWindowChecks, metrics: aiWindowEvidence, screenshots: aiWindowScreenshots}, null, 2) + '\n',
+    JSON.stringify({ok: true, checks: aiWindowChecks, metrics: aiWindowEvidence, screenshots: aiWindowScreenshots, streams: {requests: aiWindowStreamRequests, ended: aiWindowStreamEnds}}, null, 2) + '\n',
   );
   await writeFile(
     join(evidenceDir, "ai-compact-density.json"),
@@ -2641,7 +2862,7 @@ if(process.argv[2]==='app-server'){
     }
     await writeFile(
       join(evidenceDir, 'ai-window-browser.json'),
-      JSON.stringify({ok: false, error: String(error), checks: aiWindowChecks, metrics: aiWindowEvidence, screenshots: aiWindowScreenshots}, null, 2) + '\n',
+      JSON.stringify({ok: false, error: String(error), checks: aiWindowChecks, metrics: aiWindowEvidence, screenshots: aiWindowScreenshots, streams: {requests: aiWindowStreamRequests, ended: aiWindowStreamEnds}}, null, 2) + '\n',
     );
   }
   if (socket?.readyState === WebSocket.OPEN)

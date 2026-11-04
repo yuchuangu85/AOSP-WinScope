@@ -1,11 +1,26 @@
 .ai-panel.ai-window {
   --ai-window-gap: 8px;
+  inset: auto;
+  left: max(8px, calc((100% - 1040px) / 2));
+  top: max(40px, calc((100% - 720px + 32px) / 2));
+  width: min(1040px, calc(100% - 16px));
+  height: min(720px, calc(100% - 48px));
   box-sizing: border-box;
   container-type: size;
   min-width: min(var(--ai-window-min-width), calc(100% - 16px));
   min-height: min(var(--ai-window-min-height), calc(100% - 48px));
   max-width: calc(100% - 16px);
   max-height: calc(100% - 48px);
+}
+
+.ai-panel .ai-window-drag {
+  cursor: move;
+  touch-action: none;
+  user-select: none;
+}
+.ai-panel .ai-window-drag:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
 }
 
 .ai-panel.ai-window.sidebar-hidden,
@@ -90,6 +105,10 @@
 @media (max-width: 760px) {
   .ai-panel.ai-window {
     --ai-window-gap: 0px;
+    left: max(0px, calc((100% - 1040px) / 2));
+    top: max(32px, calc((100% - 720px + 32px) / 2));
+    width: min(1040px, 100%);
+    height: min(720px, calc(100% - 32px));
     min-width: min(var(--ai-window-min-width), 100%);
     min-height: min(var(--ai-window-min-height), calc(100% - 32px));
     max-width: 100%;

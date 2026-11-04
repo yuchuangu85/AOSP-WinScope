@@ -31,6 +31,7 @@ export const AI_TRANSLATIONS: Record<string, string> = {
     'AI 连接已中断，请重新打开此会话以恢复连接。',
   'AI analysis workspace': 'AI 分析工作区',
   'Resize AI window': '调整 AI 窗口大小',
+  'Move AI window': '移动 AI 窗口',
   'Close conversation browser': '关闭会话浏览器',
   'Conversation browser': '会话浏览器',
   'Conversations': '会话',
