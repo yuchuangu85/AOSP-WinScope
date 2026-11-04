@@ -45,17 +45,30 @@ the smoke-tested unpacked application and re-verified by
 
 ### Installing on macOS
 
-The DMG/PKG are unsigned, so a browser-downloaded copy is quarantined and macOS
-reports it as damaged rather than offering a Developer ID prompt. After copying
-the application to `/Applications`, clear the download flag once:
+1. Open the DMG and drag **AOSP WinScope** into `/Applications` (or run the PKG).
+2. Double-click the app. macOS blocks the first launch because the bundle is not
+   notarized and shows *"Apple could not verify AOSP WinScope is free of
+   malware"* (or *"cannot be opened because the developer cannot be verified"*).
+   Click **Done**.
+3. Open **System Settings → Privacy & Security**, scroll to **Security**, find the
+   blocked **AOSP WinScope** entry and click **Open Anyway**, then confirm with
+   Touch ID or the login password.
+4. Double-click the app again and confirm **Open**. The warning appears only for
+   the first launch of each installed copy.
+
+On macOS 13/14 the same result is available from Finder with **Control-click →
+Open → Open**. From Terminal, clearing the download flag also works and does not
+require any approval:
 
 ```sh
 xattr -dr com.apple.quarantine "/Applications/AOSP WinScope.app"
 ```
 
-This removes only the download-origin flag; it does not sign, notarize, or vouch
-for the application. Equivalent Windows SmartScreen and Linux package prompts are
-not publisher authentication either.
+These steps only bypass the quarantine/notarization prompt for a locally
+installed copy. They are not Developer ID signing or notarization, do not change
+the bundle's trust, and must be repeated for each newly downloaded build.
+Equivalent Windows SmartScreen and Linux package-manager prompts are not
+publisher authentication either.
 
 ### Trust and limitations
 

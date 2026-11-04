@@ -605,19 +605,24 @@ resources rather than nested code, so the runtime inventory digests recorded by
 bundled runtime. Local `desktop:dist` runs remain unsigned unless the operator
 signs them explicitly.
 
-A candidate downloaded through a browser carries the macOS quarantine flag.
-Because the bundle has no Developer ID signature, Gatekeeper refuses it as
-"damaged" instead of offering an identity prompt. After copying the application
-to `/Applications`, clear the download flag from the installed copy:
+A candidate downloaded through a browser carries the macOS quarantine flag. With
+the candidate lane's ad-hoc signature, Gatekeeper reports it as an unverified
+developer (not "damaged") and the operator can approve it once through
+**System Settings → Privacy & Security → Security → Open Anyway**, or with
+Control-click → Open on macOS 13/14. Clearing the download flag from the
+installed copy works as well and needs no approval:
 
 ```sh
 xattr -dr com.apple.quarantine "/Applications/AOSP WinScope.app"
 ```
 
-That only removes the download-origin flag that makes Gatekeeper reject an
-unsigned bundle; it does not sign, notarize, or vouch for the application. The
-equivalent Windows SmartScreen and Linux package prompts are also not publisher
-authentication.
+A locally built, completely unsigned bundle (`npm run desktop:dist` without the
+ad-hoc signing step) fails `codesign --verify`, so Gatekeeper refuses it as
+"damaged" and offers no Open Anyway entry; only clearing the download flag or
+signing the bundle makes it launchable. None of these steps signs, notarizes, or
+vouches for the application, and they must be repeated for each newly downloaded
+build. The equivalent Windows SmartScreen and Linux package prompts are also not
+publisher authentication.
 
 Local unsigned installer identity is limited to names and package metadata:
 an app ID, bundle/package identifier, version, or installer filename is not an

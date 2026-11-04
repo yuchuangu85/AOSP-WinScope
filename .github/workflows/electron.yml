@@ -344,7 +344,20 @@ jobs:
           sandbox="$(dirname "$PACKAGED_EXECUTABLE")/chrome-sandbox"
           sudo chown root:root "$sandbox"
           sudo chmod 4755 "$sandbox"
-          xvfb-run -a node desktop/smoke.mjs --executable "$PACKAGED_EXECUTABLE"
+          # Hosted ARM64 runners intermittently fail GPU/viz initialization
+          # under Xvfb (UnknownVizError) before the app can render. Retry once so
+          # a transient compositor failure does not fail the target.
+          for attempt in 1 2; do
+            if xvfb-run -a node desktop/smoke.mjs --executable "$PACKAGED_EXECUTABLE"; then
+              exit 0
+            fi
+            if [ "$attempt" = 2 ]; then
+              echo "Packaged Linux smoke failed twice" >&2
+              exit 1
+            fi
+            echo "Packaged Linux smoke attempt $attempt failed; retrying" >&2
+            sleep 10
+          done
 
       - name: Smoke the packaged runtime natively
         if: runner.os != 'Linux'
