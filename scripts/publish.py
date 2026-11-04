@@ -601,7 +601,7 @@ def emit(payload: dict[str, Any], as_json: bool) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("publish", "verify"))
-    parser.add_argument("--version", default="17.0.1-rc.1")
+    parser.add_argument("--version", default="17.0.2-rc.1")
     parser.add_argument("--release-dir", type=Path, default=ROOT / "dist/release")
     parser.add_argument("--validation", type=Path, default=ROOT / "dist/validation/report.json")
     parser.add_argument("--reproducibility", type=Path, default=DEFAULT_REPRODUCIBILITY)
