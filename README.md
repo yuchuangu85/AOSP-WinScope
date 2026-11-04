@@ -20,12 +20,17 @@ OS rights, and Linux udev permissions still apply.
 
 The five-target contract requires ten installer assets: DMG/PKG only for each
 macOS architecture, NSIS EXE/MSI only for Windows x64, and DEB/RPM only for each
-Linux architecture. GitHub Actions retains only the read-only
-[`electron.yml`](.github/workflows/electron.yml) Desktop packaging workflow,
-triggered manually or by path-filtered PRs, with its reusable interface retained.
-It produces native installers and uploads Actions artifacts; it does not publish
-a GitHub Release. The duplicate packaging entry point, official/candidate release
-publishers, and standalone security workflow have been removed. There is no
+Linux architecture. The read-only
+[`electron.yml`](.github/workflows/electron.yml) Desktop packaging workflow runs
+manually or on path-filtered PRs and retains its reusable interface. After a
+manual run on the repository's default branch succeeds,
+[`release.yml`](.github/workflows/release.yml) automatically revalidates its
+complete publication and publishes a GitHub **Pre-release** tagged
+`v<version>-desktop.<packaging-run-id>`. PRs, other branches, failed or cancelled
+runs do not publish. Uploads remain unpublished drafts until their exact asset
+names, sizes, and SHA-256 digests pass remote verification; existing releases
+and tags are never overwritten. The protected official-release and standalone
+security workflows remain removed. There is no
 portable Launcher ZIP, desktop ZIP, AppImage, binary tar.gz, or universal macOS
 package. Packages are unsigned; local installer names and metadata do not
 authenticate a publisher. This packaging lane supplies no official OIDC
@@ -43,8 +48,9 @@ produces its attestations. Desktop metadata and checksums are integrity evidence
 not release approval or authenticated provenance. GitHub Actions may
 use ZIP for artifact transfer; that transport is not a release ZIP product.
 
-This multi-platform release implementation is underway, not a claim that hosted
-jobs or release qualification have passed. See [Electron Desktop](docs/ELECTRON.md)
+This multi-platform release implementation is underway; adding the publisher is
+not evidence of a successful hosted publication or official release qualification.
+See [Electron Desktop](docs/ELECTRON.md)
 for installation, artifact names/index/checksums, build/start/test commands, data
 retention, and validation gaps, and
 [ADR 0030](docs/adr/0030-multi-platform-desktop-release.md) for the release policy.

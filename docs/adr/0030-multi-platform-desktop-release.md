@@ -12,11 +12,13 @@ CI distribution policy updated on 2026-11-04: native installers and required
 evidence only; no portable executable/archive generation or publication in
 GitHub workflows. Local/manual legacy CLI contracts are retained.
 
-Subsequent CI scope reduction on 2026-11-04: only `electron.yml` remains, with
-Desktop packaging, native smoke checks, and Actions artifact uploads. The
-duplicate packaging entry point, official release, candidate publication, and
-security workflows have been removed. This supersedes the automated publication
-portion of this decision, not the native installer or local/manual trust contracts.
+CI automation updated on 2026-11-04: retain `electron.yml` for read-only Desktop
+packaging, native smoke checks, and artifact uploads; add `release.yml` to publish
+successful default-branch manual builds as candidate Pre-releases after local
+and remote asset verification. The duplicate packaging entry point, protected
+official-release workflow, old manual candidate publisher, and standalone
+security workflow remain removed. This candidate automation does not restore
+official release authority or weaken the native/local/manual trust contracts.
 
 ## Context
 
@@ -120,8 +122,8 @@ and [ADR 0017](0017-ship-redistribution-evidence-with-every-release.md).
 
 Keep [`electron.yml`](../../.github/workflows/electron.yml) read-only and reusable
 through `workflow_call`, in addition to manual and path-filtered PR candidate
-runs. It is the only retained workflow; the duplicate `package.yml` entry point
-has been removed. It adds no push or scheduled trigger.
+runs. The separate `release.yml` consumes eligible completed runs; the duplicate
+`package.yml` entry point remains removed. Neither adds a push or scheduled trigger.
 Manual/PR runs build shared Web, Trace Processor WASM,
 and AI once through the pinned Linux build pipeline. Native jobs consume same-run, same-commit
 `dist/prod` and `ai/dist` via `--skip-web-build`; they must not silently rebuild
@@ -166,7 +168,7 @@ source asset, identity, size, digest, and exact file/checksum inventory. Reject
 partial, duplicate, mixed-version/commit, stale, or altered deliveries. All five
 native jobs must succeed; there is no silent allow-partial mode.
 
-### Packaging artifacts, not automated publication
+### Packaging artifacts and automatic candidate publication
 
 The candidate gate produces Actions artifacts, not official publication:
 `electron-installers-<target>-<commit>` and
@@ -175,15 +177,26 @@ The candidate gate produces Actions artifacts, not official publication:
 recorded lineage audit does not approve a release or waive official lineage
 failure.
 
-The official and candidate publication workflows have been removed. Tags do not
-trigger a retained workflow, and manual candidate dispatch cannot publish.
-`scripts/installer_evidence.py`, release validation tools, and
-`desktop/release.mjs check-remote` remain local/manual tools. Their integrity,
-lineage, external-evidence, and approval requirements are not weakened by this
-CI reduction. GitHub workflows invoke neither `publish.py` nor
-`verify-aps-release.py`. Keep credential and approval policy unchanged, and never
-publish raw protected external secret manifests. Pre-existing provenance or
-advisory failures remain blockers to any separately authorized release work.
+The separate `release.yml` uses `workflow_run: completed` to publish only
+successful manual builds on the same repository's default branch. PRs, forks,
+other branches, failures, and cancellations do not publish. Revalidate the
+source run's identity/path/attempt, default-branch ancestry, exact source SHA,
+and complete aggregate from that run before creating any release state.
+Create a unique `v<version>-desktop.<packaging-run-id>` tag at the source commit,
+refuse existing tags/releases, and upload all desktop files to an unpublished draft.
+Reuse `desktop/release.mjs check-remote --tag` to verify exact asset names,
+uploaded states, sizes, and REST SHA-256 digests, then recheck the tag's source
+SHA before publishing with `prerelease=true` and `make_latest=false`. Failures
+leave the draft unpublished; reruns never overwrite it. Only this publisher gets
+`contents: write`; the build stays read-only and all actions stay SHA-pinned.
+
+Tags do not trigger packaging. The protected official publisher remains absent.
+`scripts/installer_evidence.py` and official validation tools remain local/manual;
+their lineage, external-evidence, and approval requirements are unchanged.
+GitHub workflows invoke neither `publish.py` nor `verify-aps-release.py`, and
+never publish raw protected external secret manifests. Candidate Pre-releases
+are not OIDC-attested official releases and do not waive provenance or advisory
+blockers to separately authorized official release work.
 
 For separately authorized local/manual publication, stage release evidence and
 desktop assets in separate verified flat directories,
@@ -199,7 +212,7 @@ require the matching unpublished draft/tag and compare exact
 combined names, uploaded state, byte sizes, and REST SHA-256 digests against both
 local directories. Only after that check succeeds may the publisher set
 `draft=false`. A local checksum pass alone is insufficient. Failed uploads or
-verification leave the draft private for operator diagnosis, not automatic
+verification leave the draft unpublished for operator diagnosis, not automatic
 replacement.
 Actions artifact transfer may still use ZIP transport, but that is not a release
 ZIP product or permission to generate portable archives in CI.

@@ -652,16 +652,26 @@ export async function checkRemote({
   metadata,
   version,
   commit,
+  tag,
 }) {
   requireValue(
     !(portable !== undefined && evidence !== undefined),
     "Portable and evidence publication directories are mutually exclusive",
   );
   await verify({ directory: desktop, version, commit });
+  const releaseTag = tag ?? `v${version}`;
+  const candidatePrefix = `v${version}-desktop.`;
+  requireValue(
+    releaseTag === `v${version}` ||
+      (typeof releaseTag === "string" &&
+        releaseTag.startsWith(candidatePrefix) &&
+        /^[1-9]\d*$/.test(releaseTag.slice(candidatePrefix.length))),
+    "Remote release tag must match the desktop version or its candidate run",
+  );
   const release = await json(metadata);
   requireValue(
     release.draft === true &&
-      release.tag_name === `v${version}` &&
+      release.tag_name === releaseTag &&
       Array.isArray(release.assets),
     "Remote release must be the same-version unpublished draft",
   );
@@ -735,6 +745,7 @@ function argumentsFor(args) {
       "metadata",
       "version",
       "commit",
+      "tag",
     ],
   }[command];
   const options = {};
@@ -754,7 +765,10 @@ function argumentsFor(args) {
     (name) =>
       name !== "github-output" &&
       !(command === "plan" && name === "version") &&
-      !(command === "check-remote" && ["portable", "evidence"].includes(name)),
+      !(
+        command === "check-remote" &&
+        ["portable", "evidence", "tag"].includes(name)
+      ),
   )) {
     requireValue(
       typeof options[name] === "string" && options[name].length > 0,

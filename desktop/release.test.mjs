@@ -404,6 +404,63 @@ async function remoteMetadata(root, directories) {
   return { metadata, value };
 }
 
+test("candidate draft tags are explicit, version-bound and still digest-verified", async (t) => {
+  const { root, output } = await publication(t);
+  const { metadata, value } = await remoteMetadata(root, [output]);
+  const tag = `v${version}-desktop.123456`;
+  value.tag_name = tag;
+  await write(metadata, value);
+  const options = { desktop: output, metadata, version, commit, tag };
+  assert.equal((await checkRemote(options)).tag, tag);
+  // The official default continues to reject candidate tags without opt-in.
+  await assert.rejects(checkRemote({ ...options, tag: undefined }));
+  for (const invalid of [
+    "v99.0.0-desktop.123456",
+    `v${version}-desktop.0`,
+    `v${version}-desktop.01`,
+    `v${version}-desktop.1/other`,
+    `v${version}-desktop.1\n`,
+    `v${version}-rc.1`,
+  ]) {
+    await write(metadata, { ...value, tag_name: invalid });
+    await assert.rejects(checkRemote({ ...options, tag: invalid }));
+  }
+  for (const mutate of [
+    (v) => (v.draft = false),
+    (v) => (v.tag_name = `${tag}9`),
+    (v) => v.assets.pop(),
+    (v) => (v.assets[0].digest = "sha256:" + "0".repeat(64)),
+    (v) => (v.assets[0].size += 1),
+    (v) => (v.assets[0].state = "new"),
+  ]) {
+    const changed = structuredClone(value);
+    mutate(changed);
+    await write(metadata, changed);
+    await assert.rejects(checkRemote(options));
+  }
+  await write(metadata, value);
+  const result = spawnSync(
+    process.execPath,
+    [
+      path.join(import.meta.dirname, "release.mjs"),
+      "check-remote",
+      "--desktop",
+      output,
+      "--metadata",
+      metadata,
+      "--version",
+      version,
+      "--commit",
+      commit,
+      "--tag",
+      tag,
+    ],
+    { encoding: "utf8" },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).tag, tag);
+});
+
 test("remote installer-only evidence publication is exact and digest-bound", async (t) => {
   const { root, output } = await publication(t);
   const evidence = path.join(root, "evidence");

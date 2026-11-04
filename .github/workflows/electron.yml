@@ -21,6 +21,7 @@ on:
       - .github/workflows/**
       - tests/test_electron_workflow.py
       - tests/test_ci_configuration.py
+      - tests/test_release_workflow.py
       - README.md
       - docs/ELECTRON.md
       - docs/adr/0029-electron-desktop-distribution.md
@@ -140,6 +141,7 @@ jobs:
           go test -race -count=1 ./cmd/launcher
           go vet ./cmd/launcher
           python3 -m unittest tests.test_desktop_capture_shutdown tests.test_security
+          python3 -m unittest tests.test_electron_workflow tests.test_ci_configuration tests.test_release_workflow
           python3 -m unittest discover -s desktop -p '*_test.py'
 
       - name: Transfer same-commit shared artifacts

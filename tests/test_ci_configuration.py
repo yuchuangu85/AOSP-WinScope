@@ -7,13 +7,13 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class CIConfigurationTest(unittest.TestCase):
-    def test_only_desktop_packaging_workflow_is_kept(self):
+    def test_only_desktop_packaging_and_publication_workflows_are_kept(self):
         workflows = {
             path.name
             for path in (ROOT / ".github/workflows").iterdir()
             if path.is_file() and path.suffix in {".yml", ".yaml"}
         }
-        self.assertEqual(workflows, {"electron.yml"})
+        self.assertEqual(workflows, {"electron.yml", "release.yml"})
 
     def test_desktop_ci_does_not_invoke_legacy_release_publishers(self):
         workflow = (ROOT / ".github/workflows/electron.yml").read_text(encoding="utf-8")
