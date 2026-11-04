@@ -102,6 +102,83 @@ async function openConversationSettings() {
   })()`);
   await condition("document.querySelector('app-settings') !== null");
 }
+async function settingsButtonFocusRegression() {
+  const initial = await evaluate('({width:innerWidth,height:innerHeight,dark:document.body.classList.contains("dark-mode")})');
+  const metrics = [];
+  const key = async (key, code, keyCode, extra = {}) => {
+    await cdp('Input.dispatchKeyEvent', {type: 'keyDown', key, code, windowsVirtualKeyCode: keyCode, ...extra});
+    await cdp('Input.dispatchKeyEvent', {type: 'keyUp', key, code, windowsVirtualKeyCode: keyCode, modifiers: extra.modifiers ?? 0});
+  };
+  const state = () => evaluate(`(() => {
+    const button=document.querySelector('.toolbar .settings-button');
+    const layer=button.querySelector('.mat-mdc-button-persistent-ripple');
+    return {focused:document.activeElement===button,visible:button.matches(':focus-visible'),hover:button.matches(':hover'),classes:button.className,opacity:Number(getComputedStyle(layer,'::before').opacity)};
+  })()`);
+  try {
+    for (const [width, height] of [[1280, 800], [390, 844]]) {
+      await cdp('Emulation.setDeviceMetricsOverride', {width, height, deviceScaleFactor: 1, mobile: false});
+      for (const dark of [false, true]) {
+        await evaluate(`document.body.classList.toggle('dark-mode',${dark})`);
+        for (const close of ['.settings-close-button', '.settings-cancel', '.settings-save']) {
+          await aiMouseClick('.toolbar .settings-button');
+          await condition("document.querySelector('app-settings') !== null");
+          if (close === '.settings-save') await condition("document.querySelector('.settings-save')?.disabled===false");
+          await aiMouseClick(close);
+          await condition("document.querySelector('app-settings') === null && document.activeElement===document.querySelector('.toolbar .settings-button')");
+          await cdp('Input.dispatchMouseEvent', {type: 'mouseMoved', x: 1, y: 300});
+          await condition("document.querySelector('.toolbar .settings-button').querySelector('.mat-ripple-element') === null");
+          await settleAiWindow();
+          const restored = await state();
+          metrics.push({width, dark, close, mouse: restored});
+          await screenshot(`settings-button-mouse-${width}-${dark?'dark':'light'}.png`);
+          assert.equal(restored.focused, true, 'Closing settings restores the opener focus');
+          assert.equal(restored.visible, false, 'Mouse dismissal does not require a keyboard focus indicator');
+          assert.equal(restored.hover, false);
+          assert.equal(restored.opacity, 0, `Mouse dismissal leaves no circular state layer: ${JSON.stringify(restored)}`);
+        }
+        const point = await evaluate("(() => {const r=document.querySelector('.toolbar .settings-button').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()");
+        await cdp('Input.dispatchMouseEvent', {type: 'mouseMoved', ...point});
+        await settleAiWindow();
+        const hover = await state();
+        metrics.push({width, dark, hover});
+        assert.equal(hover.hover, true);
+        assert.ok(hover.opacity > 0, 'Hover feedback survives programmatic focus restoration');
+        await cdp('Input.dispatchMouseEvent', {type: 'mouseMoved', x: 1, y: 300});
+        await settleAiWindow();
+        assert.equal((await state()).opacity, 0, 'Moving away removes the hover state');
+        for (const close of ['escape', 'save']) {
+          await evaluate("document.querySelector('.toolbar .ai-open-button').focus()");
+          await key('Tab', 'Tab', 9);
+          await condition("document.activeElement===document.querySelector('.toolbar .settings-button') && document.activeElement.matches(':focus-visible')");
+          await key('Enter', 'Enter', 13, {text: '\r', unmodifiedText: '\r'});
+          await condition("document.querySelector('app-settings') !== null");
+          await condition("document.querySelector('.mat-mdc-tooltip') === null");
+          if (close === 'save') {
+            await condition("document.querySelector('.settings-save')?.disabled===false");
+            await evaluate("document.querySelector('.settings-save').focus()");
+            await key('Enter', 'Enter', 13, {text: '\r', unmodifiedText: '\r'});
+          } else await key('Escape', 'Escape', 27);
+          await condition("document.querySelector('app-settings') === null && document.activeElement===document.querySelector('.toolbar .settings-button')");
+          await condition("document.querySelector('.toolbar .settings-button').querySelector('.mat-ripple-element') === null");
+          await settleAiWindow();
+          const keyboard = await state();
+          metrics.push({width, dark, close, keyboard});
+          assert.equal(keyboard.visible, true, 'Keyboard dismissal preserves a visible focus indicator');
+          assert.ok(keyboard.opacity > 0, 'Keyboard focus keeps the Material state layer');
+          await screenshot(`settings-button-keyboard-${width}-${dark?'dark':'light'}.png`);
+        }
+      }
+    }
+    await writeFile(join(evidenceDir, 'settings-button-focus.json'), JSON.stringify({ok: true, metrics}, null, 2));
+  } catch (error) {
+    await writeFile(join(evidenceDir, 'settings-button-focus.json'), JSON.stringify({ok: false, error: String(error), metrics}, null, 2));
+    throw error;
+  } finally {
+    await cdp('Emulation.setDeviceMetricsOverride', {width: initial.width, height: initial.height, deviceScaleFactor: 1, mobile: false});
+    await evaluate(`document.body.classList.toggle('dark-mode',${initial.dark})`);
+    await evaluate('document.activeElement?.blur()');
+  }
+}
 async function diagnosticPromptRegression() {
   const original = await evaluate("document.querySelector('.composer-input').value");
   const viewport = await evaluate('({width:innerWidth,height:innerHeight})');
@@ -215,6 +292,10 @@ async function openConversationModels() {
     const panel=document.querySelector('.conversation-model-list')?.closest('.mat-mdc-menu-panel');
     return panel && getComputedStyle(panel).opacity==='1' && !panel.getAnimations({subtree:true}).some(animation=>animation.playState==='running') && !document.querySelector('.mat-mdc-tooltip');
   })()`);
+  await condition(`(() => {
+    const input=document.querySelector('.conversation-model-list .model-search-input');
+    return input?.type==='search' && !input.disabled && document.activeElement===input;
+  })()`);
 }
 async function chooseConversationModel(value) {
   if (!await evaluate("document.querySelector('.conversation-model-list') !== null")) await openConversationModels();
@@ -225,25 +306,147 @@ async function chooseConversationModel(value) {
   })()`);
   await condition("document.querySelector('.conversation-model-list') === null");
 }
+const modelMenuEvidence = [];
+const modelMenuAnalysisRequests = [];
+let modelMenuPassed = false;
+const modelMenuChecks = [
+  'model-menu-1280-390-light-dark-rounded12-content-width-and-viewport-cap',
+  'model-menu-36px-single-line-labels-mobile-ellipsis-and-full-title',
+  'model-search-autofocus-reset-and-fixed-header-above-scrolling-results',
+  'model-search-single-header-focus-underline-without-input-outline',
+  'model-search-trusted-case-insensitive-trimmed-name-and-id-filter',
+  'model-search-native-text-space-and-select-all-without-typeahead',
+  'model-search-empty-status-clear-and-header-click-stay-open',
+  'model-search-enter-no-submit-arrow-first-last-and-keyboard-selection',
+  'model-search-escape-outside-dismissal-and-unsent-draft-preservation',
+];
 async function conversationModelMenuRegression() {
-  const initial=await evaluate('({width:innerWidth,height:innerHeight,dark:document.body.classList.contains("dark-mode"),draft:document.querySelector(".composer-input").value})');
+  const initial=await evaluate('({width:innerWidth,height:innerHeight,dark:document.body.classList.contains("dark-mode"),draft:document.querySelector(".composer-input").value,model:document.querySelector(".model-select").value,turns:document.querySelectorAll(".chat-turn").length})');
+  const draft='Keep this unsent composer draft while searching models';
+  const mainModel=JSON.stringify(['browser-fixture','fixture-model']);
+  const alternateModel=JSON.stringify(['browser-fixture','fixture-alternate']);
+  const allModels=[JSON.stringify(['browser-fixture','default']),mainModel,alternateModel];
+  const requestsBefore=modelMenuAnalysisRequests.length;
+  const sessionsBefore=await evaluate("fetch('./ai/api/sessions').then(response=>response.json()).then(body=>body.sessions.map(session=>session.sessionId).sort())");
+  const key=async (key,code,virtualKeyCode,extra={})=>{
+    await cdp('Input.dispatchKeyEvent',{type:'keyDown',key,code,windowsVirtualKeyCode:virtualKeyCode,...(key==='Enter'?{text:'\r',unmodifiedText:'\r'}:{}),...extra});
+    await cdp('Input.dispatchKeyEvent',{type:'keyUp',key,code,windowsVirtualKeyCode:virtualKeyCode,modifiers:extra.modifiers??0});
+  };
+  const pointerClick=async (selector)=>{
+    const point=await evaluate(`(() => {const e=document.querySelector(${JSON.stringify(selector)}),r=e.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
+    for (const type of ['mousePressed','mouseReleased']) await cdp('Input.dispatchMouseEvent',{type,...point,button:'left',buttons:type==='mousePressed'?1:0,clickCount:1});
+  };
+  const options=()=>evaluate("[...document.querySelectorAll('.model-search-results [data-model-value]')].map(option=>option.getAttribute('data-model-value'))");
+  let selectAllCommands;
+  const replaceQuery=async (text)=>{
+    await evaluate("document.querySelector('.model-search-input').focus()");
+    const mac=await evaluate("/Mac/.test(navigator.platform)");
+    const before=await evaluate("(() => {const e=document.querySelector('.model-search-input');return {value:e.value,start:e.selectionStart,end:e.selectionEnd};})()");
+    await key('a','KeyA',65,{modifiers:mac?4:2,...(selectAllCommands?{commands:selectAllCommands}:{})});
+    if (selectAllCommands===undefined) {
+      const sourceRaw=await evaluate("(() => {const e=document.querySelector('.model-search-input');return {selected:e.selectionEnd-e.selectionStart===e.value.length,focused:document.activeElement===e,key:globalThis.__modelSearchKeys.at(-1)};})()");
+      assert.equal(sourceRaw.focused,true);
+      assert.equal(sourceRaw.key.trusted,true);
+      assert.equal(sourceRaw.key.prevented,false,'Application does not prevent the native select-all shortcut');
+      await evaluate(`(() => {
+        const e=document.createElement('input');e.id='model-native-edit-probe';e.type='search';
+        e.value=${JSON.stringify(before.value)};e.style.cssText='position:fixed;left:0;top:0;width:160px';
+        e.addEventListener('keydown',event=>globalThis.__modelNativeEditKey=event);
+        document.body.append(e);e.focus();e.setSelectionRange(${before.start},${before.end});
+      })()`);
+      await key('a','KeyA',65,{modifiers:mac?4:2});
+      const plainRaw=await evaluate("(() => {const e=document.querySelector('#model-native-edit-probe'),k=globalThis.__modelNativeEditKey;return {selected:e.selectionEnd-e.selectionStart===e.value.length,focused:document.activeElement===e,key:{key:k.key,ctrl:k.ctrlKey,meta:k.metaKey,trusted:k.isTrusted,prevented:k.defaultPrevented}};})()");
+      assert.equal(plainRaw.focused,true);
+      assert.equal(plainRaw.key.trusted,true);
+      assert.equal(plainRaw.key.prevented,false);
+      assert.equal(sourceRaw.selected,plainRaw.selected,'Model search and an unhandled plain search input have identical native select-all behavior');
+      selectAllCommands=plainRaw.selected?[]:['selectAll'];
+      let plainCommand;
+      if (selectAllCommands.length) {
+        // CDP may omit the host's native edit binding; prove it on a plain input first.
+        await key('a','KeyA',65,{modifiers:mac?4:2,commands:selectAllCommands});
+        plainCommand=await evaluate("(() => {const e=document.querySelector('#model-native-edit-probe'),k=globalThis.__modelNativeEditKey;return {selected:e.selectionEnd-e.selectionStart===e.value.length,trusted:k.isTrusted,prevented:k.defaultPrevented};})()");
+        assert.deepEqual(plainCommand,{selected:true,trusted:true,prevented:false});
+      }
+      await evaluate("document.querySelector('#model-native-edit-probe').remove();delete globalThis.__modelNativeEditKey;document.querySelector('.model-search-input').focus()");
+      await key('a','KeyA',65,{modifiers:mac?4:2,commands:selectAllCommands});
+      const sourceCommand=await evaluate("(() => {const e=document.querySelector('.model-search-input');return {selected:e.selectionEnd-e.selectionStart===e.value.length,key:globalThis.__modelSearchKeys.at(-1)};})()");
+      assert.equal(sourceCommand.key.trusted,true);
+      assert.equal(sourceCommand.key.prevented,false);
+      modelMenuEvidence.at(-1).nativeSelectAll={sourceRaw,plainRaw,plainCommand,sourceCommand,commands:selectAllCommands};
+    }
+    assert.equal(await evaluate("document.querySelector('.model-search-input').selectionEnd-document.querySelector('.model-search-input').selectionStart===document.querySelector('.model-search-input').value.length"),true,'Search keeps native select-all');
+    await cdp('Input.insertText',{text});
+    await condition(`document.querySelector('.model-search-input')?.value===${JSON.stringify(text)}`);
+  };
+  const assertDraft=async ()=>{
+    assert.equal(await evaluate("document.querySelector('.composer-input').value"),draft);
+    assert.equal(await evaluate("document.querySelectorAll('.chat-turn').length"),initial.turns);
+    assert.equal(modelMenuAnalysisRequests.length,requestsBefore,'Model search never submits an analysis request');
+  };
+  const closeWithEscape=async ()=>{
+    await key('Escape','Escape',27);
+    await condition("document.querySelector('.conversation-model-list') === null");
+    await condition("document.querySelector('.model-select')===document.activeElement");
+    await assertDraft();
+  };
+  await typeMessage(draft);
+  await evaluate(`(() => {
+    const e=document.createElement('button');e.id='model-native-enter-probe';e.type='button';
+    e.style.cssText='position:fixed;left:0;top:0';e.textContent='Native Enter probe';
+    globalThis.__modelNativeEnterClicks=[];
+    e.addEventListener('click',event=>globalThis.__modelNativeEnterClicks.push({trusted:event.isTrusted}));
+    e.addEventListener('keydown',event=>globalThis.__modelNativeEnterKey=event);
+    document.body.append(e);e.focus();
+  })()`);
+  await key('Enter','Enter',13,{text:'',unmodifiedText:''});
+  const enterWithoutText=await evaluate("({clicks:globalThis.__modelNativeEnterClicks.length,trusted:globalThis.__modelNativeEnterKey.isTrusted,prevented:globalThis.__modelNativeEnterKey.defaultPrevented})");
+  await key('Enter','Enter',13);
+  const enterWithText=await evaluate("({clicks:globalThis.__modelNativeEnterClicks.length,trusted:globalThis.__modelNativeEnterKey.isTrusted,prevented:globalThis.__modelNativeEnterKey.defaultPrevented,click:globalThis.__modelNativeEnterClicks.at(-1)})");
+  assert.equal(enterWithText.clicks,enterWithoutText.clicks+1,'Complete trusted Enter event activates an unhandled native button');
+  assert.equal(enterWithText.trusted,true);
+  assert.equal(enterWithText.prevented,false);
+  assert.equal(enterWithText.click.trusted,true);
+  await evaluate("document.querySelector('#model-native-enter-probe').remove();delete globalThis.__modelNativeEnterClicks;delete globalThis.__modelNativeEnterKey");
+  await assertDraft();
   for (const [width, height, dark] of [[1280,800,false],[1280,800,true],[390,844,false],[390,844,true]]) {
     await cdp('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false});
     await evaluate(`document.body.classList.toggle('dark-mode',${dark})`);
     await openConversationModels();
     const menu=await evaluate(`(() => {
-      const trigger=document.querySelector('.model-select'),list=document.querySelector('.conversation-model-list'),panel=list.closest('.mat-mdc-menu-panel'),r=panel.getBoundingClientRect();
+      const trigger=document.querySelector('.model-select'),list=document.querySelector('.conversation-model-list'),panel=list.closest('.mat-mdc-menu-panel'),r=panel.getBoundingClientRect(),input=list.querySelector('.model-search-input'),header=list.querySelector('.model-search'),results=list.querySelector('.model-search-results'),h=header.getBoundingClientRect(),s=results.getBoundingClientRect();
       const rows=[...list.querySelectorAll('[data-model-value]')].map(option=>{
         const label=option.querySelector('.model-option-label'),check=option.querySelector('.model-option-check'),group=option.closest('.model-group').querySelector('.model-group-label');
         const l=label.getBoundingClientRect(),c=check.getBoundingClientRect(),o=option.getBoundingClientRect(),g=group.getBoundingClientRect();
-        return {labelLeft:l.left,labelRight:l.right,checkLeft:c.left,checkRight:c.right,checkCenter:c.top+c.height/2,rowCenter:o.top+o.height/2,rowRight:o.right,groupTextLeft:g.left+parseFloat(getComputedStyle(group).paddingLeft),checked:option.getAttribute('aria-checked')==='true',checkVisible:getComputedStyle(check).visibility==='visible'};
+        const style=getComputedStyle(label);
+        return {name:label.textContent.trim(),title:label.title||option.title,labelLeft:l.left,labelRight:l.right,labelHeight:l.height,labelLineHeight:parseFloat(style.lineHeight),whiteSpace:style.whiteSpace,textOverflow:style.textOverflow,overflow:style.overflowX,truncated:label.scrollWidth>label.clientWidth+1,rowHeight:o.height,checkLeft:c.left,checkRight:c.right,checkCenter:c.top+c.height/2,rowCenter:o.top+o.height/2,rowRight:o.right,groupTextLeft:g.left+parseFloat(getComputedStyle(group).paddingLeft),checked:option.getAttribute('aria-checked')==='true',checkVisible:getComputedStyle(check).visibility==='visible'};
       });
-      return {border:getComputedStyle(trigger).borderWidth,options:[...list.querySelectorAll('[data-model-value]')].map(option=>option.getAttribute('data-model-value')),rows,checked:list.querySelectorAll('[aria-checked=true]').length,left:r.left,right:r.right,top:r.top,bottom:r.bottom};
+      return {border:getComputedStyle(trigger).borderWidth,panelClass:panel.classList.contains('conversation-model-menu'),radii:['borderTopLeftRadius','borderTopRightRadius','borderBottomLeftRadius','borderBottomRightRadius'].map(property=>getComputedStyle(panel)[property]),options:[...list.querySelectorAll('[data-model-value]')].map(option=>option.getAttribute('data-model-value')),providers:[...list.querySelectorAll('.model-group')].map(group=>group.getAttribute('data-provider')),rows,checked:list.querySelectorAll('[aria-checked=true]').length,left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,overflow:panel.scrollWidth>panel.clientWidth+1,query:input.value,searchLabel:input.getAttribute('aria-label'),placeholder:input.placeholder,searchIcon:header.querySelector('mat-icon')?.textContent.trim(),inputOutline:getComputedStyle(input).outlineStyle,inputShadow:getComputedStyle(input).boxShadow,headerShadow:getComputedStyle(header).boxShadow,separateHeader:!results.contains(header)&&header.parentElement===results.parentElement,headerBottom:h.bottom,resultsTop:s.top,resultsOverflow:getComputedStyle(results).overflowY};
     })()`);
+    modelMenuEvidence.push({width,height,dark,menu,nativeEnter:{withoutText:enterWithoutText,withText:enterWithText}});
     assert.equal(menu.border,'0px');
-    assert.deepEqual(menu.options,[JSON.stringify(['browser-fixture','default']),JSON.stringify(['browser-fixture','fixture-model']),JSON.stringify(['browser-fixture','fixture-alternate'])]);
+    assert.deepEqual(menu.options,allModels);
+    assert.deepEqual(menu.providers,['browser-fixture']);
+    assert.equal(menu.panelClass,true);
+    assert.deepEqual(menu.radii,['12px','12px','12px','12px']);
+    assert.ok(menu.width>=219 && menu.width<=width-32+1,'Menu is content-sized within its 220px minimum and viewport cap');
+    assert.equal(menu.overflow,false);
+    assert.equal(menu.query,'');
+    assert.equal(menu.searchLabel,'Search models');
+    assert.equal(menu.placeholder,'Search models');
+    assert.equal(menu.searchIcon,'search');
+    assert.equal(menu.inputOutline,'none','Search input has no second focus outline');
+    assert.equal(menu.inputShadow,'none','Search input has no second focus shadow');
+    assert.ok(menu.headerShadow.includes('inset') && menu.headerShadow.includes('-2px'),'Focused search retains the single header underline');
+    assert.equal(menu.separateHeader,true);
+    assert.ok(menu.headerBottom<=menu.resultsTop+1,'Search header stays above the result scrollport');
+    assert.ok(['auto','scroll'].includes(menu.resultsOverflow));
     assert.equal(menu.checked,1);
     for (const row of menu.rows) {
+      assert.equal(row.whiteSpace,'nowrap','Model names never wrap');
+      near(row.rowHeight,36,'Model rows keep their single-line height');
+      assert.ok(row.labelHeight<=(Number.isFinite(row.labelLineHeight)?row.labelLineHeight:row.rowHeight)+1,'Model labels occupy one line');
+      assert.equal(row.title,row.name,'Full model name is available in the title');
       near(row.labelLeft,row.groupTextLeft,'Model names align with group heading');
       assert.ok(row.checkLeft>=row.labelRight,'Selection check follows model name');
       assert.ok(row.checkRight<=row.rowRight,'Selection check stays inside its row');
@@ -251,19 +454,104 @@ async function conversationModelMenuRegression() {
       near(row.checkCenter,row.rowCenter,'Selection check is vertically centered');
       assert.equal(row.checkVisible,row.checked,'Only selected model shows a check');
     }
+    if (width===390) {
+      assert.equal(menu.rows.at(-1).truncated,true,'Long mobile label truncates');
+      assert.equal(menu.rows.at(-1).textOverflow,'ellipsis');
+      assert.equal(menu.rows.at(-1).overflow,'hidden');
+    }
     assert.ok(menu.left>=-1 && menu.right<=width+1 && menu.top>=-1 && menu.bottom<=height+1);
     await screenshot(`ai-model-menu-${width}-${dark?'dark':'light'}.png`);
-    await cdp('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
-    await cdp('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+
+    await pointerClick('.model-search-input');
+    await condition("document.activeElement===document.querySelector('.model-search-input')");
+    await evaluate(`(() => {
+      globalThis.__modelSearchKeys=[];
+      document.querySelector('.model-search-input').addEventListener('keydown',event=>globalThis.__modelSearchKeys.push({key:event.key,ctrl:event.ctrlKey,meta:event.metaKey,trusted:event.isTrusted,prevented:event.defaultPrevented}));
+    })()`);
+    await key('a','KeyA',65,{modifiers:2});
+    assert.deepEqual(await evaluate('globalThis.__modelSearchKeys.at(-1)'),{key:'a',ctrl:true,meta:false,trusted:true,prevented:false});
+    await key('A','KeyA',65,{text:'A',unmodifiedText:'A'});
+    assert.equal(await evaluate("document.querySelector('.model-search-input').value"),'A','Trusted text is not consumed by menu typeahead');
+    await replaceQuery('  ALTERNATE MODEL  ');
+    assert.deepEqual(await options(),[alternateModel],'Uppercase trimmed display-name match');
+    await replaceQuery('alternate model');
+    assert.deepEqual(await options(),[alternateModel],'Lowercase display-name match');
+    await replaceQuery('  FIXTURE-MODEL  ');
+    assert.deepEqual(await options(),[mainModel],'Uppercase trimmed identifier match');
+    const shortWidth=await evaluate("document.querySelector('.conversation-model-menu').getBoundingClientRect().width");
+    modelMenuEvidence.at(-1).shortWidth=shortWidth;
+    if (width===1280) assert.ok(menu.width>shortWidth+24,'Long labels widen the popup compared with short filtered results');
+    await replaceQuery('fixture-model');
+    assert.deepEqual(await options(),[mainModel],'Lowercase identifier match');
+    await replaceQuery('Fixture');
+    await key(' ','Space',32,{text:' ',unmodifiedText:' '});
+    await cdp('Input.insertText',{text:'model'});
+    assert.equal(await evaluate("document.querySelector('.model-search-input').value"),'Fixture model');
+    assert.deepEqual(await options(),[mainModel]);
+    assert.equal(await evaluate('globalThis.__modelSearchKeys.find(event=>event.key===" ").prevented'),false,'Space retains native input behavior');
+    assert.equal(await evaluate("document.querySelector('.model-select').value"),mainModel,'Filtering never changes the selection');
+    await assertDraft();
+
+    await replaceQuery('CoDeX-no-matching-model');
+    assert.deepEqual(await options(),[],'Search never includes another provider');
+    assert.deepEqual(await evaluate("(() => {const e=document.querySelector('.model-search-empty');return {role:e?.getAttribute('role'),text:e?.textContent.trim()};})()"),{role:'status',text:'No matching models.'});
+    await screenshot(`ai-model-search-empty-${width}-${dark?'dark':'light'}.png`);
+    await key('Enter','Enter',13);
+    await key('ArrowDown','ArrowDown',40);
+    await key('ArrowUp','ArrowUp',38);
+    assert.equal(await evaluate("document.activeElement===document.querySelector('.model-search-input')"),true,'Empty-list navigation retains search focus');
+    await assertDraft();
+    const clear=await evaluate("(() => {const r=document.querySelector('.model-search [aria-label=\"Clear model search\"]').getBoundingClientRect();return {width:r.width,height:r.height};})()");
+    near(clear.width,28,'Clear search has a stable compact width');
+    near(clear.height,28,'Clear search has a stable compact height');
+    await pointerClick('.model-search [aria-label="Clear model search"]');
+    await condition("document.querySelector('.model-search-input')?.value==='' && document.activeElement===document.querySelector('.model-search-input')");
+    assert.deepEqual(await options(),allModels);
+    await replaceQuery('fixture-alternate');
+    await closeWithEscape();
+
+    await openConversationModels();
+    assert.equal(await evaluate("document.querySelector('.model-search-input').value"),'','Reopening resets the search');
+    assert.deepEqual(await options(),allModels);
+    await key('ArrowUp','ArrowUp',38);
+    assert.equal(await evaluate("document.activeElement.getAttribute('data-model-value')"),alternateModel,'ArrowUp focuses the last enabled result');
+    await key('Enter','Enter',13);
     await condition("document.querySelector('.conversation-model-list') === null");
-    assert.equal(await evaluate("document.querySelector('.model-select')===document.activeElement"),true);
-    assert.equal(await evaluate("document.querySelector('.composer-input').value"),initial.draft);
+    assert.equal(await evaluate("document.querySelector('.model-select').value"),alternateModel);
+    await assertDraft();
+
+    await openConversationModels();
+    await replaceQuery('FIXTURE-MODEL');
+    await key('Enter','Enter',13);
+    assert.equal(await evaluate("document.querySelector('.model-select').value"),alternateModel,'Enter in search does not select the single matching result');
+    assert.equal(await evaluate("document.activeElement===document.querySelector('.model-search-input')"),true);
+    await assertDraft();
+    await screenshot(`ai-model-search-filtered-${width}-${dark?'dark':'light'}.png`);
+    await key('ArrowDown','ArrowDown',40);
+    assert.equal(await evaluate("document.activeElement.getAttribute('data-model-value')"),mainModel,'ArrowDown focuses the first enabled filtered result');
+    await key('Enter','Enter',13);
+    await condition("document.querySelector('.conversation-model-list') === null");
+    assert.equal(await evaluate("document.querySelector('.model-select').value"),mainModel);
+    await assertDraft();
+
+    await openConversationModels();
+    await replaceQuery('alternate');
+    for (const type of ['mousePressed','mouseReleased']) await cdp('Input.dispatchMouseEvent',{type,x:2,y:2,button:'left',buttons:type==='mousePressed'?1:0,clickCount:1});
+    await condition("document.querySelector('.conversation-model-list') === null");
+    assert.equal(await evaluate("document.querySelector('.model-select').value"),mainModel);
+    await assertDraft();
   }
-  await chooseConversationModel(JSON.stringify(['browser-fixture','fixture-alternate']));
-  assert.equal(await evaluate("document.querySelector('.model-select').value"),JSON.stringify(['browser-fixture','fixture-alternate']));
-  await chooseConversationModel(JSON.stringify(['browser-fixture','fixture-model']));
+  assert.deepEqual(await evaluate("fetch('./ai/api/sessions').then(response=>response.json()).then(body=>body.sessions.map(session=>session.sessionId).sort())"),sessionsBefore,'Model search preserves gateway sessions');
+  await chooseConversationModel(initial.model);
+  await typeMessage(initial.draft);
+  await evaluate('delete globalThis.__modelSearchKeys');
   await cdp('Emulation.setDeviceMetricsOverride',{width:initial.width,height:initial.height,deviceScaleFactor:1,mobile:false});
   await evaluate(`document.body.classList.toggle('dark-mode',${initial.dark})`);
+  await writeFile(
+    join(evidenceDir, 'ai-model-menu-browser.json'),
+    JSON.stringify({ok: true, checks: modelMenuChecks, metrics: modelMenuEvidence}, null, 2) + '\n',
+  );
+  modelMenuPassed = true;
 }
 const aiWindowEvidence = [];
 const aiWindowScreenshots = [];
@@ -2003,15 +2291,26 @@ async function compactDensityMetrics(
   const metrics = await evaluate(`(() => {
     const box = (element) => {const r=element.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height,bottom:r.bottom,right:r.right};};
     const header=document.querySelector('.ai-panel-header');
-    const controls=[...header.querySelectorAll('button')].filter(element=>getComputedStyle(element).display!=='none').map(element=>({label:element.getAttribute('aria-label'),...box(element)}));
+    const iconMetrics=element=>({fontSize:getComputedStyle(element).fontSize,lineHeight:getComputedStyle(element).lineHeight,...box(element)});
+    const controls=[...header.querySelectorAll('button')].filter(element=>getComputedStyle(element).display!=='none').map(element=>({label:element.getAttribute('aria-label'),...box(element),icon:iconMetrics(element.querySelector('mat-icon'))}));
     const panel=document.querySelector('.ai-panel'), composer=document.querySelector('.ai-composer');
+    const surface=element=>getComputedStyle(element).backgroundColor;
+    const viewerSurface=()=>{
+      for(let element=document.querySelector('.center')??document.body;element;element=element.parentElement){
+        const fill=surface(element);
+        if(fill!=='transparent'&&fill!=='rgba(0, 0, 0, 0)') return fill;
+      }
+      return 'rgb(255, 255, 255)';
+    };
     return {
       viewport:{width:innerWidth,height:innerHeight},
       theme:document.body.classList.contains('dark-mode')?'dark':'light',
       header:box(header),headerControls:controls,
       toolbar:box(document.querySelector('.toolbar')),
+      toolbarIcons:[...document.querySelectorAll('.toolbar .icon-actions button mat-icon')].map(iconMetrics),
       globalButton:box(document.querySelector('.new-session-button').getBoundingClientRect().height ? document.querySelector('.new-session-button') : document.querySelector('.toolbar .ai-open-button')),
       horizontalOverflow:panel.scrollWidth>panel.clientWidth,
+      surfaces:{viewer:viewerSurface(),panel:surface(panel),header:surface(header),sidebar:surface(panel.querySelector('.ai-sidebar')),composer:surface(composer),text:getComputedStyle(panel).color,muted:getComputedStyle(panel.querySelector('.history-note')).color,border:getComputedStyle(panel).borderTopColor,shadow:getComputedStyle(panel).boxShadow},
       composer:composer?{...box(composer),radius:getComputedStyle(composer).borderRadius,gap:getComputedStyle(composer).gap,input:box(composer.querySelector('.composer-input')),send:box(composer.querySelector('.composer-primary'))}:null,
     };
   })()`);
@@ -2026,6 +2325,36 @@ async function compactDensityMetrics(
     false,
     `${label}: no horizontal overflow`,
   );
+  const luminance = (color, background = color) => {
+    const channels = value => value.match(/[\d.]+/g).map(Number);
+    const [red, green, blue, alpha = 1] = channels(color);
+    const backdrop = channels(background);
+    return [red, green, blue].map((channel, index) => {
+      const value = (channel * alpha + backdrop[index] * (1 - alpha)) / 255;
+      return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+    }).reduce((sum, value, index) => sum + value * [0.2126, 0.7152, 0.0722][index], 0);
+  };
+  const contrast = (foreground, background) => {
+    const values = [luminance(foreground, background), luminance(background)];
+    return (Math.max(...values) + 0.05) / (Math.min(...values) + 0.05);
+  };
+  const {surfaces} = metrics;
+  assert.equal(surfaces.panel, metrics.theme === 'dark' ? 'rgb(34, 35, 37)' : 'rgb(236, 238, 241)');
+  assert.notEqual(surfaces.panel, surfaces.viewer, `${label}: AI window differs from the viewer background`);
+  assert.notEqual(surfaces.header, surfaces.panel, `${label}: header has a distinct surface`);
+  assert.notEqual(surfaces.sidebar, surfaces.panel, `${label}: sidebar has a distinct surface`);
+  assert.notEqual(surfaces.composer, surfaces.panel, `${label}: composer remains distinct`);
+  assert.notEqual(surfaces.shadow, 'none', `${label}: floating window retains elevation`);
+  surfaces.viewerContrast = contrast(surfaces.panel, surfaces.viewer);
+  assert.ok(surfaces.viewerContrast >= 1.1, `${label}: AI and viewer surfaces have a visible tonal separation`);
+  surfaces.contrast = {};
+  for (const surface of ['panel', 'header', 'sidebar']) {
+    for (const text of ['text', 'muted']) {
+      const ratio = contrast(surfaces[text], surfaces[surface]);
+      surfaces.contrast[`${text}-${surface}`] = ratio;
+      assert.ok(ratio >= 4.5, `${label}: ${text} contrast on ${surface} is ${ratio.toFixed(2)}:1`);
+    }
+  }
   assert.ok(
     metrics.globalButton.height > 0 && metrics.globalButton.height <= 32,
     `${label}: shared Material button uses compact density`,
@@ -2037,6 +2366,15 @@ async function compactDensityMetrics(
   for (const control of metrics.headerControls) {
     assert.equal(control.width, 32, `${label}: ${control.label} is 32px wide`);
     assert.equal(control.height, 32, `${label}: ${control.label} is 32px high`);
+    for (const icon of metrics.toolbarIcons) {
+      assert.equal(icon.fontSize, '18px', `${label}: system titlebar uses 18px glyphs`);
+      assert.equal(control.icon.fontSize, icon.fontSize, `${label}: AI and system titlebars use the same icon size`);
+      assert.equal(control.icon.lineHeight, icon.lineHeight);
+    }
+    near(control.icon.width, 18, `${label}: AI glyph width`);
+    near(control.icon.height, 18, `${label}: AI glyph height`);
+    near(control.icon.x + control.icon.width / 2, control.x + control.width / 2, `${label}: glyph horizontal centering`);
+    near(control.icon.y + control.icon.height / 2, control.y + control.height / 2, `${label}: glyph vertical centering`);
     assert.equal(
       control.y,
       metrics.headerControls[0].y,
@@ -2266,7 +2604,7 @@ if(process.argv[2]==='app-server'){
           args: [providerFile],
           models: [
             { id: "fixture-model", name: "Fixture model" },
-            { id: "fixture-alternate", name: "Fixture alternate model with a deliberately long label to check wrapping" },
+            { id: "fixture-alternate", name: "Fixture alternate model with a deliberately long label to check single-line sizing" },
           ],
           modelArgs: ["--model", "{{model}}"],
           reasoningArgs: ["--effort", "{{level}}"],
@@ -2403,6 +2741,8 @@ if(process.argv[2]==='app-server'){
     const message = JSON.parse(event.data);
     if (message.method === "Runtime.exceptionThrown")
       runtimeErrors.push(message.params.exceptionDetails.text);
+    if (message.method === 'Network.requestWillBeSent' && message.params.request.method === 'POST' && /\/ai\/api\/analyze$/.test(new URL(message.params.request.url).pathname))
+      modelMenuAnalysisRequests.push({requestId: message.params.requestId, url: message.params.request.url});
     if (message.method === "Network.requestWillBeSent" && new URL(message.params.request.url).hostname === "markdown-fixture.invalid")
       markdownBrowserEvidence.inertResourceRequests.push(message.params.request.url);
     if (message.method === 'Network.requestWillBeSent' && /\/ai\/api\/sessions\/[^/]+\/stream$/.test(new URL(message.params.request.url).pathname))
@@ -2424,6 +2764,7 @@ if(process.argv[2]==='app-server'){
     downloadPath: join(work, "downloads"),
   });
   await condition("document.querySelector('.ai-open-button') !== null");
+  await settingsButtonFocusRegression();
   await languageLandingRegression();
   await click(".ai-open-button");
   await condition("document.querySelector('.ai-panel') !== null && !document.querySelector('app-settings') && !document.querySelector('.ai-panel mat-progress-bar')");
@@ -2775,6 +3116,7 @@ if(process.argv[2]==='app-server'){
       "model-and-effort",
       "borderless-model-label-opens-full-menu",
       "model-menu-selection-escape-focus-and-responsive-layout",
+      ...modelMenuChecks,
       "saved-model-name-and-checked-item-on-first-open-after-reload",
       "text-attachment-content",
       "enter-send",
@@ -2792,6 +3134,7 @@ if(process.argv[2]==='app-server'){
       "retry-prompt",
       "settings-validation-and-cancel",
       "toolbar-settings-entry-and-no-toolbar-language-selector",
+      "settings-mouse-dismissal-no-residual-circle-keyboard-focus-preserved",
       "independent-settings-general-ai-left-navigation",
       "settings-about-package-version-desktop-mobile",
       "provider-specific-config-fields-and-draft-isolation",
@@ -2820,8 +3163,11 @@ if(process.argv[2]==='app-server'){
       "paste-and-drop-notes",
       "multiline-height-cap",
       "light-and-dark",
+      "ai-window-distinct-viewer-header-sidebar-and-composer-surfaces",
+      "ai-window-normal-and-muted-text-contrast-light-dark-desktop-mobile",
       "390px-layout",
       "compact-40px-header-all-actions-one-row",
+      "ai-and-system-titlebar-18px-icons-with-centered-32px-ai-controls",
       "32px-header-icons-and-settings-fields",
       "compact-material-density",
       "compact-desktop-mobile-light-dark",
@@ -2840,6 +3186,10 @@ if(process.argv[2]==='app-server'){
       "ai-model-menu-1280-dark.png",
       "ai-model-menu-390-light.png",
       "ai-model-menu-390-dark.png",
+      ...[1280,390].flatMap(width=>['light','dark'].flatMap(theme=>[
+        `ai-model-search-empty-${width}-${theme}.png`,
+        `ai-model-search-filtered-${width}-${theme}.png`,
+      ])),
       "settings-general-desktop.png",
       "settings-general-system-dark.png",
       "settings-general-light.png",
@@ -2865,6 +3215,7 @@ if(process.argv[2]==='app-server'){
     ],
   };
   result.composerGeometry = initialGeometry;
+  result.modelMenu = modelMenuEvidence;
   result.compactDensity = compactDensityEvidence;
   result.aiWindow = aiWindowEvidence;
   result.markdown = markdownBrowserEvidence;
@@ -2883,6 +3234,16 @@ if(process.argv[2]==='app-server'){
   );
   console.log(JSON.stringify(result));
 } catch (error) {
+  if (modelMenuEvidence.length && !modelMenuPassed) {
+    const failureState=socket?.readyState===WebSocket.OPEN
+      ? await evaluate("(() => {const e=document.querySelector('.model-search-input');return {query:e?.value,start:e?.selectionStart,end:e?.selectionEnd,active:document.activeElement?.outerHTML,model:document.querySelector('.model-select')?.value,keys:globalThis.__modelSearchKeys,analysisRequests:"+modelMenuAnalysisRequests.length+"};})()").catch(()=>null)
+      : null;
+    if (socket?.readyState===WebSocket.OPEN) await screenshot('ai-model-menu-failure.png').catch(()=>{});
+    await writeFile(
+      join(evidenceDir, 'ai-model-menu-browser.json'),
+      JSON.stringify({ok: false, error: String(error), checks: modelMenuChecks, metrics: modelMenuEvidence, failureState}, null, 2) + '\n',
+    );
+  }
   if (aiWindowEvidence.length) {
     if (socket?.readyState === WebSocket.OPEN) {
       await screenshot('ai-window-failure.png').then(() => aiWindowScreenshots.push('ai-window-failure.png')).catch(() => {});

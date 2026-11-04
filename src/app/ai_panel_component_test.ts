@@ -207,6 +207,82 @@ describe('AiPanelComponent', () => {
     expect(fixture.nativeElement.querySelector('.cdk-focus-trap-anchor')).toBeNull();
   });
 
+  for (const dark of [false, true]) {
+    it(`separates AI surfaces from the viewer and follows theme changes in ${dark ? 'dark' : 'light'} mode`, async () => {
+      const wasDark = document.body.classList.contains('dark-mode');
+      try {
+        document.body.classList.toggle('dark-mode', dark);
+        await initialize();
+        component.prompt = 'Keep this draft across theme changes';
+        const selection = component.conversationModel;
+        const turns = component.turns;
+        const panel = component.windowPanel!.nativeElement;
+        const sidebar = panel.querySelector<HTMLElement>('.ai-sidebar')!;
+        const header = panel.querySelector<HTMLElement>('.ai-panel-header')!;
+        const composer = panel.querySelector<HTMLElement>('.ai-composer')!;
+        const background = () => getComputedStyle(panel).backgroundColor;
+        const expected = dark ? 'rgb(34, 35, 37)' : 'rgb(236, 238, 241)';
+        expect(background()).toBe(expected);
+        expect(background()).not.toBe(getComputedStyle(document.body).backgroundColor);
+        expect(getComputedStyle(header).backgroundColor).toBe(dark ? 'rgb(43, 45, 48)' : 'rgb(248, 249, 251)');
+        expect(getComputedStyle(sidebar).backgroundColor).toBe(dark ? 'rgb(28, 29, 31)' : 'rgb(229, 231, 235)');
+        expect(getComputedStyle(panel).borderTopColor).toBe(dark ? 'rgb(82, 86, 92)' : 'rgb(196, 201, 209)');
+        expect(getComputedStyle(panel).boxShadow).not.toBe('none');
+        expect(getComputedStyle(composer).backgroundColor).toBe(dark ? 'rgb(44, 44, 46)' : 'rgb(255, 255, 255)');
+        document.body.classList.toggle('dark-mode', !dark);
+        expect(background()).not.toBe(expected);
+        document.body.classList.toggle('dark-mode', dark);
+        expect(background()).toBe(expected);
+        expect(component.prompt).toBe('Keep this draft across theme changes');
+        expect(component.conversationModel).toBe(selection);
+        expect(component.turns).toBe(turns);
+        expect(start).not.toHaveBeenCalled();
+      } finally {
+        document.body.classList.toggle('dark-mode', wasDark);
+      }
+    });
+  }
+
+  it('matches titlebar icon sizes while preserving centered 32px AI header controls in both themes', async () => {
+    const reference = document.createElement('span');
+    reference.className = 'mat-icon icon-small';
+    document.body.append(reference);
+    const wasDark = document.body.classList.contains('dark-mode');
+    try {
+      await initialize();
+      component.reportPreview = 'Report preview';
+      await settleWindow();
+      const buttons = Array.from(fixture.nativeElement.querySelectorAll(
+        '.ai-panel-header button, .sidebar-heading button, .report-preview-header button',
+      )) as HTMLButtonElement[];
+      expect(buttons.length).toBe(9);
+      for (const dark of [false, true]) {
+        document.body.classList.toggle('dark-mode', dark);
+        const referenceStyle = getComputedStyle(reference);
+        expect(referenceStyle.fontSize).toBe('18px');
+        for (const button of buttons) {
+          const icon = button.querySelector<HTMLElement>('mat-icon')!;
+          const style = getComputedStyle(icon);
+          expect(style.fontSize).toBe(referenceStyle.fontSize);
+          expect(style.width).toBe(referenceStyle.width);
+          expect(style.height).toBe(referenceStyle.height);
+          expect(style.lineHeight).toBe(referenceStyle.lineHeight);
+          const control = button.getBoundingClientRect();
+          const glyph = icon.getBoundingClientRect();
+          expect(control.width).toBe(32);
+          expect(control.height).toBe(32);
+          expect(glyph.left + glyph.width / 2).toBeCloseTo(control.left + control.width / 2, 0);
+          expect(glyph.top + glyph.height / 2).toBeCloseTo(control.top + control.height / 2, 0);
+        }
+      }
+      expect(getComputedStyle(fixture.nativeElement.querySelector('.empty-symbol mat-icon')).fontSize).toBe('40px');
+      expect(getComputedStyle(fixture.nativeElement.querySelector('.composer-primary mat-icon')).fontSize).toBe('16px');
+    } finally {
+      reference.remove();
+      document.body.classList.toggle('dark-mode', wasDark);
+    }
+  });
+
   it('keeps floating-window tooltips from intercepting pointer controls', async () => {
     await initialize();
     const tooltip = fixture.debugElement.query(By.css('.history-toggle')).injector.get(MatTooltip);
@@ -1871,6 +1947,185 @@ describe('AiPanelComponent', () => {
     expect(component.prompt).toBe('Unsent draft');
     expect(component.selectedModel).toBe('default');
     expect(closed).not.toHaveBeenCalled();
+  });
+
+  it('focuses model search on opening and filters names and identifiers without changing conversation state', async () => {
+    await initialize();
+    component.catalog = {...catalog, providers: [...catalog.providers, imported]};
+    component.prompt = 'Unsent model search draft';
+    component.selectedLevel = 'high';
+    const selection = component.conversationModel;
+    const turns = component.turns;
+    const models = JSON.stringify(component.catalog);
+    const menu = await openModelMenu();
+    await settleWindow();
+    const input = menu.querySelector<HTMLInputElement>('.model-search-input')!;
+    const labels = () => Array.from(menu.querySelectorAll('.model-option-label'))
+      .map((label) => label.textContent?.trim());
+    expect(document.activeElement).toBe(input);
+    expect(input.type).toBe('search');
+    expect(input.getAttribute('aria-label')).toBe('Search models');
+    input.click();
+    expect(modelTrigger().getAttribute('aria-expanded')).toBe('true');
+    for (const query of ['  TEST MODEL  ', 'TeSt-MoDeL']) {
+      input.value = query;
+      input.dispatchEvent(new Event('input', {bubbles: true}));
+      fixture.detectChanges();
+      expect(labels()).toEqual(['Test model']);
+    }
+    input.value = 'preferred';
+    input.dispatchEvent(new Event('input', {bubbles: true}));
+    fixture.detectChanges();
+    expect(labels()).toEqual([]);
+    expect(menu.querySelector('[role="status"]')?.textContent?.trim()).toBe('No matching models.');
+    expect(component.conversationModel).toBe(selection);
+    expect(component.selectedLevel).toBe('high');
+    expect(component.prompt).toBe('Unsent model search draft');
+    expect(component.turns).toBe(turns);
+    expect(JSON.stringify(component.catalog)).toBe(models);
+    expect(start).not.toHaveBeenCalled();
+  });
+
+  it('searches a saved custom model identifier without changing its exact value', async () => {
+    await initialize();
+    component.applySettings({
+      ...component.modelSelection,
+      providerId: 'test',
+      modelId: '__custom__',
+      customModel: 'Vendor/Model@[1m]',
+    });
+    component.modelSearchQuery = '  vendor/model@[1M]  ';
+    const models = component.filteredConversationModels.flatMap((group) => group.models);
+    expect(models.map((model) => model.modelId)).toEqual(['__custom__']);
+    expect(models[0].name).toBe('Custom model: Vendor/Model@[1m]');
+    expect(component.customModel).toBe('Vendor/Model@[1m]');
+  });
+
+  it('keeps model names on one line and the rounded search header fixed above a scrolling list', async () => {
+    await initialize();
+    component.catalog = {
+      ...catalog,
+      providers: [{
+        ...catalog.providers[0],
+        models: Array.from({length: 40}, (_, index) => ({
+          id: `model-${index}`,
+          name: `Model ${index} ${'long-name '.repeat(20)}`.trim(),
+        })),
+      }],
+    };
+    const menu = await openModelMenu();
+    await settleWindow();
+    const panel = menu.closest<HTMLElement>('.mat-mdc-menu-panel')!;
+    const header = menu.querySelector<HTMLElement>('.model-search')!;
+    const results = menu.querySelector<HTMLElement>('.model-search-results')!;
+    const input = header.querySelector<HTMLInputElement>('.model-search-input')!;
+    const label = results.querySelector<HTMLElement>('.model-option-label')!;
+    const option = label.closest<HTMLElement>('.model-option')!;
+    expect(getComputedStyle(panel).borderRadius).toBe('12px');
+    expect(getComputedStyle(input).outlineStyle).toBe('none');
+    expect(getComputedStyle(header).boxShadow).not.toBe('none');
+    expect(panel.getBoundingClientRect().width).toBeLessThanOrEqual(window.innerWidth - 31);
+    expect(panel.scrollWidth).toBeLessThanOrEqual(panel.clientWidth + 1);
+    expect(getComputedStyle(label).whiteSpace).toBe('nowrap');
+    expect(getComputedStyle(label).textOverflow).toBe('ellipsis');
+    expect(label.scrollWidth).toBeGreaterThan(label.clientWidth);
+    expect(option.getBoundingClientRect().height).toBeCloseTo(36, 0);
+    expect(results.scrollHeight).toBeGreaterThan(results.clientHeight);
+    const headerTop = header.getBoundingClientRect().top;
+    results.scrollTop = 120;
+    expect(results.scrollTop).toBe(120);
+    expect(header.getBoundingClientRect().top).toBe(headerTop);
+    expect(results.contains(header)).toBeFalse();
+  });
+
+  it('clears an empty model search without closing and resets the query on reopening', async () => {
+    await initialize();
+    const menu = await openModelMenu();
+    await settleWindow();
+    const input = menu.querySelector<HTMLInputElement>('.model-search-input')!;
+    const clear = menu.querySelector<HTMLButtonElement>('.model-search-clear')!;
+    expect(clear.title).toBe('Clear model search');
+    expect(clear.disabled).toBeTrue();
+    input.value = 'No such model';
+    input.dispatchEvent(new Event('input', {bubbles: true}));
+    fixture.detectChanges();
+    expect(clear.disabled).toBeFalse();
+    expect(menu.querySelectorAll('.model-option').length).toBe(0);
+    clear.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(input.value).toBe('');
+    expect(document.activeElement).toBe(input);
+    expect(menu.querySelectorAll('.model-option').length).toBe(2);
+    expect(modelTrigger().getAttribute('aria-expanded')).toBe('true');
+    component.modelSearchQuery = 'test';
+    input.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', keyCode: 27, bubbles: true}));
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const reopened = await openModelMenu();
+    await settleWindow();
+    expect(reopened.querySelector<HTMLInputElement>('.model-search-input')!.value).toBe('');
+    expect(reopened.querySelectorAll('.model-option').length).toBe(2);
+  });
+
+  it('keeps model search editing and IME keys local while leaving native text entry intact', async () => {
+    await initialize();
+    const menu = await openModelMenu();
+    await settleWindow();
+    const input = menu.querySelector<HTMLInputElement>('.model-search-input')!;
+    const submitted = spyOn(component, 'submit').and.resolveTo();
+    const closed = spyOn(component.closed, 'emit');
+    const propagated = jasmine.createSpy('menu keydown');
+    menu.addEventListener('keydown', propagated);
+    for (const options of [
+      {key: 't'}, {key: ' ', keyCode: 32}, {key: 'a', ctrlKey: true},
+      {key: 'a', metaKey: true}, {key: 'Escape', keyCode: 27, isComposing: true},
+      {key: 'Enter', keyCode: 229},
+    ]) {
+      const event = new KeyboardEvent('keydown', {...options, bubbles: true, cancelable: true});
+      input.dispatchEvent(event);
+      expect(event.defaultPrevented).toBeFalse();
+    }
+    const enter = new KeyboardEvent('keydown', {key: 'Enter', keyCode: 13, bubbles: true, cancelable: true});
+    input.dispatchEvent(enter);
+    expect(enter.defaultPrevented).toBeTrue();
+    expect(propagated).not.toHaveBeenCalled();
+    expect(submitted).not.toHaveBeenCalled();
+    expect(closed).not.toHaveBeenCalled();
+    expect(component.selectedModel).toBe('default');
+    expect(document.activeElement).toBe(input);
+    expect(modelTrigger().getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('navigates enabled search results with arrows and lets Tab dismiss only the menu', async () => {
+    await initialize();
+    component.prompt = 'Keep draft';
+    const menu = await openModelMenu();
+    await settleWindow();
+    const input = menu.querySelector<HTMLInputElement>('.model-search-input')!;
+    const options = menu.querySelectorAll<HTMLButtonElement>('.model-option');
+    input.dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowDown', keyCode: 40, bubbles: true}));
+    expect(document.activeElement).toBe(options[0]);
+    input.focus();
+    input.dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowUp', keyCode: 38, bubbles: true}));
+    expect(document.activeElement).toBe(options[1]);
+    input.focus();
+    component.loading = true;
+    fixture.detectChanges();
+    input.dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowDown', keyCode: 40, bubbles: true}));
+    expect(document.activeElement).toBe(input);
+    component.loading = false;
+    component.modelSearchQuery = 'No matching models';
+    fixture.detectChanges();
+    input.dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowUp', keyCode: 38, bubbles: true}));
+    expect(document.activeElement).toBe(input);
+    input.dispatchEvent(new KeyboardEvent('keydown', {key: 'Tab', keyCode: 9, bubbles: true}));
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(modelTrigger().getAttribute('aria-expanded')).toBe('false');
+    expect(component.prompt).toBe('Keep draft');
+    expect(start).not.toHaveBeenCalled();
   });
 
   it('restricts same-ID composer models to the active provider without changing history or supported effort', async () => {

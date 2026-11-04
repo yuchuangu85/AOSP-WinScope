@@ -2,7 +2,7 @@
 
 ## Source of truth
 
-Status: Active. Updated: 2026-11-03. Surface: independent application settings,
+Status: Active. Updated: 2026-11-04. Surface: independent application settings,
 WinScope AI conversation workspace and shared compact control density.
 The current iteration implements the user's requested conversation workflow,
 not full DeepSeek Harness product or pixel parity. Reference code is read-only.
@@ -64,6 +64,14 @@ column capped at 800px. Rounded composer, minimal elevation, 4/8/12/16/24px
 spacing. Right-aligned user bubbles; open assistant responses. No new fonts,
 bitmap assets or design-system dependencies.
 
+The floating AI window uses dedicated theme tokens rather than the main viewer's
+background. Light mode uses a #eceef1 conversation surface, #f8f9fb header and
+#e5e7eb sidebar; dark mode uses #222325, #2b2d30 and #1c1d1f respectively.
+A visible neutral border and theme-specific shadow separate the non-modal window
+from the viewer without a page-wide scrim. Secondary AI text uses #62676e in light
+mode and #b5bac3 in dark mode to remain readable on all three surfaces. Keep the
+existing composer fill, viewer palette, geometry and theme-follow behavior.
+
 ## Components
 
 Reuse Angular standalone components, FormsModule and Material buttons/icons.
@@ -96,6 +104,9 @@ HTML kept literal. Do not rely on hover or color alone for actions/state.
 Keyboard events inside the AI dialog stay local without cancelling native text
 editing. Global timeline shortcuts ignore textareas, text inputs and editable
 content; Space toggles playback only outside those editing surfaces.
+Closing settings restores focus to its opener. When a mouse-driven asynchronous
+save restores programmatic focus to the toolbar settings button, suppress its
+idle circular state layer, not its hover feedback or visible keyboard focus.
 Completed turns show localized elapsed time measured by the gateway for that
 turn, including rule execution, model calls and trace-query round trips. Replay
 preserves each turn's duration. Legacy events without timing show no estimate.
@@ -195,7 +206,28 @@ button in the composer. Clicking anywhere on its model label opens the complete
 available model menu above the composer, without a second dropdown action.
 The menu left-aligns model names with the provider heading, reserves a trailing
 column for the selected model's checkmark, and supports keyboard navigation, Escape and
-outside-click dismissal. It lists only the active provider's models;
+outside-click dismissal. The popup has a 12px corner radius and content-adaptive
+width: at least 220px when space permits, capped at the viewport width minus 32px.
+Model rows stay 36px high and never wrap. Long names widen the popup on desktop;
+at the viewport cap, labels ellipsize on one line and expose the full name in
+their title. Preserve the right-aligned check column even when a label truncates.
+
+A search header stays above the independently scrolling results. The
+**Search models** input flexes with the popup; the search icon and 28px
+**Clear model search** icon button keep fixed dimensions. Opening clears the query
+and focuses the input. Search is trimmed
+and case-insensitive against model display names, IDs and the current custom model's
+actual identifier. Empty results show the polite status **No matching models.**
+Search is separate from the message draft: filtering and clearing never change the
+selected model, provider, reasoning effort, draft or conversation history.
+Normal text, Space, IME composition and select-all shortcuts stay native to the
+input without triggering menu typeahead. ArrowDown focuses the first enabled
+result; ArrowUp focuses the last. Enter in the search field never sends or selects;
+arrow navigation followed by Enter on a result selects it. Search/header clicks
+keep the menu open. Escape closes it and restores focus to the model trigger;
+outside-click dismissal remains available.
+
+It lists only the active provider's models;
 changing a model cannot activate another provider. Preserve supported reasoning
 effort and all message draft/history state. The active custom model remains
 selectable. On opening, use the gateway's saved selection when no explicit
@@ -295,6 +327,9 @@ one row; hide the secondary subtitle on narrow windows rather than adding a row.
 Shared Material controls use **-2 density** in both themes, with 32px icon buttons
 and the existing 32px app toolbar. Preserve component-specific trace/timeline
 height overrides. No font scaling, page zoom or data/interaction changes.
+AI window, conversation-sidebar and report-preview header glyphs share the app
+titlebar's 18px icon rule. Keep their 32px click targets and center the smaller
+glyphs; do not resize composer controls or decorative/content icons.
 Use 8px sidebar gaps, 4px search padding, 8px session-row padding, 20px turn gaps
 and 1.5 message line height. Settings use 32px native fields, 12px card padding
 and 8px header/footer padding; only settings content scrolls, keeping Save/Cancel

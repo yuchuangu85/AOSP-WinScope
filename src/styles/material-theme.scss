@@ -429,6 +429,12 @@ body {
 }
 
 body:not(.dark-mode) {
+  --ai-window-fill: #eceef1;
+  --ai-window-header-fill: #f8f9fb;
+  --ai-window-sidebar-fill: #e5e7eb;
+  --ai-window-border: #c4c9d1;
+  --ai-window-muted: #62676e;
+  --ai-window-shadow: 0 12px 36px rgb(0 0 0 / 20%), 0 2px 8px rgb(0 0 0 / 8%);
   // AI composer values follow the source-verified Harness light/dark surface.
   --ai-composer-fill: #fff;
   --ai-composer-stroke: rgb(0 0 0 / 10%);
@@ -478,6 +484,12 @@ body:not(.dark-mode) {
 }
 
 body.dark-mode {
+  --ai-window-fill: #222325;
+  --ai-window-header-fill: #2b2d30;
+  --ai-window-sidebar-fill: #1c1d1f;
+  --ai-window-border: #52565c;
+  --ai-window-muted: #b5bac3;
+  --ai-window-shadow: 0 12px 36px rgb(0 0 0 / 48%), 0 2px 8px rgb(0 0 0 / 24%);
   --ai-composer-fill: #2c2c2e;
   --ai-composer-stroke: rgb(255 255 255 / 12%);
   --ai-composer-caption: #81858c;

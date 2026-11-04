@@ -79,6 +79,7 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
   @ViewChild('transcript') transcript?: ElementRef<HTMLElement>;
   @ViewChild('windowPanel') windowPanel?: ElementRef<HTMLElement>;
   @ViewChild('sidebarToggle', {read: ElementRef}) sidebarToggle?: ElementRef<HTMLButtonElement>;
+  @ViewChild('modelSearch') modelSearch?: ElementRef<HTMLInputElement>;
 
   readonly minWindowSize = {width: 640, height: 420};
   windowSize?: {width: number; height: number};
@@ -95,6 +96,7 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
   selectedLevel = 'medium';
   prompt = '';
   searchQuery = '';
+  modelSearchQuery = '';
   attachments: AiAttachment[] = [];
   includeEvidence = true;
   turns: AiChatTurn[] = [];
@@ -573,6 +575,49 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
     return this.conversationModels.flatMap((group) => group.models)
       .find((model) => model.value === this.conversationModel)?.name ??
       (this.selectedModel === '__custom__' ? this.customModel : this.selectedModel);
+  }
+
+  get filteredConversationModels(): AiPanelComponent['conversationModels'] {
+    const query = this.modelSearchQuery.trim().toLowerCase();
+    if (!query) return this.conversationModels;
+    return this.conversationModels.map((group) => ({
+      ...group,
+      models: group.models.filter((model) =>
+        [model.name, model.modelId, model.modelId === '__custom__' ? this.customModelFor(group.providerId) : '']
+          .some((value) => value.toLowerCase().includes(query)),
+      ),
+    })).filter((group) => group.models.length > 0);
+  }
+
+  openModelSearch(): void {
+    this.modelSearchQuery = '';
+    requestAnimationFrame(() => {
+      if (!this.controller.signal.aborted && !this.suspended && this.modelSearch?.nativeElement.isConnected) {
+        this.modelSearch.nativeElement.focus({preventScroll: true});
+      }
+    });
+  }
+
+  clearModelSearch(): void {
+    this.modelSearchQuery = '';
+    this.modelSearch?.nativeElement.focus({preventScroll: true});
+  }
+
+  onModelSearchKey(event: KeyboardEvent): void {
+    if (event.isComposing || event.keyCode === 229) {
+      event.stopPropagation();
+      return;
+    }
+    if (event.key === 'Escape' || event.key === 'Tab') return;
+    // Text editing belongs to the input, not the menu's typeahead or composer.
+    event.stopPropagation();
+    if (event.key === 'Enter') event.preventDefault();
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const options = this.modelSearch?.nativeElement.closest('.conversation-model-list')
+        ?.querySelectorAll<HTMLButtonElement>('.model-option:not(:disabled)');
+      (event.key === 'ArrowDown' ? options?.[0] : options?.[options.length - 1])?.focus();
+    }
   }
 
   changeConversationModel(value: string): void {

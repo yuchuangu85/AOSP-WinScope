@@ -315,12 +315,24 @@ log-view .headers .mat-mdc-form-field-infix {
 .small-icon-container .mat-icon,
 .icon-button-small .mat-icon,
 .icon-small.mat-icon,
-.viewers .title-section .mat-icon {
+.viewers .title-section .mat-icon,
+.ai-panel
+  :is(.ai-panel-header, .sidebar-heading, .report-preview-header)
+  .mat-icon {
   display: flex;
   font-size: 18px;
   width: 18px;
   height: 18px;
   line-height: 18px;
+}
+
+.ai-panel
+  :is(.ai-panel-header, .sidebar-heading, .report-preview-header)
+  .mat-mdc-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
 }
 
 .icon-divider {
@@ -371,17 +383,105 @@ log-view .headers .mat-mdc-form-field-infix {
   font-size: 16px;
 }
 
+.mat-mdc-menu-panel.conversation-model-menu {
+  min-width: min(220px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.conversation-model-menu .mat-mdc-menu-content {
+  padding: 0;
+}
+
 .conversation-model-list {
-  width: min(260px, calc(100vw - 32px));
-  max-height: min(360px, 60dvh);
+  display: flex;
+  flex-direction: column;
+  width: max-content;
+  min-width: min(220px, calc(100vw - 32px));
+  max-width: 100%;
+  max-height: min(432px, 60dvh);
+}
+
+.conversation-model-list .model-search {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.conversation-model-list .model-search > mat-icon,
+.conversation-model-list .model-search-clear mat-icon {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  font-size: 18px;
+  color: var(--gray-text-color);
+}
+
+.conversation-model-list .model-search-input {
+  flex: 1;
+  min-width: 0;
+  width: 0;
+  height: 32px;
+  border: 0;
+  outline: none;
+  padding: 0;
+  color: var(--default-text-color);
+  background: transparent;
+  font: inherit;
+}
+
+.conversation-model-list .model-search-input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.conversation-model-list .model-search-input:focus-visible {
+  outline: none;
+}
+
+.conversation-model-list .model-search-clear {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.conversation-model-list .model-search:focus-within {
+  box-shadow: inset 0 -2px var(--primary);
+}
+
+.conversation-model-list .model-search-results {
+  min-height: 0;
   overflow-y: auto;
+  padding: 4px 0;
+  scrollbar-width: thin;
+}
+
+.conversation-model-list .model-search-empty {
+  margin: 0;
+  padding: 12px 16px;
+  color: var(--gray-text-color);
+  font-size: 13px;
 }
 
 .conversation-model-list .model-group-label {
   padding: 4px 16px;
   color: var(--gray-text-color);
   font-size: 12px;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .conversation-model-list .model-option {
@@ -393,6 +493,11 @@ log-view .headers .mat-mdc-form-field-infix {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
+}
+
+.conversation-model-list .mat-mdc-menu-item-text {
+  min-width: 0;
 }
 
 .conversation-model-list .model-option .model-option-check {
@@ -415,6 +520,7 @@ log-view .headers .mat-mdc-form-field-infix {
 .conversation-model-list .model-option-label {
   flex: 1;
   min-width: 0;
-  white-space: normal;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

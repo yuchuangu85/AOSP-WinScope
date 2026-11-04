@@ -1,14 +1,15 @@
 .ai-panel {
+  --gray-text-color: var(--ai-window-muted);
   position: fixed;
   z-index: 20;
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr);
-  background: var(--background-color);
+  background: var(--ai-window-fill);
   color: var(--default-text-color);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--ai-window-border);
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 8px 28px rgb(0 0 0 / 18%);
+  box-shadow: var(--ai-window-shadow);
   font:
     14px Roboto,
     sans-serif;
@@ -41,7 +42,7 @@ select:focus-visible {
   gap: 8px;
   min-height: 0;
   padding: 8px 12px;
-  background: var(--card-title-background-color);
+  background: var(--ai-window-sidebar-fill);
   border-right: 1px solid var(--border-color);
 }
 .sidebar-heading,
@@ -134,6 +135,7 @@ select:focus-visible {
   gap: 4px;
   padding: 3px 12px;
   border-bottom: 1px solid var(--border-color);
+  background: var(--ai-window-header-fill);
 }
 .conversation-heading {
   display: flex;

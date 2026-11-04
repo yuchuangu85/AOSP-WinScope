@@ -440,47 +440,84 @@
                 [matTooltipDisabled]="modelMenuTrigger.menuOpen"
                 #modelMenuTrigger="matMenuTrigger"
                 [matMenuTriggerFor]="modelMenu"
+                (menuOpened)="openModelSearch()"
                 [disabled]="runtimeDisabled || !catalog.agents.length || !conversationModels.length"
               >
                 <span class="model-label">{{ conversationModelLabel }}</span>
                 <mat-icon aria-hidden="true">expand_more</mat-icon>
               </button>
-              <mat-menu #modelMenu="matMenu" xPosition="before" yPosition="above">
+              <mat-menu
+                #modelMenu="matMenu"
+                class="conversation-model-menu"
+                xPosition="before"
+                yPosition="above"
+              >
                 <div class="conversation-model-list">
-                  @for (group of conversationModels; track group.providerId) {
-                    <div
-                      class="model-group"
-                      [attr.data-provider]="group.providerId"
-                      role="group"
-                      [attr.aria-label]="group.name"
+                  <div class="model-search" (click)="$event.stopPropagation()">
+                    <mat-icon aria-hidden="true">search</mat-icon>
+                    <input
+                      #modelSearch
+                      class="model-search-input"
+                      type="search"
+                      [attr.aria-label]="'Search models' | tr"
+                      [placeholder]="'Search models' | tr"
+                      autocomplete="off"
+                      spellcheck="false"
+                      [(ngModel)]="modelSearchQuery"
+                      (keydown)="onModelSearchKey($event)"
+                    />
+                    <button
+                      class="model-search-clear"
+                      type="button"
+                      [disabled]="!modelSearchQuery"
+                      [style.visibility]="modelSearchQuery ? 'visible' : 'hidden'"
+                      [attr.aria-label]="'Clear model search' | tr"
+                      [title]="'Clear model search' | tr"
+                      (click)="clearModelSearch()"
+                      ><mat-icon aria-hidden="true">close</mat-icon></button
                     >
-                      <div class="model-group-label">{{ group.name }}</div>
-                      @for (model of group.models; track model.value) {
-                        <button
-                          mat-menu-item
-                          type="button"
-                          role="menuitemradio"
-                          class="model-option"
-                          [attr.data-model-value]="model.value"
-                          [attr.aria-checked]="model.value === conversationModel"
-                          [disabled]="runtimeDisabled"
-                          (click)="changeConversationModel(model.value)"
-                        >
-                          <span class="model-option-content">
-                            <span class="model-option-label">{{ model.name }}</span>
-                            <mat-icon
-                              class="model-option-check"
-                              aria-hidden="true"
-                              [style.visibility]="
-                                model.value === conversationModel ? 'visible' : 'hidden'
-                              "
-                              >check</mat-icon
-                            >
-                          </span>
-                        </button>
-                      }
-                    </div>
-                  }
+                  </div>
+                  <div class="model-search-results">
+                    @for (group of filteredConversationModels; track group.providerId) {
+                      <div
+                        class="model-group"
+                        [attr.data-provider]="group.providerId"
+                        role="group"
+                        [attr.aria-label]="group.name"
+                      >
+                        <div class="model-group-label">{{ group.name }}</div>
+                        @for (model of group.models; track model.value) {
+                          <button
+                            mat-menu-item
+                            type="button"
+                            role="menuitemradio"
+                            class="model-option"
+                            [title]="model.name"
+                            [attr.data-model-value]="model.value"
+                            [attr.aria-checked]="model.value === conversationModel"
+                            [disabled]="runtimeDisabled"
+                            (click)="changeConversationModel(model.value)"
+                          >
+                            <span class="model-option-content">
+                              <span class="model-option-label">{{ model.name }}</span>
+                              <mat-icon
+                                class="model-option-check"
+                                aria-hidden="true"
+                                [style.visibility]="
+                                  model.value === conversationModel ? 'visible' : 'hidden'
+                                "
+                                >check</mat-icon
+                              >
+                            </span>
+                          </button>
+                        }
+                      </div>
+                    } @empty {
+                      <p class="model-search-empty" role="status">{{
+                        'No matching models.' | tr
+                      }}</p>
+                    }
+                  </div>
                 </div>
               </mat-menu>
               @if (submitting) {

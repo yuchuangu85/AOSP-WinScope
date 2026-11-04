@@ -161,6 +161,13 @@
   justify-content: space-between;
 }
 
+// Restoring focus after a mouse-driven settings save is not an active toggle.
+.toolbar
+  .settings-button.cdk-program-focused:not(:focus-visible):not(:hover)
+  .mat-mdc-button-persistent-ripple::before {
+  opacity: 0;
+}
+
 .toolbar-icon-divider {
   margin-right: 6px;
   margin-left: 6px;
