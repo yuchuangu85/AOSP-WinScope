@@ -8,16 +8,22 @@ passing hosted jobs, completed source/license compliance, signing, or a publishe
 release. It supersedes ADR 0029's four-target and candidate-only delivery scope,
 not its runtime or security decisions.
 
+CI distribution policy updated on 2026-11-04: native installers and required
+evidence only; no portable executable/archive generation or publication in
+GitHub workflows. Local/manual legacy CLI contracts are retained.
+
 ## Context
 
 Users need separate Intel and Apple Silicon macOS packages, Windows AMD64
 packages, and Linux x64 and ARM64 packages available together in GitHub
 Releases. A target flag alone cannot supply an Electron binary, native frozen
 Python/Go runtime, compatible ADB, or trustworthy acceptance evidence. The
-existing official portable release already has protected approval, provenance,
-reproducibility, device, performance, vulnerability, and APS-consumer gates.
-Desktop delivery must add requirements to that authority, not become a shortcut
-around it or rebuild a second unrelated Web/Perfetto product.
+historical official portable release established protected approval, provenance,
+reproducibility, device, performance, vulnerability, and APS-consumer contracts.
+Native-only CI must preserve the full validation and release authority without
+generating or publishing legacy portable products or rebuilding a second
+unrelated Web/Perfetto product. Legacy packaging and APS CLI tools remain
+available for explicitly manual/local use.
 
 ## Decision
 
@@ -34,8 +40,10 @@ of truth for targets, component architectures, runner selection, and formats:
 
 Require all **five targets and ten installer assets**, plus the separate Linux
 ARM64 application-source asset described below. Windows ARM64 desktop and
-desktop ZIP, AppImage, and binary tar.gz outputs are excluded. This change does
-not remove the required source tar.gz or alter portable Launcher/APS outputs.
+desktop ZIP, AppImage, and binary tar.gz outputs are excluded. CI also generates
+and publishes no portable Launcher ZIPs. This policy does not remove the required
+source tar.gz, metadata, checksums, or evidence, or delete local/manual portable
+Launcher and APS CLI contracts.
 Pin Electron `45.2.1`, electron-builder `26.18.1`, and PyInstaller `6.22.3`;
 build Electron, frozen
 capture, and Go for the matching native OS/CPU. macOS minimum is 13 under
@@ -106,8 +114,12 @@ and [ADR 0017](0017-ship-redistribution-evidence-with-every-release.md).
 
 Keep [`electron.yml`](../../.github/workflows/electron.yml) read-only and reusable
 through `workflow_call`, in addition to manual and path-filtered PR candidate
-runs. Manual/PR runs build shared Web, Trace Processor WASM, and AI once through
-the pinned Linux build pipeline. Native jobs consume same-run, same-commit
+runs. The manual-only `package.yml` entry point reuses this workflow with
+read-only permissions and concurrency control, not a portable packaging job;
+it retains its fast/full Web checks and production E2E before transferring the
+canonical Web/AI inputs to native jobs. It adds no push/PR trigger.
+Manual/PR runs build shared Web, Trace Processor WASM,
+and AI once through the pinned Linux build pipeline. Native jobs consume same-run, same-commit
 `dist/prod` and `ai/dist` via `--skip-web-build`; they must not silently rebuild
 missing shared inputs or run a full Perfetto build on unsupported native hosts.
 
@@ -117,6 +129,15 @@ independent desktop Perfetto build without removing the official cold-cache
 reproducibility double build. Each native job builds its own frozen capture/Go
 runtime and ADB provider, tests the actual `--dir` packaged executable, then
 creates every required format from that tested app.
+
+The official `release:double-build` and `release:package` commands pass
+`--version "$AOSP_WINSCOPE_VERSION" --unpacked-only`. Retain uncompressed target
+directories and internal attestation for reproducibility and the full Stage 7
+gate, without generating ZIP files. Default `scripts/release.py verify`
+auto-detects the tree; `validate.py gate --release dist/release` must retain
+`--require-complete`, all dynamic unit/E2E/production E2E/offline/security checks,
+and every protected external evidence input. These internal inputs are not
+portable distribution assets.
 
 ### Bind identity and acceptance to every format
 
@@ -155,8 +176,14 @@ The official gate remains
 [`official-release.yml`](../../.github/workflows/official-release.yml), including
 its digest-pinned build image, main-ancestor check, clean-room lineage, approved
 external device/performance/vulnerability evidence, complete validation gate,
-reproducibility, APS verification, protected `official-release` environment, and
-OIDC attestation. Keep its credential and approval policy unchanged. Invoke the
+reproducibility, protected `official-release` environment, and OIDC attestation.
+`scripts/installer_evidence.py stage` replaces legacy ZIP publication and stages
+integrity/source/license/gate evidence plus validation, reproducibility,
+release-image, and feature-stage reports. Its `verify` command must recheck the
+current version, immutable image, lineage, reports, and integrity in both build
+and publish jobs. GitHub workflows invoke neither `publish.py` nor
+`verify-aps-release.py`. Keep credential and approval policy unchanged, and never
+publish raw protected external secret manifests. Invoke the
 desktop reusable workflow after the gated canonical build and require it to
 succeed before publication. Candidate success never weakens an existing gate;
 pre-existing provenance or advisory failures remain blockers.
@@ -166,17 +193,23 @@ The tag policy remains `v17.<minor>.<patch>`, optionally `-alpha.<n>` or
 dispatch cannot publish. Tag creation/push and remote Actions execution are
 external release operations, not part of this local documentation update.
 
-Stage portable and desktop assets in separate verified flat directories,
-`dist/public/<version>` and `dist/desktop/public/<version>`, and publish both in
-one release for the tag. Refuse any existing release, including a prior draft;
+Stage release evidence and desktop assets in separate verified flat directories,
+`dist/public/<version>` and `dist/desktop/public/<version>`. The former contains
+only integrity/source/license/gate evidence, no portable executable or archive;
+the latter contains the ten native installers and required source/metadata.
+Publish both inventories in one release for the tag. Refuse any existing release,
+including a prior draft;
 never clobber or automatically overwrite it. Create the new release as a draft,
 upload both complete asset sets, then read its actual GitHub REST asset metadata.
-`check-remote` must require the matching unpublished draft/tag and compare exact
+`check-remote --desktop <desktop-directory> --evidence <evidence-directory>` must
+require the matching unpublished draft/tag and compare exact
 combined names, uploaded state, byte sizes, and REST SHA-256 digests against both
 local directories. Only after that check succeeds may the publisher set
 `draft=false`. A local checksum pass alone is insufficient. Failed uploads or
 verification leave the draft private for operator diagnosis, not automatic
 replacement.
+Actions artifact transfer may still use ZIP transport, but that is not a release
+ZIP product or permission to generate portable archives in CI.
 
 ### Stable public assets and trust boundaries
 
@@ -191,9 +224,10 @@ archive, five `desktop-target-<target>.json` reports, five
 `desktop-release.json`, and `desktop-SHA256SUMS.txt`. The index records identity,
 unsigned status, targets/formats, compatibility, and per-file sizes/digests.
 The checksum file covers the index and every indexed desktop file, including
-the source archive but excluding itself. Its `desktop-` prefix prevents a
-collision with portable `SHA256SUMS.txt`; portable `release-index.json` and its
-checksum files remain unchanged in the shared release.
+the source archive but excluding itself. Preserve its `desktop-` checksum
+namespace separately from the release-gate evidence inventory. Legacy portable
+`release-index.json` and checksum files remain local/manual CLI contracts, not
+assets in this CI release.
 
 These are explicitly unsigned packages: no Apple Developer ID/notarization and
 no Windows code signing are supplied by this lane. OIDC attestations bind
@@ -212,8 +246,8 @@ separate qualification requirements.
 
 ## Consequences
 
-- One release lets users choose an honest host/component combination while
-  preserving the portable consumer contract and its release authority.
+- One release lets users choose an honest native host/component combination while
+  preserving protected release authority and manual-only legacy CLI contracts.
 - Native runners and all required formats increase CI cost; a missing target or
   evidence blocks the complete release instead of reducing coverage silently.
 - Windows desktop is x64-only with explicitly declared ia32 ADB; Linux ARM64 has

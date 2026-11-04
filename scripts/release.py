@@ -546,6 +546,7 @@ def _write_target_package(
     operating_system: str,
     architecture: str,
     epoch: int,
+    unpacked_only: bool = False,
 ) -> dict[str, Any]:
     target = f"{operating_system}-{architecture}"
     package = output_root / f"aosp-winscope-{version}-{target}"
@@ -591,6 +592,14 @@ def _write_target_package(
         "sourceDateEpoch": epoch,
         "files": files,
     })
+    if unpacked_only:
+        manifest = package / "release-manifest.json"
+        return {
+            "target": target, "package": package.as_posix(),
+            "manifest": manifest.as_posix(),
+            "subjectName": f"{package.name}/release-manifest.json",
+            "sha256": sha256_file(manifest), "files": len(files),
+        }
     archive = output_root / target_archive_name(version, operating_system, architecture)
     write_deterministic_zip(package, archive, epoch)
     return {"target": target, "archive": archive.as_posix(), "package": package.as_posix(), "sha256": sha256_file(archive), "files": len(files)}
@@ -602,9 +611,13 @@ def package_distribution(
     web_root: Path = DEFAULT_WEB_ROOT,
     launchers_root: Path = DEFAULT_LAUNCHERS_ROOT,
     proxy: Path = DEFAULT_PROXY,
+    *,
+    unpacked_only: bool = False,
 ) -> dict[str, Any]:
     if not version or "/" in version or "\\" in version:
         fail("version must be a non-empty path-safe value")
+    if unpacked_only and any(output_root.glob("*.zip")):
+        fail("unpacked CI inputs must not contain ZIP archives; use a fresh output directory")
     epoch = source_date_epoch()
     package_root = output_root / f"aosp-winscope-{version}-common"
     if package_root.exists():
@@ -634,14 +647,15 @@ def package_distribution(
     archives = []
     for operating_system, architecture, _ in LAUNCHER_TARGETS:
         archives.append(_write_target_package(
-            package_root, output_root, version, operating_system, architecture, epoch
+            package_root, output_root, version, operating_system, architecture, epoch,
+            unpacked_only=unpacked_only,
         ))
 
     sums_path = output_root / "SHA256SUMS"
     sums_path.write_text(
         "".join(
-            f"{item['sha256']}  {Path(item['archive']).name}\n"
-            for item in sorted(archives, key=lambda item: Path(item["archive"]).name)
+            f"{item['sha256']}  {release_subject_name(item)}\n"
+            for item in sorted(archives, key=release_subject_name)
         ),
         encoding="utf-8",
     )
@@ -651,7 +665,7 @@ def package_distribution(
     attestation = {
         "_type": "https://in-toto.io/Statement/v1",
         "subject": [
-            *({"name": Path(item["archive"]).name, "digest": {"sha256": item["sha256"]}} for item in archives),
+            *({"name": release_subject_name(item), "digest": {"sha256": item["sha256"]}} for item in archives),
             {"name": sums_path.name, "digest": {"sha256": sums_digest}},
         ],
         "predicateType": "https://slsa.dev/provenance/v1",
@@ -677,10 +691,18 @@ def package_distribution(
     }
     attestation_path = output_root / f"aosp-winscope-{version}.attestation.json"
     write_json(attestation_path, attestation)
+    if unpacked_only:
+        write_json(output_root / "unpacked-release.json", {
+            "schemaVersion": 1, "artifactMode": "unpacked", "version": version,
+            "targets": [
+                {"target": item["target"], "directory": Path(item["package"]).name, "sha256": item["sha256"]}
+                for item in archives
+            ],
+        })
     return {
         "ok": True,
         "version": version,
-        "archives": archives,
+        **({"artifactMode": "unpacked", "packages": archives} if unpacked_only else {"archives": archives}),
         "sums": sums_path.as_posix(),
         "sumsSha256": sums_digest,
         "files": sum(item["files"] for item in archives),
@@ -691,6 +713,10 @@ def package_distribution(
         "attestation": attestation_path.as_posix(),
         "attestationSha256": sha256_file(attestation_path),
     }
+
+
+def release_subject_name(item: dict[str, Any]) -> str:
+    return item["subjectName"] if "manifest" in item else Path(item["archive"]).name
 
 
 def zip_timestamp(epoch: int) -> tuple[int, int, int, int, int, int]:
@@ -739,7 +765,7 @@ def verify_attestation(
         fail("release attestation subjects are missing")
     sums_path = attestation_path.parent / "SHA256SUMS"
     expected_subjects = {
-        **{Path(item["archive"]).name: item["sha256"] for item in archives},
+        **{release_subject_name(item): item["sha256"] for item in archives},
         sums_path.name: sha256_file(sums_path),
     }
     actual_subjects: dict[str, str] = {}
@@ -890,9 +916,73 @@ def verify_package(package_root: Path) -> dict[str, Any]:
     }
 
 
-def verify_distribution(version: str, output_root: Path) -> dict[str, Any]:
+def verify_unpacked_distribution(version: str, output_root: Path) -> dict[str, Any]:
+    if any(output_root.glob("*.zip")):
+        fail("unpacked CI inputs contain unexpected ZIP archives")
+    index = json.loads((output_root / "unpacked-release.json").read_text(encoding="utf-8"))
+    if index.get("schemaVersion") != 1 or index.get("artifactMode") != "unpacked" or index.get("version") != version:
+        fail("invalid unpacked release index")
+    records = []
+    expected_targets = []
+    for operating_system, architecture, _ in LAUNCHER_TARGETS:
+        target = f"{operating_system}-{architecture}"
+        package = output_root / f"aosp-winscope-{version}-{target}"
+        report = verify_package(package)
+        manifest_path = package / "release-manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if (
+            manifest.get("version") != version
+            or manifest.get("sourceCommit") != git_commit()
+            or manifest.get("sourceDateEpoch") != source_date_epoch()
+            or manifest.get("target") != {"operatingSystem": operating_system, "architecture": architecture}
+        ):
+            fail("unpacked release source or target lineage mismatch")
+        declared_files = manifest.get("files", [])
+        declared_names = [entry["path"] for entry in declared_files]
+        actual_names = [file.relative_to(package).as_posix() for file in files_under(package)]
+        if len(set(declared_names)) != len(declared_names) or set(actual_names) != {*declared_names, "release-manifest.json"}:
+            fail("unpacked release contains missing, duplicate or unexpected files")
+        for entry in declared_files:
+            file = package / safe_relative_path(entry["path"])
+            if file.stat().st_size != entry["size"]:
+                fail("unpacked release file size mismatch")
+            if entry["path"].startswith(("bin/", "proxy/")) and not file.stat().st_mode & 0o111:
+                fail("unpacked release executable permission is missing")
+        digest = sha256_file(manifest_path)
+        records.append({
+            **report, "target": target, "manifest": manifest_path.as_posix(),
+            "subjectName": f"{package.name}/release-manifest.json", "sha256": digest,
+        })
+        expected_targets.append({"target": target, "directory": package.name, "sha256": digest})
+    if index.get("targets") != expected_targets:
+        fail("unpacked release target or digest inventory mismatch")
+    expected_names = {
+        *(item["directory"] for item in expected_targets),
+        f"aosp-winscope-{version}-common", "unpacked-release.json", "SHA256SUMS",
+        f"aosp-winscope-{version}.attestation.json",
+    }
+    if {item.name for item in output_root.iterdir()} != expected_names:
+        fail("unpacked release contains unexpected top-level inputs")
+    sums = output_root / "SHA256SUMS"
+    expected_sums = "".join(
+        f"{item['sha256']}  {release_subject_name(item)}\n"
+        for item in sorted(records, key=release_subject_name)
+    )
+    if sums.read_text(encoding="utf-8") != expected_sums:
+        fail("SHA256SUMS does not match the unpacked release manifests")
+    attestation = output_root / f"aosp-winscope-{version}.attestation.json"
+    provenance = verify_attestation(attestation, records, None, [Path(item["package"]) for item in records])
+    return {
+        "ok": True, "version": version, "artifactMode": "unpacked", "packages": records,
+        "sums": sums.as_posix(), "attestation": attestation.as_posix(), "provenance": provenance,
+    }
+
+
+def verify_distribution(version: str, output_root: Path, *, unpacked_only: bool = False) -> dict[str, Any]:
     if not output_root.is_dir():
         fail(f"release directory is missing: {output_root}")
+    if unpacked_only or (output_root / "unpacked-release.json").is_file():
+        return verify_unpacked_distribution(version, output_root)
     expected_names = [
         target_archive_name(version, operating_system, architecture)
         for operating_system, architecture, _ in LAUNCHER_TARGETS
@@ -935,33 +1025,47 @@ def verify_distribution(version: str, output_root: Path) -> dict[str, Any]:
     return {"ok": True, "version": version, "archives": records, "sums": sums.as_posix(), "attestation": attestation.as_posix(), "provenance": provenance}
 
 
-def double_build(version: str, web_root: Path, launchers_root: Path, proxy: Path) -> dict[str, Any]:
+def double_build(
+    version: str, web_root: Path, launchers_root: Path, proxy: Path, *, unpacked_only: bool = False,
+) -> dict[str, Any]:
     require_clean_tree()
     with tempfile.TemporaryDirectory(prefix="aosp-winscope-release-") as temporary:
         first = Path(temporary) / "first"
         second = Path(temporary) / "second"
-        first_report = package_distribution(version, first, web_root, launchers_root, proxy)
-        second_report = package_distribution(version, second, web_root, launchers_root, proxy)
-        first_verified = [verify_package(Path(item["package"])) for item in first_report["archives"]]
-        second_verified = [verify_package(Path(item["package"])) for item in second_report["archives"]]
+        key = "packages" if unpacked_only else "archives"
+        first_report = package_distribution(version, first, web_root, launchers_root, proxy, unpacked_only=unpacked_only)
+        second_report = package_distribution(version, second, web_root, launchers_root, proxy, unpacked_only=unpacked_only)
+        if unpacked_only:
+            verify_distribution(version, first, unpacked_only=True)
+            verify_distribution(version, second, unpacked_only=True)
+        first_verified = [verify_package(Path(item["package"])) for item in first_report[key]]
+        second_verified = [verify_package(Path(item["package"])) for item in second_report[key]]
         first_provenance = verify_attestation(
-            Path(first_report["attestation"]), first_report["archives"],
-            None, [Path(item["package"]) for item in first_report["archives"]],
+            Path(first_report["attestation"]), first_report[key],
+            None, [Path(item["package"]) for item in first_report[key]],
         )
         second_provenance = verify_attestation(
-            Path(second_report["attestation"]), second_report["archives"],
-            None, [Path(item["package"]) for item in second_report["archives"]],
+            Path(second_report["attestation"]), second_report[key],
+            None, [Path(item["package"]) for item in second_report[key]],
         )
-        first_archives = [Path(item["archive"]).read_bytes() for item in first_report["archives"]]
-        second_archives = [Path(item["archive"]).read_bytes() for item in second_report["archives"]]
+        if unpacked_only:
+            # Compare every payload byte and executable mode without materializing an archive.
+            for one, two in zip(first_report[key], second_report[key]):
+                left, right = Path(one["package"]), Path(two["package"])
+                for file in files_under(left):
+                    other = right / file.relative_to(left)
+                    if file.read_bytes() != other.read_bytes() or stat.S_IMODE(file.stat().st_mode) != stat.S_IMODE(other.stat().st_mode):
+                        fail("two unpacked release builds are not byte-identical")
+        first_archives = [Path(item["manifest"] if unpacked_only else item["archive"]).read_bytes() for item in first_report[key]]
+        second_archives = [Path(item["manifest"] if unpacked_only else item["archive"]).read_bytes() for item in second_report[key]]
         if first_archives != second_archives:
             fail("two release package builds are not byte-identical")
         if Path(first_report["sums"]).read_bytes() != Path(second_report["sums"]).read_bytes():
             fail("two release package checksum records differ")
         if first_provenance != second_provenance or first_report["attestationSha256"] != second_report["attestationSha256"]:
             fail("two release package provenance records differ")
-        first_digests = [item["sha256"] for item in first_report["archives"]]
-        second_digests = [item["sha256"] for item in second_report["archives"]]
+        first_digests = [item["sha256"] for item in first_report[key]]
+        second_digests = [item["sha256"] for item in second_report[key]]
         if first_digests != second_digests:
             fail("two release package archive inventories differ")
         return {
@@ -972,15 +1076,16 @@ def double_build(version: str, web_root: Path, launchers_root: Path, proxy: Path
             "sourceCommit": git_commit(),
             "sourceDateEpoch": source_date_epoch(),
             "dependencyLockSha256": sha256_file(LOCK_PATH),
+            **({"artifactMode": "unpacked"} if unpacked_only else {}),
             "builds": [
                 {
-                    "archives": [{"target": item["target"], "sha256": item["sha256"]} for item in first_report["archives"]],
+                    key: [{"target": item["target"], "sha256": item["sha256"]} for item in first_report[key]],
                     "attestationSha256": first_report["attestationSha256"],
                     "filesVerified": sum(item["filesVerified"] for item in first_verified),
                     "provenanceVerified": first_provenance["ok"],
                 },
                 {
-                    "archives": [{"target": item["target"], "sha256": item["sha256"]} for item in second_report["archives"]],
+                    key: [{"target": item["target"], "sha256": item["sha256"]} for item in second_report[key]],
                     "attestationSha256": second_report["attestationSha256"],
                     "filesVerified": sum(item["filesVerified"] for item in second_verified),
                     "provenanceVerified": second_provenance["ok"],
@@ -1006,18 +1111,22 @@ def main() -> int:
     parser.add_argument("--proxy", type=Path, default=DEFAULT_PROXY)
     parser.add_argument("--evidence", type=Path)
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--unpacked-only", action="store_true", help="Stage and compare internal release inputs without creating ZIP archives")
     args = parser.parse_args()
     try:
         if args.command == "package":
-            report = package_distribution(args.version, args.output, args.web, args.launchers, args.proxy)
+            report = package_distribution(args.version, args.output, args.web, args.launchers, args.proxy, unpacked_only=args.unpacked_only)
         elif args.command == "double-build":
-            report = double_build(args.version, args.web, args.launchers, args.proxy)
+            report = double_build(args.version, args.web, args.launchers, args.proxy, unpacked_only=args.unpacked_only)
         else:
             package = args.input
             if package is not None:
-                report = verify_package(package)
+                if package.is_dir() and (package / "unpacked-release.json").is_file():
+                    report = verify_distribution(args.version, package, unpacked_only=True)
+                else:
+                    report = verify_package(package)
             else:
-                report = verify_distribution(args.version, args.output)
+                report = verify_distribution(args.version, args.output, unpacked_only=args.unpacked_only)
         if args.evidence is not None:
             write_json(args.evidence, report)
         emit(report, args.json)

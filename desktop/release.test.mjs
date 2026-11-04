@@ -339,6 +339,7 @@ test("remote draft must contain the exact complete digest-bound combined publica
   const { root, output } = await publication(t);
   const portable = path.join(root, "portable");
   await write(path.join(portable, "release-index.json"), { old: true });
+  await write(path.join(portable, "legacy-portable.zip"), "legacy archive bytes");
   const assets = [];
   for (const dir of [portable, output])
     for (const name of await fs.readdir(dir)) {
@@ -379,6 +380,93 @@ test("remote draft must contain the exact complete digest-bound combined publica
     await assert.rejects(
       checkRemote({ desktop: output, portable, metadata, version, commit }),
     );
+  }
+});
+
+async function remoteMetadata(root, directories) {
+  const assets = [];
+  for (const directory of directories)
+    for (const name of await fs.readdir(directory)) {
+      const bytes = await fs.readFile(path.join(directory, name));
+      assets.push({
+        name,
+        state: "uploaded",
+        size: bytes.length,
+        digest: "sha256:" + createHash("sha256").update(bytes).digest("hex"),
+      });
+    }
+  const metadata = path.join(root, "remote.json");
+  const value = { draft: true, tag_name: `v${version}`, assets };
+  await write(metadata, value);
+  return { metadata, value };
+}
+
+test("remote installer-only evidence publication is exact and digest-bound", async (t) => {
+  const { root, output } = await publication(t);
+  const evidence = path.join(root, "evidence");
+  await write(path.join(evidence, "installer-release.json"), { version, commit });
+  await write(path.join(evidence, "SHA256SUMS.txt"), "bounded evidence checksums\n");
+  const { metadata, value } = await remoteMetadata(root, [output, evidence]);
+  const options = { desktop: output, evidence, metadata, version, commit };
+  assert.equal((await checkRemote(options)).assets, value.assets.length);
+  for (const mutate of [
+    (v) => (v.assets[0].digest = "sha256:" + "0".repeat(64)),
+    (v) => (v.assets.at(-1).digest = "sha256:" + "0".repeat(64)),
+    (v) => (v.assets[0].size += 1),
+    (v) => (v.assets[0].state = "new"),
+    (v) => (v.assets[1] = v.assets[0]),
+    (v) => v.assets.push({ ...v.assets[0], name: "unexpected.json" }),
+  ]) {
+    const changed = structuredClone(value);
+    mutate(changed);
+    await write(metadata, changed);
+    await assert.rejects(checkRemote(options));
+  }
+  await write(metadata, value);
+  await assert.rejects(
+    checkRemote({ ...options, portable: evidence }),
+    /mutually exclusive/,
+  );
+  await write(path.join(evidence, "desktop-release.json"), "collision");
+  await assert.rejects(checkRemote(options), /collide/);
+});
+
+test("installer-only remote checks reject ZIP assets in either directory or the remote draft", async (t) => {
+  const { root, output } = await publication(t);
+  const evidence = path.join(root, "evidence");
+  await write(path.join(evidence, "installer-release.json"), { version, commit });
+  const { metadata, value } = await remoteMetadata(root, [output, evidence]);
+  const options = { desktop: output, evidence, metadata, version, commit };
+  await write(path.join(evidence, "stale.ZIP"), "must not publish");
+  await assert.rejects(checkRemote(options), /ZIP/);
+  await fs.rm(path.join(evidence, "stale.ZIP"));
+  await write(path.join(output, "stale.zip"), "must not publish");
+  await assert.rejects(checkRemote(options));
+  await fs.rm(path.join(output, "stale.zip"));
+  const changed = structuredClone(value);
+  changed.assets[0].name = "stale.ZiP";
+  await write(metadata, changed);
+  await assert.rejects(checkRemote(options), /ZIP/);
+});
+
+test("remote CLI supports desktop-only and evidence directories without requiring portable", async (t) => {
+  const { root, output } = await publication(t);
+  const command = path.join(import.meta.dirname, "release.mjs");
+  const evidence = path.join(root, "evidence");
+  await write(path.join(evidence, "installer-release.json"), { version, commit });
+  for (const directories of [[output], [output, evidence]]) {
+    const { metadata, value } = await remoteMetadata(root, directories);
+    const args = [command, "check-remote", "--desktop", output, "--metadata", metadata,
+      "--version", version, "--commit", commit];
+    if (directories.length === 2) args.push("--evidence", evidence);
+    const result = spawnSync(process.execPath, args, { encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(JSON.parse(result.stdout).assets, value.assets.length);
+    if (directories.length === 2) {
+      const rejected = spawnSync(process.execPath, [...args, "--portable", evidence], { encoding: "utf8" });
+      assert.notEqual(rejected.status, 0);
+      assert.match(rejected.stderr, /mutually exclusive/);
+    }
   }
 });
 

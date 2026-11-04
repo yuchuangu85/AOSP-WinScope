@@ -4,7 +4,9 @@ import hashlib
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 import warnings
@@ -21,6 +23,87 @@ SPEC.loader.exec_module(release)
 
 
 class ReleaseEngineeringTest(unittest.TestCase):
+    def test_cli_package_and_verify_use_unpacked_only_mode(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            web, launchers, proxy = self.make_inputs(root)
+            output = root / "release"
+            args = [
+                "release.py", "package", "--version", "17.0.9", "--output", str(output),
+                "--web", str(web), "--launchers", str(launchers), "--proxy", str(proxy),
+                "--unpacked-only", "--json",
+            ]
+            with mock.patch.object(sys, "argv", args), mock.patch.object(
+                release, "write_deterministic_zip", side_effect=AssertionError("no CI ZIP"),
+            ), mock.patch("builtins.print"):
+                self.assertEqual(release.main(), 0)
+            for selector in (["--output", str(output)], ["--input", str(output)]):
+                with mock.patch.object(sys, "argv", ["release.py", "verify", "--version", "17.0.9", *selector, "--json"]), mock.patch("builtins.print"):
+                    self.assertEqual(release.main(), 0)
+            self.assertEqual(list(output.rglob("*.zip")), [])
+
+    def test_unpacked_ci_distribution_never_calls_zip_writer_and_retains_provenance(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            web, launchers, proxy = self.make_inputs(root)
+            output = root / "release"
+            with mock.patch.object(release, "write_deterministic_zip", side_effect=AssertionError("CI must not write ZIPs")):
+                report = release.package_distribution(
+                    "17.0.0", output, web, launchers, proxy, unpacked_only=True,
+                )
+            self.assertEqual(report["artifactMode"], "unpacked")
+            self.assertNotIn("archives", report)
+            self.assertEqual(len(report["packages"]), len(release.LAUNCHER_TARGETS))
+            self.assertEqual(list(output.rglob("*.zip")), [])
+            verified = release.verify_distribution("17.0.0", output, unpacked_only=True)
+            self.assertTrue(verified["provenance"]["ok"])
+            for package in report["packages"]:
+                self.assertTrue(Path(package["manifest"]).is_file())
+                self.assertEqual(package["sha256"], release.sha256_file(Path(package["manifest"])))
+                self.assertTrue((Path(package["package"]) / "LICENSES/compliance.json").is_file())
+            self.assertEqual(
+                [item["sha256"] for item in verified["packages"]],
+                [item["sha256"] for item in report["packages"]],
+            )
+
+    def test_unpacked_verification_rejects_payload_manifest_and_extra_zip_tampering(self):
+        for mutation in ("payload", "manifest", "zip", "extra-file", "missing-target"):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                web, launchers, proxy = self.make_inputs(root)
+                output = root / "release"
+                report = release.package_distribution("17.0.0", output, web, launchers, proxy, unpacked_only=True)
+                package = Path(report["packages"][0]["package"])
+                if mutation == "payload":
+                    (package / "web/main.abc.js").write_text("tampered")
+                elif mutation == "manifest":
+                    manifest = package / "release-manifest.json"
+                    value = json.loads(manifest.read_text())
+                    value["sourceCommit"] = "0" * 40
+                    manifest.write_text(json.dumps(value))
+                elif mutation == "zip":
+                    (output / "old-portable.zip").write_bytes(b"ZIP")
+                elif mutation == "extra-file":
+                    (package / "unlisted.exe").write_bytes(b"unexpected")
+                else:
+                    shutil.rmtree(package)
+                with self.assertRaises(ValueError):
+                    release.verify_distribution("17.0.0", output, unpacked_only=True)
+
+    def test_unpacked_double_build_compares_file_trees_without_archiving(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            web, launchers, proxy = self.make_inputs(root)
+            with mock.patch.object(release, "require_clean_tree"), mock.patch.object(
+                release, "write_deterministic_zip", side_effect=AssertionError("no CI ZIP"),
+            ):
+                report = release.double_build("17.0.0", web, launchers, proxy, unpacked_only=True)
+            self.assertEqual(report["artifactMode"], "unpacked")
+            self.assertTrue(report["byteIdentical"])
+            self.assertTrue(report["provenanceVerified"])
+            self.assertEqual(report["builds"][0]["packages"], report["builds"][1]["packages"])
+            self.assertNotIn("archives", report["builds"][0])
+
     @unittest.skipIf(os.name == "nt", "requires a POSIX shell")
     def test_startup_scripts_preserve_default_launch_and_explicit_arguments(self):
         for operating_system in ("darwin", "linux"):
@@ -101,8 +184,12 @@ class ReleaseEngineeringTest(unittest.TestCase):
                 (package / "LICENSES/compliance.json").read_text(encoding="utf-8")
             )
             self.assertTrue(compliance["ok"])
-            self.assertEqual(compliance["distributedDependencies"], 223)
-            self.assertEqual(first["distributedDependencies"], 223)
+            distributed = sum(
+                entry["distribution"] == "runtime"
+                for entry in json.loads((ROOT / "build/dependencies.lock.json").read_text())["dependencies"]
+            )
+            self.assertEqual(compliance["distributedDependencies"], distributed)
+            self.assertEqual(first["distributedDependencies"], distributed)
             self.assertTrue((package / "dependency-bundle/dependencies.lock.json").is_file())
             sbom = json.loads((package / "LICENSES/sbom.spdx.json").read_text())
             self.assertEqual(

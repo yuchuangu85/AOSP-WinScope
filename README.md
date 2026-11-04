@@ -20,11 +20,12 @@ OS rights, and Linux udev permissions still apply.
 
 The five-target contract requires ten installer assets: DMG/PKG only for each
 macOS architecture, NSIS EXE/MSI only for Windows x64, and DEB/RPM only for each
-Linux architecture. Desktop ZIP, AppImage, and binary tar.gz outputs are excluded;
-there is no universal macOS package. Manual/PR Electron CI produces
-read-only candidate artifacts; the official release contract reuses that native
-workflow and publishes portable Launcher and desktop assets in **one GitHub
-Release** only after all five targets and the existing official gates pass.
+Linux architecture. CI generates and publishes only these native installers as
+executable distribution products: no portable Launcher ZIP, desktop ZIP,
+AppImage, or binary tar.gz; there is no universal macOS package. Manual packaging
+and PR Electron CI reuse the read-only native candidate workflow. The official
+release contract publishes the installers and required evidence in **one GitHub
+Release** only after all five targets and the complete official gates pass.
 Publication verifies uploaded names, sizes, and SHA-256 digests while the release
 is still a draft. Packages are unsigned; local installer names and metadata do
 not authenticate a publisher. OIDC attestations are not OS code signing or Apple
@@ -36,15 +37,21 @@ source `.tar.gz` archive (a separate legal/source artifact, not an installer) an
 bundled library sources, original DEBs, signed indexes,
 licenses, and provenance. Source delivery and a private-key-free replacement/
 relink procedure are release requirements, not a claim of completed legal or
-native GPG approval.
+native GPG approval. The official build retains uncompressed target directories
+and internal attestation for reproducibility and the complete validation gate,
+without generating ZIP files. Its separate publication contains only
+integrity/source/license/gate evidence, not a portable executable or archive.
+Metadata, checksums, and OIDC attestations remain required. GitHub Actions may
+use ZIP for artifact transfer; that transport is not a release ZIP product.
 
 This multi-platform release implementation is underway, not a claim that hosted
 jobs or release qualification have passed. See [Electron Desktop](docs/ELECTRON.md)
 for installation, artifact names/index/checksums, build/start/test commands, data
 retention, and validation gaps, and
 [ADR 0030](docs/adr/0030-multi-platform-desktop-release.md) for the release policy.
-The portable Launcher remains a supported distribution with its existing gates;
-its release formats and APS outputs are unchanged by this desktop-only contract.
+Legacy portable Launcher packaging and APS consumer CLI contracts remain
+available for manual/local use only. GitHub CI does not generate or publish
+those legacy products; this CI policy does not delete the local tools.
 
 ## Developing WinScope
 

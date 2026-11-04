@@ -648,10 +648,15 @@ export async function verify({ directory, version, commit }) {
 export async function checkRemote({
   desktop,
   portable,
+  evidence,
   metadata,
   version,
   commit,
 }) {
+  requireValue(
+    !(portable !== undefined && evidence !== undefined),
+    "Portable and evidence publication directories are mutually exclusive",
+  );
   await verify({ directory: desktop, version, commit });
   const release = await json(metadata);
   requireValue(
@@ -661,12 +666,19 @@ export async function checkRemote({
     "Remote release must be the same-version unpublished draft",
   );
   const expected = new Map();
-  for (const directory of [portable, desktop]) {
+  const directories = [desktop];
+  if (portable !== undefined) directories.push(portable);
+  if (evidence !== undefined) directories.push(evidence);
+  for (const directory of directories) {
     for (const name of await fs.readdir(directory)) {
       basename(name);
       requireValue(
+        evidence === undefined || !name.toLowerCase().endsWith(".zip"),
+        "Installer-only publication must not contain ZIP assets",
+      );
+      requireValue(
         !expected.has(name),
-        "Portable and desktop release asset names collide",
+        "Release asset names collide across publication directories",
       );
       expected.set(name, await descriptor(directory, name));
     }
@@ -677,6 +689,12 @@ export async function checkRemote({
   );
   const seen = new Set();
   for (const asset of release.assets) {
+    requireValue(
+      evidence === undefined ||
+        (typeof asset?.name === "string" &&
+          !asset.name.toLowerCase().endsWith(".zip")),
+      "Installer-only remote publication must not contain ZIP assets",
+    );
     const local = expected.get(asset.name);
     requireValue(
       local &&
@@ -710,7 +728,7 @@ function argumentsFor(args) {
     ],
     collect: ["artifacts", "version", "commit", "output"],
     verify: ["directory", "version", "commit"],
-    "check-remote": ["desktop", "portable", "metadata", "version", "commit"],
+    "check-remote": ["desktop", "portable", "evidence", "metadata", "version", "commit"],
   }[command];
   const options = {};
   for (let i = 0; i < rest.length; i += 2) {
@@ -727,13 +745,20 @@ function argumentsFor(args) {
   }
   for (const name of allowed.filter(
     (name) =>
-      name !== "github-output" && !(command === "plan" && name === "version"),
+      name !== "github-output" &&
+      !(command === "plan" && name === "version") &&
+      !(command === "check-remote" && ["portable", "evidence"].includes(name)),
   )) {
     requireValue(
       typeof options[name] === "string" && options[name].length > 0,
       `Missing --${name}`,
     );
   }
+  requireValue(
+    command !== "check-remote" ||
+      !(Object.hasOwn(options, "portable") && Object.hasOwn(options, "evidence")),
+    "--portable and --evidence are mutually exclusive",
+  );
   return { command, options };
 }
 

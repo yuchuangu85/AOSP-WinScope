@@ -233,6 +233,13 @@ def release_evidence(release_root: Path) -> dict[str, Any]:
     if not release_root.exists():
         return result("release:evidence", "skipped", reason=f"missing {display_path(release_root)}")
     command = [sys.executable, str(ROOT / "scripts/release.py"), "verify", "--input", str(release_root), "--json"]
+    unpacked_index = release_root / "unpacked-release.json"
+    unpacked = None
+    if unpacked_index.is_file():
+        unpacked = json.loads(unpacked_index.read_text(encoding="utf-8"))
+        if not isinstance(unpacked, dict) or not isinstance(unpacked.get("version"), str):
+            return result("release:evidence", "fail", reason="invalid unpacked release index")
+        command += ["--version", unpacked["version"], "--unpacked-only"]
     completed = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
     try:
         payload = json.loads(completed.stdout)
@@ -245,7 +252,15 @@ def release_evidence(release_root: Path) -> dict[str, Any]:
         "LICENSES/attribution.json",
         "dependency-bundle/dependencies.lock.json",
     )
-    if release_root.is_file() and release_root.suffix == ".zip":
+    if unpacked is not None:
+        # All target payloads retain the same license/dependency gates as legacy archives.
+        missing = [
+            f"{directory}/{path}"
+            for operating_system, architecture, _ in LAUNCHER_TARGETS
+            for directory in [f"aosp-winscope-{unpacked['version']}-{operating_system}-{architecture}"]
+            for path in required if not (release_root / directory / path).is_file()
+        ]
+    elif release_root.is_file() and release_root.suffix == ".zip":
         with zipfile.ZipFile(release_root) as archive:
             names = set(archive.namelist())
         missing = [path for path in required if path not in names]
@@ -441,9 +456,10 @@ def reproducibility_evidence(path: Path | None) -> dict[str, Any]:
     except (OSError, json.JSONDecodeError) as error:
         return result("release:reproducibility", "fail", reason=str(error))
     builds = evidence.get("builds")
+    artifact_key = "packages" if evidence.get("artifactMode") == "unpacked" else "archives"
     expected_targets = [f"{operating_system}-{architecture}" for operating_system, architecture, _ in LAUNCHER_TARGETS]
     def valid_archive_list(build: Any) -> bool:
-        archives = build.get("archives") if isinstance(build, dict) else None
+        archives = build.get(artifact_key) if isinstance(build, dict) else None
         if not isinstance(archives, list) or len(archives) != len(expected_targets):
             return False
         if [item.get("target") for item in archives if isinstance(item, dict)] != expected_targets:
@@ -456,6 +472,7 @@ def reproducibility_evidence(path: Path | None) -> dict[str, Any]:
         )
     valid = (
         type(evidence.get("schemaVersion")) is int
+        and evidence.get("artifactMode") in (None, "unpacked")
         and evidence.get("schemaVersion") == 1
         and evidence.get("stage") == 10
         and evidence.get("ok") is True
@@ -471,7 +488,7 @@ def reproducibility_evidence(path: Path | None) -> dict[str, Any]:
             and valid_archive_list(build)
             for build in builds
         )
-        and builds[0]["archives"] == builds[1]["archives"]
+        and builds[0][artifact_key] == builds[1][artifact_key]
     )
     return result("release:reproducibility", "pass" if valid else "fail", evidence=evidence)
 

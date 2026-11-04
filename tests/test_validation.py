@@ -29,6 +29,51 @@ class ValidationGateTest(unittest.TestCase):
         self.assertEqual(validate.REQUIRED_EXTERNAL_EVIDENCE, publish.REQUIRED_EXTERNAL_EVIDENCE)
         self.assertEqual(validate.REQUIRED_EXTERNAL_EVIDENCE, aps_release.REQUIRED_EXTERNAL_EVIDENCE)
 
+    def test_unpacked_reproducibility_retains_target_digest_and_lineage_checks(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "reproducibility.json"
+            packages = [
+                {"target": f"{operating_system}-{architecture}", "sha256": "a" * 64}
+                for operating_system, architecture, _ in validate.LAUNCHER_TARGETS
+            ]
+            value = {
+                "schemaVersion": 1, "stage": 10, "ok": True, "artifactMode": "unpacked",
+                "sourceCommit": validate.git_commit(),
+                "dependencyLockSha256": validate.sha256_file(validate.LOCK),
+                "byteIdentical": True, "provenanceVerified": True,
+                "builds": [{"packages": packages, "provenanceVerified": True}] * 2,
+            }
+            path.write_text(json.dumps(value), encoding="utf-8")
+            self.assertEqual(validate.reproducibility_evidence(path)["status"], "pass")
+            for mutation in ("missing", "different", "duplicate", "mode", "source"):
+                with self.subTest(mutation=mutation):
+                    changed = json.loads(json.dumps(value))
+                    if mutation == "missing":
+                        changed["builds"][0]["packages"].pop()
+                    elif mutation == "different":
+                        changed["builds"][1]["packages"][0]["sha256"] = "b" * 64
+                    elif mutation == "duplicate":
+                        changed["builds"][0]["packages"][1] = changed["builds"][0]["packages"][0]
+                    elif mutation == "mode":
+                        changed["artifactMode"] = "unknown"
+                    else:
+                        changed["sourceCommit"] = "0" * 40
+                    path.write_text(json.dumps(changed), encoding="utf-8")
+                    self.assertEqual(validate.reproducibility_evidence(path)["status"], "fail")
+
+    def test_release_gate_verifies_unpacked_distribution_and_all_target_license_evidence(self):
+        import release
+        from tests.test_release import ReleaseEngineeringTest
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            web, launchers, proxy = ReleaseEngineeringTest().make_inputs(root)
+            output = root / "release"
+            release.package_distribution("17.0.9", output, web, launchers, proxy, unpacked_only=True)
+            self.assertEqual(validate.release_evidence(output)["status"], "pass")
+            package = output / "aosp-winscope-17.0.9-linux-arm64"
+            (package / "LICENSES/compliance.json").unlink()
+            self.assertEqual(validate.release_evidence(output)["status"], "fail")
+
     def test_repository_documents_stage_eighteen_private_evidence_contract(self):
         plan = (ROOT / "docs/REBUILD_PLAN.md").read_text(encoding="utf-8")
         self.assertIn("## Stage 18 implementation evidence", plan)

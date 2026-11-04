@@ -73,8 +73,8 @@ class OfficialReleaseWorkflowTest(unittest.TestCase):
             "--run-production-e2e",
             "--run-offline",
             "--run-security",
-            "python3 scripts/publish.py publish",
-            "python3 scripts/publish.py verify",
+            "python3 scripts/installer_evidence.py stage",
+            "python3 scripts/installer_evidence.py verify",
         ):
             self.assertIn(command, self.workflow)
         for secret in (
@@ -88,8 +88,6 @@ class OfficialReleaseWorkflowTest(unittest.TestCase):
         build_position = self.workflow.index("npm run build:prod")
         self.assertLess(baseline_position, build_position)
         self.assertIn('--build-image "$OFFICIAL_RELEASE_IMAGE"', self.workflow)
-        self.assertIn('--expected-build-image "$OFFICIAL_RELEASE_IMAGE"', self.workflow)
-
 
     def test_release_image_evidence_is_transferred_into_publication(self):
         preflight = self.workflow.split("\n  preflight:", 1)[1].split("\n  build:", 1)[0]
@@ -108,7 +106,47 @@ class OfficialReleaseWorkflowTest(unittest.TestCase):
             preflight.index("python3 scripts/verify-release-image.py"),
             preflight.index("actions/upload-artifact@"),
         )
-        self.assertLess(build.index("actions/download-artifact@"), build.index("python3 scripts/publish.py publish"))
+        self.assertLess(build.index("actions/download-artifact@"), build.index("python3 scripts/installer_evidence.py stage"))
+
+    def test_official_build_stages_only_evidence_after_the_complete_gate(self):
+        build = self.workflow.split("\n  build:", 1)[1].split("\n  desktop:", 1)[0]
+        stage = build.split("      - name: Stage immutable installer release evidence\n", 1)[1]
+        stage = stage.split("      - name: Transfer verified installer release evidence\n", 1)[0]
+        for argument in (
+            '--version "$AOSP_WINSCOPE_VERSION"',
+            "--release-dir dist/release",
+            "--validation dist/validation/report.json",
+            "--reproducibility dist/validation/reproducibility.json",
+            "--release-image-report dist/validation/release-image.json",
+            "--feature-stages-report dist/validation/feature-stages.json",
+            '--build-image "$OFFICIAL_RELEASE_IMAGE"',
+            "--output dist/public",
+        ):
+            self.assertIn(argument, stage)
+        positions = [build.index(command) for command in (
+            "npm run features:verify",
+            "npm run release:double-build",
+            "npm run release:package",
+            "write_evidence ANDROID17_DEVICE_EVIDENCE_B64",
+            "python3 scripts/validate.py gate",
+            "python3 scripts/installer_evidence.py stage",
+            "python3 scripts/installer_evidence.py verify",
+            "name: official-release-${{ needs.preflight.outputs.version }}",
+        )]
+        self.assertEqual(positions, sorted(positions))
+        self.assertIn('name: official-release-${{ needs.preflight.outputs.version }}', build)
+        self.assertIn('path: dist/public/${{ needs.preflight.outputs.version }}', build)
+
+    def test_evidence_is_reverified_with_current_identity_before_transfer_and_publication(self):
+        verifications = re.findall(
+            r"python3 scripts/installer_evidence\.py verify \\\n"
+            r'\s+--directory "\$PUBLICATION_DIR" \\\n'
+            r'\s+--version "\$AOSP_WINSCOPE_VERSION" \\\n'
+            r'\s+--build-image "\$OFFICIAL_RELEASE_IMAGE"',
+            self.workflow,
+        )
+        self.assertEqual(len(verifications), 2)
+        self.assertEqual(self.workflow.count("python3 scripts/installer_evidence.py verify"), 2)
 
     def test_build_is_read_only_and_publish_holds_oidc_permissions(self):
         build_job = self.workflow.split("\n  build:", 1)[1].split("\n  desktop:", 1)[0]
@@ -120,7 +158,7 @@ class OfficialReleaseWorkflowTest(unittest.TestCase):
         self.assertIn("actions/download-artifact@", publish_job)
         self.assertIn("retention-days: 7", build_job)
 
-    def test_release_attests_index_and_publication_before_immutable_upload(self):
+    def test_release_attests_evidence_and_desktop_before_immutable_upload(self):
         self.assertIn("id-token: write", self.workflow)
         self.assertIn("artifact-metadata: write", self.workflow)
         self.assertIn("attestations: write", self.workflow)
@@ -130,13 +168,11 @@ class OfficialReleaseWorkflowTest(unittest.TestCase):
             self.workflow,
         )
         publish_job = self.workflow.split("\n  publish:", 1)[1]
-        publication_verify_position = publish_job.index("python3 scripts/publish.py verify")
-        aps_verify_position = publish_job.index("python3 scripts/verify-aps-release.py")
+        publication_verify_position = publish_job.index("python3 scripts/installer_evidence.py verify")
         existing_release_position = publish_job.index("gh release view")
         attest_position = publish_job.index("actions/attest@")
         release_position = publish_job.index("gh release create")
-        self.assertLess(publication_verify_position, aps_verify_position)
-        self.assertLess(aps_verify_position, existing_release_position)
+        self.assertLess(publication_verify_position, existing_release_position)
         self.assertLess(existing_release_position, attest_position)
         self.assertLess(attest_position, release_position)
         self.assertIn("--verify-tag", self.workflow)
@@ -144,7 +180,7 @@ class OfficialReleaseWorkflowTest(unittest.TestCase):
         self.assertIn("--prerelease", self.workflow)
         self.assertIn("--latest=false", self.workflow)
 
-    def test_desktop_reuses_canonical_shared_build_only_after_legacy_gates(self):
+    def test_desktop_reuses_canonical_shared_build_only_after_complete_gates(self):
         build = self.workflow.split("\n  build:", 1)[1].split("\n  desktop:", 1)[0]
         desktop = self.workflow.split("\n  desktop:", 1)[1].split("\n  publish:", 1)[0]
         self.assertIn("needs: [preflight, build]", desktop)
@@ -160,8 +196,8 @@ class OfficialReleaseWorkflowTest(unittest.TestCase):
             "npm run build:prod",
             "npm run release:double-build",
             "python3 scripts/validate.py gate",
-            "python3 scripts/publish.py publish",
-            "python3 scripts/publish.py verify",
+            "python3 scripts/installer_evidence.py stage",
+            "python3 scripts/installer_evidence.py verify",
             "npm run ai:build",
             "npm run ai:verify",
             "node --test ai/dist/src/test/*.test.js",
@@ -191,7 +227,7 @@ class OfficialReleaseWorkflowTest(unittest.TestCase):
         verify_position = publish.index("node desktop/release.mjs verify")
         attest_positions = [match.start() for match in re.finditer("uses: actions/attest@", publish)]
         self.assertEqual(len(attest_positions), 2)
-        self.assertLess(publish.index("python3 scripts/verify-aps-release.py"), verify_position)
+        self.assertLess(publish.index("python3 scripts/installer_evidence.py verify"), verify_position)
         for position in attest_positions:
             self.assertLess(verify_position, position)
             self.assertLess(position, publish.index("gh release create"))
@@ -208,7 +244,7 @@ class OfficialReleaseWorkflowTest(unittest.TestCase):
         self.assertNotIn("continue-on-error:", publish)
         self.assertNotIn("if: always()", publish)
 
-    def test_one_immutable_release_contains_both_publications_and_honest_signing_notes(self):
+    def test_one_immutable_release_contains_evidence_and_installers_with_honest_notes(self):
         publish = self.workflow.split("\n  publish:", 1)[1]
         self.assertEqual(self.workflow.count("gh release create"), 1)
         self.assertEqual(self.workflow.count("gh release view"), 2)
@@ -216,8 +252,13 @@ class OfficialReleaseWorkflowTest(unittest.TestCase):
         self.assertIn("--verify-tag", publish)
         for forbidden in ("--clobber", "gh release upload", "gh release delete", "gh api --method DELETE", "git tag", "git push"):
             self.assertNotIn(forbidden, self.workflow)
-        for note in ("unsigned", "not Apple-notarized", "does not confer Apple trust"):
+        for note in (
+            "desktop-only installer distribution", "ten native installers across five targets",
+            "required source/license, integrity, and release-gate evidence",
+            "unsigned", "not Apple-notarized", "does not confer Apple trust",
+        ):
             self.assertIn(note, publish)
+        self.assertNotIn("portable", publish.lower())
 
     def test_draft_creation_and_uploaded_asset_verification_precede_final_publication(self):
         publish = self.workflow.split("\n  publish:", 1)[1]
@@ -249,7 +290,7 @@ class OfficialReleaseWorkflowTest(unittest.TestCase):
         check = publish[check_position:edit_position]
         for argument in (
             '--desktop "$DESKTOP_PUBLICATION_DIR"',
-            '--portable "$PUBLICATION_DIR"',
+            '--evidence "$PUBLICATION_DIR"',
             "--metadata dist/validation/uploaded-release.json",
             '--version "$AOSP_WINSCOPE_VERSION"',
             '--commit "$GITHUB_SHA"',
@@ -296,17 +337,26 @@ class OfficialReleaseWorkflowTest(unittest.TestCase):
             }
         ''')
         publications = {
-            "portable": ("portable.zip", "release-index.json", "SHA256SUMS.txt"),
-            "desktop": (
-                "aosp-winscope-desktop-17.0.1-linux-arm64.AppImage",
-                "aosp-winscope-desktop-17.0.1-linux-arm64-source.tar.gz",
+            "evidence": (
+                "installer-evidence.json", "validation-report.json", "reproducibility.json",
+                "release-image.json",
+            ) + tuple(f"gate-evidence-fixture-{index}.json" for index in range(20)),
+            "desktop": tuple(
+                f"aosp-winscope-desktop-17.0.1-{target}.{format_}"
+                for target, formats in (
+                    ("darwin-x64", ("dmg", "pkg")),
+                    ("darwin-arm64", ("dmg", "pkg")),
+                    ("win32-x64", ("exe", "msi")),
+                    ("linux-x64", ("deb", "rpm")),
+                    ("linux-arm64", ("deb", "rpm")),
+                ) for format_ in formats
+            ) + (
                 "desktop-target-linux-arm64.json",
                 "desktop-acceptance-linux-arm64.json",
                 "desktop-release.json",
-                "desktop-SHA256SUMS.txt",
-            ) + tuple(f"aosp-winscope-desktop-fixture-{index}.zip" for index in range(25)),
+            ),
         }
-        self.assertTrue(set(publications["portable"]).isdisjoint(publications["desktop"]))
+        self.assertTrue(set(publications["evidence"]).isdisjoint(publications["desktop"]))
         assets = [{"name": filename, "size": len(b"fixture"), "state": "uploaded"}
                   for filenames in publications.values() for filename in filenames]
         self.assertGreater(len(assets), 30)
@@ -338,7 +388,7 @@ class OfficialReleaseWorkflowTest(unittest.TestCase):
                     )
                     result = subprocess.run(
                         ["bash", "-c", stubs + script], cwd=root,
-                        env={**os.environ, "PUBLICATION_DIR": str(root / "portable"),
+                        env={**os.environ, "PUBLICATION_DIR": str(root / "evidence"),
                              "DESKTOP_PUBLICATION_DIR": str(root / "desktop"),
                              "GITHUB_REPOSITORY": "example/repository", "GITHUB_REF_NAME": "v17.0.1",
                              "AOSP_WINSCOPE_VERSION": "17.0.1", "GITHUB_SHA": "a" * 40,
@@ -365,6 +415,14 @@ class OfficialReleaseWorkflowTest(unittest.TestCase):
                         self.assertIn("releases/17/assets?per_page=100", calls[2])
                     if failure not in stops_before_assets | {"assets", "pages-shape"}:
                         expected_prefixes.append("node desktop/release.mjs check-remote ")
+                        check_call = next(call for call in calls
+                                          if call.startswith("node desktop/release.mjs check-remote "))
+                        self.assertIn(f'--evidence {root / "evidence"}', check_call)
+                        self.assertIn(f'--desktop {root / "desktop"}', check_call)
+                        self.assertIn("--metadata dist/validation/uploaded-release.json", check_call)
+                        self.assertIn("--version 17.0.1", check_call)
+                        self.assertIn(f'--commit {"a" * 40}', check_call)
+                        self.assertNotIn("--portable", check_call)
                         merged = json.loads((root / "dist/validation/uploaded-release.json").read_text(encoding="utf-8"))
                         self.assertEqual(merged["assets"], assets)
                         self.assertEqual(merged["id"], 17)
@@ -394,14 +452,23 @@ class OfficialReleaseWorkflowTest(unittest.TestCase):
             "--vulnerability-evidence dist/validation/external/vulnerability.json",
             "--baseline dist/validation/external/performance-baseline.json",
             "--benchmark dist/validation/external/performance-benchmark.json",
-            "--expected-index-sha256",
+            '--release "dist/release"',
         ):
             self.assertIn(argument, self.workflow)
         self.assertIn('echo "Missing protected environment evidence: $variable" >&2', self.workflow)
         self.assertEqual(self.workflow.count('git merge-base --is-ancestor "$GITHUB_SHA" origin/main'), 2)
         self.assertIn("cancel-in-progress: false", self.workflow)
 
-    def test_aps_documentation_verifies_oidc_identity_before_content(self):
+    def test_raw_protected_evidence_is_not_transferred_or_published(self):
+        for step in re.split(r"(?=^      - )", self.workflow, flags=re.MULTILINE):
+            if "uses: actions/upload-artifact@" in step or "uses: actions/attest@" in step:
+                self.assertNotIn("dist/validation/external", step)
+                self.assertNotIn("_B64", step)
+                self.assertNotIn("path: dist/validation\n", step)
+                self.assertNotIn("path: dist/release", step)
+        self.assertNotIn("dist/validation/external", self.workflow.split("\n  publish:", 1)[1])
+
+    def test_legacy_manual_aps_documentation_verifies_oidc_identity_before_content(self):
         guide = (ROOT / "docs/APS_INTEGRATION.md").read_text(encoding="utf-8")
         self.assertIn("gh attestation verify", guide)
         self.assertIn(
@@ -438,23 +505,63 @@ class SupportingWorkflowTest(unittest.TestCase):
         ):
             self.assertNotIn(command, workflow)
 
-    def test_packaging_is_manual_and_portable_only(self):
+    def test_packaging_is_manual_and_reuses_the_read_only_native_workflow(self):
         workflow = PACKAGE_WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("workflow_dispatch:", workflow)
         self.assertNotIn("pull_request:", workflow)
         self.assertNotIn("push:", workflow)
-        for obsolete in ("native_installers", "Inno", "WiX", "RPM", "native-installers:"):
-            self.assertNotIn(obsolete, workflow)
-        for command in (
-            "npm run build:prod",
-            "npm run test:e2e:prod",
-            "npm run release:package",
-            "npm run release:verify",
+        self.assertIn("name: Package native desktop installers", workflow)
+        self.assertIn("permissions:\n  contents: read", workflow)
+        self.assertIn("group: package-${{ github.ref }}", workflow)
+        self.assertIn("cancel-in-progress: true", workflow)
+        shared = workflow.split("\n  shared:", 1)[1].split("\n  package:", 1)[0]
+        package = workflow.split("\n  package:", 1)[1]
+        self.assertIn("    permissions:\n      contents: read", workflow)
+        self.assertIn("    uses: ./.github/workflows/electron.yml", package)
+        self.assertIn("needs: shared", package)
+        self.assertIn("shared-artifact: package-shared-${{ github.sha }}", package)
+        self.assertIn("name: package-shared-${{ github.sha }}", shared)
+        self.assertIn("path: |\n            dist/prod\n            ai/dist", shared)
+        for forbidden in (
+            "steps:", "run:", "runs-on:", "secrets:", "secrets.", ": write",
+            "gh release", "npm run release:", "dist/release",
         ):
-            self.assertIn(command, workflow)
-        self.assertLess(workflow.index("npm run test:fast"), workflow.index("npm run build:prod"))
-        self.assertLess(workflow.index("npm run build:prod"), workflow.index("npm run test:unit:ci"))
-        self.assertLess(workflow.index("npm run install:chromedriver"), workflow.index("npm run test:e2e:prod"))
+            self.assertNotIn(forbidden, package)
+        for forbidden in ("npm run release:", "dist/release", "scripts/publish.py", "gh release", ": write", "secrets:"):
+            self.assertNotIn(forbidden, workflow)
+        for command in (
+            "python3 scripts/verify-baseline.py --json", "npm run test:fast",
+            "npm run build:prod", "npm run test:unit:ci",
+            "python3 -m unittest tests.test_standalone_build", "npm run build:verify",
+            "npm run install:chromedriver", "npm run test:e2e:prod", "npm run ai:build",
+            "npm run ai:verify", "node --test ai/dist/src/test/*.test.js",
+        ):
+            self.assertIn(command, shared)
+        self.assertLess(shared.index("npm run test:fast"), shared.index("npm run build:prod"))
+        self.assertLess(shared.index("npm run test:e2e:prod"), shared.index("actions/upload-artifact@"))
+
+    def test_ci_release_builds_are_unpacked_only_and_never_use_legacy_zip_publishers(self):
+        release_commands = []
+        for path in sorted((ROOT / ".github/workflows").glob("*.yml")):
+            workflow = path.read_text(encoding="utf-8")
+            with self.subTest(workflow=path.name):
+                self.assertNotIn("scripts/publish.py", workflow)
+                self.assertNotIn("scripts/verify-aps-release.py", workflow)
+                self.assertNotRegex(workflow, r"npm run (?:build:release|publish:\S+|aps:verify)\b")
+                for command in re.findall(
+                    r"^\s*(npm run release:(?:package|double-build)\b[^\n]*)",
+                    workflow, re.MULTILINE,
+                ):
+                    self.assertRegex(
+                        command,
+                        r'^npm run release:(?:package|double-build) -- '
+                        r'--version "\$AOSP_WINSCOPE_VERSION" --unpacked-only$',
+                    )
+                    release_commands.append(command)
+        self.assertCountEqual(release_commands, [
+            f'npm run release:{command} -- --version "$AOSP_WINSCOPE_VERSION" --unpacked-only'
+            for command in ("package", "double-build")
+        ])
 
     def test_ci_karma_tolerates_transient_hosted_runner_disconnects(self):
         config = (ROOT / "karma.config.ci.js").read_text(encoding="utf-8")

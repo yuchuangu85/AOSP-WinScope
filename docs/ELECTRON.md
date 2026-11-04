@@ -2,10 +2,12 @@
 
 Electron Desktop is the install-and-run distribution of WinScope. It embeds the
 existing Web UI and reuses the Go Launcher; it is not a replacement trace parser
-or a second implementation of capture or AI. The portable browser/Launcher
-distribution remains supported. Its existing official release workflow is being
-extended to publish both distributions in one GitHub Release, without weakening
-its gates. The five-target, ten-installer contract below is implementation work
+or a second implementation of capture or AI. CI generates and publishes native
+installers only as executable distribution products, with required source,
+license, integrity, and release-gate evidence in one GitHub Release. Legacy
+portable browser/Launcher and APS CLI contracts remain available for manual/local
+use only; GitHub CI does not generate or publish those products. The five-target,
+ten-installer contract below is implementation work
 in progress, not evidence that hosted builds or public release qualification
 have passed.
 
@@ -16,8 +18,8 @@ Choose the artifact matching the machine: macOS arm64 (Apple Silicon), macOS x64
 not supported. These are distinct native Electron packages, not a universal
 macOS binary or a
 cross-platform validation claim. Manual/PR runs upload candidates to the GitHub
-Actions run's artifacts. The official workflow may publish them alongside the
-portable assets only after both release gates below succeed. Only install an
+Actions run's artifacts. The official workflow may publish installers and required
+evidence only after both release gates below succeed. Only install an
 artifact from a trusted source.
 
 On macOS, open the DMG and install the application in Applications, or run the
@@ -62,10 +64,11 @@ architecture and provider are deliberately separate from the application label:
 - `linux-x64`: Linux AMD64, runner `ubuntu-22.04`, DEB and RPM only.
 - `linux-arm64`: Linux ARM64, runner `ubuntu-24.04-arm`, DEB and RPM only.
 
-This is **five targets and ten installer assets**. Desktop ZIP, AppImage, and
-binary tar.gz outputs are excluded. The Linux ARM64 source tar.gz remains a
-separate required legal/source artifact, not an installer. This desktop-only
-change does not alter portable Launcher or APS release outputs.
+This is **five targets and ten installer assets**. CI excludes portable Launcher
+ZIPs, desktop ZIPs, AppImage, and binary tar.gz products. The Linux ARM64 source
+tar.gz remains a separate required legal/source artifact, not an installer.
+Legacy portable packaging/APS tools are manual-only; their local contracts are
+not removed by this CI policy.
 
 macOS requires macOS 13 (Ventura) or later under Electron's support policy.
 Intel and Apple Silicon
@@ -469,7 +472,12 @@ all-platform installer acceptance, and public release approval remain open.
 
 [`.github/workflows/electron.yml`](../.github/workflows/electron.yml) runs manually,
 on path-filtered pull requests, or as a native reusable `workflow_call` from
-[the official workflow](../.github/workflows/official-release.yml). It has
+[the official workflow](../.github/workflows/official-release.yml). The manual-only
+[`package.yml`](../.github/workflows/package.yml) entry point delegates to the
+same native workflow rather than building portable archives. It first retains
+the fast, full Web unit, production E2E and shared AI checks, then transfers their
+canonical Web/AI output so native packaging does not rebuild it. It adds no push or
+PR trigger. The native workflow has
 read-only repository permissions and uses the exact action SHAs already pinned
 by the other workflows. The reusable workflow itself never publishes a release.
 
@@ -494,7 +502,21 @@ For an official run, the caller supplies the canonical gated `dist/prod` and
 `ai/dist` artifact and release version. The reusable workflow skips its shared
 build job and restores that same-run, same-commit artifact. It does not perform
 a second independent Perfetto build; the official reproducibility double-build
-requirement remains intact.
+requirement remains intact. Both official release commands use unpacked-only
+mode:
+
+```sh
+npm run release:double-build -- --version "$AOSP_WINSCOPE_VERSION" --unpacked-only
+npm run release:package -- --version "$AOSP_WINSCOPE_VERSION" --unpacked-only
+```
+
+This creates uncompressed target directories and internal attestation, with no
+ZIP files. Default `scripts/release.py verify` auto-detects this distribution
+tree. The full Stage 7 gate consumes `--release dist/release`, requires complete
+evidence and all dynamic unit, E2E, production E2E, offline, and security checks,
+and still requires all protected device, vulnerability, performance baseline,
+and benchmark manifests. Unpacked inputs are internal gate artifacts, not
+portable release products.
 
 Each native job uses Python 3.12 and Go to stage the native frozen capture,
 Launcher, and declared ADB provider via `--skip-web-build`. It builds a `--dir`
@@ -509,6 +531,8 @@ bundled capture/AI, and owned-service cleanup. Native reports and every format
 must match the root version and commit. All five jobs must succeed before
 collection; a failed target cannot silently become a partial release. There is
 no automatic update feed. CI artifact upload is not release approval.
+GitHub Actions may wrap transferred artifacts in ZIP transport; that is not a
+portable ZIP distribution or a GitHub Release ZIP product.
 
 ### Candidate artifacts and public assets
 
@@ -536,9 +560,11 @@ for publication. The aggregate also contains the Linux ARM64
 Electron version, unsigned status, all five targets/formats, and component
 compatibility; its file inventory records names, sizes, and SHA-256 values.
 `desktop-SHA256SUMS.txt` covers that index and every listed desktop file,
-including the app source archive, but not itself. The `desktop-` prefix avoids
-colliding with the portable publication's `SHA256SUMS.txt` in the same GitHub
-Release; portable `release-index.json` and its checksum assets remain unchanged.
+including the app source archive, but not itself. Preserve the `desktop-` checksum
+namespace separately from the release-gate evidence inventory. Legacy portable
+`release-index.json` and checksum contracts remain local/manual, not CI release
+assets. The separate `dist/public/<version>` publication carries only
+integrity/source/license/gate evidence, no portable executable or archive.
 Names and local checksums alone do not prove provenance or OS trust; verify the
 official attestation and release identity as well.
 
@@ -553,14 +579,25 @@ official attestation and release identity as well.
 2. **Official release gate:** `official-release.yml` preserves the immutable
    digest-pinned build image, reviewed-main ancestry, clean-room lineage,
    approved external device/performance/vulnerability evidence, complete
-   validation gate, reproducibility checks, APS verification, and OIDC
-   attestations. Its desktop reusable job consumes the canonical gated build;
-   publication waits for both the portable gate and all five native targets.
+   Stage 7 validation gate and all dynamic checks, reproducibility checks, and
+   OIDC attestations. `scripts/installer_evidence.py stage` stages the unpacked
+   release's integrity/source/license evidence and the validation,
+   reproducibility, build-image, and feature-stage reports at
+   `dist/public/<version>`. Its `verify` command checks the current version,
+   immutable build image, lineage, reports, and integrity both before transfer
+   and again in the publisher. Legacy `publish.py` and `verify-aps-release.py`
+   are not invoked by GitHub workflows. The desktop reusable job consumes the
+   canonical gated build; publication waits for the complete gate and all five
+   native targets. Raw protected external manifests remain private; only their
+   required sanitized evidence is staged for publication.
 
 Only the protected official publisher has release-writing authority. It
-reverifies the two flat publication directories, refuses any existing release
-(including a draft), and creates one new draft with both portable and desktop
-assets. It reads the uploaded release through the GitHub REST API and requires
+reverifies the evidence and desktop flat directories, refuses any existing
+release (including a draft), and attests both inventories before creating one
+new draft with native installers and required evidence. It reads the uploaded
+release and all paginated assets through the GitHub REST API. The
+`desktop/release.mjs check-remote` check uses `--desktop <desktop-directory>` and
+`--evidence <evidence-directory>` and requires
 the exact combined asset names, uploaded state, byte sizes, and SHA-256 digests
 to match the two local directories. Only then may it set `draft=false`. A local
 checksum pass is not a substitute for this remote check. A failed upload/check

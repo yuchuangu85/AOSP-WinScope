@@ -1,4 +1,4 @@
-name: Package standalone distribution
+name: Package native desktop installers
 
 on:
   workflow_dispatch:
@@ -11,14 +11,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  package:
-    name: Validate and package portable distributions
+  shared:
+    name: Validate and build canonical Web and AI inputs
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 90
     defaults:
       run:
         shell: bash
-
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -40,6 +39,12 @@ jobs:
           python-version: '3.12'
           check-latest: false
 
+      - name: Install the pinned npm release
+        run: |
+          set -euo pipefail
+          npm install --global "npm@$(node -p 'require("./package.json").engines.npm')"
+          npm --version
+
       - name: Install and verify pinned dependencies
         run: |
           set -euo pipefail
@@ -48,34 +53,45 @@ jobs:
           npm run deps:prepare
           npm run deps:verify
 
-      - name: Run fast gates before the expensive build
+      - name: Preserve fast gates before the expensive build
         run: |
           set -euo pipefail
           python3 scripts/verify-baseline.py --json
           npm run test:fast
 
-      - name: Build and verify production distribution
+      - name: Build and verify canonical Web and AI without portable packaging
         run: |
           set -euo pipefail
           npm run build:prod
           npm run test:unit:ci
           python3 -m unittest tests.test_standalone_build
-          npm run build:launchers
           npm run build:verify
           npm run install:chromedriver
           npm run test:e2e:prod
+          npm run ai:build
+          npm run ai:verify
+          node --test ai/dist/src/test/*.test.js
+          go test -race -count=1 ./cmd/launcher
+          go vet ./cmd/launcher
+          python3 -m unittest tests.test_desktop_capture_shutdown tests.test_security
+          python3 -m unittest discover -s desktop -p '*_test.py'
 
-      - name: Package and verify portable distributions
-        run: |
-          set -euo pipefail
-          npm run release:package
-          npm run release:verify
-
-      - name: Upload verified portable packages
+      - name: Transfer same-commit shared inputs for native installers
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: aosp-winscope-release-${{ github.sha }}
-          path: dist/release
+          name: package-shared-${{ github.sha }}
+          path: |
+            dist/prod
+            ai/dist
           if-no-files-found: error
           retention-days: 7
           compression-level: 0
+
+  package:
+    name: Validate and package native desktop installers
+    needs: shared
+    permissions:
+      contents: read
+    uses: ./.github/workflows/electron.yml
+    with:
+      shared-artifact: package-shared-${{ github.sha }}
