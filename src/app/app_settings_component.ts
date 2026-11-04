@@ -6,6 +6,7 @@ import {MatButtonModule} from '@angular/material/button';
 import {MatCheckboxModule} from '@angular/material/checkbox';
 import {MatIconModule} from '@angular/material/icon';
 import {MatTooltipModule} from '@angular/material/tooltip';
+import appMetadata from '@app-metadata';
 import {DEFAULT_DISPLAY_SCALE, DISPLAY_SCALE_OPTIONS, isDisplayScale,} from '@common/display_scale';
 import {languagePreference, setLanguage, SUPPORTED_LANGUAGES, TranslatePipe,} from '@common/i18n';
 import {AiCatalog, AiGatewayClient, AiProvider,} from '@services/ai_gateway_client';
@@ -18,7 +19,7 @@ export {
   AiSettingsValue,
 } from './ai_settings_component';
 
-type SettingsSection = 'general' | 'ai';
+export type SettingsSection = 'general' | 'ai' | 'about';
 type ImportProvider = 'codex' | 'claude';
 export type ThemeMode = 'system' | 'dark' | 'light';
 
@@ -45,6 +46,8 @@ export class AppSettingsComponent implements OnInit, OnChanges, OnDestroy {
   readonly supportedLanguages = SUPPORTED_LANGUAGES;
   readonly defaultDisplayScale = DEFAULT_DISPLAY_SCALE;
   readonly displayScaleOptions = DISPLAY_SCALE_OPTIONS;
+  readonly appVersion = appMetadata.version;
+  readonly appName = 'AOSP WinScope';
 
   @Input() endpoint?: string;
   @Input() section: SettingsSection = 'general';
@@ -71,6 +74,7 @@ export class AppSettingsComponent implements OnInit, OnChanges, OnDestroy {
   @ViewChild(AiSettingsComponent) aiSettings?: AiSettingsComponent;
   @ViewChild('generalTab') generalTab?: ElementRef<HTMLButtonElement>;
   @ViewChild('aiTab') aiTab?: ElementRef<HTMLButtonElement>;
+  @ViewChild('aboutTab') aboutTab?: ElementRef<HTMLButtonElement>;
 
   catalog: AiCatalog = {providers: [], agents: [], skills: []};
   catalogReady = false;
@@ -99,10 +103,7 @@ export class AppSettingsComponent implements OnInit, OnChanges, OnDestroy {
       void this.loadCatalog();
     }
     if (this.initialized && changes['section']) {
-      (this.section === 'general'
-        ? this.generalTab
-        : this.aiTab
-      )?.nativeElement.focus();
+      this.sectionTab(this.section)?.nativeElement.focus();
     }
     if (
       (changes['running'] && this.running) ||
@@ -150,17 +151,18 @@ export class AppSettingsComponent implements OnInit, OnChanges, OnDestroy {
 
   onMenuKeydown(event: KeyboardEvent, section: SettingsSection): void {
     if (event.altKey || event.ctrlKey || event.metaKey) return;
+    const sections: SettingsSection[] = ['general', 'ai', 'about'];
     let next: SettingsSection;
     switch (event.key) {
       case 'ArrowUp':
       case 'ArrowDown':
-        next = section === 'general' ? 'ai' : 'general';
+        next = sections[(sections.indexOf(section) + (event.key === 'ArrowDown' ? 1 : sections.length - 1)) % sections.length];
         break;
       case 'Home':
         next = 'general';
         break;
       case 'End':
-        next = 'ai';
+        next = 'about';
         break;
       default:
         return;
@@ -168,7 +170,11 @@ export class AppSettingsComponent implements OnInit, OnChanges, OnDestroy {
     event.preventDefault();
     event.stopPropagation();
     this.selectSection(next);
-    (next === 'general' ? this.generalTab : this.aiTab)?.nativeElement.focus();
+    this.sectionTab(next)?.nativeElement.focus();
+  }
+
+  private sectionTab(section: SettingsSection): ElementRef<HTMLButtonElement> | undefined {
+    return section === 'general' ? this.generalTab : section === 'ai' ? this.aiTab : this.aboutTab;
   }
 
   onEscape(event: Event): void {

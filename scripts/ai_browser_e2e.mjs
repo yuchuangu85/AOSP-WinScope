@@ -1239,6 +1239,24 @@ async function selectLandingLanguage(value) {
     true,
   );
   if (!generalSettingsChecked) {
+    const expectedVersion = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')).version;
+    await click('.settings-menu [data-section="about"]');
+    await condition("!document.querySelector('#settings-about-panel').hidden");
+    assert.equal(await evaluate("document.querySelector('.app-version').textContent.trim()"), expectedVersion);
+    const viewport = await evaluate('({width:innerWidth,height:innerHeight})');
+    for (const [width, height] of [[1280,800],[390,844]]) {
+      await cdp('Emulation.setDeviceMetricsOverride', {width,height,deviceScaleFactor:1,mobile:false});
+      await settleAiWindow();
+      const about = await evaluate(`(() => {
+        const dialog=document.querySelector('.settings-dialog'), version=document.querySelector('.app-version');
+        const r=version.getBoundingClientRect();
+        return {overflow:dialog.scrollWidth>dialog.clientWidth,visible:r.width>0&&r.height>0&&r.right<=innerWidth};
+      })()`);
+      assert.equal(about.overflow,false);
+      assert.equal(about.visible,true);
+      await screenshot(`settings-about-${width}.png`);
+    }
+    await cdp('Emulation.setDeviceMetricsOverride', {...viewport,deviceScaleFactor:1,mobile:false});
     await click('.settings-menu [data-section="general"]');
     await evaluate(
       "document.querySelector('.settings-menu [data-section=\"general\"]').focus()",
@@ -1722,7 +1740,7 @@ async function applicationSettingsMetrics(label, { short = false } = {}) {
     true,
     `${label}: settings is independent of AI`,
   );
-  assert.equal(metrics.tabs.length, 2, `${label}: General and AI menus`);
+  assert.equal(metrics.tabs.length, 3, `${label}: General, AI and About menus`);
   assert.equal(metrics.tabs.filter((tab) => tab.selected === "true").length, 1);
   assert.ok(
     metrics.menu.right <= metrics.content.x + 1,
@@ -2528,6 +2546,7 @@ if(process.argv[2]==='app-server'){
       "settings-validation-and-cancel",
       "toolbar-settings-entry-and-no-toolbar-language-selector",
       "independent-settings-general-ai-left-navigation",
+      "settings-about-package-version-desktop-mobile",
       "provider-specific-config-fields-and-draft-isolation",
       "provider-dropdown-single-selected-view",
       "manual-provider-settings-save-reopen-and-runtime-url",

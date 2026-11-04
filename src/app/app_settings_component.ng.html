@@ -53,6 +53,19 @@
         (keydown)="onMenuKeydown($event, 'ai')"
         >{{ 'AI settings' | tr }}</button
       >
+      <button
+        #aboutTab
+        id="settings-about-tab"
+        type="button"
+        role="tab"
+        data-section="about"
+        aria-controls="settings-about-panel"
+        [attr.aria-selected]="section === 'about'"
+        [attr.tabindex]="section === 'about' ? 0 : -1"
+        (click)="selectSection('about')"
+        (keydown)="onMenuKeydown($event, 'about')"
+        >{{ 'About' | tr }}</button
+      >
     </nav>
 
     <div class="settings-content">
@@ -181,6 +194,21 @@
             (applied)="applySettings($event)"
           ></ai-settings>
         }
+      </section>
+      <section
+        id="settings-about-panel"
+        class="settings-tab-panel about-settings"
+        role="tabpanel"
+        aria-labelledby="settings-about-tab"
+        [hidden]="section !== 'about'"
+        tabindex="0"
+      >
+        <h3>{{ 'About' | tr }}</h3>
+        <p class="about-product">{{ appName }}</p>
+        <dl class="about-details">
+          <dt>{{ 'Version' | tr }}</dt>
+          <dd class="app-version">{{ appVersion }}</dd>
+        </dl>
       </section>
     </div>
   </div>

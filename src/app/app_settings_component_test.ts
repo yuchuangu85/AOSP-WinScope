@@ -5,6 +5,7 @@ import {FormsModule} from '@angular/forms';
 import {MatTooltip} from '@angular/material/tooltip';
 import {By} from '@angular/platform-browser';
 import {NoopAnimationsModule} from '@angular/platform-browser/animations';
+import appMetadata from '@app-metadata';
 import {initializeLanguage, language, LANGUAGE_PREFERENCE_KEY, languagePreference, setLanguage, translate} from '@common/i18n';
 import {AiCatalog, AiGatewayClient, AiProvider, AiProviderConfiguration,} from '@services/ai_gateway_client';
 
@@ -170,7 +171,7 @@ describe('AppSettingsComponent', () => {
       .componentInstance as AiSettingsFormStub;
   }
 
-  function selectSection(section: 'general' | 'ai'): void {
+  function selectSection(section: 'general' | 'ai' | 'about'): void {
     element(`.settings-menu button[data-section="${section}"]`).click();
     fixture.detectChanges();
   }
@@ -758,10 +759,14 @@ describe('AppSettingsComponent', () => {
     );
     for (const [key, expected] of [
       ['ArrowDown', 'ai'],
+      ['ArrowDown', 'about'],
       ['ArrowDown', 'general'],
+      ['ArrowUp', 'about'],
       ['ArrowUp', 'ai'],
       ['Home', 'general'],
-      ['End', 'ai'],
+      ['End', 'about'],
+      ['ArrowDown', 'general'],
+      ['ArrowDown', 'ai'],
       ['ArrowUp', 'general'],
     ] as const) {
       const active = element(`button[data-section="${component.section}"]`);
@@ -809,6 +814,38 @@ describe('AppSettingsComponent', () => {
     expect(element('ai-settings input')).toBe(input);
     expect(input.value).toBe('provider-draft');
     expect(component.selection.customModel).toBe('');
+    expect(catalogSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the build version from package metadata in a localized About panel without a gateway', async () => {
+    component.endpoint = undefined;
+    await render();
+    selectSection('about');
+    expect(element('#settings-about-panel').hidden).toBeFalse();
+    expect(element('#settings-general-panel').hidden).toBeTrue();
+    expect(element('#settings-ai-panel').hidden).toBeTrue();
+    expect(element('.app-version').textContent?.trim()).toBe(appMetadata.version);
+    expect(element('.about-product').textContent).toBe('AOSP WinScope');
+    expect(element('.about-details dt').textContent).toBe('Version');
+    setLanguage('zh-CN');
+    fixture.detectChanges();
+    expect(element('#settings-about-tab').textContent).toBe('关于');
+    expect(element('.about-details dt').textContent).toBe('版本号');
+    expect(element('.app-version').textContent?.trim()).toBe(appMetadata.version);
+    expect(catalogSpy).not.toHaveBeenCalled();
+  });
+
+  it('keeps the mounted AI draft when visiting About and focuses externally selected About', async () => {
+    await render();
+    const child = form();
+    child.draftModel = 'unsaved-model';
+    fixture.componentRef.setInput('section', 'about');
+    fixture.detectChanges();
+    expect(document.activeElement).toBe(element('#settings-about-tab'));
+    expect(element('#settings-about-panel').hidden).toBeFalse();
+    selectSection('ai');
+    expect(form()).toBe(child);
+    expect(child.draftModel).toBe('unsaved-model');
     expect(catalogSpy).toHaveBeenCalledTimes(1);
   });
 

@@ -38,13 +38,16 @@ at the bottom. Report preview is an optional secondary panel within the same
 workspace. No second trace-selection or timeline state.
 
 Settings is a separate application dialog, not a view inside the AI workspace.
-Its left menu contains General settings and AI settings; the right scrollport
+Its left menu contains General settings, AI settings and About; the right scrollport
 shows the chosen section. General owns language and theme. AI settings has a
 provider dropdown containing every gateway catalog entry, including custom
 providers, and displays only the selected provider's section. Switching providers
 retains independent drafts. Codex and Claude each expose Get configuration in
 their own section; editable nonsecret fields and sanitized authentication status
 stay separate from credentials, which never enter the renderer.
+About shows the product name and the version from the root package metadata,
+the same version source used by desktop packaging. It works without a gateway
+and does not remount or discard the AI settings draft.
 
 ## Design principles
 

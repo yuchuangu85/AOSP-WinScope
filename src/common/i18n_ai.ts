@@ -53,6 +53,8 @@ export const AI_TRANSLATIONS: Record<string, string> = {
   'Export HTML': '导出 HTML',
   'AI settings': 'AI 设置',
   'General settings': '通用设置',
+  'About': '关于',
+  'Version': '版本号',
   'Could not load AI settings. Close settings and try again.':
     '无法加载 AI 设置。请关闭设置后重试。',
   'Could not save AI settings. Check the configuration and try again.':

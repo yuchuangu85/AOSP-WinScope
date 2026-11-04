@@ -3,6 +3,7 @@
   "compilerOptions": {
     "baseUrl": "./src",
     "paths": {
+      "@app-metadata": ["../package.json"],
       "@app/*": ["app/*"],
       "@configs/*": ["../configs/*"],
       "@abt_chrome_extension/*": ["abt_chrome_extension/*"],
