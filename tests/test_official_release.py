@@ -488,22 +488,17 @@ class OfficialReleaseWorkflowTest(unittest.TestCase):
 
 
 class SupportingWorkflowTest(unittest.TestCase):
-    def test_ci_fetches_vendor_branch_for_baseline_verification(self):
-        workflow = CI_WORKFLOW.read_text(encoding="utf-8")
-        validate_job = workflow.split("\n  validate:", 1)[1].split("\n  native-installers:", 1)[0]
-        self.assertIn("fetch-depth: 0", validate_job)
+    def test_standalone_fast_ci_workflow_is_removed(self):
+        self.assertFalse(CI_WORKFLOW.exists())
+        for path in (ROOT / ".github/workflows").glob("*.yml"):
+            with self.subTest(workflow=path.name):
+                self.assertNotIn("Fast continuous integration", path.read_text(encoding="utf-8"))
 
-    def test_fast_ci_does_not_build_or_package_release_artifacts(self):
-        workflow = CI_WORKFLOW.read_text(encoding="utf-8")
+    def test_manual_packaging_retains_baseline_and_fast_checks(self):
+        workflow = PACKAGE_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("fetch-depth: 0", workflow)
+        self.assertIn("python3 scripts/verify-baseline.py --json", workflow)
         self.assertIn("npm run test:fast", workflow)
-        self.assertNotIn("npm run test:unit:ci", workflow)
-        for command in (
-            "npm run build:prod",
-            "npm run test:e2e:prod",
-            "npm run release:package",
-            "native-installers:",
-        ):
-            self.assertNotIn(command, workflow)
 
     def test_packaging_is_manual_and_reuses_the_read_only_native_workflow(self):
         workflow = PACKAGE_WORKFLOW.read_text(encoding="utf-8")
