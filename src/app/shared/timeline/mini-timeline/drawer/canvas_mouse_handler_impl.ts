@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import {getCanvasMousePosition} from '@app/shared/timeline/common/timeline_drawer_helpers';
 import {assertDefined} from '@common/assert';
 import {Point} from '@common/geometry/point';
 import {Trace} from '@trace_api/trace';
@@ -128,8 +129,9 @@ export class CanvasMouseHandlerImpl implements CanvasMouseHandler {
   }
 
   private getPos(e: MouseEvent): Point {
-    let mouseX = e.offsetX;
-    const mouseY = e.offsetY;
+    const point = getCanvasMousePosition(this.drawer.canvas, e);
+    let mouseX = point.x;
+    const mouseY = point.y;
     const padding = this.drawer.getPadding();
     const width = this.drawer.getWidth();
 
@@ -161,7 +163,9 @@ export class CanvasMouseHandlerImpl implements CanvasMouseHandler {
     for (const object of this.draggableObjects) {
       const ctx = assertDefined(this.drawer.canvas.getContext('2d'));
       object.definePath(ctx);
-      if (ctx.isPointInPath(mousePoint.x, mousePoint.y)) {
+      const transform = ctx.getTransform();
+      const bitmapPoint = transform.transformPoint(mousePoint);
+      if (ctx.isPointInPath(bitmapPoint.x, bitmapPoint.y)) {
         return object;
       }
     }

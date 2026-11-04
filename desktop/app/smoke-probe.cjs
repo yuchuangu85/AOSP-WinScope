@@ -339,6 +339,7 @@ async function run({ app, getWindow, services }) {
   let nativeOpenVerified = false;
   let recentReopenVerified = false;
   const paneHeaderEvidence = [];
+  const timelinePointerEvidence = [];
   const fixture = process.env.WINSCOPE_DESKTOP_SMOKE_TRACE;
   if (fixture) {
     contents.debugger.attach("1.3");
@@ -398,6 +399,203 @@ async function run({ app, getWindow, services }) {
       }
       await loadFixture();
       traceLoaded = true;
+      async function readTimelinePointer() {
+        return evaluate(`(() => {
+          const canvas=document.querySelector('#mini-timeline-canvas');
+          const ctx=canvas.getContext('2d'),transform=ctx.getTransform();
+          const rect=canvas.getBoundingClientRect();
+          const width=canvas.width/transform.a,height=canvas.height/transform.d;
+          const padding=Math.ceil(height/12);
+          const slider=document.querySelector('#timeline-slider-box');
+          const cursor=slider.querySelector('.cursor');
+          const swatch=document.createElement('canvas');
+          swatch.width=swatch.height=1;
+          const colorContext=swatch.getContext('2d');
+          const color=getComputedStyle(canvas).getPropertyValue('--active-pointer-color').trim();
+          colorContext.fillStyle=color;
+          colorContext.fillRect(0,0,1,1);
+          const rgb=[...colorContext.getImageData(0,0,1,1).data].slice(0,3);
+          // Only the opaque top triangle: trace entries start below this band,
+          // and the hover line uses the same RGB but only 0.4 alpha.
+          const scanY=Math.max(1,Math.floor(transform.d));
+          const scanHeight=Math.max(1,Math.floor(height/24*transform.d));
+          const pixels=ctx.getImageData(0,scanY,canvas.width,scanHeight).data;
+          let first=canvas.width,last=-1,count=0;
+          for(let y=0;y<scanHeight;y++) for(let x=0;x<canvas.width;x++) {
+            const i=(y*canvas.width+x)*4;
+            if(pixels[i+3]>=250 && rgb.every((value,c)=>Math.abs(pixels[i+c]-value)<=2)) {
+              first=Math.min(first,x);last=Math.max(last,x);count++;
+            }
+          }
+          return {rect:{x:rect.x,y:rect.y,width:rect.width,height:rect.height},
+            width,height,padding,usableFrom:padding,usableTo:width-2*padding,
+            devicePixelRatio,bitmapScale:{x:transform.a,y:transform.d},color,rgb,
+            paintedLogicalX:last>=first?(first+last+1)/2/transform.a:null,
+            markerPixels:count,markerBitmapColumns:last>=first?[first,last]:null,
+            cursorFraction:parseFloat(cursor.style.left)/slider.offsetWidth,
+            sliderWidth:slider.offsetWidth,sliderSelectionWidth:parseFloat(slider.querySelector('.slider').style.width),
+            events:window.__winscopeSmokePointerEvents || []};
+        })()`);
+      }
+      async function settleTimelinePointer() {
+        await evaluate(
+          "new Promise(resolve=>setTimeout(()=>requestAnimationFrame(()=>requestAnimationFrame(resolve)),150))",
+        );
+        return readTimelinePointer();
+      }
+      async function dispatchPointer(type, point, buttons = 0) {
+        await contents.debugger.sendCommand("Input.dispatchMouseEvent", {
+          type,
+          x: point.x,
+          y: point.y,
+          button: type === "mouseMoved" ? "none" : "left",
+          buttons,
+          clickCount: type === "mouseMoved" ? 0 : 1,
+        });
+      }
+      for (const scale of [80, 100, 140]) {
+        await selectDisplayScale(scale);
+        await evaluate("document.querySelector('#reset-zoom-btn').click()");
+        const fullRange = await settleTimelinePointer();
+        assert.ok(fullRange.width > 100 && fullRange.height > 24);
+        assert.ok(
+          Math.abs(fullRange.sliderSelectionWidth - fullRange.sliderWidth) < 1,
+          "Pointer regression requires the full timeline range after reset",
+        );
+        await evaluate(`(() => {
+          const canvas=document.querySelector('#mini-timeline-canvas');
+          window.__winscopeSmokePointerEvents=[];
+          window.__winscopeSmokePointerListener=event=>{
+            window.__winscopeSmokePointerEvents.push({type:event.type,trusted:event.isTrusted,
+              clientX:event.clientX,clientY:event.clientY,offsetX:event.offsetX,offsetY:event.offsetY,buttons:event.buttons});
+          };
+          for(const type of ['mousedown','mousemove','mouseup'])
+            canvas.addEventListener(type,window.__winscopeSmokePointerListener,true);
+        })()`);
+        const evidence = { scale, fullRange, interactions: [] };
+        timelinePointerEvidence.push(evidence);
+        // The blank marker band selects an explicit timestamp, not a trace row:
+        // no discrete-entry snapping is expected. Allow only coordinate rounding.
+        const pointAt = (fraction) => ({
+          x:
+            fullRange.rect.x +
+            ((fullRange.usableFrom +
+              fraction * (fullRange.usableTo - fullRange.usableFrom)) /
+              fullRange.width) *
+              fullRange.rect.width,
+          y: fullRange.rect.y + fullRange.rect.height / 24,
+        });
+        async function recordAlignment(kind, point, extra = {}) {
+          const measured = await settleTimelinePointer();
+          const logicalX =
+            ((point.x - measured.rect.x) / measured.rect.width) *
+            measured.width;
+          const expectedFraction =
+            (logicalX - measured.usableFrom) /
+            (measured.usableTo - measured.usableFrom);
+          const selectedLogicalX =
+            measured.usableFrom +
+            measured.cursorFraction * (measured.usableTo - measured.usableFrom);
+          const paintedRenderedX =
+            measured.rect.x +
+            (measured.paintedLogicalX / measured.width) * measured.rect.width;
+          const aligned =
+            measured.paintedLogicalX !== null &&
+            Math.abs(selectedLogicalX - logicalX) <= 2 &&
+            Math.abs(paintedRenderedX - point.x) <= 2 &&
+            Math.abs(measured.paintedLogicalX - selectedLogicalX) <= 2;
+          evidence.interactions.push({
+            kind,
+            point,
+            expectedFraction,
+            selectedLogicalX,
+            paintedRenderedX,
+            aligned,
+            ...extra,
+            ...measured,
+          });
+          return measured;
+        }
+        try {
+          for (const fraction of [0.25, 0.65, 0.85]) {
+            await evaluate("window.__winscopeSmokePointerEvents=[]");
+            const point = pointAt(fraction);
+            await dispatchPointer("mouseMoved", point);
+            await dispatchPointer("mousePressed", point, 1);
+            await dispatchPointer("mouseReleased", point);
+            await recordAlignment("click", point);
+          }
+          const beforeDrag = await readTimelinePointer();
+          assert.notEqual(
+            beforeDrag.paintedLogicalX,
+            null,
+            "Painted marker is visible",
+          );
+          const start = {
+            x:
+              beforeDrag.rect.x +
+              (beforeDrag.paintedLogicalX / beforeDrag.width) *
+                beforeDrag.rect.width,
+            y: pointAt(0).y,
+          };
+          const target = pointAt(0.4);
+          await evaluate("window.__winscopeSmokePointerEvents=[]");
+          await dispatchPointer("mouseMoved", start);
+          await dispatchPointer("mousePressed", start, 1);
+          const grabbed = await evaluate(
+            "document.querySelector('#mini-timeline-canvas').style.cursor === 'grabbing'",
+          );
+          for (const fraction of [0.25, 0.5, 0.75, 1])
+            await dispatchPointer(
+              "mouseMoved",
+              {
+                x: start.x + (target.x - start.x) * fraction,
+                y: target.y,
+              },
+              1,
+            );
+          await dispatchPointer("mouseReleased", target);
+          await recordAlignment("drag", target, { start, grabbed });
+          await fs.writeFile(
+            path.join(output, `timeline-pointer-scale-${scale}.png`),
+            (await contents.capturePage()).toPNG(),
+          );
+        } finally {
+          await evaluate(`(() => {
+            const canvas=document.querySelector('#mini-timeline-canvas');
+            for(const type of ['mousedown','mousemove','mouseup'])
+              canvas.removeEventListener(type,window.__winscopeSmokePointerListener,true);
+            delete window.__winscopeSmokePointerListener;
+            delete window.__winscopeSmokePointerEvents;
+          })()`);
+        }
+      }
+      await fs.writeFile(
+        path.join(output, "timeline-pointer-alignment.json"),
+        JSON.stringify(timelinePointerEvidence, null, 2) + "\n",
+      );
+      for (const evidence of timelinePointerEvidence) {
+        for (const interaction of evidence.interactions) {
+          assert.ok(
+            interaction.events.length > 0 &&
+              interaction.events.every((event) => event.trusted) &&
+              interaction.events.filter((event) => event.type === "mousedown")
+                .length === 1 &&
+              interaction.events.filter((event) => event.type === "mouseup")
+                .length === 1 &&
+              (interaction.kind !== "drag" ||
+                interaction.events.filter(
+                  (event) => event.type === "mousemove" && event.buttons === 1,
+                ).length === 4),
+            "CDP pointer events must reach the real canvas as trusted input",
+          );
+          assert.ok(
+            interaction.aligned &&
+              (interaction.kind !== "drag" || interaction.grabbed),
+            `Timeline ${interaction.kind} alignment at ${evidence.scale}%: ${JSON.stringify(interaction)}`,
+          );
+        }
+      }
       for (const locale of ["en", "zh-CN"]) {
         await selectInterfaceLanguage(locale);
         for (const scale of [80, 90, 100, 110, 120, 130, 140]) {
@@ -731,6 +929,7 @@ async function run({ app, getWindow, services }) {
     displayScale: 80,
     homepageScaleEvidence,
     paneHeaderEvidence,
+    timelinePointerEvidence,
     traceResetVerified,
     resetConfirmationVerified,
     initialRecentFiles,
@@ -757,6 +956,9 @@ async function run({ app, getWindow, services }) {
       "display-scale-presets-and-fixed-homepage-gap",
       "AI-workspace",
       ...(traceLoaded ? ["real-perfetto-trace-upload-and-view"] : []),
+      ...(timelinePointerEvidence.length
+        ? ["timeline-click-drag-alignment-at-display-scales"]
+        : []),
       ...(traceResetVerified
         ? [
             "toolbar-reset-and-reload-trace",

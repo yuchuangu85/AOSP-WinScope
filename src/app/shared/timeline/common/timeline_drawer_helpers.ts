@@ -14,6 +14,17 @@
  * limitations under the License.
  */
 
+import {Point} from '@common/geometry/point';
+
+/** Canvas events use rendered pixels under CSS zoom; drawings use layout pixels. */
+export function getCanvasMousePosition(canvas: HTMLCanvasElement, event: MouseEvent): Point {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: rect.width > 0 ? event.offsetX * canvas.offsetWidth / rect.width : event.offsetX,
+    y: rect.height > 0 ? event.offsetY * canvas.offsetHeight / rect.height : event.offsetY,
+  };
+}
+
 /**
  * Converts a hex color string to an RGB object.
  *

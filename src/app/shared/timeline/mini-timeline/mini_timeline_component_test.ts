@@ -26,6 +26,7 @@ import {MatInputModule} from '@angular/material/input';
 import {MatSelectModule} from '@angular/material/select';
 import {MatTooltipModule} from '@angular/material/tooltip';
 import {BrowserAnimationsModule, NoopAnimationsModule,} from '@angular/platform-browser/animations';
+import {MiniTimelineDrawer} from '@app/shared/timeline/mini-timeline/drawer/mini_timeline_drawer';
 import {assertDefined} from '@common/assert';
 import {KeyboardEventCode} from '@common/dom';
 import {InMemoryStorage} from '@common/store/in_memory_storage';
@@ -121,6 +122,72 @@ describe('MiniTimelineComponent', () => {
 
   it('can be created', () => {
     expect(component).toBeTruthy();
+  });
+
+  for (const scale of [0.8, 1, 1.4]) {
+    it(`keeps click and hover timestamps aligned at ${scale * 100}% display size`, async () => {
+      dom.detectChanges();
+      const canvas = component.getCanvas();
+      canvas.style.zoom = String(scale);
+      const rect = canvas.getBoundingClientRect();
+      const logicalX = Math.floor(canvas.offsetWidth * 0.65);
+      const renderedX = logicalX * rect.width / canvas.offsetWidth;
+      const hover = spyOn(component.onHoverPositionUpdate, 'emit');
+      const selected = spyOn(component.onTracePositionUpdate, 'emit');
+      const event = new MouseEvent('mousedown', {cancelable: true});
+      Object.defineProperties(event, {offsetX: {value: renderedX}, offsetY: {value: 0}});
+      canvas.dispatchEvent(event);
+      await dom.detectChangesAndWaitStable();
+      const drawer = assertDefined(component.drawer);
+      const expected = new Transformer(timelineData.getZoomRange(), drawer.getUsableRange(), converter).untransform(logicalX);
+      expect(selected).toHaveBeenCalled();
+      expect(selected.calls.mostRecent().args[0].timestamp).toEqual(expected);
+      const move = new MouseEvent('mousemove');
+      Object.defineProperties(move, {offsetX: {value: renderedX}, offsetY: {value: 0}});
+      canvas.dispatchEvent(move);
+      const update = assertDefined(hover.calls.mostRecent().args[0]);
+      expect(update.ts).toEqual(expected);
+      expect(update.xRatio).toBeCloseTo(logicalX / component.miniTimelineWrapper().nativeElement.clientWidth, 2);
+      const range = spyOn(drawer, 'getClickRange').and.callThrough();
+      component.recordClickPosition(event);
+      expect(range.calls.mostRecent().args[0].x).toBeCloseTo(logicalX, 2);
+    });
+
+    it(`drags the painted cursor on a high-DPI canvas at ${scale * 100}% display size`, async () => {
+      spyOnProperty(window, 'devicePixelRatio', 'get').and.returnValue(2);
+      dom.detectChanges();
+      const canvas = component.getCanvas();
+      canvas.style.zoom = String(scale);
+      const drawer = assertDefined(component.drawer) as MiniTimelineDrawer & {getSelectedPosition(): number};
+      await drawer.draw();
+      const rect = canvas.getBoundingClientRect();
+      const xScale = rect.width / canvas.offsetWidth;
+      const yScale = rect.height / canvas.offsetHeight;
+      const start = drawer.getSelectedPosition();
+      const target = Math.floor(drawer.getWidth() * 0.7);
+      const dispatch = (type: string, x: number) => {
+        const event = new MouseEvent(type, {cancelable: true});
+        Object.defineProperties(event, {offsetX: {value: x * xScale}, offsetY: {value: yScale}});
+        canvas.dispatchEvent(event);
+      };
+      const selected = spyOn(component.onTracePositionUpdate, 'emit');
+      dispatch('mousedown', start);
+      expect(canvas.style.cursor).toBe('grabbing');
+      dispatch('mousemove', target);
+      dispatch('mouseup', target);
+      expect(selected).toHaveBeenCalled();
+      const expected = new Transformer(timelineData.getZoomRange(), drawer.getUsableRange(), converter).untransform(target);
+      expect(selected.calls.mostRecent().args[0].timestamp).toEqual(expected);
+    });
+  }
+
+  it('preserves a hover ratio of zero at the left edge of the expanded timeline', () => {
+    dom.detectChanges();
+    const drawer = assertDefined(component.drawer);
+    const hover = spyOn(drawer, 'updateHover');
+    dom.setComponentInput('expandedTimelineMouseXRatio', 0);
+    dom.detectChanges();
+    expect(hover).toHaveBeenCalledWith({x: 0, y: 0});
   });
 
   it('redraws on resize', () => {
@@ -323,6 +390,8 @@ describe('MiniTimelineComponent', () => {
       deltaY: -200,
       deltaX: 0,
       x: 10, // scrolling on pos
+      offsetX: 10,
+      offsetY: 0,
       target: component.getCanvas(),
     } as unknown as WheelEvent);
     dom.detectChanges();

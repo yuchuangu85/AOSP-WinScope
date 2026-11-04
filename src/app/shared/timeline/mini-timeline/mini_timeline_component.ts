@@ -19,6 +19,7 @@ import {CommonModule} from '@angular/common';
 import {ChangeDetectorRef, Component, computed, effect, ElementRef, HostListener, Inject, input, output, signal, viewChild,} from '@angular/core';
 import {MatButtonModule} from '@angular/material/button';
 import {MatIconModule} from '@angular/material/icon';
+import {getCanvasMousePosition} from '@app/shared/timeline/common/timeline_drawer_helpers';
 import {MiniTimelineDrawer} from '@app/shared/timeline/mini-timeline/drawer/mini_timeline_drawer';
 import {MiniTimelineDrawerImpl} from '@app/shared/timeline/mini-timeline/drawer/mini_timeline_drawer_impl';
 import {MiniTimelineDrawerInput} from '@app/shared/timeline/mini-timeline/drawer/mini_timeline_drawer_input';
@@ -122,12 +123,12 @@ export class MiniTimelineComponent {
       if (!this.drawer) {
         return;
       }
-      this.lastMousePosX = mouseXRatio
+      this.lastMousePosX = mouseXRatio !== undefined
         ? mouseXRatio * this.drawer.getWidth()
         : undefined;
       this.updateHoverTimestamp();
       this.drawer.updateHover(
-        this.lastMousePosX ? {x: this.lastMousePosX, y: 0} : undefined,
+        this.lastMousePosX !== undefined ? {x: this.lastMousePosX, y: 0} : undefined,
       );
     });
 
@@ -207,7 +208,7 @@ export class MiniTimelineComponent {
     event.stopPropagation();
     const timelineData = this.timelineData();
 
-    const lastRightClickPos = {x: event.offsetX, y: event.offsetY};
+    const lastRightClickPos = getCanvasMousePosition(this.getCanvas(), event);
     const drawer = assertDefined(this.drawer);
     const clickRange = drawer.getClickRange(lastRightClickPos);
     const zoomRange = timelineData.getZoomRange();
@@ -232,7 +233,7 @@ export class MiniTimelineComponent {
   }
 
   trackMousePos(event: MouseEvent) {
-    this.lastMousePosX = event.offsetX;
+    this.lastMousePosX = getCanvasMousePosition(this.getCanvas(), event).x;
     this.updateHoverTimestamp();
   }
 
@@ -400,7 +401,7 @@ export class MiniTimelineComponent {
       const canvas = event.target as HTMLCanvasElement;
       const drawer = assertDefined(this.drawer);
       this.lastMousePosX =
-        (drawer.getWidth() * event.offsetX) / canvas.offsetWidth;
+        (drawer.getWidth() * getCanvasMousePosition(canvas, event).x) / canvas.offsetWidth;
       this.updateHoverTimestamp();
     }
     const isZoomIn = event.deltaY < 0;
@@ -513,7 +514,7 @@ export class MiniTimelineComponent {
   }
 
   private updateHoverTimestamp() {
-    if (!this.lastMousePosX) {
+    if (this.lastMousePosX === undefined) {
       this.hoverTimestamp = undefined;
       this.onHoverPositionUpdate.emit(undefined);
       return;

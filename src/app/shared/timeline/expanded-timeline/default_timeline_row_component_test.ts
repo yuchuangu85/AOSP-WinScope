@@ -66,6 +66,28 @@ describe('DefaultTimelineRowComponent', () => {
     expect(component).toBeTruthy();
   });
 
+  for (const scale of [0.8, 1, 1.4]) {
+    it(`hit-tests the displayed entry and hover column at ${scale * 100}% display size`, async () => {
+      setTraceAndSelectionRange(10n, 110n);
+      await dom.detectChangesAndRenderingDone();
+      const canvas = component.getCanvas();
+      canvas.style.zoom = String(scale);
+      const rect = canvas.getBoundingClientRect();
+      const x = Math.floor(component.getAvailableWidth() * 5 / 100) + 2;
+      const y = component.getEntryWidth() / 2;
+      const event = new MouseEvent('mousedown');
+      Object.defineProperties(event, {
+        offsetX: {value: x * rect.width / canvas.offsetWidth},
+        offsetY: {value: y * rect.height / canvas.offsetHeight},
+      });
+      const ratio = spyOn(component.onMouseXRatioUpdate, 'emit');
+      component.handleMouseDown(event);
+      component.trackMousePos(event);
+      expect(component.selectedEntry()?.getTimestamp().getValueNs()).toBe(15n);
+      expect(ratio).toHaveBeenCalledWith(x / canvas.offsetWidth);
+    });
+  }
+
   it('can draw entries', async () => {
     setTraceAndSelectionRange(10n, 110n);
     const drawRectSpy = spyOn(

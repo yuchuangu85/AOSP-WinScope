@@ -15,6 +15,7 @@
  */
 
 import {computed, Directive, ElementRef, HostListener, input, model, output, viewChild,} from '@angular/core';
+import {getCanvasMousePosition} from '@app/shared/timeline/common/timeline_drawer_helpers';
 import {assertDefined} from '@common/assert';
 import {Point} from '@common/geometry/point';
 import {TimeRange} from '@common/time/time';
@@ -132,10 +133,7 @@ export abstract class AbstractTimelineRowComponent<T> {
   handleMouseDown(e: MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
-    const mousePoint = {
-      x: e.offsetX,
-      y: e.offsetY,
-    };
+    const mousePoint = getCanvasMousePosition(this.getCanvas(), e);
 
     const entry = this.getEntryAt(mousePoint);
     const selectedEntry = this.selectedEntry();
@@ -153,10 +151,7 @@ export abstract class AbstractTimelineRowComponent<T> {
   handleMouseMove(e: MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
-    const mousePoint = {
-      x: e.offsetX,
-      y: e.offsetY,
-    };
+    const mousePoint = getCanvasMousePosition(this.getCanvas(), e);
 
     this.onHover(mousePoint);
   }
@@ -175,8 +170,8 @@ export abstract class AbstractTimelineRowComponent<T> {
   }
 
   trackMousePos(event: MouseEvent) {
-    const canvas = event.target as HTMLCanvasElement;
-    this.onMouseXRatioUpdate.emit(event.offsetX / canvas.offsetWidth);
+    const canvas = this.getCanvas();
+    this.onMouseXRatioUpdate.emit(getCanvasMousePosition(canvas, event).x / canvas.offsetWidth);
   }
 
   onMouseLeave(_: MouseEvent) {
