@@ -400,16 +400,16 @@ async function run({ app, getWindow, services }) {
       traceLoaded = true;
       for (const locale of ["en", "zh-CN"]) {
         await selectInterfaceLanguage(locale);
-        for (const scale of [80, 100, 140]) {
+        for (const scale of [80, 90, 100, 110, 120, 130, 140]) {
           await selectDisplayScale(scale);
           const metrics = await evaluate(`(() => {
             const zoom=Number(document.documentElement.style.zoom)||1;
             const selectors=['rects-view > .view-header > .title-section','hierarchy-view > .view-header > .title-section','surface-flinger-property-groups > .title-section'];
-            return {locale:${JSON.stringify(locale)},scale:${scale},headers:selectors.map(selector=>{
+            return {locale:${JSON.stringify(locale)},scale:${scale},clientFontSize:parseFloat(getComputedStyle(document.querySelector('.toolbar .download-file-info')).fontSize),headers:selectors.map(selector=>{
               const header=document.querySelector('.viewers '+selector);
               if(!header) return {selector,missing:true};
               const box=header.getBoundingClientRect();
-              return {selector,height:box.height/zoom,items:[...header.querySelectorAll('.section-title,mat-icon,input')].filter(item=>item.getBoundingClientRect().height>0).map(item=>{const r=item.getBoundingClientRect();return {kind:item.tagName,centerOffset:Math.abs((r.top+r.height/2)-(box.top+box.height/2))/zoom};})};
+              return {selector,height:box.height/zoom,renderedHeight:box.height,items:[...header.querySelectorAll('.section-title,mat-icon,input')].filter(item=>item.getBoundingClientRect().height>0).map(item=>{const r=item.getBoundingClientRect(),style=getComputedStyle(item);const range=document.createRange();range.selectNodeContents(item);const text=range.getBoundingClientRect();return {kind:item.tagName,text:item.textContent.trim(),fontSize:parseFloat(style.fontSize),renderedWidth:r.width,renderedHeight:r.height,textHeight:text.height,centerOffset:Math.abs((r.top+r.height/2)-(box.top+box.height/2))/zoom};})};
             })};
           })()`);
           assert.equal(
@@ -426,13 +426,79 @@ async function run({ app, getWindow, services }) {
               header.height >= HEADER_LAYOUT.minHeight &&
                 header.height <= HEADER_LAYOUT.maxHeight,
             );
+            for (const item of header.items) {
+              if (item.kind === "SPAN")
+                assert.equal(
+                  item.fontSize,
+                  metrics.clientFontSize,
+                  "Pane title matches the client toolbar text size",
+                );
+              if (item.kind === "MAT-ICON") {
+                assert.equal(
+                  item.fontSize,
+                  18,
+                  "Pane icons use the compact toolbar size",
+                );
+                assert.ok(
+                  Math.abs(item.renderedWidth - (18 * scale) / 100) < 1,
+                  "Pane icon scales from 18px",
+                );
+              }
+            }
             for (const item of header.items)
               assert.ok(
                 item.centerOffset <= HEADER_LAYOUT.maxCenterOffset,
                 JSON.stringify({ header: header.selector, item }),
               );
           }
+          const baseline = paneHeaderEvidence.find(
+            (entry) => entry.locale === locale,
+          );
+          if (baseline) {
+            const ratio = scale / baseline.scale;
+            for (const [index, header] of metrics.headers.entries()) {
+              const reference = baseline.headers[index];
+              assert.ok(
+                Math.abs(
+                  header.renderedHeight - reference.renderedHeight * ratio,
+                ) < 1,
+                "Viewer header follows display scale",
+              );
+              const items = header.items.filter(
+                (item) => item.kind !== "INPUT",
+              );
+              const referenceItems = reference.items.filter(
+                (item) => item.kind !== "INPUT",
+              );
+              assert.equal(items.length, referenceItems.length);
+              for (const [itemIndex, item] of items.entries()) {
+                const previous = referenceItems[itemIndex];
+                assert.equal(item.text, previous.text);
+                assert.ok(
+                  Math.abs(
+                    item.renderedHeight - previous.renderedHeight * ratio,
+                  ) < 1,
+                  "Viewer title and icon boxes follow display scale",
+                );
+                assert.ok(
+                  Math.abs(
+                    item.renderedWidth - previous.renderedWidth * ratio,
+                  ) < 1,
+                  "Viewer title and icon widths follow display scale",
+                );
+                assert.ok(
+                  Math.abs(item.textHeight - previous.textHeight * ratio) < 2,
+                  "Viewer title and icon glyphs follow display scale",
+                );
+              }
+            }
+          }
           paneHeaderEvidence.push(metrics);
+          if ([80, 100, 140].includes(scale))
+            await fs.writeFile(
+              path.join(output, `pane-headers-${locale}-${scale}.png`),
+              (await contents.capturePage()).toPNG(),
+            );
           if (scale === 100)
             await fs.writeFile(
               path.join(output, `pane-headers-${locale}.png`),
@@ -695,6 +761,7 @@ async function run({ app, getWindow, services }) {
         ? [
             "toolbar-reset-and-reload-trace",
             "pane-header-equal-height-and-vertical-centering",
+            "viewer-title-and-icon-rendered-size-follows-all-display-presets",
           ]
         : []),
       ...(resetConfirmationVerified

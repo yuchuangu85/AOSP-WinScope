@@ -255,6 +255,10 @@ Store the selected mode separately from the resolved dark boolean required by
 existing trace viewers. Preserve legacy explicit dark/light preferences when
 migrating, prefer a valid new mode on later loads, and ignore/persist no theme
 preferences in privacy mode.
+Viewer pane titles use the same 14px baseline as the client toolbar filename,
+with 18px title-row icons. Keep the existing equal 40px header rows, centered
+32px collapse targets, and uniform display scaling across all seven presets.
+
 General settings also exposes Display size as an 80%-140% range in 10% steps,
 defaulting to 100%, with a percentage readout and reset icon. Selection applies
 immediately without saving AI edits and persists only when preferences are

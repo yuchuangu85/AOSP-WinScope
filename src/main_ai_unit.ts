@@ -37,3 +37,4 @@ import './services/winscope_trace_query_test';
 import './services/ai_trace_query_validation_test';
 import './services/ai_diagnostic_prompts_test';
 import './services/desktop_files_test';
+import './app/shared/collapsible_sections/collapsible_section_title_component_test';

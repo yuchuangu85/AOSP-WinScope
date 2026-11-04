@@ -54,4 +54,18 @@ describe('CollapsibleSectionTitleComponent', () => {
     dom.findAndClick('button');
     expect(spy).toHaveBeenCalledTimes(1);
   });
+
+  it('uses compact client-sized title text and icons with centered click targets', () => {
+    const title = dom.get('.section-title').getHTMLElement();
+    const icon = dom.get('mat-icon').getHTMLElement();
+    const button = dom.get('button').getHTMLElement();
+    expect(getComputedStyle(title).fontSize).toBe('14px');
+    expect(getComputedStyle(title).lineHeight).toBe('20px');
+    expect(getComputedStyle(icon).fontSize).toBe('18px');
+    expect(getComputedStyle(icon).width).toBe('18px');
+    expect(getComputedStyle(icon).height).toBe('18px');
+    expect(button.getBoundingClientRect().width).toBe(32);
+    expect(button.getBoundingClientRect().height).toBe(32);
+    expect(getComputedStyle(button).alignItems).toBe('center');
+  });
 });
