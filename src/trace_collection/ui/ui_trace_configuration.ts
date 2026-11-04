@@ -399,6 +399,49 @@ export function makeDefaultTraceConfigMap(): TraceConfigurationMap {
   return Object.fromEntries(map);
 }
 
+/** Applies an opt-in preset through existing config proxies and returns a new map. */
+export function applyDiagnosticTracePreset(
+  configMap: TraceConfigurationMap,
+): TraceConfigurationMap {
+  for (const target of [
+    UiTraceTarget.SURFACE_FLINGER_TRACE,
+    UiTraceTarget.WINDOW_MANAGER_TRACE,
+    UiTraceTarget.TRANSACTIONS,
+    UiTraceTarget.SCREEN_RECORDING,
+    UiTraceTarget.TRANSITIONS,
+  ]) {
+    const trace = configMap[target];
+    if (!trace?.available) {
+      continue;
+    }
+    trace.config.enabled = true;
+    if (target === UiTraceTarget.SURFACE_FLINGER_TRACE) {
+      for (const checkbox of trace.config.checkboxConfigs) {
+        if (
+          ['composition', 'tracebuffers'].includes(checkbox.key) &&
+          !checkbox.disabled
+        ) {
+          checkbox.enabled = true;
+        }
+      }
+    }
+    if (target === UiTraceTarget.WINDOW_MANAGER_TRACE) {
+      for (const selection of trace.config.selectionConfigs) {
+        const value =
+          selection.key === 'tracingtype'
+            ? 'frame'
+            : selection.key === 'tracinglevel'
+              ? 'verbose'
+              : undefined;
+        if (value && selection.options.some((option) => option.value === value)) {
+          selection.value = value;
+        }
+      }
+    }
+  }
+  return {...configMap};
+}
+
 const dumpDefaultConfig = new Map([
   [
     UiTraceTarget.WINDOW_MANAGER_DUMP,

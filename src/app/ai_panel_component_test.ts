@@ -4,6 +4,7 @@ import {MatTooltip} from '@angular/material/tooltip';
 import {By} from '@angular/platform-browser';
 import {NoopAnimationsModule} from '@angular/platform-browser/animations';
 import {setLanguage} from '@common/i18n';
+import {diagnosticPrompt} from '@services/ai_diagnostic_prompts';
 import {AiCatalog, AiEvent, AiGatewayClient, AiProvider, AiSessionDetail, AiSessionSummary,} from '@services/ai_gateway_client';
 import {WinscopeTraceSnapshot} from '@services/winscope_trace_query';
 
@@ -631,6 +632,46 @@ describe('AiPanelComponent', () => {
       expect(component.turns[0].response).toBe('Actual analysis');
     });
 
+    it('forwards validated range and diagnostic target filters without dropping their fields', async () => {
+      await initialize();
+      const query = jasmine.createSpy('query').and.resolveTo(snapshot);
+      component.traceQuery = query;
+      const respond = spyOn(AiGatewayClient.prototype, 'respondToTraceQuery').and.resolveTo();
+      const options = {time: '1s', endTime: '2s', limit: 5, traceTypes: ['SURFACE_FLINGER', 'WINDOW_MANAGER'], layerId: '42', displayId: '0'};
+      stream.and.callFake(async (_id: string, onEvent: (event: AiEvent) => void) => {
+        onEvent({id: 2, type: 'trace_query_requested', data: {
+          contextId: start.calls.mostRecent().args[4].traceQueryContextId,
+          queryId: 'diagnostic-query', query: options,
+        }});
+        await Promise.resolve();
+        await Promise.resolve();
+        onEvent({id: 3, type: 'analysis_completed', data: {}});
+      });
+      component.prompt = 'Analyze the interval';
+      await component.submit();
+      expect(query.calls.allArgs()).toEqual([[{}], [options]]);
+      expect(respond.calls.mostRecent().args[3]).toEqual({result: snapshot});
+    });
+
+    it('rejects invalid query options immediately without reading local data or waiting for gateway timeout', async () => {
+      await initialize();
+      const query = jasmine.createSpy('query').and.resolveTo(snapshot);
+      component.traceQuery = query;
+      const respond = spyOn(AiGatewayClient.prototype, 'respondToTraceQuery').and.resolveTo();
+      stream.and.callFake(async (_id: string, onEvent: (event: AiEvent) => void) => {
+        onEvent({id: 2, type: 'trace_query_requested', data: {
+          contextId: start.calls.mostRecent().args[4].traceQueryContextId,
+          queryId: 'invalid-filter', query: {layerId: ' '},
+        }});
+        await Promise.resolve();
+        onEvent({id: 3, type: 'analysis_completed', data: {}});
+      });
+      component.prompt = 'Analyze';
+      await component.submit();
+      expect(query).toHaveBeenCalledOnceWith({});
+      expect(respond.calls.mostRecent().args[3]).toEqual({error: 'Invalid trace query options.'});
+    });
+
     it('sends no trace or query capability when trace context is disabled', async () => {
       await initialize();
       component.traceQuery = jasmine.createSpy('query').and.resolveTo(snapshot);
@@ -822,7 +863,7 @@ describe('AiPanelComponent', () => {
       expect(button.disabled).toBeFalse();
       button.click();
       await settleWindow();
-      expect(component.prompt).toBe('获取当前时间轴位置的 WinScope 数据并进行分析。');
+      expect(component.prompt).toBe(diagnosticPrompt('current-frame', 'zh-CN'));
       expect(start).not.toHaveBeenCalled();
       expect(component.traceQuery).not.toHaveBeenCalled();
     });
@@ -833,16 +874,20 @@ describe('AiPanelComponent', () => {
       {
         label: {'en': 'Investigate a black screen', 'zh-CN': '排查黑屏'},
         prompt: {
-          'en': 'Investigate black-screen intervals in the available evidence',
-          'zh-CN': '排查现有证据中的黑屏时间段。',
+          'en': diagnosticPrompt('black-screen', 'en'),
+          'zh-CN': diagnosticPrompt('black-screen', 'zh-CN'),
         },
       },
       {
         label: {'en': 'Find flicker evidence', 'zh-CN': '查找闪烁证据'},
         prompt: {
-          'en': 'Find flicker and explain what evidence is missing',
-          'zh-CN': '查找闪烁证据，并说明还缺少哪些证据。',
+          'en': diagnosticPrompt('flicker', 'en'),
+          'zh-CN': diagnosticPrompt('flicker', 'zh-CN'),
         },
+      },
+      {
+        label: {'en': 'Audit evidence completeness', 'zh-CN': '检查证据完整性'},
+        prompt: {'en': diagnosticPrompt('evidence-audit', 'en'), 'zh-CN': diagnosticPrompt('evidence-audit', 'zh-CN')},
       },
     ];
 
@@ -1161,6 +1206,9 @@ describe('AiPanelComponent', () => {
   });
   it('requests independent settings without embedding settings or changing the draft', async () => {
     await initialize();
+    expect(fixture.nativeElement.querySelector('.ai-settings-button')).toBeNull();
+    expect(Array.from(fixture.nativeElement.querySelectorAll('.ai-panel-header mat-icon'))
+      .some((icon) => (icon as HTMLElement).textContent?.trim() === 'settings')).toBeFalse();
     expect(
       fixture.nativeElement
         .querySelector('.ai-composer .model-select')
@@ -1168,7 +1216,14 @@ describe('AiPanelComponent', () => {
     ).toBe('Conversation model');
     component.prompt = 'Draft to keep';
     const requested = spyOn(component.settingsRequested, 'emit');
-    fixture.nativeElement.querySelector('.ai-settings-button').click();
+    fixture.nativeElement.querySelector('.composer-add').click();
+    fixture.detectChanges();
+    const settings = Array.from(
+      TestBed.inject(OverlayContainer).getContainerElement()
+        .querySelectorAll<HTMLButtonElement>('button[mat-menu-item]'),
+    ).find((button) => button.textContent?.includes('AI settings'));
+    expect(settings).toBeDefined();
+    settings!.click();
     expect(requested).toHaveBeenCalledOnceWith();
     expect(fixture.nativeElement.querySelector('ai-settings')).toBeNull();
     expect(fixture.nativeElement.querySelector('app-settings')).toBeNull();

@@ -5,9 +5,13 @@ export const AI_TRANSLATIONS: Record<string, string> = {
   'video luminance evidence is missing': '缺少视频亮度证据',
   'video frame-difference evidence is missing': '缺少视频帧差异证据',
   'SurfaceFlinger evidence is missing': '缺少 SurfaceFlinger 跟踪证据',
+  'SurfaceFlinger evidence is incomplete': 'SurfaceFlinger 跟踪证据不完整',
   'WindowManager evidence is missing': '缺少 WindowManager 跟踪证据',
   'WindowManager evidence is incomplete': 'WindowManager 跟踪证据不完整',
   'Transactions evidence is missing': '缺少 Transactions 跟踪证据',
+  'Transactions evidence is incomplete': 'Transactions 跟踪证据不完整',
+  'video sampling is sparse; single-frame anomalies may be missed': '视频为稀疏抽样，可能遗漏单帧异常',
+  'video sampling is incomplete; unsampled frames may contain anomalies': '视频抽样不完整，未采样帧中仍可能存在异常',
   'No anomaly conclusion can be established from this incomplete evidence.':
     '现有证据不完整，无法据此得出异常结论。',
   'No anomaly found in the available evidence.': '现有证据中未发现异常。',
@@ -109,6 +113,8 @@ export const AI_TRANSLATIONS: Record<string, string> = {
   'Investigate a black screen': '排查黑屏',
   'Find flicker evidence': '查找闪烁证据',
   'Analyze current frame': '分析当前帧',
+  'Audit evidence completeness': '检查证据完整性',
+  'Black screen / flicker preset': '黑屏／闪屏采集预设',
   'Analyze the WinScope data at the current timeline position':
     '获取当前时间轴位置的 WinScope 数据并进行分析。',
   'Allow read-only queries of current or specified trace times':
@@ -118,6 +124,8 @@ export const AI_TRANSLATIONS: Record<string, string> = {
   'The loaded traces have changed.': '已加载的跟踪数据发生变化。',
   'No WinScope traces are loaded.': '尚未加载 WinScope 跟踪数据。',
   'Invalid trace query time.': '跟踪数据查询时间无效。',
+  'Invalid trace query options.': '跟踪数据查询选项无效。',
+  'Trace query end time must not precede its start time.': '查询结束时间不能早于开始时间。',
   'A date is required for this trace query time.': '此查询时间需要包含日期。',
   'The requested time is outside the loaded trace range.': '查询时间超出已加载跟踪数据的范围。',
   'No trace entry is available at the current position.': '当前位置没有可用的跟踪条目。',

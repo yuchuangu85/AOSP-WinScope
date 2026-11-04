@@ -1,3 +1,5 @@
+import type {WinscopeTraceQuery} from './winscope_trace_query';
+
 export interface AiProviderConfiguration {
   baseUrl: string;
   providerName: string;
@@ -94,7 +96,7 @@ export interface AiAnalysisOptions {
 export interface AiTraceQueryRequest {
   queryId: string;
   contextId: string;
-  query: {time?: string};
+  query: WinscopeTraceQuery;
 }
 
 export type AiSessionResponse = AiSessionSummary;

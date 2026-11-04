@@ -48,7 +48,7 @@ import {ConnectionState} from '@trace_collection/connection_state';
 import {ConnectionStateListener} from '@trace_collection/connection_state_listener';
 import {TraceCollectionController} from '@trace_collection/controller/trace_collection_controller';
 import {UiTraceTarget} from '@trace_collection/ui_trace_target';
-import {CheckboxConfiguration, makeDefaultDumpConfigMap, makeDefaultTraceConfigMap, makeProtologGroupOptions, makeScreenRecordingSelectionConfigs, SelectionConfiguration, TraceConfigurationMap, updateConfigsFromStore,} from '@trace_collection/ui/ui_trace_configuration';
+import {applyDiagnosticTracePreset, CheckboxConfiguration, makeDefaultDumpConfigMap, makeDefaultTraceConfigMap, makeProtologGroupOptions, makeScreenRecordingSelectionConfigs, SelectionConfiguration, TraceConfigurationMap, updateConfigsFromStore,} from '@trace_collection/ui/ui_trace_configuration';
 import {UserRequest, UserRequestConfig} from '@trace_collection/user_request';
 import {AppRefreshDumpsRequest} from '@ui/shared/events/app_events';
 import {NoTraceTargetsSelectedEvent} from '@ui/shared/events/misc_events';
@@ -323,6 +323,24 @@ export class CollectTracesComponent
 
   async onRetryButton() {
     await assertDefined(this.controller).restartConnection();
+  }
+
+  isDiagnosticTracePresetDisabled(): boolean {
+    return (
+      !this.controller ||
+      this.state() !== ConnectionState.IDLE ||
+      this.disableTraceSection() ||
+      this.isChangingConnection() ||
+      this.selectedDevice?.getState() !== AdbDeviceState.AVAILABLE
+    );
+  }
+
+  onApplyDiagnosticTracePreset() {
+    if (this.isDiagnosticTracePresetDisabled()) {
+      return;
+    }
+    this.traceConfig.update(applyDiagnosticTracePreset);
+    this.changeDetectorRef.detectChanges();
   }
 
   async startTracing() {

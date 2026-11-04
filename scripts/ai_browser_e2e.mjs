@@ -92,6 +92,31 @@ async function typeMessage(text) {
     `(() => {const input = document.querySelector('.composer-input'); input.focus(); input.value = ${JSON.stringify(text)}; input.dispatchEvent(new Event('input', {bubbles:true}));})()`,
   );
 }
+async function openConversationSettings() {
+  await click('.composer-add');
+  await condition("[...document.querySelectorAll('button[mat-menu-item]')].some(button=>button.textContent.includes('AI settings'))");
+  await evaluate(`(() => {
+    const button=[...document.querySelectorAll('button[mat-menu-item]')].find(item=>item.textContent.includes('AI settings'));
+    if(!button) throw new Error('AI settings menu item unavailable');
+    button.click();
+  })()`);
+  await condition("document.querySelector('app-settings') !== null");
+}
+async function diagnosticPromptRegression() {
+  const original = await evaluate("document.querySelector('.composer-input').value");
+  const sessions = await evaluate("fetch('./ai/api/sessions').then(response=>response.json()).then(body=>body.sessions.length)");
+  for (const id of ['black-screen','flicker','current-frame','evidence-audit']) {
+    await click(`[data-diagnostic-prompt="${id}"]`);
+    const draft = await evaluate("document.querySelector('.composer-input').value");
+    assert.ok(draft.length > 1500 && draft.includes('winscope_query_trace'));
+    assert.ok(draft.includes('truncated') && draft.includes('sourceIndex'));
+    assert.equal(await evaluate("document.querySelectorAll('.chat-turn').length"),0);
+    assert.equal(await evaluate("document.activeElement===document.querySelector('.composer-input')"),true);
+  }
+  assert.equal(await evaluate("fetch('./ai/api/sessions').then(response=>response.json()).then(body=>body.sessions.length)"),sessions);
+  await screenshot('ai-diagnostic-prompts.png');
+  await typeMessage(original);
+}
 async function composerSpaceKeyRegression() {
   const initial = await evaluate("document.querySelector('.composer-input').value");
   await evaluate(`(() => {
@@ -148,6 +173,9 @@ async function chooseProvider(provider) {
   assert.equal(await evaluate("document.querySelectorAll('.provider-settings').length"), 1);
 }
 async function openConversationModels() {
+  // A previous trusted toolbar click may leave a tooltip while later clicks
+  // are DOM-driven; move away so hover dismissal follows real pointer behavior.
+  await cdp('Input.dispatchMouseEvent', {type: 'mouseMoved', x: 2, y: 300});
   await click('.model-select .model-label');
   await condition("document.querySelector('.conversation-model-list') !== null");
   await condition(`(() => {
@@ -287,6 +315,7 @@ async function recordAiWindow(check, screenshotName) {
   return metrics;
 }
 async function aiMouseClick(selector, {double = false, rightEdge = false} = {}) {
+  await settleAiWindow();
   const point = await evaluate(`(() => {const e=document.querySelector(${JSON.stringify(selector)}),r=e.getBoundingClientRect();if(e.hidden||!r.width||!r.height) throw new Error('Control is not visible');return {x:${rightEdge ? 'r.right-8' : 'r.x+r.width/2'},y:r.y+r.height/2};})()`);
   await cdp('Input.dispatchMouseEvent', {type: 'mouseMoved', ...point});
   for (const clickCount of double ? [1, 2] : [1]) {
@@ -548,14 +577,14 @@ async function aiWindowRunningRegression() {
   await aiGripKey('ArrowUp');
   assert.deepEqual(await aiWindowState(), preserved, 'Running layout interactions preserve draft/session/model and storage');
   await assertRunning('sidebar-and-resize-do-not-cancel-run');
-  await aiMouseClick('.ai-settings-button');
+  await openConversationSettings();
   await condition("document.querySelector('app-settings') !== null && getComputedStyle(document.querySelector('.ai-panel')).display === 'none'");
   await assertRunning('settings-suspension-does-not-cancel-run');
   await click('.settings-cancel');
   await condition("document.querySelector('app-settings') === null && getComputedStyle(document.querySelector('.ai-panel')).display !== 'none'");
   assert.deepEqual(await aiWindowState(), preserved, 'Settings layout suspension preserves conversation state');
   await typeMessage(initial.draft);
-  await aiMouseClick('.ai-panel-header [aria-label="Close AI analysis"]');
+  await click('.ai-panel-header [aria-label="Close AI analysis"]');
   await condition("document.querySelector('ai-panel') === null");
   await assertRunning('window-destruction-does-not-cancel-run');
   await aiMouseClick('.ai-open-button');
@@ -1471,7 +1500,7 @@ async function localConfigurationRegression(providerCapture, claudeHome) {
   const originalDraft = await evaluate(
     "document.querySelector('.composer-input').value",
   );
-  await click(".ai-settings-button");
+  await openConversationSettings();
   await chooseProvider('codex');
   await condition(
     "document.querySelector('[aria-label=\"Get Codex configuration\"]') !== null",
@@ -1561,7 +1590,7 @@ async function localConfigurationRegression(providerCapture, claudeHome) {
   await screenshot("ai-local-config-settings.png");
   await click(".settings-save");
   await condition("document.querySelector('app-settings') === null");
-  await click('.ai-settings-button');
+  await openConversationSettings();
   await condition("document.querySelector('.configured-status') !== null");
   assert.equal(await evaluate("document.querySelector('[data-field=active-provider]').value"), 'claude');
   assert.equal(await evaluate("document.querySelector('[data-field=base-url]').value"), 'https://claude.manual.fixture.invalid/v1');
@@ -1596,7 +1625,7 @@ async function localConfigurationRegression(providerCapture, claudeHome) {
     ["claude", "fixture/claude-alternative[1m]"],
   ].entries()) {
     if (index > 0) {
-      await click(".ai-settings-button");
+      await openConversationSettings();
       await chooseProvider(provider);
       await condition(
         `document.querySelector('[aria-label="Get ${provider === "codex" ? "Codex" : "Claude"} configuration"]') !== null`,
@@ -2112,9 +2141,8 @@ if(process.argv[2]==='app-server'){
   await condition("document.querySelector('.ai-open-button') !== null");
   await languageLandingRegression();
   await click(".ai-open-button");
-  await condition(
-    "document.querySelector('.ai-settings-button') !== null && !document.querySelector('.ai-settings-button').disabled",
-  );
+  await condition("document.querySelector('.ai-panel') !== null && !document.querySelector('app-settings') && !document.querySelector('.ai-panel mat-progress-bar')");
+  assert.equal(await evaluate("[...document.querySelectorAll('.ai-panel-header mat-icon')].some(icon=>icon.textContent.trim()==='settings')"), false);
   await languageAiRegression();
   const scaleDraft='Preserve message while changing display size';
   await typeMessage(scaleDraft);
@@ -2138,7 +2166,7 @@ if(process.argv[2]==='app-server'){
   await click('.display-scale-reset');
   await click('.settings-close-button');
   await typeMessage('');
-  await click('[aria-label="AI settings"]');
+  await openConversationSettings();
   await condition(
     'document.querySelector(\'.provider-settings[data-provider="browser-fixture"] option[value="fixture-model"]\') !== null',
   );
@@ -2156,6 +2184,7 @@ if(process.argv[2]==='app-server'){
   );
   await conversationModelMenuRegression();
   await composerSpaceKeyRegression();
+  await diagnosticPromptRegression();
   const initialGeometry = await evaluate(`(() => {
     const card=document.querySelector('.ai-composer'), input=document.querySelector('.composer-input'), plus=document.querySelector('.composer-add'), send=document.querySelector('.composer-primary');
     const c=getComputedStyle(card), i=getComputedStyle(input), box=element=>({width:element.getBoundingClientRect().width,height:element.getBoundingClientRect().height});
@@ -2297,7 +2326,7 @@ if(process.argv[2]==='app-server'){
   );
   await click(".ai-open-button");
   await condition("document.querySelectorAll('.chat-turn').length === 2");
-  await click('[aria-label="AI settings"]');
+  await openConversationSettings();
   await condition(
     "document.querySelector('.provider-settings[data-provider=\"browser-fixture\"] [data-field=model]') !== null",
   );
@@ -2333,7 +2362,7 @@ if(process.argv[2]==='app-server'){
     "wait-for-stop",
   );
   // Settings validate atomically; invalid model IDs never reach a provider.
-  await click('[aria-label="AI settings"]');
+  await openConversationSettings();
   await chooseProviderField("browser-fixture", "model", "__custom__");
   await chooseProviderField("browser-fixture", "custom-model", "bad model!");
   await click(".settings-save");
@@ -2382,7 +2411,7 @@ if(process.argv[2]==='app-server'){
   });
   await compactDensityMetrics("short-desktop-composer", { short: true });
   await screenshot("ai-density-short-composer.png");
-  await click('[aria-label="AI settings"]');
+  await openConversationSettings();
   await condition(
     "document.querySelector('app-settings .settings-content') !== null",
   );
@@ -2423,13 +2452,9 @@ if(process.argv[2]==='app-server'){
     "(() => {const p=document.querySelector('.ai-panel').getBoundingClientRect();const c=document.querySelector('.ai-composer').getBoundingClientRect();return {panelRight:p.right,composerRight:c.right,width:innerWidth,overflow:document.querySelector('.ai-panel').scrollWidth>document.querySelector('.ai-panel').clientWidth};})()",
   );
   const headerButtons = await evaluate(
-    `({settings:document.querySelector('.ai-settings-button').getBoundingClientRect().y,close:document.querySelector('[aria-label="Close AI analysis"]').getBoundingClientRect().y})`,
+    `({close:document.querySelector('[aria-label="Close AI analysis"]').getBoundingClientRect().y})`,
   );
-  assert.equal(
-    headerButtons.settings,
-    headerButtons.close,
-    "Header actions share one row on narrow windows",
-  );
+  assert.ok(Number.isFinite(headerButtons.close), "Close action remains available on narrow windows");
   assert.equal(layout.overflow, false);
   assert.ok(layout.composerRight <= layout.width);
   await screenshot("ai-workflow-mobile.png");
@@ -2438,7 +2463,7 @@ if(process.argv[2]==='app-server'){
   await evaluate("document.body.classList.remove('dark-mode')");
   await compactDensityMetrics("mobile-light");
   await screenshot("ai-density-mobile-light.png");
-  await click('[aria-label="AI settings"]');
+  await openConversationSettings();
   await condition("document.querySelector('ai-settings') !== null");
   await compactDensityMetrics("mobile-light-settings", { settings: true });
   await screenshot("ai-density-mobile-settings.png");
@@ -2457,6 +2482,7 @@ if(process.argv[2]==='app-server'){
       "enter-send",
       "native-space-insertion-and-arrow-caret-isolated-from-timeline-shortcuts",
       "completed-turn-displays-server-measured-elapsed-time",
+      "four-evidence-bound-diagnostic-prompts-insert-without-sending",
       "multi-turn-history",
       "report-preview",
       "markdown-and-html-download",

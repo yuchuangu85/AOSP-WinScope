@@ -9,7 +9,9 @@ import {MatProgressBarModule} from '@angular/material/progress-bar';
 import {MatTooltipModule} from '@angular/material/tooltip';
 import {language, translate, TranslatePipe} from '@common/i18n';
 import {AiChatTurn, formatAnalysisDuration, formatConversationResponse, projectConversation,} from '@services/ai_conversation';
+import {AI_DIAGNOSTIC_PROMPTS, AiDiagnosticPromptId, diagnosticPrompt} from '@services/ai_diagnostic_prompts';
 import {AiAttachment, AiCatalog, AiEvent, AiGatewayClient, AiProvider, AiSessionSummary, AiTraceQueryRequest,} from '@services/ai_gateway_client';
+import {isAiTraceQuery} from '@services/ai_trace_query_validation';
 import {WinscopeTraceQuery, WinscopeTraceSnapshot} from '@services/winscope_trace_query';
 
 import {AiMarkdownComponent} from './ai_markdown_component';
@@ -41,6 +43,7 @@ interface Draft {
 })
 export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDestroy {
   readonly language = language;
+  readonly diagnosticPrompts = AI_DIAGNOSTIC_PROMPTS;
   @Input() endpoint: string | undefined;
   @Input() evidence: unknown;
   @Input() traceQuery?: (query: WinscopeTraceQuery) => Promise<WinscopeTraceSnapshot>;
@@ -593,6 +596,12 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
     this.focusComposer();
   }
 
+  useDiagnosticPrompt(id: AiDiagnosticPromptId): void {
+    this.prompt = diagnosticPrompt(id, language());
+    this.resizeComposer();
+    this.focusComposer();
+  }
+
   toggleTraceContext(): void {
     this.includeEvidence = !this.includeEvidence;
     if (!this.includeEvidence) this.traceQueryRun = undefined;
@@ -1118,9 +1127,15 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
     if (typeof request.contextId !== 'string' || !request.contextId.trim() || request.contextId.length > 128 ||
       typeof request.queryId !== 'string' || !/^[a-zA-Z0-9-]{1,128}$/.test(request.queryId)) return;
     const query = request.query;
-    if (!query || typeof query !== 'object' || Array.isArray(query) ||
-      Object.keys(query).some((key) => key !== 'time') ||
-      (query.time !== undefined && (typeof query.time !== 'string' || !query.time.trim() || query.time.length > 128))) return;
+    if (!isAiTraceQuery(query)) {
+      if (run?.sessionId === sessionId && request.contextId === run.contextId) {
+        await this.client?.respondToTraceQuery(sessionId, request.queryId, run.contextId,
+          {error: 'Invalid trace query options.'}, signal).catch((error) => {
+            if (!signal.aborted && revision === this.revision) this.showError(error);
+          });
+      }
+      return;
+    }
     if (!run) {
       await this.declineTraceQuery(sessionId, request, revision, signal);
       return;

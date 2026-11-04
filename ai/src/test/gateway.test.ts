@@ -180,6 +180,56 @@ test('gateway transports specified trace queries and does not make trace-query o
   } finally { await context.gateway.close(); }
 });
 
+test('gateway preserves complete extended queries in pending metadata and SSE without retaining raw evidence', async () => {
+  const queries: TraceDataQuery[] = [
+    {time: '1s200ms', before: 0, after: 2, limit: 8,
+      traceTypes: ['SURFACE_FLINGER', 'WINDOW_MANAGER', 'TRANSACTIONS', 'TRANSITION', 'WM_TRANSITION',
+        'SHELL_TRANSITION', 'SCREEN_RECORDING', 'SCREENSHOT', 'VIEW_CAPTURE', 'PROTO_LOG'],
+      layerId: '9007199254740993', windowId: 'literal $(not-code)', displayId: '0'},
+    {time: '18446744073709551614ns', endTime: '18446744073709551615ns', limit: 1,
+      traceTypes: ['WM_TRANSITION', 'SHELL_TRANSITION'], layerId: '0', windowId: 'false', displayId: '42'},
+  ];
+  const requests: ProviderRequest[] = [];
+  const context = await setup({id: 'query', run: async (request) => {
+    requests.push(request);
+    return {providerId: 'query', durationMs: 0, output: requests.length <= queries.length
+      ? JSON.stringify({tool: 'winscope_query_trace', arguments: queries[requests.length - 1]}) : 'final answer'};
+  }});
+  const contextId = randomUUID();
+  try {
+    const start = await context.post('/api/analyze', {agentId: 'chat', prompt: 'inspect filters', traceQueryEnabled: true, traceQueryContextId: contextId});
+    const session = await start.json() as {sessionId: string};
+    let lastId = 0;
+    for (const query of queries) {
+      const requested = await requestedTraceQuery(context, session.sessionId, lastId);
+      lastId = requested.eventId;
+      assert.deepEqual(requested.query, query);
+      assert.deepEqual((await context.detail(session.sessionId)).pendingTraceQuery,
+        {queryId: requested.queryId, contextId, query});
+      const acknowledged = await context.post(`/api/sessions/${session.sessionId}/trace-query/${requested.queryId}`, {
+        contextId, result: {privateRawValue: 'not-for-events-or-history', queryMetadata: query,
+          entries: [{role: 'after', timestampNs: '18446744073709551615', data: {alpha: 0, visible: false}}]},
+      });
+      assert.equal(acknowledged.status, 200);
+      await acknowledged.text();
+      const duplicate = await context.post(`/api/sessions/${session.sessionId}/trace-query/${requested.queryId}`, {contextId, result: {}});
+      assert.equal(duplicate.status, 409);
+      await duplicate.text();
+    }
+    const detail = await context.settled(session.sessionId);
+    assert.equal(detail.status, 'completed');
+    assert.doesNotMatch(JSON.stringify(detail), /not-for-events-or-history|privateRawValue/);
+    assert.match(requests[2].prompt, /privateRawValue/);
+    const stream = await (await fetch(`${context.base}/api/sessions/${session.sessionId}/stream`)).text();
+    for (const query of queries) assert.ok(stream.includes(JSON.stringify(query)));
+    assert.doesNotMatch(stream, /not-for-events-or-history|privateRawValue/);
+    const continued = await context.post(`/api/sessions/${session.sessionId}/continue`, {prompt: 'follow up'});
+    assert.equal(continued.status, 202);
+    await context.settled(session.sessionId);
+    assert.doesNotMatch(JSON.stringify(requests[3].history), /privateRawValue|not-for-events-or-history/);
+  } finally { await context.gateway.close(); }
+});
+
 test('gateway rejects invalid trace-query options and acknowledgements', async () => {
   const context = await setup(traceQueryProvider());
   const contextId = randomUUID();

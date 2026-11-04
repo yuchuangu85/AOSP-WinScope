@@ -144,15 +144,6 @@
       </div>
       <button
         mat-icon-button
-        class="ai-settings-button"
-        [disabled]="loading"
-        [attr.aria-label]="'AI settings' | tr"
-        [matTooltip]="'AI settings' | tr"
-        (click)="openSettings()"
-        ><mat-icon>settings</mat-icon></button
-      >
-      <button
-        mat-icon-button
         [attr.aria-label]="'Close AI analysis' | tr"
         [matTooltip]="'Close AI analysis' | tr"
         (click)="closed.emit()"
@@ -254,21 +245,12 @@
                     'Add trace context or text notes to ground your analysis.' | tr
                   }}</p
                 >
-                <div class="suggestions"
-                  ><button
-                    mat-stroked-button
-                    (click)="
-                      usePrompt('Investigate black-screen intervals in the available evidence')
-                    "
-                    >{{ 'Investigate a black screen' | tr }}</button
-                  ><button
-                    mat-stroked-button
-                    (click)="
-                      usePrompt('Find flicker and explain what evidence is missing')
-                    "
-                    >{{ 'Find flicker evidence' | tr }}</button
-                  ></div
-                >
+                <div class="suggestions">
+                  @for (template of diagnosticPrompts; track template.id) {
+                    <button mat-stroked-button [attr.data-diagnostic-prompt]="template.id"
+                      (click)="useDiagnosticPrompt(template.id)">{{ template.label | tr }}</button>
+                  }
+                </div>
               </div>
             }
           </div>
@@ -399,24 +381,26 @@
                 <button
                   mat-menu-item
                   [disabled]="!traceQuery"
-                  (click)="usePrompt('Analyze the WinScope data at the current timeline position')"
+                  (click)="useDiagnosticPrompt('current-frame')"
                   ><mat-icon>my_location</mat-icon
                   ><span>{{ 'Analyze current frame' | tr }}</span></button
                 >
                 <button
                   mat-menu-item
                   (click)="
-                    usePrompt('Investigate black-screen intervals in the available evidence')
+                    useDiagnosticPrompt('black-screen')
                   "
                   ><mat-icon>dark_mode</mat-icon
                   ><span>{{ 'Investigate a black screen' | tr }}</span></button
                 >
                 <button
                   mat-menu-item
-                  (click)="usePrompt('Find flicker and explain what evidence is missing')"
+                  (click)="useDiagnosticPrompt('flicker')"
                   ><mat-icon>graphic_eq</mat-icon
                   ><span>{{ 'Find flicker evidence' | tr }}</span></button
                 >
+                <button mat-menu-item (click)="useDiagnosticPrompt('evidence-audit')"
+                  ><mat-icon>fact_check</mat-icon><span>{{ 'Audit evidence completeness' | tr }}</span></button>
                 <button mat-menu-item (click)="openSettings()"
                   ><mat-icon>settings</mat-icon><span>{{ 'AI settings' | tr }}</span></button
                 >

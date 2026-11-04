@@ -394,6 +394,7 @@ export class AiGateway {
   private async queryTrace(session: Session, signal: AbortSignal, contextId: string, query: TraceDataQuery): Promise<JsonObject> {
     if (this.closePromise || signal.aborted || session.controller.signal !== signal || session.status !== 'running' || session.traceQueryContextId !== contextId) throw new Error('Trace query turn is no longer running');
     if (session.pendingTraceQuery) throw new Error('A trace query is already pending');
+    const validatedQuery = {...query, ...(query.traceTypes ? {traceTypes: [...query.traceTypes]} : {})};
     return new Promise<JsonObject>((resolve, reject) => {
       const cleanup = () => {
         clearTimeout(timer);
@@ -401,7 +402,7 @@ export class AiGateway {
         if (session.pendingTraceQuery === pending) session.pendingTraceQuery = undefined;
       };
       const pending: PendingTraceQuery = {
-        id: randomUUID(), contextId, query,
+        id: randomUUID(), contextId, query: validatedQuery,
         resolve: (result) => { cleanup(); resolve(result); },
         reject: (error) => { cleanup(); reject(error); },
       };
@@ -411,7 +412,7 @@ export class AiGateway {
       signal.addEventListener('abort', onAbort, {once: true});
       try {
         this.emit(session, {type: 'trace_query_requested', data: {
-          queryId: pending.id, contextId, query: query.time === undefined ? {} : {time: query.time},
+          queryId: pending.id, contextId, query: validatedQuery,
         }});
       } catch (error) { pending.reject(error instanceof Error ? error : new Error('Trace query request failed')); }
     });

@@ -51,6 +51,7 @@ import {clearPersistentState, isPersistenceEnabled, PersistentStore,} from '@com
 import {Store} from '@common/store/store';
 import {Timestamp} from '@common/time/time';
 import {TIME_UNITS} from '@common/time/time_units';
+import {TimestampConverter} from '@common/time/timestamp_converter';
 import {UserTimestamp} from '@common/time/user_timestamp';
 import {getRootUrl} from '@common/window';
 import {globalConfig} from '@compat/global_config';
@@ -64,6 +65,7 @@ import {WinscopeEvent} from '@messaging/winscope_event';
 import {WinscopeEventListener} from '@messaging/winscope_event_listener';
 import {getRuntimeConfig, getRuntimeConfigDiagnostic} from '@runtime/runtime_config';
 import {AiCatalog} from '@services/ai_gateway_client';
+import {isAiTraceQuery} from '@services/ai_trace_query_validation';
 import {buildDisplayEvidence} from '@services/display_evidence_builder';
 import {UserNotifier} from '@services/user_notifier';
 import {queryWinscopeTraceData, WinscopeTraceQuery, WinscopeTraceSnapshot} from '@services/winscope_trace_query';
@@ -357,11 +359,12 @@ export class AppComponent implements WinscopeEventListener, OnDestroy {
   }
 
   async queryAiTraceData(query: WinscopeTraceQuery = {}): Promise<WinscopeTraceSnapshot> {
+    if (!isAiTraceQuery(query)) throw new Error('Invalid trace query options.');
     const traces = this.loadedFileData.getTraces();
     if (!traces.getSize()) throw new Error('No WinScope traces are loaded.');
     let position = this.timelineData.getCurrentPosition();
-    if (query.time !== undefined) {
-      const text = query.time.trim();
+    const parseTime = (value: string): Timestamp => {
+      const text = value.trim();
       if (!text || text.length > 128) throw new Error('Invalid trace query time.');
       const converter = this.timelineData.getTimestampConverter();
       let input = new UserTimestamp(text);
@@ -381,24 +384,46 @@ export class AppComponent implements WinscopeEventListener, OnDestroy {
         timestamp = converter.makeTimestampFromBootTimeNs(ns);
       } else {
         if (input.isRealTimeOnlyFormat()) {
-          const date = position && new UserTimestamp(position.timestamp.format()).extractDate();
+          const date = position && (text.endsWith('Z')
+            ? new Date(Number(position.timestamp.getValueNs() / 1_000_000n)).toISOString().slice(0, 10)
+            : new UserTimestamp(position.timestamp.format()).extractDate());
           if (!date) throw new Error('A date is required for this trace query time.');
           input = new UserTimestamp(`${date}T${text}`);
         }
         if (!converter.validateHumanInput(input.timestampHuman)) throw new Error('Invalid trace query time.');
-        timestamp = converter.makeTimestampFromHuman(input);
+        // Explicit UTC is not the trace's zone-less wall clock.
+        timestamp = text.endsWith('Z')
+          ? new TimestampConverter().makeTimestampFromHuman(input)
+          : converter.makeTimestampFromHuman(input);
       }
       if (!this.timelineData.hasTimestamps() || !timestamp.in(this.timelineData.getFullTimeRange())) {
         throw new Error('The requested time is outside the loaded trace range.');
       }
-      position = this.timelineData.makePositionFromActiveTrace(timestamp);
+      return timestamp;
+    };
+    const requested = query.time !== undefined ? parseTime(query.time) : undefined;
+    if (requested) position = this.timelineData.makePositionFromActiveTrace(requested);
+    const endTimestamp = query.endTime !== undefined ? parseTime(query.endTime) : undefined;
+    if (endTimestamp && (!requested || endTimestamp.getValueNs() < requested.getValueNs())) {
+      throw new Error('Trace query end time must not precede its start time.');
     }
     if (!position) {
       const trace = [...traces].find((candidate) => candidate.lengthEntries > 0);
       if (trace) position = TracePosition.fromTraceEntry(trace.getEntry(0));
     }
     if (!position) throw new Error('No trace entry is available at the current position.');
-    return queryWinscopeTraceData(traces, position, query.time === undefined ? 'current' : 'timestamp');
+    const converter = this.timelineData.hasTimestamps() ? this.timelineData.getTimestampConverter() : undefined;
+    const timestampConverter = this.loadedFileData.getTimestampConverter();
+    const bootTime = timestampConverter.tryGetBootTimeNs(position.timestamp);
+    const realTime = timestampConverter.tryGetRealTimeNs(position.timestamp);
+    const {time: _time, endTime: _endTime, ...options} = query;
+    return queryWinscopeTraceData(traces, position, query.time === undefined ? 'current' : 'timestamp', {
+      ...options, endTimestamp,
+      clock: {domain: converter ? (converter.canMakeRealTimestamps() ? 'REAL' : 'ELAPSED') : 'UNKNOWN',
+        ...(converter ? {utcOffset: converter.getUTCOffset()} : {}),
+        ...(bootTime !== undefined ? {bootTimeNs: bootTime.toString()} : {}),
+        ...(realTime !== undefined ? {realTimeNs: realTime.toString()} : {})},
+    });
   }
 
   openApplicationSettings(section: 'general' | 'ai' = 'general'): void {

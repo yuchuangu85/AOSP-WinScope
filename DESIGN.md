@@ -70,6 +70,12 @@ settings navigation, catalog loading and configuration imports, with an embedded
 `AiGatewayClient`.
 Use stable turn IDs, searchable session rows, compact run activity, explicit
 context/attachment chips and a labelled model menu trigger.
+Four app-owned diagnostic templates (black screen, flicker, current frame,
+evidence audit) are available in the empty view and composer menu. Clicking
+inserts the full template in the resolved UI language; it never sends or rewrites
+an existing draft when language changes. An explicit capture preset configures
+diagnostic data sources without starting collection. See
+`docs/AI_DIAGNOSTIC_EVIDENCE.md` for evidence/clock/query limits and provenance.
 
 ## Accessibility
 

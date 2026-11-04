@@ -31,6 +31,15 @@ function forwardedEvidence(prompt: string): JsonObject {
   return JSON.parse(match[1]) as JsonObject;
 }
 
+function compositionEntries(): WinscopeTraceSnapshotEntry[] {
+  return ['SURFACE_FLINGER', 'TRANSACTIONS'].map((traceType, index): WinscopeTraceSnapshotEntry => ({
+    traceType, sourceIndex: index + 1, index: 0, timestampNs: '18446744073709551615',
+    time: '03:04:05.123456789', match: 'exact',
+    data: traceType === 'SURFACE_FLINGER' ? {properties: {alpha: 0, isVisible: false}} : {transactions: [{flags: 0, applied: false}]},
+    incompleteReasons: [], truncated: false,
+  }));
+}
+
 function wmSnapshot(overrides: Partial<WinscopeTraceSnapshotEntry> = {}, metadata = true): WinscopeTraceSnapshot {
   const entry: WinscopeTraceSnapshotEntry = {
     traceType: 'WINDOW_MANAGER', sourceIndex: 0, index: 7,
@@ -40,7 +49,7 @@ function wmSnapshot(overrides: Partial<WinscopeTraceSnapshotEntry> = {}, metadat
   };
   const snapshot: WinscopeTraceSnapshot = {
     schemaVersion: '1', mode: 'current', requestedTimestampNs: '18446744073709551615',
-    entries: [entry], incompleteReasons: [...entry.incompleteReasons], truncated: entry.truncated,
+    entries: [entry, ...compositionEntries()], incompleteReasons: [...entry.incompleteReasons], truncated: entry.truncated,
   };
   if (metadata) {
     const timed = /^[0-9]+$/.test(entry.timestampNs) && BigInt(entry.timestampNs) > 0n;
@@ -61,7 +70,7 @@ function wmSnapshot(overrides: Partial<WinscopeTraceSnapshotEntry> = {}, metadat
 function displayEvidence(winscope?: JsonObject): EvidenceInput {
   return {
     video: {frames: [{index: 0, luma: 0.01}, {index: 1, luma: 0.02}], frameDiffs: [{fromIndex: 0, toIndex: 1, value: 0.8}]},
-    surfaceFlinger: {}, transactions: {count: 1}, ...(winscope ? {winscope} : {}),
+    surfaceFlinger: {frameTimesMs: [16]}, transactions: {count: 1}, ...(winscope ? {winscope} : {}),
   };
 }
 
@@ -111,7 +120,7 @@ test('WM exact, before, after and viewer mappings are timed observations, not di
 
 test('missing WM payloads and metadata-only presence cannot erase the selected-time gap with a legacy summary', () => {
   const absent: JsonObject = {
-    schemaVersion: '1', mode: 'timestamp', requestedTimestampNs: '123', entries: [],
+    schemaVersion: '1', mode: 'timestamp', requestedTimestampNs: '18446744073709551615', entries: compositionEntries(),
     truncated: false, incompleteReasons: [], windowManager: {status: 'unavailable', entries: [], incompleteReasons: ['window_manager_trace_not_loaded']},
   };
   for (const snapshot of [absent, {...absent, entries: [{traceType: 'SURFACE_FLINGER', name: 'WINDOW_MANAGER'}]},
@@ -125,13 +134,14 @@ test('missing WM payloads and metadata-only presence cannot erase the selected-t
     const result = analyzeDisplayEvidence({...displayEvidence(snapshot), windowManager: {displayState: 'on'}});
     assert.equal(result.coverage.windowManager, false);
     assert.equal(result.complete, false);
-    assert.deepEqual(result.incompleteReasons, ['WindowManager evidence is missing']);
+    assert.ok(result.incompleteReasons.includes('WindowManager evidence is missing'));
     assert.deepEqual(result.findings[0].evidence, ['video.luma']);
   }
   for (const winscope of [undefined, {}]) {
     const result = analyzeDisplayEvidence({...displayEvidence(winscope), windowManager: {focusedWindow: 'legacy.window'}});
     assert.equal(result.coverage.windowManager, true);
-    assert.equal(result.complete, true);
+    assert.equal(result.complete, false, 'legacy transaction counts are not actual transaction evidence');
+    assert.ok(!result.incompleteReasons.some((reason) => reason.startsWith('WindowManager')));
   }
 });
 
@@ -154,7 +164,7 @@ test('raw partial and untimed WM observations retain coverage without claiming c
       const result = analyzeDisplayEvidence({...displayEvidence(snapshot), windowManager: {displayState: 'on'}});
       assert.equal(result.coverage.windowManager, true, JSON.stringify(snapshot));
       assert.equal(result.complete, false, JSON.stringify(snapshot));
-      assert.deepEqual(result.incompleteReasons, ['WindowManager evidence is incomplete']);
+      assert.deepEqual(result.incompleteReasons.filter((reason) => reason.startsWith('WindowManager')), ['WindowManager evidence is incomplete']);
     }
   }
 });
@@ -170,7 +180,7 @@ test('WM reference metadata cannot upgrade, duplicate or mispoint the raw entry'
     const result = analyzeDisplayEvidence(displayEvidence(snapshot));
     assert.equal(result.coverage.windowManager, true);
     assert.equal(result.complete, false);
-    assert.deepEqual(result.incompleteReasons, ['WindowManager evidence is incomplete']);
+    assert.deepEqual(result.incompleteReasons.filter((reason) => reason.startsWith('WindowManager')), ['WindowManager evidence is incomplete']);
   }
   for (const status of ['partial', 'unavailable'] as const) {
     const snapshot = wmSnapshot();
@@ -189,7 +199,7 @@ test('WM reference metadata cannot upgrade, duplicate or mispoint the raw entry'
   assert.equal(analyzeDisplayEvidence(displayEvidence(snapshot)).coverage.windowManager, false);
 });
 
-test('WM completeness ignores unrelated trace failures but includes missing WM sources', () => {
+test('WM completeness ignores unrelated trace failures while per-type completeness retains their gaps', () => {
   for (const metadata of [false, true]) {
     const snapshot = wmSnapshot({}, metadata);
     const other = {...snapshot.entries[0], traceType: 'SURFACE_FLINGER', sourceIndex: 1,
@@ -197,15 +207,15 @@ test('WM completeness ignores unrelated trace failures but includes missing WM s
     snapshot.entries.push(other);
     snapshot.truncated = true;
     snapshot.incompleteReasons = ['entry_decode_failed'];
-    assert.equal(analyzeDisplayEvidence(displayEvidence(snapshot)).complete, true);
+    assert.deepEqual(analyzeDisplayEvidence(displayEvidence(snapshot)).incompleteReasons, ['SurfaceFlinger evidence is incomplete']);
     snapshot.incompleteReasons.push('serialized_output_limit');
-    assert.equal(analyzeDisplayEvidence(displayEvidence(snapshot)).complete, true);
+    assert.deepEqual(analyzeDisplayEvidence(displayEvidence(snapshot)).incompleteReasons, ['SurfaceFlinger evidence is incomplete']);
     const missing = {...other, traceType: 'WINDOW_MANAGER'};
     snapshot.entries.push(missing);
     const result = analyzeDisplayEvidence(displayEvidence(snapshot));
     assert.equal(result.coverage.windowManager, true);
     assert.equal(result.complete, false);
-    assert.deepEqual(result.incompleteReasons, ['WindowManager evidence is incomplete']);
+    assert.deepEqual(result.incompleteReasons, ['SurfaceFlinger evidence is incomplete', 'WindowManager evidence is incomplete']);
   }
 });
 
@@ -396,7 +406,8 @@ test('malformed winscope values do not crash analysis or the runtime', async () 
     const evidence = {...displayEvidence(), winscope: winscope as EvidenceInput['winscope'], windowManager: {focusedWindow: 'legacy.window'}};
     const result = analyzeDisplayEvidence(evidence);
     assert.equal(result.coverage.windowManager, true);
-    assert.equal(result.complete, true);
+    assert.equal(result.complete, false);
+    assert.deepEqual(result.incompleteReasons, ['Transactions evidence is missing']);
     const {runtime} = capturingRuntime(undefined, ['black-screen-diagnosis']);
     const run = await runtime.run('capture-agent', {prompt: 'inspect', evidence});
     assert.deepEqual(run.skillResults[0].result, result);
@@ -500,6 +511,186 @@ test('trace queries preserve supported time strings including nanosecond precisi
     await runtime.run('capture-agent', {prompt: 'inspect', queryTrace: async (query) => { queries.push(query); return {}; }});
     assert.deepEqual(queries, [{time}]);
   }
+});
+
+test('extended trace queries preserve point, neighbor, range and literal filter fields', async () => {
+  const allowed = ['SURFACE_FLINGER', 'WINDOW_MANAGER', 'TRANSACTIONS', 'TRANSITION', 'WM_TRANSITION',
+    'SHELL_TRANSITION', 'SCREEN_RECORDING', 'SCREENSHOT', 'VIEW_CAPTURE', 'PROTO_LOG'];
+  const valid: TraceDataQuery[] = [
+    {before: 0, after: 0, limit: 1},
+    {time: '0', before: 2, after: 2, limit: 8, traceTypes: allowed,
+      layerId: '0', windowId: 'false', displayId: '9007199254740993'},
+    {time: '2ns', endTime: '1ns', traceTypes: ['WM_TRANSITION', 'SHELL_TRANSITION'], limit: 8},
+    {time: '2024-02-29T03:04:05.123456789Z', endTime: '2024-02-29T03:04:06Z'},
+    {layerId: 'x'.repeat(128), windowId: '$(touch forbidden); {{prompt}}', displayId: 'display "zero"'},
+    {layerId: ' literal ID ', windowId: ' window ', displayId: ' display '},
+  ];
+  for (const args of valid) {
+    const {runtime, requests} = capturingRuntime(undefined, [], [JSON.stringify({tool: 'winscope_query_trace', arguments: args}), 'done']);
+    const queries: TraceDataQuery[] = [];
+    await runtime.run('capture-agent', {prompt: 'inspect', queryTrace: async (query) => { queries.push(query); return {}; }});
+    assert.deepEqual(queries, [args]);
+    for (const text of ['before and after', 'endTime', 'clock domain', 'physical display refresh',
+      'actual images', 'missing capture options', 'summaryOnly', 'At most 4', '192 KiB']) assert.ok(requests[0].prompt.includes(text), text);
+  }
+});
+
+test('extended trace query validation rejects coercions, conflicting ranges and unlisted types', async () => {
+  const invalid: unknown[] = [
+    ...['before', 'after'].flatMap((key) => [-1, 3, 0.5, false, true, null, '0'].map((value) => ({[key]: value}))),
+    ...[0, 9, 1.5, false, null, '8'].map((limit) => ({limit})),
+    {endTime: '1ns'}, {time: '1ns', endTime: '2ns', before: 0}, {time: '1ns', endTime: '2ns', after: 0},
+    ...['', 'now', false, null, '1ns\n'].map((endTime) => ({time: '1ns', endTime})),
+    ...[[], ['SURFACE_FLINGER', 'SURFACE_FLINGER'], ['surface_flinger'], ['WAYLAND'], ['UNKNOWN'],
+      ['WM_TRANSITION', false], Array(11).fill('TRANSITION'), null, 'SURFACE_FLINGER'].map((traceTypes) => ({traceTypes})),
+    ...['layerId', 'windowId', 'displayId'].flatMap((key) => ['', ' ', '   ', '\u00a0', 'x'.repeat(129), false, 0, null, 'a\nb',
+      'a\u0000', 'a\u007f', 'a\u0085'].map((value) => ({[key]: value}))),
+    {clockDomain: 'elapsed'}, {filters: {}}, {__proto__: null, constructor: 'execute'},
+  ];
+  for (const args of invalid) {
+    const {runtime} = capturingRuntime(undefined, [], [JSON.stringify({tool: 'winscope_query_trace', arguments: args})]);
+    let calls = 0;
+    await assert.rejects(runtime.run('capture-agent', {prompt: 'inspect', queryTrace: async () => { calls++; return {}; }}), /invalid WinScope trace query/);
+    assert.equal(calls, 0, JSON.stringify(args));
+  }
+});
+
+test('WM neighbors and range observations validate their own timestamps and current data references', () => {
+  for (const role of ['before', 'after', 'range'] as const) {
+    const snapshot = wmSnapshot({role: 'matched'});
+    const neighbor = {...snapshot.entries[0], role, index: 8, timestampNs: '18446744073709551616', match: role === 'range' ? 'range' : 'after'};
+    snapshot.entries.push(neighbor);
+    snapshot.windowManager!.entries.push({...snapshot.windowManager!.entries[0], role, index: 8,
+      timestampNs: neighbor.timestampNs, match: neighbor.match, deltaNs: '1', dataPath: 'entries.3.data'});
+    const result = analyzeDisplayEvidence(displayEvidence(snapshot));
+    assert.equal(result.coverage.windowManager, true);
+    assert.equal(result.complete, true, role);
+    snapshot.windowManager!.entries[1].dataPath = 'entries.0.data';
+    assert.ok(analyzeDisplayEvidence(displayEvidence(snapshot)).incompleteReasons.includes('WindowManager evidence is incomplete'));
+  }
+});
+
+test('summaries, names and user notes do not imply actual trace coverage; zero and false properties do', () => {
+  const evidence: EvidenceInput = {...displayEvidence(),
+    surfaceFlinger: {summaryOnly: true, frameTimesMs: [16], notes: ['display is off']},
+    transactions: {summaryOnly: true, count: 12, sampleKeys: ['flags'], notes: ['alpha=0']},
+    windowManager: {summaryOnly: true, displayState: 'on', visibleWindows: ['window']}};
+  const summary = analyzeDisplayEvidence(evidence);
+  assert.equal(summary.coverage.surfaceFlinger, false);
+  assert.equal(summary.coverage.transactions, false);
+  assert.equal(summary.coverage.windowManager, false);
+  assert.deepEqual(summary.findings[0].evidence, ['video.luma']);
+  for (const summaryOnly of [undefined, true]) {
+    const namesOnly = analyzeDisplayEvidence({...displayEvidence(), windowManager: {
+      summaryOnly, displayState: 'unknown', sampledNodeNames: ['window'],
+    }});
+    assert.equal(namesOnly.coverage.windowManager, false);
+    assert.ok(namesOnly.incompleteReasons.includes('WindowManager evidence is missing'));
+    assert.deepEqual(namesOnly.findings[0].evidence, ['video.luma']);
+  }
+  const descriptorOnly: JsonObject[] = [{}, {count: 2, names: ['alpha'], notes: ['isVisible=false']},
+    {displayState: 'unknown', sampledNodeNames: ['visible window'], notes: ['display is on']},
+    {kind: 'hierarchy', children: [{name: 'layer', id: '0', properties: []}]},
+    {kind: 'hierarchy', properties: {kind: 'property', name: 'root', source: 'PROTO', value: null, formattedValue: 'root',
+      children: [{kind: 'property', name: 'name', source: 'PROTO', value: 'layer', formattedValue: 'layer'},
+        {kind: 'property', name: 'id', source: 'PROTO', value: '0'}]}},
+    {metadata: {alpha: 0, isVisible: false}}, {summaryOnly: true, alpha: 0}];
+  for (const data of descriptorOnly) {
+    const snapshot = wmSnapshot();
+    snapshot.entries = snapshot.entries.map((entry) => ({...entry, data}));
+    const result = analyzeDisplayEvidence({...evidence, winscope: snapshot});
+    assert.equal(result.coverage.surfaceFlinger, false);
+    assert.equal(result.coverage.transactions, false);
+    assert.equal(result.coverage.windowManager, false);
+  }
+  const snapshot = wmSnapshot({data: {properties: [{kind: 'property', name: 'isVisible', value: false}, {kind: 'property', name: 'alpha', value: 0}]}});
+  const actual = analyzeDisplayEvidence({...evidence, winscope: snapshot});
+  assert.equal(actual.complete, true);
+  for (const traceType of ['SURFACE_FLINGER', 'TRANSACTIONS']) {
+    const partial = structuredClone(snapshot);
+    partial.entries.find((entry) => entry.traceType === traceType)!.truncated = true;
+    assert.ok(analyzeDisplayEvidence({...evidence, winscope: partial}).incompleteReasons.includes(
+      traceType === 'SURFACE_FLINGER' ? 'SurfaceFlinger evidence is incomplete' : 'Transactions evidence is incomplete'));
+  }
+});
+
+test('range completeness follows source-local limits for SF, transactions and WM', () => {
+  const reasons: Record<string, string> = {
+    SURFACE_FLINGER: 'SurfaceFlinger evidence is incomplete',
+    TRANSACTIONS: 'Transactions evidence is incomplete',
+    WINDOW_MANAGER: 'WindowManager evidence is incomplete',
+  };
+  for (const [traceType, reason] of Object.entries(reasons)) {
+    for (const metadata of [false, true]) {
+      for (const changes of [
+        {hasMore: true, available: 20, incompleteReasons: ['range_entry_limit']},
+        {hasMore: true}, {hasMore: null}, {incompleteReasons: ['range_entry_limit']},
+        {incompleteReasons: ['global_range_entry_limit']}, {available: 20},
+      ]) {
+        const snapshot = wmSnapshot({}, metadata);
+        const entry = snapshot.entries.find((entry) => entry.traceType === traceType)!;
+        snapshot.rangeCoverage = [{sourceIndex: entry.sourceIndex, traceType, selected: 1, available: 1,
+          hasMore: false, incompleteReasons: [], ...changes}];
+        const result = analyzeDisplayEvidence(displayEvidence(snapshot));
+        assert.equal(result.complete, false, JSON.stringify({traceType, changes}));
+        assert.deepEqual(result.incompleteReasons, [reason]);
+        assert.equal(result.coverage.windowManager, true);
+        assert.equal(result.coverage.surfaceFlinger, true);
+        assert.equal(result.coverage.transactions, true);
+      }
+    }
+  }
+});
+
+test('completed ranges remain complete and unrelated source limits do not pollute WM or other types', () => {
+  const snapshot = wmSnapshot();
+  snapshot.rangeCoverage = snapshot.entries.map((entry) => ({sourceIndex: entry.sourceIndex,
+    traceType: entry.traceType, selected: 1, available: 1, hasMore: false, incompleteReasons: []}));
+  assert.equal(analyzeDisplayEvidence(displayEvidence(snapshot)).complete, true);
+  snapshot.rangeCoverage.push({sourceIndex: 20, traceType: 'PROTO_LOG', selected: 1, available: 20,
+    hasMore: true, incompleteReasons: ['range_entry_limit']});
+  snapshot.incompleteReasons = ['range_entry_limit'];
+  snapshot.truncated = true;
+  assert.equal(analyzeDisplayEvidence(displayEvidence(snapshot)).complete, true);
+  // A second source of the same type must still qualify that type, not WM.
+  snapshot.rangeCoverage.push({sourceIndex: 21, traceType: 'SURFACE_FLINGER', selected: 0, available: 20,
+    hasMore: true, incompleteReasons: ['global_range_entry_limit']});
+  assert.deepEqual(analyzeDisplayEvidence(displayEvidence(snapshot)).incompleteReasons,
+    ['SurfaceFlinger evidence is incomplete']);
+});
+
+test('sparse video samples never form consecutive black runs and qualify sampled high differences', () => {
+  for (const sampling of [undefined, 'uniform', 'contiguous'] as const) {
+    const result = analyzeDisplayEvidence({...displayEvidence(wmSnapshot()), video: {
+      sampling, totalFrameCount: 101, clockDomain: 'video-relative',
+      frames: [{index: 1, timestampMs: 10, traceTimestampNs: '18446744073709551614', luma: 0.01},
+        {index: 100, timestampMs: 1000, traceTimestampNs: '18446744073709551615', luma: 0.01}],
+      frameDiffs: [{fromIndex: 1, toIndex: 100, value: 0.8}],
+    }});
+    assert.equal(result.complete, false);
+    assert.deepEqual(result.incompleteReasons, ['video sampling is sparse; single-frame anomalies may be missed']);
+    assert.equal(result.findings.some((finding) => finding.kind === 'black-screen'), false);
+    assert.equal(result.findings.length, 1);
+    assert.match(result.findings[0].reason, /sampled transitions, not proof of flicker or its interval/);
+  }
+  const contiguous = analyzeDisplayEvidence({...displayEvidence(wmSnapshot()), video: {
+    sampling: 'contiguous', totalFrameCount: 100,
+    frames: [{index: 10, luma: 0.01}, {index: 11, luma: 0.02}, {index: 20, luma: 0.01}, {index: 21, luma: 0.01}],
+    frameDiffs: [{fromIndex: 10, toIndex: 11, value: 0.1}],
+  }});
+  assert.deepEqual(contiguous.findings.map((finding) => finding.frameIndexes), [[10, 11], [20, 21]]);
+  for (const sampling of [undefined, 'contiguous', 'uniform'] as const) {
+    const evidence = displayEvidence(wmSnapshot());
+    evidence.video = {...evidence.video, sampling, totalFrameCount: 2};
+    const result = analyzeDisplayEvidence(evidence);
+    assert.equal(result.complete, sampling !== 'uniform');
+    assert.match(result.findings[0].reason, /2 consecutive low-luma frames/);
+  }
+  const partial = displayEvidence(wmSnapshot());
+  partial.video = {...partial.video, sampling: 'contiguous', totalFrameCount: 100};
+  assert.deepEqual(analyzeDisplayEvidence(partial).incompleteReasons, ['video sampling is incomplete; unsampled frames may contain anomalies']);
+  delete partial.video.totalFrameCount;
+  assert.equal(analyzeDisplayEvidence(partial).complete, false, 'sampling metadata without total count cannot establish complete coverage');
 });
 
 test('runtime only executes whole-output tool JSON when a callback is available', async () => {
@@ -663,9 +854,9 @@ test('deterministic evidence analysis reports black and flicker candidates', () 
       ],
       frameDiffs: [{fromIndex: 2, toIndex: 3, value: 0.8}],
     },
-    surfaceFlinger: {},
+    surfaceFlinger: {frameTimesMs: [16]},
     windowManager: {displayState: 'on'},
-    transactions: {count: 1},
+    transactions: {count: 1}, winscope: wmSnapshot(),
   });
   assert.equal(result.deterministic, true);
   assert.equal(
@@ -754,7 +945,9 @@ test('labelled black-screen and flicker fixtures retain expected evidence bounda
       expected: {findingKinds: string[]; complete: boolean};
     };
     const result = analyzeDisplayEvidence(fixture.evidence);
-    assert.equal(result.complete, fixture.expected.complete);
+    assert.equal(result.complete, false, 'legacy fixture counts are summaries, not actual state evidence');
+    assert.equal(result.coverage.surfaceFlinger, false);
+    assert.equal(result.coverage.transactions, false);
     assert.deepEqual(
       [...new Set(result.findings.map((finding) => finding.kind))].sort(),
       fixture.expected.findingKinds.sort(),

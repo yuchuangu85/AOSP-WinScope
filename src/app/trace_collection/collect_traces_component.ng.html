@@ -145,6 +145,17 @@ limitations under the License.
                   <div class="tabbed-section">
                     @if (currState === ConnectionState.IDLE) {
                       <div class="trace-section">
+                        <div class="selection">
+                          <button
+                            mat-stroked-button
+                            class="diagnostic-preset-btn"
+                            [disabled]="isDiagnosticTracePresetDisabled()"
+                            (click)="onApplyDiagnosticTracePreset()"
+                          >
+                            <mat-icon>video_settings</mat-icon>
+                            {{ 'Black screen / flicker preset' | tr }}
+                          </button>
+                        </div>
                         <trace-config
                           [title]="'Trace targets' | tr"
                           [(traceConfig)]="traceConfig"

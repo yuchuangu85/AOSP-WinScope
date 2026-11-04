@@ -57,6 +57,7 @@ import {makeConverterNoRteOffsets, makeConverterZeroRteOffsets, makeElapsedTimes
 import {Timestamp} from '@common/time/time';
 import {TimestampConverter} from '@common/time/timestamp_converter';
 import {UserTimestamp} from '@common/time/user_timestamp';
+import {UTCOffset} from '@common/time/utc_offset';
 import {RequestData} from '@cross_tool/g3_proxy';
 import {TestFileReaderAndParserBuilder} from '@legacy_file_readers/testing/test_file_reader_and_parser_builder';
 import {TestFileReaderBuilder} from '@legacy_file_readers/testing/test_file_reader_builder';
@@ -315,6 +316,25 @@ describe('AppComponent', () => {
       expect((await component.queryAiTraceData()).entries[0].index).toBe(2);
     });
 
+    it('returns bounded neighboring entries, time range and clock metadata without moving the timeline', async () => {
+      await loadQueryTraces();
+      const position = component.timelineData.getCurrentPosition();
+      const neighbors = await component.queryAiTraceData({before: 1, after: 1, traceTypes: ['SURFACE_FLINGER']});
+      expect(neighbors.entries.map((entry) => entry.timestampNs).sort()).toEqual(['1000000000', '2000000000', '3000000000']);
+      expect(JSON.stringify(neighbors)).toContain('ELAPSED');
+      const range = await component.queryAiTraceData({time: '1s', endTime: '3s', limit: 2, traceTypes: ['SURFACE_FLINGER']});
+      expect(range.entries.length).toBe(2);
+      expect(range.entries.map((entry) => entry.timestampNs)).toEqual(['1000000000', '2000000000']);
+      expect(component.timelineData.getCurrentPosition()).toBe(position);
+    });
+
+    it('rejects invalid range/filter options before querying local data', async () => {
+      await loadQueryTraces();
+      for (const query of [{time: '3s', endTime: '1s'}, {before: 3}, {time: '1s', endTime: '2s', after: 1}, {traceTypes: ['bad']}]) {
+        await expectAsync(component.queryAiTraceData(query)).toBeRejected();
+      }
+    });
+
     it('includes WindowManager data aligned to the current or requested time without moving the viewer', async () => {
       const {traces} = await loadQueryTraces();
       traces.addTrace(new TraceBuilder().setType(TraceType.WINDOW_MANAGER)
@@ -410,6 +430,30 @@ describe('AppComponent', () => {
       const numeric = await component.queryAiTraceData({time: '1200000001 ns'});
       expect(elapsed.requestedTimestampNs).toBe((offset + 1_200_000_001n).toString());
       expect(numeric.requestedTimestampNs).toBe(elapsed.requestedTimestampNs);
+    });
+
+    it('keeps explicit UTC range endpoints exact when the trace uses UTC+08:00', async () => {
+      const start = BigInt(Date.parse('2026-11-04T20:00:00Z')) * 1_000_000n;
+      const offset = new UTCOffset();
+      offset.initialize(8n * 60n * 60n * 1_000_000_000n);
+      const realConverter = new TimestampConverter();
+      realConverter.setUTCOffset(offset);
+      const trace = new TraceBuilder().setType(TraceType.WINDOW_MANAGER)
+        .setEntries([{visible: true}, {visible: false}])
+        .setTimestamps([realConverter.makeTimestampFromRealNs(start), realConverter.makeTimestampFromRealNs(start + 1_000_000_000n)]).build();
+      const traces = new Traces();
+      traces.addTrace(trace);
+      (component.loadedFileData.getTraces as jasmine.Spy).and.returnValue(traces);
+      (component.timelineData.getTimestampConverter as jasmine.Spy).and.returnValue(realConverter);
+      (component.timelineData.hasTimestamps as jasmine.Spy).and.callThrough();
+      component.timelineData = new TimelineData();
+      await component.timelineData.initialize(traces, undefined, realConverter);
+      const snapshot = await component.queryAiTraceData({time: '2026-11-04T20:00:00Z', endTime: '2026-11-04T20:00:01Z'});
+      expect(snapshot.requestedTimestampNs).toBe(start.toString());
+      expect(snapshot.entries.map((entry) => entry.timestampNs)).toEqual([start.toString(), (start + 1_000_000_000n).toString()]);
+      const shorthand = await component.queryAiTraceData({time: '20:00:00Z', endTime: '20:00:01Z'});
+      expect(shorthand.requestedTimestampNs).toBe(start.toString());
+      expect(shorthand.entries.map((entry) => entry.timestampNs)).toEqual(snapshot.entries.map((entry) => entry.timestampNs));
     });
   });
 

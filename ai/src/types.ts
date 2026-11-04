@@ -148,6 +148,7 @@ export interface SkillDefinition {
 export interface VideoFrame {
   index: number;
   timestampMs?: number;
+  traceTimestampNs?: string;
   luma?: number;
   averageLuma?: number;
 }
@@ -157,9 +158,13 @@ export interface VideoEvidence {
   frameDiffs?: Array<number | {fromIndex: number; toIndex: number; value: number}>;
   durationMs?: number;
   frameRate?: number;
+  totalFrameCount?: number;
+  sampling?: 'uniform' | 'contiguous';
+  clockDomain?: string;
 }
 
 export interface SurfaceFlingerEvidence {
+  summaryOnly?: boolean;
   presentedFrameCount?: number;
   frameTimesMs?: number[];
   bufferLatches?: number;
@@ -167,6 +172,8 @@ export interface SurfaceFlingerEvidence {
 }
 
 export interface WindowManagerEvidence {
+  summaryOnly?: boolean;
+  sampledNodeNames?: string[];
   displayState?: 'on' | 'off' | 'unknown';
   focusedWindow?: string;
   visibleWindows?: string[];
@@ -174,6 +181,7 @@ export interface WindowManagerEvidence {
 }
 
 export interface TransactionEvidence {
+  summaryOnly?: boolean;
   count?: number;
   sampleKeys?: string[];
   notes?: string[];
@@ -186,6 +194,7 @@ export type WinscopeTraceSnapshotEntry = JsonObject & {
   timestampNs: string;
   time: string;
   match: string;
+  role?: 'matched' | 'before' | 'after' | 'range';
   data: JsonValue;
   incompleteReasons: string[];
   truncated: boolean;
@@ -208,6 +217,7 @@ export type WinscopeTraceSnapshot = JsonObject & {
       time: string;
       deltaNs?: string;
       match: string;
+      role?: 'matched' | 'before' | 'after' | 'range';
       dataPath: string;
       incompleteReasons: string[];
       truncated: boolean;
@@ -228,6 +238,14 @@ export interface EvidenceInput {
 
 export interface TraceDataQuery {
   time?: string;
+  endTime?: string;
+  before?: number;
+  after?: number;
+  limit?: number;
+  traceTypes?: string[];
+  layerId?: string;
+  windowId?: string;
+  displayId?: string;
 }
 
 export type FindingKind = 'black-screen' | 'flicker';

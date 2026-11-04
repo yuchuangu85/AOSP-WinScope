@@ -128,9 +128,13 @@ const OWNED_EVIDENCE_REASONS = new Set([
   'video luminance evidence is missing',
   'video frame-difference evidence is missing',
   'SurfaceFlinger evidence is missing',
+  'SurfaceFlinger evidence is incomplete',
   'WindowManager evidence is missing',
   'WindowManager evidence is incomplete',
   'Transactions evidence is missing',
+  'Transactions evidence is incomplete',
+  'video sampling is sparse; single-frame anomalies may be missed',
+  'video sampling is incomplete; unsampled frames may contain anomalies',
 ]);
 
 function interpolateEnglish(

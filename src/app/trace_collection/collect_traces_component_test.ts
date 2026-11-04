@@ -45,7 +45,7 @@ import {AdbDeviceConnection, AdbDeviceState,} from '@trace_collection/adb_device
 import {ConnectionState} from '@trace_collection/connection_state';
 import {MockAdbDeviceConnection} from '@trace_collection/mock/mock_adb_device_connection';
 import {UiTraceTarget} from '@trace_collection/ui_trace_target';
-import {makeProtologGroupOptions} from '@trace_collection/ui/ui_trace_configuration';
+import {makeDefaultTraceConfigMap, makeProtologGroupOptions} from '@trace_collection/ui/ui_trace_configuration';
 import {WinscopeProxyDeviceConnection} from '@trace_collection/winscope_proxy/winscope_proxy_device_connection';
 import {WinscopeProxyHostConnection} from '@trace_collection/winscope_proxy/winscope_proxy_host_connection';
 import {AppRefreshDumpsRequest} from '@ui/shared/events/app_events';
@@ -262,6 +262,158 @@ describe('CollectTracesComponent', () => {
     clickCheckboxAndCheckTraceConfig(UiTraceTarget.WINDOW_MANAGER_TRACE, false);
     await changeConfigTab(1);
     clickCheckboxAndCheckTraceConfig(UiTraceTarget.WINDOW_MANAGER_DUMP, true);
+  });
+
+  it('applies the diagnostic preset only on click and persists it without collecting', async () => {
+    const saved = makeDefaultTraceConfigMap();
+    Object.values(saved).forEach((trace) => (trace.config.enabled = false));
+    const savedSf = saved[UiTraceTarget.SURFACE_FLINGER_TRACE].config;
+    savedSf.checkboxConfigs.forEach((config) => {
+      config.enabled = config.key === 'metadata';
+    });
+    const savedWm = saved[UiTraceTarget.WINDOW_MANAGER_TRACE].config;
+    savedWm.selectionConfigs.forEach((config) => {
+      if (config.key === 'tracingtype') config.value = 'transaction';
+      if (config.key === 'tracinglevel') config.value = 'critical';
+      if (config.key === 'wmbuffersize') config.value = '8000';
+    });
+    const savedRecording = saved[UiTraceTarget.SCREEN_RECORDING].config;
+    savedRecording.selectionConfigs[0].value = 'custom-display';
+    savedRecording.checkboxConfigs[0].enabled = false;
+    spyOn(mockDevice, 'getDisplays').and.returnValue(['custom-display']);
+    for (const [key, trace] of Object.entries(saved)) {
+      storage.add(component.storeKeyPrefixTraceConfig + key, JSON.stringify(trace.config));
+    }
+
+    goToConfigSection();
+    await dom.detectChangesAndWaitStable();
+    const before = component.traceConfig();
+    const sf = before[UiTraceTarget.SURFACE_FLINGER_TRACE].config;
+    const recording = JSON.stringify({
+      ...before[UiTraceTarget.SCREEN_RECORDING].config,
+      enabled: true,
+    });
+    const dump = JSON.stringify(component.dumpConfig());
+    expect(Object.values(before).every((trace) => !trace.config.enabled)).toBeTrue();
+    expect(sf.checkboxConfigs).toEqual(savedSf.checkboxConfigs);
+    expect(before[UiTraceTarget.WINDOW_MANAGER_TRACE].config.selectionConfigs)
+      .toEqual(savedWm.selectionConfigs);
+    const button = dom.get('.diagnostic-preset-btn');
+    button.checkText('Black screen / flicker preset');
+    button.get('mat-icon').checkText('video_settings');
+    const controller = assertDefined(component.controller);
+    const startSpy = spyOn(controller, 'startTrace');
+    const dumpSpy = spyOn(controller, 'dumpState');
+    const fetchSpy = spyOn(controller, 'fetchLastSessionData');
+    const filesSpy = spyOn(component.filesCollected, 'emit');
+    const storeSpy = spyOn(storage, 'add').and.callThrough();
+    await dom.detectChangesAndWaitStable();
+    expect(storeSpy).not.toHaveBeenCalled();
+
+    button.click();
+    await dom.detectChangesAndWaitStable();
+    dom.detectChanges();
+
+    const updated = component.traceConfig();
+    expect(updated).not.toBe(before);
+    expect(updated[UiTraceTarget.SURFACE_FLINGER_TRACE].config).toBe(sf);
+    expect(Object.entries(updated).filter(([, trace]) => trace.config.enabled)
+      .map(([key]) => Number(key))).toEqual([
+      UiTraceTarget.SURFACE_FLINGER_TRACE,
+      UiTraceTarget.WINDOW_MANAGER_TRACE,
+      UiTraceTarget.SCREEN_RECORDING,
+      UiTraceTarget.TRANSACTIONS,
+      UiTraceTarget.TRANSITIONS,
+    ].sort((a, b) => a - b));
+    expect(sf.checkboxConfigs.filter((c) => c.enabled).map((c) => c.key))
+      .toEqual(['composition', 'metadata', 'tracebuffers']);
+    expect(updated[UiTraceTarget.WINDOW_MANAGER_TRACE].config.selectionConfigs
+      .map((c) => c.value)).toEqual(['8000', 'frame', 'verbose']);
+    expect(JSON.stringify(updated[UiTraceTarget.SCREEN_RECORDING].config)).toBe(recording);
+    expect(JSON.stringify(component.dumpConfig())).toBe(dump);
+    expect(component.state()).toBe(ConnectionState.IDLE);
+    expect(storeSpy).toHaveBeenCalled();
+    expect(JSON.parse(assertDefined(storage.get(
+      component.storeKeyPrefixTraceConfig + UiTraceTarget.TRANSITIONS,
+    ))).enabled).toBeTrue();
+    const transition = assertDefined(dom.get('.trace-section')
+      .findAll('.trace-checkbox').find((box) =>
+        box.getText()?.includes(updated[UiTraceTarget.TRANSITIONS].name),
+      ));
+    expect((transition.get('input').getHTMLElement() as HTMLInputElement).checked)
+      .toBeTrue();
+    expect(startSpy).not.toHaveBeenCalled();
+    expect(dumpSpy).not.toHaveBeenCalled();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(filesSpy).not.toHaveBeenCalled();
+  });
+
+  it('does not enable unavailable targets when applying the diagnostic preset', () => {
+    goToConfigSection();
+    const config = component.traceConfig();
+    config[UiTraceTarget.TRANSITIONS].config.enabled = false;
+    config[UiTraceTarget.SURFACE_FLINGER_TRACE].config.enabled = false;
+    component.onAvailableTracesChange([], [
+      UiTraceTarget.TRANSITIONS, UiTraceTarget.SURFACE_FLINGER_TRACE,
+    ]);
+    const beforeSf = JSON.stringify(config[UiTraceTarget.SURFACE_FLINGER_TRACE]);
+
+    dom.findAndClick('.diagnostic-preset-btn');
+
+    expect(component.traceConfig()[UiTraceTarget.TRANSITIONS].config.enabled)
+      .toBeFalse();
+    expect(JSON.stringify(component.traceConfig()[UiTraceTarget.SURFACE_FLINGER_TRACE]))
+      .toBe(beforeSf);
+  });
+
+  for (const state of Object.values(ConnectionState)) {
+    if (typeof state !== 'number' || state === ConnectionState.IDLE) continue;
+    it(`does not apply the diagnostic preset in state ${state}`, () => {
+      goToConfigSection();
+      const before = JSON.stringify(component.traceConfig());
+      const storeSpy = spyOn(storage, 'add');
+      component.state.set(state);
+
+      expect(component.isDiagnosticTracePresetDisabled()).toBeTrue();
+      component.onApplyDiagnosticTracePreset();
+
+      expect(JSON.stringify(component.traceConfig())).toBe(before);
+      expect(storeSpy).not.toHaveBeenCalled();
+    });
+  }
+
+  for (const reason of ['refresh', 'connection', 'loading', 'unauthorized', 'offline']) {
+    it(`blocks the diagnostic preset during ${reason}`, async () => {
+      goToConfigSection();
+      if (reason === 'refresh') component.refreshDumps.set(true);
+      if (reason === 'connection') component.isChangingConnection.set(true);
+      if (reason === 'loading') component.onProgressUpdate('Loading...', undefined);
+      if (reason === 'unauthorized') mockDevice.updateState(AdbDeviceState.UNAUTHORIZED);
+      if (reason === 'offline') mockDevice.updateState(AdbDeviceState.OFFLINE);
+      const before = JSON.stringify(component.traceConfig());
+      const storeSpy = spyOn(storage, 'add');
+
+      expect(component.isDiagnosticTracePresetDisabled()).toBeTrue();
+      component.onApplyDiagnosticTracePreset();
+
+      expect(JSON.stringify(component.traceConfig())).toBe(before);
+      expect(storeSpy).not.toHaveBeenCalled();
+      if (reason === 'refresh' || reason === 'loading') {
+        await dom.detectChangesAndWaitStable();
+        expect((dom.get('.diagnostic-preset-btn').getHTMLElement() as HTMLButtonElement)
+          .disabled).toBeTrue();
+      }
+    });
+  }
+
+  it('does not expose or apply the diagnostic preset without a selected device', () => {
+    setSpyWithDevices([mockDevice]);
+    const before = JSON.stringify(component.traceConfig());
+
+    expect(dom.find('.diagnostic-preset-btn')).toBeUndefined();
+    component.onApplyDiagnosticTracePreset();
+
+    expect(JSON.stringify(component.traceConfig())).toBe(before);
   });
 
   it('start trace button works as expected', async () => {
