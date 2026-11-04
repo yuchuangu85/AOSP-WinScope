@@ -106,7 +106,7 @@ class ElectronWorkflowTest(unittest.TestCase):
         )
         matrix = json.loads(result.stdout)
         expected_runners = {
-            "darwin-x64": "macos-15-intel", "darwin-arm64": "macos-15",
+            "darwin-x64": "macos-26-intel", "darwin-arm64": "macos-26",
             "win32-x64": "windows-2025",
             "linux-x64": "ubuntu-22.04", "linux-arm64": "ubuntu-24.04-arm",
         }

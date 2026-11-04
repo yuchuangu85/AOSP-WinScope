@@ -62,8 +62,8 @@ Electron `45.2.1`, the Go Launcher, and PyInstaller `6.22.3` capture are native 
 each listed OS/CPU. Go uses `amd64` for the Electron `x64` targets. ADB's
 architecture and provider are deliberately separate from the application label:
 
-- `darwin-x64`: Intel macOS, runner `macos-15-intel`, DMG and PKG only.
-- `darwin-arm64`: Apple Silicon macOS, runner `macos-15`, DMG and PKG only.
+- `darwin-x64`: Intel macOS, runner `macos-26-intel`, DMG and PKG only.
+- `darwin-arm64`: Apple Silicon macOS, runner `macos-26`, DMG and PKG only.
 - `win32-x64`: Windows AMD64, runner `windows-2025`, NSIS EXE and MSI only.
 - `linux-x64`: Linux AMD64, runner `ubuntu-22.04`, DEB and RPM only.
 - `linux-arm64`: Linux ARM64, runner `ubuntu-24.04-arm`, DEB and RPM only.
@@ -503,8 +503,8 @@ production Web (including Trace Processor WASM) and AI once, and transfers
 `dist/prod` and `ai/dist` as a same-run, same-commit artifact. Native jobs restore
 those paths without running `deps:prepare` or a production Perfetto build:
 
-- `macos-15-intel`: macOS x64.
-- `macos-15`: macOS arm64.
+- `macos-26-intel`: macOS x64.
+- `macos-26`: macOS arm64.
 - `windows-2025`: Windows x64.
 - `ubuntu-22.04`: Linux x64.
 - `ubuntu-24.04-arm`: Linux arm64.

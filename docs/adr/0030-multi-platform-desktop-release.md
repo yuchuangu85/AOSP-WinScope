@@ -40,8 +40,8 @@ available for explicitly manual/local use.
 Use [`desktop/app/targets.cjs`](../../desktop/app/targets.cjs) as the single source
 of truth for targets, component architectures, runner selection, and formats:
 
-- `darwin-x64`: `macos-15-intel`, DMG and PKG only.
-- `darwin-arm64`: `macos-15`, DMG and PKG only.
+- `darwin-x64`: `macos-26-intel`, DMG and PKG only.
+- `darwin-arm64`: `macos-26`, DMG and PKG only.
 - `win32-x64`: `windows-2025`, NSIS EXE and MSI only.
 - `linux-x64`: `ubuntu-22.04`, DEB and RPM only.
 - `linux-arm64`: `ubuntu-24.04-arm`, DEB and RPM only.
