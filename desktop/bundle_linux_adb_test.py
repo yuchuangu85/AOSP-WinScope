@@ -101,14 +101,14 @@ class LockTests(TemporaryTest):
         with mock.patch.object(adb, "MAX_TOTAL_ARTIFACTS", 1024), self.assertRaisesRegex(adb.BundleError, "budget"):
             self.load(self.whole)
 
-    def test_google_pins_are_unchanged_and_five_targets_are_explicit(self):
+    def test_google_pins_are_unchanged_and_four_targets_are_explicit(self):
         self.assertEqual(self.whole["platformTools"]["version"], "37.0.1")
         expected = {"darwin": "ee39ad5967e95c2a07f04dbcbde96b1a0c916ba376096db5d2f498b7727a5d1d",
                     "windows": "45f4d63113e895ebde0c90f194099a4676b6ac653bd28d54314a9e022bbc1a99",
                     "linux": "d230f13842f60f782a8645f9c813f8f845bf36089ea7289f28c48f17979313f1"}
         self.assertEqual({k: v["sha256"] for k, v in self.whole["platformTools"]["archives"].items()}, expected)
         self.assertEqual(set(self.whole["supportedTargets"]), {
-            "darwin-arm64", "darwin-x64", "win32-x64", "linux-arm64", "linux-x64"})
+            "darwin-arm64", "win32-x64", "linux-arm64", "linux-x64"})
 
     def test_rejects_expanded_or_duplicate_package_allowlist(self):
         for change in (lambda b: b.append(copy.deepcopy(b[0])), lambda b: b.pop()):

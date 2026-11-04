@@ -99,18 +99,18 @@ class ElectronWorkflowTest(unittest.TestCase):
                     expected += ["--version", version]
                 self.assertEqual(arguments, expected)
 
-    def test_five_native_targets_come_from_ssot_with_native_python_on_every_arm(self):
+    def test_four_native_targets_come_from_ssot_with_native_python_on_every_arm(self):
         result = subprocess.run(
             ["node", "-e", 'console.log(JSON.stringify(require("./desktop/app/targets.cjs").matrix()))'],
             cwd=ROOT, capture_output=True, text=True, check=True,
         )
         matrix = json.loads(result.stdout)
         expected_runners = {
-            "darwin-x64": "macos-26-intel", "darwin-arm64": "macos-26",
+            "darwin-arm64": "macos-26",
             "win32-x64": "windows-2025",
             "linux-x64": "ubuntu-22.04", "linux-arm64": "ubuntu-24.04-arm",
         }
-        self.assertEqual(len(matrix["include"]), 5)
+        self.assertEqual(len(matrix["include"]), 4)
         self.assertEqual({row["target"]: row["runner"] for row in matrix["include"]}, expected_runners)
         for row in matrix["include"]:
             self.assertEqual(row["target"], f'{row["platform"]}-{row["arch"]}')

@@ -138,11 +138,10 @@ async function publication(t) {
   return { root, artifacts, output };
 }
 
-test("one target registry provides exactly five native targets and ten installer formats", () => {
+test("one target registry provides exactly four native targets and eight installer formats", () => {
   assert.deepEqual(
     new Set(registry.targets.map((t) => t.key)),
     new Set([
-      "darwin-x64",
       "darwin-arm64",
       "win32-x64",
       "linux-x64",
@@ -154,7 +153,6 @@ test("one target registry provides exactly five native targets and ten installer
   assert.deepEqual(
     registry.targets.map((target) => [target.key, [...target.formats]]),
     [
-      ["darwin-x64", ["dmg", "pkg"]],
       ["darwin-arm64", ["dmg", "pkg"]],
       ["win32-x64", ["exe", "msi"]],
       ["linux-x64", ["deb", "rpm"]],
@@ -172,7 +170,7 @@ test("one target registry provides exactly five native targets and ten installer
     assert.throws(() => registry.targetFor(...args));
 });
 
-test("plan binds package version, exact Electron, five targets and commit", async (t) => {
+test("plan binds package version, exact Electron, four targets and commit", async (t) => {
   const root = await temp(t),
     packageFile = path.join(root, "package.json");
   await write(packageFile, pkg);
@@ -247,20 +245,20 @@ test("record requires all native package formats and raw smoke evidence", async 
   );
 });
 
-test("collect verifies and flattens five reports, ten installers and raw acceptance", async (t) => {
+test("collect verifies and flattens four reports, eight installers and raw acceptance", async (t) => {
   const { output } = await publication(t);
   const result = await verify({ directory: output, version, commit });
-  assert.equal(result.targets, 5);
-  assert.equal(result.files, 21);
+  assert.equal(result.targets, 4);
+  assert.equal(result.files, 17);
   const index = JSON.parse(
     await fs.readFile(path.join(output, "desktop-release.json"), "utf8"),
   );
-  assert.equal(index.targets.length, 5);
+  assert.equal(index.targets.length, 4);
   assert.equal(
     index.files.filter(
       (x) => !x.name.endsWith(".json") && !x.name.endsWith("-source.tar.gz"),
     ).length,
-    10,
+    8,
   );
   assert.ok(index.files.some((x) => x.name.endsWith(".pkg")));
   assert.ok(index.files.some((x) => x.name.endsWith(".msi")));
@@ -270,7 +268,7 @@ test("collect verifies and flattens five reports, ten installers and raw accepta
     (await fs.readFile(path.join(output, "desktop-SHA256SUMS.txt"), "utf8"))
       .trim()
       .split("\n").length,
-    22,
+    18,
   );
 });
 
