@@ -20,16 +20,16 @@ OS rights, and Linux udev permissions still apply.
 
 The five-target contract requires ten installer assets: DMG/PKG only for each
 macOS architecture, NSIS EXE/MSI only for Windows x64, and DEB/RPM only for each
-Linux architecture. CI generates and publishes only these native installers as
-executable distribution products: no portable Launcher ZIP, desktop ZIP,
-AppImage, or binary tar.gz; there is no universal macOS package. Manual packaging
-and PR Electron CI reuse the read-only native candidate workflow. The official
-release contract publishes the installers and required evidence in **one GitHub
-Release** only after all five targets and the complete official gates pass.
-Publication verifies uploaded names, sizes, and SHA-256 digests while the release
-is still a draft. Packages are unsigned; local installer names and metadata do
-not authenticate a publisher. OIDC attestations are not OS code signing or Apple
-notarization.
+Linux architecture. GitHub Actions retains only the read-only
+[`electron.yml`](.github/workflows/electron.yml) Desktop packaging workflow,
+triggered manually or by path-filtered PRs, with its reusable interface retained.
+It produces native installers and uploads Actions artifacts; it does not publish
+a GitHub Release. The duplicate packaging entry point, official/candidate release
+publishers, and standalone security workflow have been removed. There is no
+portable Launcher ZIP, desktop ZIP, AppImage, binary tar.gz, or universal macOS
+package. Packages are unsigned; local installer names and metadata do not
+authenticate a publisher. This packaging lane supplies no official OIDC
+attestation, OS code signing, or Apple notarization.
 
 Desktop assets include `desktop-release.json` and `desktop-SHA256SUMS.txt`
 alongside the installers. Linux ARM64 additionally delivers the exact app-commit
@@ -37,11 +37,10 @@ source `.tar.gz` archive (a separate legal/source artifact, not an installer) an
 bundled library sources, original DEBs, signed indexes,
 licenses, and provenance. Source delivery and a private-key-free replacement/
 relink procedure are release requirements, not a claim of completed legal or
-native GPG approval. The official build retains uncompressed target directories
-and internal attestation for reproducibility and the complete validation gate,
-without generating ZIP files. Its separate publication contains only
-integrity/source/license/gate evidence, not a portable executable or archive.
-Metadata, checksums, and OIDC attestations remain required. GitHub Actions may
+native GPG approval. Local/manual official-release tools and their validation
+contracts remain available, but no current workflow runs that release gate or
+produces its attestations. Desktop metadata and checksums are integrity evidence,
+not release approval or authenticated provenance. GitHub Actions may
 use ZIP for artifact transfer; that transport is not a release ZIP product.
 
 This multi-platform release implementation is underway, not a claim that hosted

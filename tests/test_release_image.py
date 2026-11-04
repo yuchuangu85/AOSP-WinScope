@@ -246,13 +246,6 @@ class ReleaseImageTest(unittest.TestCase):
         self.assertIn("## Stage 16 implementation evidence", plan)
         self.assertIn("npm run release:image", plan)
         self.assertIn("does not build or publish", plan)
-        workflow = (ROOT / ".github/workflows/official-release.yml").read_text()
-        self.assertIn("Verify official release image", workflow)
-        self.assertIn(
-            'python3 scripts/verify-release-image.py --image "$OFFICIAL_RELEASE_IMAGE" '
-            '--output dist/validation/release-image.json --json',
-            workflow,
-        )
         self.assertIn("## Stage 17 implementation evidence", plan)
 
 

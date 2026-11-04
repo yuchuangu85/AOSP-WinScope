@@ -2,9 +2,10 @@
 
 Electron Desktop is the install-and-run distribution of WinScope. It embeds the
 existing Web UI and reuses the Go Launcher; it is not a replacement trace parser
-or a second implementation of capture or AI. CI generates and publishes native
-installers only as executable distribution products, with required source,
-license, integrity, and release-gate evidence in one GitHub Release. Legacy
+or a second implementation of capture or AI. CI generates native installers and
+uploads Actions artifacts only; it does not publish GitHub Releases. Required
+source, license, integrity, and native acceptance evidence accompanies those
+artifacts. Legacy
 portable browser/Launcher and APS CLI contracts remain available for manual/local
 use only; GitHub CI does not generate or publish those products. The five-target,
 ten-installer contract below is implementation work
@@ -18,8 +19,8 @@ Choose the artifact matching the machine: macOS arm64 (Apple Silicon), macOS x64
 not supported. These are distinct native Electron packages, not a universal
 macOS binary or a
 cross-platform validation claim. Manual/PR runs upload candidates to the GitHub
-Actions run's artifacts. The official workflow may publish installers and required
-evidence only after both release gates below succeed. Only install an
+Actions run's artifacts. Official and candidate publication workflows have been
+removed; successful packaging is not release approval. Only install an
 artifact from a trusted source.
 
 On macOS, open the DMG and install the application in Applications, or run the
@@ -470,21 +471,22 @@ all-platform installer acceptance, and public release approval remain open.
 
 ## CI delivery lane
 
-[`.github/workflows/electron.yml`](../.github/workflows/electron.yml) runs manually,
-on path-filtered pull requests, or as a native reusable `workflow_call` from
-[the official workflow](../.github/workflows/official-release.yml). The manual-only
-[`package.yml`](../.github/workflows/package.yml) entry point delegates to the
-same native workflow rather than building portable archives. It first retains
-the fast, full Web unit, production E2E and shared AI checks, then transfers their
-canonical Web/AI output so native packaging does not rebuild it. It adds no push or
-PR trigger. The native workflow has
-read-only repository permissions and uses the exact action SHAs already pinned
-by the other workflows. The reusable workflow itself never publishes a release.
+[`.github/workflows/electron.yml`](../.github/workflows/electron.yml) is the only
+GitHub Actions workflow retained as of 2026-11-04. It packages Desktop installers
+on manual dispatch or path-filtered pull requests and retains its reusable
+`workflow_call` interface. It has no push, tag, or scheduled trigger. The duplicate
+`package.yml` entry point, `official-release.yml`, `publish-candidate.yml`, and
+`security.yml` have been removed. There is no automated release publication or
+standalone security-scan workflow. Local release and security commands remain
+available; removing their automation does not waive their validation contracts.
+
+The Desktop workflow has read-only repository permissions and immutable action
+SHAs. It never publishes a release.
 
 The lineage audit is recorded separately and is not release approval. The
 current checkout's unrecorded clean-room adaptation delta prevents that audit
 from passing; candidate packaging does not bypass or relax the separate
-official-release gate. Resolving the provenance inventory is a release task,
+release-validation requirements. Resolving the provenance inventory is a release task,
 not evidence supplied by an Electron startup test.
 
 In manual/PR candidate runs, the shared `ubuntu-24.04` job prepares/verifies pinned dependencies, builds the
@@ -498,25 +500,11 @@ those paths without running `deps:prepare` or a production Perfetto build:
 - `ubuntu-22.04`: Linux x64.
 - `ubuntu-24.04-arm`: Linux arm64.
 
-For an official run, the caller supplies the canonical gated `dist/prod` and
-`ai/dist` artifact and release version. The reusable workflow skips its shared
-build job and restores that same-run, same-commit artifact. It does not perform
-a second independent Perfetto build; the official reproducibility double-build
-requirement remains intact. Both official release commands use unpacked-only
-mode:
-
-```sh
-npm run release:double-build -- --version "$AOSP_WINSCOPE_VERSION" --unpacked-only
-npm run release:package -- --version "$AOSP_WINSCOPE_VERSION" --unpacked-only
-```
-
-This creates uncompressed target directories and internal attestation, with no
-ZIP files. Default `scripts/release.py verify` auto-detects this distribution
-tree. The full Stage 7 gate consumes `--release dist/release`, requires complete
-evidence and all dynamic unit, E2E, production E2E, offline, and security checks,
-and still requires all protected device, vulnerability, performance baseline,
-and benchmark manifests. Unpacked inputs are internal gate artifacts, not
-portable release products.
+The reusable interface can accept an already-built same-run, same-commit
+`dist/prod` and `ai/dist` artifact and an expected release version. When supplied,
+the workflow skips its shared build job and restores that artifact. No retained
+repository workflow calls this interface; manual and PR runs build their own
+shared inputs.
 
 Each native job uses Python 3.12 and Go to stage the native frozen capture,
 Launcher, and declared ADB provider via `--skip-web-build`. It builds a `--dir`
@@ -565,10 +553,11 @@ namespace separately from the release-gate evidence inventory. Legacy portable
 `release-index.json` and checksum contracts remain local/manual, not CI release
 assets. The separate `dist/public/<version>` publication carries only
 integrity/source/license/gate evidence, no portable executable or archive.
-Names and local checksums alone do not prove provenance or OS trust; verify the
-official attestation and release identity as well.
+Names and local checksums alone do not prove provenance or OS trust. The retained
+packaging workflow does not produce official OIDC attestations or publish a
+GitHub Release.
 
-### Two release gates
+### Packaging-only boundary
 
 1. **Candidate gate:** the read-only native workflow requires all five targets,
    all ten installers (two required formats per target), Linux ARM64
@@ -576,35 +565,13 @@ official attestation and release identity as well.
    and verified index/checksums. Passing yields
    Actions artifacts, not public release approval or a signing claim. Its
    separately recorded lineage audit cannot approve an official release.
-2. **Official release gate:** `official-release.yml` preserves the immutable
-   digest-pinned build image, reviewed-main ancestry, clean-room lineage,
-   approved external device/performance/vulnerability evidence, complete
-   Stage 7 validation gate and all dynamic checks, reproducibility checks, and
-   OIDC attestations. `scripts/installer_evidence.py stage` stages the unpacked
-   release's integrity/source/license evidence and the validation,
-   reproducibility, build-image, and feature-stage reports at
-   `dist/public/<version>`. Its `verify` command checks the current version,
-   immutable build image, lineage, reports, and integrity both before transfer
-   and again in the publisher. Legacy `publish.py` and `verify-aps-release.py`
-   are not invoked by GitHub workflows. The desktop reusable job consumes the
-   canonical gated build; publication waits for the complete gate and all five
-   native targets. Raw protected external manifests remain private; only their
-   required sanitized evidence is staged for publication.
-
-Only the protected official publisher has release-writing authority. It
-reverifies the evidence and desktop flat directories, refuses any existing
-release (including a draft), and attests both inventories before creating one
-new draft with native installers and required evidence. It reads the uploaded
-release and all paginated assets through the GitHub REST API. The
-`desktop/release.mjs check-remote` check uses `--desktop <desktop-directory>` and
-`--evidence <evidence-directory>` and requires
-the exact combined asset names, uploaded state, byte sizes, and SHA-256 digests
-to match the two local directories. Only then may it set `draft=false`. A local
-checksum pass is not a substitute for this remote check. A failed upload/check
-leaves the draft private for operator diagnosis; retries must not clobber,
-overwrite, or automatically replace it. Protected-environment approval and
-credential policy remain unchanged. Existing provenance, advisory, or other
-gate failures remain blockers, not waivers granted by desktop packaging.
+2. **Publication is not automated:** the official and candidate publishers were
+   removed. Successful Desktop CI supplies downloadable Actions artifacts only,
+   not a public release, OIDC provenance, Developer ID signing, notarization, or
+   release approval. Existing local tools such as `scripts/installer_evidence.py`,
+   `scripts/validate.py`, and `desktop/release.mjs check-remote` remain available
+   for separately authorized release work. Existing provenance, advisory, and
+   external-evidence failures are not waived by successful Desktop packaging.
 
 ## Signing and evidence boundaries
 
@@ -669,10 +636,11 @@ code-signing publisher. Successfully creating or inspecting those files does
 not prove installation, OS trust, or platform qualification. Do not bypass trust
 checks to turn a local packaging result into a release claim.
 
-The official workflow's GitHub OIDC attestations establish artifact provenance,
-not Apple Developer ID/notarization, Windows code signing, Gatekeeper, or
-SmartScreen trust. Calling the artifacts an official GitHub Release does not
-change their unsigned status or provision OS-signing credentials.
+GitHub OIDC attestations, when independently available for historical releases,
+establish artifact provenance, not Apple Developer ID/notarization, Windows code
+signing, Gatekeeper, or SmartScreen trust. Current Desktop CI does not create
+those attestations. Calling artifacts an official GitHub Release does not change
+their unsigned status or provision OS-signing credentials.
 
 Static workflow validation proves syntax and wiring only. Unit tests prove their
 asserted contracts. A native `--dir` smoke proves startup using that package on

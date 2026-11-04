@@ -43,8 +43,11 @@ class ElectronWorkflowTest(unittest.TestCase):
                 triggers,
             )
         self.assertIn("value: ${{ jobs.bundle.outputs.publication-artifact }}", triggers)
-        self.assertIn(".github/workflows/official-release.yml", triggers)
+        self.assertIn(".github/workflows/**", triggers)
         self.assertIn("tests/test_electron_workflow.py", triggers)
+        self.assertIn("tests/test_ci_configuration.py", triggers)
+        self.assertNotIn("official-release.yml", triggers)
+        self.assertNotIn("tests/test_official_release.py", triggers)
         self.assertNotIn("push:", triggers)
         self.assertNotIn("pull_request_target:", triggers)
 

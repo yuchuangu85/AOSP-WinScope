@@ -4,6 +4,11 @@
 
 This document consolidates the decisions accepted during the `grill-with-docs` session. Product implementation begins only after the final shared-understanding confirmation. The ADRs under `docs/adr/` are authoritative when a summary here is ambiguous.
 
+Current CI policy (2026-11-04): only `electron.yml` Desktop packaging remains.
+References below to official/candidate release publishers or standalone security
+workflows describe retired implementation or historical plans, not active
+automation. Local/manual release and security contracts remain unchanged.
+
 ## Outcome
 
 Rebuild this repository as a clean-room, standalone distribution of the pinned AOSP `android17-release` WinScope. A clean clone must build a complete browser-hosted product without an AOSP checkout, and AndroidPerformanceStudio (APS) must be able to consume either the pinned source repository or the same verified binary distribution without depending on internal source paths.
@@ -296,7 +301,7 @@ Platform code signing/notarization may later wrap the reproducible core as separ
 
 The repository and archive preserve AOSP notices and carry complete license, NOTICE, attribution, and SPDX evidence for all distributed code, WASM, fonts, images, and scripts. Unknown licenses, untracked assets, SBOM drift, or unapproved restrictive/copyleft terms block release. APS can redistribute `LICENSES/` without recreating dependency analysis.
 
-PR, weekly, and release workflows perform dependency, OSV, CodeQL, Go vulnerability, secret, CSP/network, dependency-review, and hostile-input scanning. Critical/High runtime or build-chain findings block release unless a documented expiring exception proves non-reachability. Security fixes never replace existing artifacts; they create new patch or baseline-generation releases and downstream APS deliberately repins.
+The former PR, weekly, and release workflows performed dependency, OSV, CodeQL, Go vulnerability, secret, CSP/network, dependency-review, and hostile-input scanning; standalone scanning automation was removed on 2026-11-04. Critical/High runtime or build-chain findings still block separately authorized release work unless a documented expiring exception proves non-reachability. Security fixes never replace existing artifacts; they create new patch or baseline-generation releases and downstream APS deliberately repins.
 
 ## Performance gate
 
@@ -454,8 +459,14 @@ Self-asserted JSON does not replace the external Sigstore/OIDC trust root.
 
 ## Stage 14 implementation evidence
 
-`.github/workflows/official-release.yml` is the only repository workflow that
-creates an official release. It runs only for Android 17 version tags and uses
+Historical implementation, retired on 2026-11-04: GitHub Actions now retains only
+Desktop packaging in `electron.yml`. Official release and candidate publication,
+the duplicate packaging entry point, and the standalone security workflow have
+been removed. The following records the former release trust contract; it does
+not describe active automation or change local/manual validation requirements.
+
+The former `official-release.yml` workflow created official releases.
+It ran only for Android 17 version tags and used
 three explicit trust boundaries: a protected preflight validates the public
 release-container digest and tag, a read-only build job verifies clean-room
 lineage and replays dependency/build/reproducibility/dynamic/publication gates,
@@ -545,8 +556,8 @@ select which release image administrators should approve.
 
 ## Stage 17 implementation evidence
 
-The official workflow now preserves the passing Stage 16 image verification
-report instead of discarding its JSON output. Preflight uploads
+The former official workflow preserved the passing Stage 16 image verification
+report instead of discarding its JSON output. Its historical flow was: preflight uploads
 `release-image.json` as a run-scoped artifact, the read-only build job downloads
 that exact report, and `publish.py` requires it to match the approved
 `OFFICIAL_RELEASE_IMAGE` before staging a publication. The release index lists
@@ -698,11 +709,12 @@ The launcher adds fixed loopback `--port`, explicit `--browser`, and
 browser launch uses an argument vector rather than a shell, and capture
 startup fails closed when adb or Python is unavailable.
 
-`security.yml` adds pinned PR, main, weekly, and manual dependency, OSV,
-CodeQL, Go vulnerability, source-secret/runtime-boundary, and hostile-input
-checks. `verify-feature-stages.py` produces commit-bound, machine-readable
-Stage 20-25 exit evidence and the official release workflow generates that
-report before packaging.
+The former `security.yml` workflow ran pinned PR, main, weekly, and manual
+dependency, OSV, CodeQL, Go vulnerability, source-secret/runtime-boundary, and
+hostile-input checks. That workflow and official release automation were removed
+on 2026-11-04; these are no longer standalone GitHub CI jobs.
+`verify-feature-stages.py` still produces commit-bound, machine-readable
+Stage 20-25 exit evidence when run locally/manually.
 
 The Stage 7 report also emits an explicit Android compatibility tier matrix.
 Android 15 and 16 are marked fixture-validated from the public/synthetic suite

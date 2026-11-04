@@ -1,5 +1,10 @@
 ## AOSP-WinScope 17.0.1 — desktop installers (5 native targets)
 
+Historical release notes: the workflow/trust descriptions below record this
+candidate's release context. As of 2026-11-04, only Desktop packaging remains in
+GitHub Actions; official/candidate publication and standalone security workflows
+have been removed. These notes do not describe current release automation.
+
 Five-platform desktop installers for WinScope 17.0.1, compiled and smoke-tested
 by the repository's `Electron desktop candidates` workflow on GitHub-hosted
 runners from commit `d447dbc87` (main).

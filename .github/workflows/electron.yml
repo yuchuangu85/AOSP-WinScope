@@ -18,10 +18,9 @@ on:
         value: ${{ jobs.bundle.outputs.publication-artifact }}
   pull_request:
     paths:
-      - .github/workflows/electron.yml
-      - .github/workflows/official-release.yml
+      - .github/workflows/**
       - tests/test_electron_workflow.py
-      - tests/test_official_release.py
+      - tests/test_ci_configuration.py
       - README.md
       - docs/ELECTRON.md
       - docs/adr/0029-electron-desktop-distribution.md

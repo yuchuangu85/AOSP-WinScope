@@ -20,6 +20,12 @@ JCEF, Compose, or a WinScope-specific bridge to use the standalone viewer.
 
 ## Release archive
 
+This is a legacy/manual consumption contract, not an output of current Desktop
+CI. As of 2026-11-04, only Desktop packaging remains in GitHub Actions; the
+official release workflow has been removed. The signer-workflow identity below
+is retained only for verifying historical releases from that workflow. Do not
+substitute unsigned Desktop Actions artifacts for an attested APS archive.
+
 1. Download the publication files from the GitHub release without unpacking
    the archive. Obtain the approved tagged commit through the APS release
    configuration or another independent trusted channel. Obtain the approved

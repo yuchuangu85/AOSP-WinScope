@@ -12,6 +12,12 @@ CI distribution policy updated on 2026-11-04: native installers and required
 evidence only; no portable executable/archive generation or publication in
 GitHub workflows. Local/manual legacy CLI contracts are retained.
 
+Subsequent CI scope reduction on 2026-11-04: only `electron.yml` remains, with
+Desktop packaging, native smoke checks, and Actions artifact uploads. The
+duplicate packaging entry point, official release, candidate publication, and
+security workflows have been removed. This supersedes the automated publication
+portion of this decision, not the native installer or local/manual trust contracts.
+
 ## Context
 
 Users need separate Intel and Apple Silicon macOS packages, Windows AMD64
@@ -114,23 +120,20 @@ and [ADR 0017](0017-ship-redistribution-evidence-with-every-release.md).
 
 Keep [`electron.yml`](../../.github/workflows/electron.yml) read-only and reusable
 through `workflow_call`, in addition to manual and path-filtered PR candidate
-runs. The manual-only `package.yml` entry point reuses this workflow with
-read-only permissions and concurrency control, not a portable packaging job;
-it retains its fast/full Web checks and production E2E before transferring the
-canonical Web/AI inputs to native jobs. It adds no push/PR trigger.
+runs. It is the only retained workflow; the duplicate `package.yml` entry point
+has been removed. It adds no push or scheduled trigger.
 Manual/PR runs build shared Web, Trace Processor WASM,
 and AI once through the pinned Linux build pipeline. Native jobs consume same-run, same-commit
 `dist/prod` and `ai/dist` via `--skip-web-build`; they must not silently rebuild
 missing shared inputs or run a full Perfetto build on unsupported native hosts.
 
-The official caller supplies its canonical gated Web/AI artifact and release
-version, skipping the candidate shared-build job. This avoids a second
-independent desktop Perfetto build without removing the official cold-cache
-reproducibility double build. Each native job builds its own frozen capture/Go
+The reusable interface still accepts a same-run, same-commit Web/AI artifact and
+expected release version, skipping the shared-build job when supplied. No
+retained repository workflow calls it. Each native job builds its own frozen capture/Go
 runtime and ADB provider, tests the actual `--dir` packaged executable, then
 creates every required format from that tested app.
 
-The official `release:double-build` and `release:package` commands pass
+For local/manual release validation, `release:double-build` and `release:package` can pass
 `--version "$AOSP_WINSCOPE_VERSION" --unpacked-only`. Retain uncompressed target
 directories and internal attestation for reproducibility and the full Stage 7
 gate, without generating ZIP files. Default `scripts/release.py verify`
@@ -163,7 +166,7 @@ source asset, identity, size, digest, and exact file/checksum inventory. Reject
 partial, duplicate, mixed-version/commit, stale, or altered deliveries. All five
 native jobs must succeed; there is no silent allow-partial mode.
 
-### Two gates, one GitHub Release
+### Packaging artifacts, not automated publication
 
 The candidate gate produces Actions artifacts, not official publication:
 `electron-installers-<target>-<commit>` and
@@ -172,28 +175,18 @@ The candidate gate produces Actions artifacts, not official publication:
 recorded lineage audit does not approve a release or waive official lineage
 failure.
 
-The official gate remains
-[`official-release.yml`](../../.github/workflows/official-release.yml), including
-its digest-pinned build image, main-ancestor check, clean-room lineage, approved
-external device/performance/vulnerability evidence, complete validation gate,
-reproducibility, protected `official-release` environment, and OIDC attestation.
-`scripts/installer_evidence.py stage` replaces legacy ZIP publication and stages
-integrity/source/license/gate evidence plus validation, reproducibility,
-release-image, and feature-stage reports. Its `verify` command must recheck the
-current version, immutable image, lineage, reports, and integrity in both build
-and publish jobs. GitHub workflows invoke neither `publish.py` nor
+The official and candidate publication workflows have been removed. Tags do not
+trigger a retained workflow, and manual candidate dispatch cannot publish.
+`scripts/installer_evidence.py`, release validation tools, and
+`desktop/release.mjs check-remote` remain local/manual tools. Their integrity,
+lineage, external-evidence, and approval requirements are not weakened by this
+CI reduction. GitHub workflows invoke neither `publish.py` nor
 `verify-aps-release.py`. Keep credential and approval policy unchanged, and never
-publish raw protected external secret manifests. Invoke the
-desktop reusable workflow after the gated canonical build and require it to
-succeed before publication. Candidate success never weakens an existing gate;
-pre-existing provenance or advisory failures remain blockers.
+publish raw protected external secret manifests. Pre-existing provenance or
+advisory failures remain blockers to any separately authorized release work.
 
-The tag policy remains `v17.<minor>.<patch>`, optionally `-alpha.<n>` or
-`-rc.<n>`, on an approved commit already in `main` ancestry. Manual candidate
-dispatch cannot publish. Tag creation/push and remote Actions execution are
-external release operations, not part of this local documentation update.
-
-Stage release evidence and desktop assets in separate verified flat directories,
+For separately authorized local/manual publication, stage release evidence and
+desktop assets in separate verified flat directories,
 `dist/public/<version>` and `dist/desktop/public/<version>`. The former contains
 only integrity/source/license/gate evidence, no portable executable or archive;
 the latter contains the ten native installers and required source/metadata.
@@ -227,11 +220,12 @@ The checksum file covers the index and every indexed desktop file, including
 the source archive but excluding itself. Preserve its `desktop-` checksum
 namespace separately from the release-gate evidence inventory. Legacy portable
 `release-index.json` and checksum files remain local/manual CLI contracts, not
-assets in this CI release.
+assets in current Desktop CI.
 
 These are explicitly unsigned packages: no Apple Developer ID/notarization and
-no Windows code signing are supplied by this lane. OIDC attestations bind
-provenance; they are not OS trust, Gatekeeper/SmartScreen approval, or evidence
+no Windows code signing are supplied by this lane. Current CI does not create
+OIDC attestations. Such attestations bind provenance when independently available;
+they are not OS trust, Gatekeeper/SmartScreen approval, or evidence
 that every installer/source-license obligation is satisfied. Preserve ADR 0029's
 sandbox, loopback-only service boundaries, no startup downloads, user-owned
 provider credentials, and profile retention. Any future OS signing must sign
@@ -246,8 +240,9 @@ separate qualification requirements.
 
 ## Consequences
 
-- One release lets users choose an honest native host/component combination while
-  preserving protected release authority and manual-only legacy CLI contracts.
+- One packaging workflow lets users choose an honest native host/component
+  combination from Actions artifacts; release publication and legacy CLI
+  contracts remain separate local/manual work.
 - Native runners and all required formats increase CI cost; a missing target or
   evidence blocks the complete release instead of reducing coverage silently.
 - Windows desktop is x64-only with explicitly declared ia32 ADB; Linux ARM64 has
