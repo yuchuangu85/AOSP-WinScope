@@ -304,8 +304,17 @@ existing keyboard, session, attachment and report workflow regressions.
 ## Desktop title bar (2026-11-02)
 
 The Electron desktop window merges its existing 32px WinScope toolbar into the
-native title-bar area. Remove the former File/Edit/View/Help menu; keep the
-existing toolbar commands and essential keyboard actions. macOS retains native
+native title-bar area. Keep the existing toolbar commands and essential keyboard
+actions. The 2026-11-04 override restores the native File menu with Open...
+(CmdOrCtrl+O), Open Recent and Clear Recent, alongside standard Edit/View roles.
+Only successfully parsed local files enter the deduplicated, newest-first list
+of up to 20 paths, stored in userData/recent-files.json across restarts. Upload
+and drop use the same success boundary; archives retain their original path.
+Missing recent files show an error and are removed; cancellation adds nothing.
+Privacy mode neither reads nor writes recent paths. The sandbox file bridge
+permits reads only for a main-process-issued selection token, in 4MiB chunks;
+it never exposes arbitrary filesystem reads or Node APIs to the renderer.
+macOS retains native
 traffic-light controls with an 88px left inset. Windows/Linux retain native
 caption buttons through Window Controls Overlay and reserve their actual CSS
 safe area. Blank toolbar space drags the window; interactive controls never do.

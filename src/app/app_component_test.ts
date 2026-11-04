@@ -16,7 +16,7 @@
 import {ClipboardModule} from '@angular/cdk/clipboard';
 import {CommonModule} from '@angular/common';
 import {provideHttpClient, withInterceptorsFromDi} from '@angular/common/http';
-import {Component, input, output} from '@angular/core';
+import {Component, input, output, signal} from '@angular/core';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {FormsModule, ReactiveFormsModule} from '@angular/forms';
 import {MatButtonModule} from '@angular/material/button';
@@ -64,11 +64,13 @@ import {TestFileReaderBuilder} from '@legacy_file_readers/testing/test_file_read
 import {WinscopeEvent} from '@messaging/winscope_event';
 import {EmitEvent} from '@messaging/winscope_event_emitter';
 import {TraceGeometryData} from '@parsers/helpers/trace_geometry_data';
+import {DesktopFiles} from '@services/desktop_files';
 import {UserNotifier} from '@services/user_notifier';
 import {FilesSource} from '@trace_api/files_source';
 import {TraceBuilder} from '@trace_api/testing/trace_builder';
 import {TracesBuilder} from '@trace_api/testing/traces_builder';
 import {TracePositionUpdate, TraceSearchRequest} from '@trace_api/trace_events';
+import {TraceFile} from '@trace_api/trace_file';
 import {TracePosition} from '@trace_api/trace_position';
 import {TraceType} from '@trace_api/trace_type';
 import {Traces} from '@trace_api/traces';
@@ -142,6 +144,8 @@ class MockCollectTracesComponent {
   ],
 })
 class MockUploadTracesComponent {
+  isLoadingFiles = false;
+  viewersLoading = signal(false);
   storage = input.required<Store>();
   loadedFileReaders = input.required<FileReader[]>();
   downloadTracesClick = output<void>();
@@ -283,6 +287,77 @@ describe('AppComponent', () => {
 
   it('can be created', () => {
     expect(component).toBeTruthy();
+  });
+
+  describe('desktop File menu', () => {
+    let bridge: jasmine.SpyObj<DesktopFiles>;
+    let upload: jasmine.Spy;
+    const desktopWindow = window as Window & {winscopeFiles?: DesktopFiles};
+    const batch = {token: 'native-selection', files: [{name: 'layers.trace', size: 3, lastModified: 123}]};
+
+    beforeEach(() => {
+      bridge = jasmine.createSpyObj('DesktopFiles', ['onOpen', 'readChunk', 'complete', 'remember']);
+      bridge.readChunk.and.resolveTo(new Uint8Array([1, 2, 3]));
+      desktopWindow.winscopeFiles = bridge;
+      upload = spyOn(component.mediator, 'onWinscopeEvent').and.resolveTo();
+    });
+
+    afterEach(() => { delete desktopWindow.winscopeFiles; });
+
+    function loadFiles(files: File[], archive = false): void {
+      const traceFiles = files.map((file) => new TraceFile(archive ? new File([], 'extracted.trace') : file, archive ? file : undefined));
+      (component.loadedFileData.getLoadedFileReaders as jasmine.Spy).and.returnValue(
+        traceFiles.map((trace) => new TestFileReaderBuilder().setTimestamps([]).setTraceFile(trace).build()),
+      );
+    }
+
+    it('records only successfully parsed local inputs, including their parent archives', async () => {
+      const valid = new File([], 'traces.zip');
+      const invalid = new File([], 'unsupported.txt');
+      loadFiles([valid], true);
+      await component.onFilesUploaded([valid, invalid]);
+      expect(bridge.remember).toHaveBeenCalledOnceWith([valid]);
+    });
+
+    it('does not record failed or unsupported uploads', async () => {
+      loadFiles([]);
+      await component.onFilesUploaded([new File([], 'unsupported.txt')]);
+      expect(bridge.remember).not.toHaveBeenCalled();
+      upload.and.rejectWith(new Error('Parse failure'));
+      await expectAsync(component.onFilesUploaded([new File([], 'bad.trace')])).toBeRejected();
+      expect(bridge.remember).not.toHaveBeenCalled();
+    });
+
+    it('opens native files through the same parser and acknowledges only successful indexes', async () => {
+      upload.and.callFake(async (event) => {
+        const files = (event as unknown as {files: File[]}).files;
+        loadFiles(files);
+      });
+      await component.openDesktopFiles(batch);
+      expect(bridge.readChunk).toHaveBeenCalledOnceWith('native-selection', 0, 0);
+      expect(upload).toHaveBeenCalledTimes(1);
+      expect(bridge.complete).toHaveBeenCalledOnceWith('native-selection', [0]);
+      expect(bridge.remember).not.toHaveBeenCalled();
+    });
+
+    it('does not reset the current trace when reading a missing or changed file fails', async () => {
+      component.dataLoaded = true;
+      const reset = spyOn(component, 'resetTraceData');
+      bridge.readChunk.and.rejectWith(new Error('File moved'));
+      const notify = spyOn(UserNotifier, 'add').and.callThrough();
+      await component.openDesktopFiles(batch);
+      expect(reset).not.toHaveBeenCalled();
+      expect(upload).not.toHaveBeenCalled();
+      expect(bridge.complete).toHaveBeenCalledOnceWith('native-selection', []);
+      expect(notify).toHaveBeenCalled();
+    });
+
+    it('does not start a second open while a reset confirmation is active', async () => {
+      component.confirmingTraceReset = true;
+      await component.openDesktopFiles(batch);
+      expect(bridge.readChunk).not.toHaveBeenCalled();
+      expect(bridge.complete).toHaveBeenCalledOnceWith('native-selection', []);
+    });
   });
 
   describe('AI timeline query API', () => {

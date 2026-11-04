@@ -61,11 +61,13 @@ import {RequestData} from '@cross_tool/g3_proxy';
 import {isAllowedIframeParentOrigin} from '@cross_tool/origin_allow_list';
 import {Analytics} from '@logging/analytics';
 import {ProgressListener} from '@messaging/progress_listener';
+import {NotificationType} from '@messaging/user_notification';
 import {WinscopeEvent} from '@messaging/winscope_event';
 import {WinscopeEventListener} from '@messaging/winscope_event_listener';
 import {getRuntimeConfig, getRuntimeConfigDiagnostic} from '@runtime/runtime_config';
 import {AiCatalog} from '@services/ai_gateway_client';
 import {isAiTraceQuery} from '@services/ai_trace_query_validation';
+import {DesktopFileBatch, getDesktopFiles, readDesktopFiles} from '@services/desktop_files';
 import {buildDisplayEvidence} from '@services/display_evidence_builder';
 import {UserNotifier} from '@services/user_notifier';
 import {queryWinscopeTraceData, WinscopeTraceQuery, WinscopeTraceSnapshot} from '@services/winscope_trace_query';
@@ -285,9 +287,16 @@ export class AppComponent implements WinscopeEventListener, OnDestroy {
     await Registry.getInstance().loadDefaultDescriptors();
     this.setComponentsToMediator();
     await this.mediator.onWinscopeEvent(new AppInitialized());
+    this.removeDesktopFileListener = getDesktopFiles()?.onOpen((batch) => {
+      this.ngZone.run(() => void this.openDesktopFiles(batch));
+    });
   }
 
+  private removeDesktopFileListener?: () => void;
+  private openingDesktopFiles = false;
+
   ngOnDestroy(): void {
+    this.removeDesktopFileListener?.();
     this.closeResetConfirmation();
     this.systemThemeQuery?.removeEventListener('change', this.onSystemThemeChange);
     if (this.displayScaleResize !== undefined) cancelAnimationFrame(this.displayScaleResize);
@@ -553,6 +562,45 @@ export class AppComponent implements WinscopeEventListener, OnDestroy {
 
   async onFilesUploaded(files: File[]) {
     await this.mediator.onWinscopeEvent(new AppFilesUploaded(files));
+    const successful = this.successfullyLoadedFiles(files);
+    if (successful.length && isPersistenceEnabled()) getDesktopFiles()?.remember(successful);
+  }
+
+  private successfullyLoadedFiles(files: File[]): File[] {
+    const loaded = new Set(this.loadedFileData.getLoadedFileReaders()
+      .flatMap((reader) => reader.getFiles().map((trace) => trace.parentArchive ?? trace.file)));
+    return files.filter((file) => loaded.has(file));
+  }
+
+  async openDesktopFiles(batch: DesktopFileBatch): Promise<void> {
+    const bridge = getDesktopFiles();
+    if (!bridge) return;
+    const upload = this.uploadTracesComponent();
+    if (this.openingDesktopFiles || this.resettingTraces || this.confirmingTraceReset || this.downloadProgress !== undefined || upload?.isLoadingFiles || upload?.viewersLoading()) {
+      bridge.complete(batch.token, []);
+      return;
+    }
+    this.openingDesktopFiles = true;
+    let indexes: number[] = [];
+    try {
+      const files = await readDesktopFiles(bridge, batch);
+      if (this.dataLoaded) await this.resetTraceData();
+      this.changeDetectorRef.detectChanges();
+      this.setComponentsToMediator();
+      await this.mediator.onWinscopeEvent(new AppFilesUploaded(files));
+      const successful = this.successfullyLoadedFiles(files);
+      indexes = files.flatMap((file, index) => successful.includes(file) ? [index] : []);
+    } catch {
+      UserNotifier.add({
+        getNotificationType: () => NotificationType.ERROR,
+        descriptor: 'Open trace',
+        message: 'Could not open the selected file. It may have moved or changed. Try opening it again.',
+        localization: {source: 'Could not open the selected file. It may have moved or changed. Try opening it again.'},
+      }).notify();
+    } finally {
+      this.openingDesktopFiles = false;
+      bridge.complete(batch.token, indexes);
+    }
   }
 
   async onRefreshDumpsButtonClick() {

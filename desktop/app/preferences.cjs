@@ -203,7 +203,12 @@ class PreferenceStore {
   }
 }
 
-function isTrustedPreferenceSender(event, webContents, origin) {
+function isTrustedPreferenceSender(
+  event,
+  webContents,
+  origin,
+  allowPrivate = false,
+) {
   try {
     if (typeof origin !== "string") return false;
     const match = /^http:\/\/127\.0\.0\.1:([1-9]\d{0,4})$/.exec(origin);
@@ -231,7 +236,7 @@ function isTrustedPreferenceSender(event, webContents, origin) {
       url.origin === origin &&
       !url.username &&
       !url.password &&
-      !url.searchParams.has("no-persistence")
+      (allowPrivate === true || !url.searchParams.has("no-persistence"))
     );
   } catch {
     return false;

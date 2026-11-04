@@ -36,3 +36,4 @@ import './services/display_evidence_builder_test';
 import './services/winscope_trace_query_test';
 import './services/ai_trace_query_validation_test';
 import './services/ai_diagnostic_prompts_test';
+import './services/desktop_files_test';

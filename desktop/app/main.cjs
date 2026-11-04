@@ -22,6 +22,7 @@ const {
   secureWebPreferences,
 } = require("./security.cjs");
 const { startServices } = require("./services.cjs");
+const { installFileMenu } = require("./file_menu.cjs");
 const {
   windowChromeOptions,
   updateWindowTheme,
@@ -47,6 +48,7 @@ let startingServices;
 let quitting = false;
 let finished = false;
 let prefs;
+let fileMenu;
 let exitCode = 0;
 let closingForQuit = false;
 
@@ -110,7 +112,7 @@ function createWindow() {
     title: "AOSP-WinScope",
     show: false,
     backgroundColor: "#303030",
-    autoHideMenuBar: true,
+    autoHideMenuBar: false,
     ...windowChromeOptions(process.platform, nativeTheme.shouldUseDarkColors),
     webPreferences: {
       ...secureWebPreferences,
@@ -122,19 +124,7 @@ function createWindow() {
   const contents = currentWindow.webContents;
   const removeShortcuts = installWindowShortcuts(currentWindow, {
     quit: () => app.quit(),
-    openTrace: () => {
-      void contents.executeJavaScript(
-        `(() => {
-        const input = document.querySelector('#fileDropRef');
-        if (input) input.click();
-        else {
-          document.querySelector('.upload-new')?.click();
-          requestAnimationFrame(() => document.querySelector('#fileDropRef')?.click());
-        }
-      })()`,
-        true,
-      );
-    },
+    openTrace: () => void fileMenu?.open(),
   });
   contents.setWindowOpenHandler(({ url }) => {
     openDocumentation(url);
@@ -217,6 +207,7 @@ if (!app.requestSingleInstanceLock()) {
         exitCode = 1;
       })
       .finally(() => {
+        fileMenu?.dispose();
         finished = true;
         app.exit(exitCode);
       });
@@ -276,8 +267,16 @@ if (!app.requestSingleInstanceLock()) {
       ipcMain.on("winscope:window-theme", (event, dark) => {
         updateWindowTheme(event, window, services.origin, dark);
       });
-      Menu.setApplicationMenu(null);
       createWindow();
+      fileMenu = installFileMenu({
+        app,
+        Menu,
+        dialog,
+        ipcMain,
+        getWindow: () => window,
+        origin: services.origin,
+        historyPath: path.join(app.getPath("userData"), "recent-files.json"),
+      });
       if (process.env.WINSCOPE_DESKTOP_SMOKE) {
         await require("./smoke-probe.cjs").run({
           app,

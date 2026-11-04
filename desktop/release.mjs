@@ -14,7 +14,7 @@ const DIGEST = /^[0-9a-f]{64}$/;
 const INDEX = "desktop-release.json";
 const SUMS = "desktop-SHA256SUMS.txt";
 const requiredChecks = [
-  "single-custom-title-bar-and-no-native-menu",
+  "single-custom-title-bar-and-native-file-menu",
   "sandboxed-renderer",
   "bundled-capture",
   "bundled-AI",
@@ -88,10 +88,10 @@ function packageName(target, version, format, builder = false) {
   const os = builder
     ? { darwin: "mac", win32: "win", linux: "linux" }[target.platform]
     : target.platform;
-  const arch = builder ? (BUILDER_ARCH[format]?.[target.arch] ?? target.arch) : target.arch;
-  return basename(
-    `aosp-winscope-desktop-${version}-${os}-${arch}.${format}`,
-  );
+  const arch = builder
+    ? (BUILDER_ARCH[format]?.[target.arch] ?? target.arch)
+    : target.arch;
+  return basename(`aosp-winscope-desktop-${version}-${os}-${arch}.${format}`);
 }
 
 const reportName = (target) => `desktop-target-${target.key}.json`;
@@ -728,7 +728,14 @@ function argumentsFor(args) {
     ],
     collect: ["artifacts", "version", "commit", "output"],
     verify: ["directory", "version", "commit"],
-    "check-remote": ["desktop", "portable", "evidence", "metadata", "version", "commit"],
+    "check-remote": [
+      "desktop",
+      "portable",
+      "evidence",
+      "metadata",
+      "version",
+      "commit",
+    ],
   }[command];
   const options = {};
   for (let i = 0; i < rest.length; i += 2) {
@@ -756,7 +763,9 @@ function argumentsFor(args) {
   }
   requireValue(
     command !== "check-remote" ||
-      !(Object.hasOwn(options, "portable") && Object.hasOwn(options, "evidence")),
+      !(
+        Object.hasOwn(options, "portable") && Object.hasOwn(options, "evidence")
+      ),
     "--portable and --evidence are mutually exclusive",
   );
   return { command, options };

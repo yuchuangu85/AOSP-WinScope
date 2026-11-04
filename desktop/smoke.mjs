@@ -90,7 +90,19 @@ try {
       await readFile(path.join(output, "result.json"), "utf8"),
     );
     assert.equal(result.ok, true);
+    if (attempt === 0) {
+      assert.equal(result.nativeOpenVerified, true);
+    }
     if (attempt === 1) {
+      assert.ok(
+        result.initialRecentFiles > 0,
+        "Recent files restore before opening the File menu",
+      );
+      assert.equal(
+        result.recentReopenVerified,
+        true,
+        "A persisted recent file reopens through the real parser",
+      );
       assert.equal(
         result.initialLanguage,
         result.systemLanguage,

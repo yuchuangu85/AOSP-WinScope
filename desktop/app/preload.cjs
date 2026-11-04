@@ -135,6 +135,66 @@
   }
 
   try {
+    if (
+      typeof process !== "undefined" &&
+      process.versions?.electron &&
+      activeUrl(true)
+    ) {
+      const { contextBridge, ipcRenderer, webUtils } = require("electron");
+      contextBridge.exposeInMainWorld("winscopeFiles", {
+        onOpen(callback) {
+          if (typeof callback !== "function")
+            throw new TypeError("Invalid file listener");
+          const listener = (_event, batch) => {
+            if (activeUrl(true)) callback(batch);
+          };
+          ipcRenderer.on("winscope:files:open", listener);
+          const ready = () => {
+            if (!activeUrl(true)) return;
+            ipcRenderer.send("winscope:files:ready", {
+              language:
+                document.documentElement.lang === "zh-CN" ? "zh-CN" : "en",
+              persistence: !!activeUrl(),
+            });
+          };
+          const observer = new MutationObserver(ready);
+          observer.observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ["lang"],
+          });
+          ready();
+          return () => {
+            observer.disconnect();
+            ipcRenderer.removeListener("winscope:files:open", listener);
+          };
+        },
+        readChunk(token, index, offset) {
+          if (!activeUrl(true)) throw new Error("File access unavailable");
+          return ipcRenderer.invoke("winscope:files:read", {
+            token,
+            index,
+            offset,
+          });
+        },
+        complete(token, indexes) {
+          if (activeUrl(true))
+            ipcRenderer.send("winscope:files:complete", { token, indexes });
+        },
+        remember(files) {
+          if (!activeUrl() || !Array.isArray(files) || files.length > 64)
+            return;
+          const paths = files
+            .map((file) => webUtils.getPathForFile(file))
+            .filter(Boolean);
+          if (paths.length) ipcRenderer.send("winscope:files:remember", paths);
+        },
+      });
+    }
+  } catch {
+    // The desktop file bridge must not interfere with preferences or web startup.
+  }
+
+  try {
     const url = activeUrl();
     if (!url) return;
     const storage = window.localStorage;

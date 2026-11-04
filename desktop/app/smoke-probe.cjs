@@ -3,7 +3,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const path = require("node:path");
-const { Menu } = require("electron");
+const { Menu, dialog } = require("electron");
 
 // Hosted runners do not ship the development font stack, so glyph baselines and
 // line heights differ from a developer workstation. The smoke lane asserts the
@@ -125,11 +125,17 @@ async function run({ app, getWindow, services }) {
   }
   // Keep the existing fixed-size chrome checks independent of the saved scale.
   if (initialDisplayScale !== 100) await selectDisplayScale(100);
-  assert.equal(
-    Menu.getApplicationMenu(),
-    null,
-    "The former application menu must be removed",
+  await until(
+    () => Menu.getApplicationMenu()?.getMenuItemById("open-file")?.enabled,
+    "native File menu",
   );
+  assert.equal(
+    Menu.getApplicationMenu().getMenuItemById("open-file").accelerator,
+    "CmdOrCtrl+O",
+  );
+  const initialRecentFiles =
+    Menu.getApplicationMenu().getMenuItemById("open-recent").submenu.items
+      .length;
   await until(
     () =>
       evaluate(
@@ -330,6 +336,8 @@ async function run({ app, getWindow, services }) {
   let traceLoaded = false;
   let traceResetVerified = false;
   let resetConfirmationVerified = false;
+  let nativeOpenVerified = false;
+  let recentReopenVerified = false;
   const paneHeaderEvidence = [];
   const fixture = process.env.WINSCOPE_DESKTOP_SMOKE_TRACE;
   if (fixture) {
@@ -337,15 +345,43 @@ async function run({ app, getWindow, services }) {
     try {
       await contents.debugger.sendCommand("DOM.enable");
       async function loadFixture() {
-        const { root } = await contents.debugger.sendCommand("DOM.getDocument");
-        const { nodeId } = await contents.debugger.sendCommand(
-          "DOM.querySelector",
-          { nodeId: root.nodeId, selector: "#fileDropRef" },
-        );
-        await contents.debugger.sendCommand("DOM.setFileInputFiles", {
-          nodeId,
-          files: [fixture],
-        });
+        if (!nativeOpenVerified) {
+          const originalDialog = dialog.showOpenDialog;
+          try {
+            dialog.showOpenDialog = async () => ({
+              canceled: false,
+              filePaths: [fixture],
+            });
+            Menu.getApplicationMenu().getMenuItemById("open-file").click();
+            await until(
+              () =>
+                evaluate(
+                  "document.querySelector('.load-btn')?.disabled === false",
+                ),
+              "native file intake",
+            );
+          } finally {
+            dialog.showOpenDialog = originalDialog;
+          }
+          await until(
+            () =>
+              Menu.getApplicationMenu().getMenuItemById("recent-file-0")
+                ?.label === fixture,
+            "successfully opened file becomes recent",
+          );
+          nativeOpenVerified = true;
+        } else {
+          const { root } =
+            await contents.debugger.sendCommand("DOM.getDocument");
+          const { nodeId } = await contents.debugger.sendCommand(
+            "DOM.querySelector",
+            { nodeId: root.nodeId, selector: "#fileDropRef" },
+          );
+          await contents.debugger.sendCommand("DOM.setFileInputFiles", {
+            nodeId,
+            files: [fixture],
+          });
+        }
         await until(
           () =>
             evaluate("document.querySelector('.load-btn')?.disabled === false"),
@@ -585,6 +621,29 @@ async function run({ app, getWindow, services }) {
     } finally {
       contents.debugger.detach();
     }
+  } else if (initialRecentFiles > 0) {
+    Menu.getApplicationMenu().getMenuItemById("recent-file-0").click();
+    await until(
+      () => evaluate("document.querySelector('.load-btn')?.disabled === false"),
+      "reopen persisted recent file",
+    );
+    await evaluate("document.querySelector('.load-btn').click()");
+    await until(
+      () =>
+        evaluate(
+          "document.querySelector('.viewers .trace-view-content')?.children.length > 0",
+        ),
+      "recent trace viewer",
+    );
+    recentReopenVerified = true;
+    await evaluate("document.querySelector('.reset-traces-button').click()");
+    await until(
+      () =>
+        evaluate(
+          "document.querySelector('.landing-grid') !== null && document.querySelector('.viewers') === null",
+        ),
+      "collection after recent trace",
+    );
   }
   await selectDisplayScale(80);
   await selectInterfaceLanguage("system");
@@ -608,11 +667,20 @@ async function run({ app, getWindow, services }) {
     paneHeaderEvidence,
     traceResetVerified,
     resetConfirmationVerified,
+    initialRecentFiles,
+    nativeOpenVerified,
+    recentReopenVerified,
     aiOrigin: services.aiOrigin,
     launcherPid: services.launcherPid,
     aiPid: services.aiPid,
     checks: [
-      "single-custom-title-bar-and-no-native-menu",
+      "single-custom-title-bar-and-native-file-menu",
+      ...(nativeOpenVerified
+        ? ["native-file-open-through-parser-and-recent-record"]
+        : []),
+      ...(recentReopenVerified
+        ? ["persisted-recent-file-reopen-through-parser"]
+        : []),
       "drag-regions-and-caption-safe-area",
       "compact-titlebar-light-dark",
       "sandboxed-renderer",
@@ -639,7 +707,7 @@ async function run({ app, getWindow, services }) {
     path.join(output, "titlebar-layout.json"),
     JSON.stringify(
       {
-        menuRemoved: true,
+        nativeFileMenu: true,
         platform: process.platform,
         measurements: chromeEvidence,
       },

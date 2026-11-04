@@ -15,6 +15,7 @@ export const SHELL_TRANSLATIONS: Record<string, string> = {
   'Confirmations': '操作确认',
   'Confirm before resetting trace data': '重置数据前提示',
   'Upload or collect new trace': '上传或采集新的跟踪',
+  'Could not open the selected file. It may have moved or changed. Try opening it again.': '无法打开所选文件，文件可能已移动或发生变化，请重新打开。',
   'Shortcuts': '快捷键',
   'Documentation': '文档',
   'Settings': '设置',
