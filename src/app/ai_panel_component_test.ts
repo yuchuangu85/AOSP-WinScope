@@ -4,7 +4,7 @@ import {MatTooltip} from '@angular/material/tooltip';
 import {By} from '@angular/platform-browser';
 import {NoopAnimationsModule} from '@angular/platform-browser/animations';
 import {setLanguage} from '@common/i18n';
-import {diagnosticPrompt} from '@services/ai_diagnostic_prompts';
+import {diagnosticExamplePrompt, diagnosticPrompt} from '@services/ai_diagnostic_prompts';
 import {AiCatalog, AiEvent, AiGatewayClient, AiProvider, AiSessionDetail, AiSessionSummary,} from '@services/ai_gateway_client';
 import {WinscopeTraceSnapshot} from '@services/winscope_trace_query';
 
@@ -965,6 +965,73 @@ describe('AiPanelComponent', () => {
         expect(start).not.toHaveBeenCalled();
       });
     }
+  });
+
+  describe('diagnostic question examples', () => {
+    const cases = [
+      {category: 'black-screen', example: 'app-launch', title: '应用启动黑屏'},
+      {category: 'flicker', example: 'split-screen', title: '分屏时闪烁'},
+      {category: 'current-frame', example: 'wm-alignment', title: '对齐当前 WM 与 SF'},
+      {category: 'evidence-audit', example: 'sparse-video', title: '只有录屏抽样数据'},
+    ] as const;
+
+    for (const item of cases) {
+      it(`shows ${item.category} instances and inserts the clicked case without sending`, async () => {
+        await initialize();
+        setLanguage('zh-CN');
+        fixture.detectChanges();
+        fixture.nativeElement.querySelector(`[data-diagnostic-prompt="${item.category}"]`).click();
+        await settleWindow();
+        const examples = fixture.nativeElement.querySelectorAll('.diagnostic-example');
+        expect(examples.length).toBe(2);
+        const button = fixture.nativeElement.querySelector(`[data-diagnostic-example="${item.example}"]`);
+        expect(button.textContent).toContain(item.title);
+        button.click();
+        await settleWindow();
+        expect(component.prompt).toBe(diagnosticExamplePrompt(item.example, 'zh-CN'));
+        expect(fixture.nativeElement.querySelector('.composer-input').value).toBe(component.prompt);
+        expect(document.activeElement).toBe(fixture.nativeElement.querySelector('.composer-input'));
+        expect(start).not.toHaveBeenCalled();
+      });
+    }
+
+    it('changes example labels with the language but never rewrites the existing draft', async () => {
+      await initialize();
+      fixture.nativeElement.querySelector('[data-diagnostic-example="app-launch"]').click();
+      await settleWindow();
+      const draft = component.prompt;
+      setLanguage('zh-CN');
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('[data-diagnostic-example="app-launch"]').textContent).toContain('应用启动黑屏');
+      expect(component.prompt).toBe(draft);
+      fixture.nativeElement.querySelector('[data-diagnostic-example="app-launch"]').click();
+      await settleWindow();
+      expect(component.prompt).toBe(diagnosticExamplePrompt('app-launch', 'zh-CN'));
+      expect(start).not.toHaveBeenCalled();
+    });
+
+    it('opens and dismisses examples from an existing conversation without modifying its draft or history', async () => {
+      await initialize();
+      await component.selectSession('a');
+      component.prompt = 'Preserve this draft';
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('.diagnostic-examples')).toBeNull();
+      fixture.nativeElement.querySelector('.composer-add').click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      const overlay = TestBed.inject(OverlayContainer).getContainerElement();
+      const button = Array.from(overlay.querySelectorAll<HTMLButtonElement>('button'))
+        .find((item) => item.textContent?.includes('Diagnostic examples'))!;
+      button.click();
+      await settleWindow();
+      expect(fixture.nativeElement.querySelector('.diagnostic-examples')).not.toBeNull();
+      expect(component.prompt).toBe('Preserve this draft');
+      expect(component.turns[0].response).toBe('Saved answer');
+      fixture.nativeElement.querySelector('[aria-label="Hide examples"]').click();
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('.diagnostic-examples')).toBeNull();
+      expect(component.prompt).toBe('Preserve this draft');
+    });
   });
 
   it('loads searchable history and restores the active transcript and controls', async () => {

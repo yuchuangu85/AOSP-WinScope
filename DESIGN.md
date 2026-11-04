@@ -76,6 +76,12 @@ inserts the full template in the resolved UI language; it never sends or rewrite
 an existing draft when language changes. An explicit capture preset configures
 diagnostic data sources without starting collection. See
 `docs/AI_DIAGNOSTIC_EVIDENCE.md` for evidence/clock/query limits and provenance.
+Each diagnostic category also exposes two concrete, localized question examples.
+Examples insert the existing diagnostic constraints plus the case-specific
+request without auto-send. Unfilled times, packages and display IDs remain
+explicit placeholders, never fictitious observations. Example navigation and
+dismissal do not change drafts or history; an existing conversation can reopen
+examples through the composer menu. Submitting hides the examples until reopened.
 
 ## Accessibility
 

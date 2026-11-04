@@ -4,6 +4,14 @@ Scope: app-owned bilingual black-screen, flicker, current-frame and evidence-aud
 templates; read-only WinScope evidence transport. These are engineering templates
 derived from documentation, not Google-provided AI prompts or accuracy guarantees.
 
+The conversation UI includes two question examples per category: app launch and
+screen wake for black screen; split-screen and rotation for flicker; layer
+explanation and WM/SF comparison for current state; missing WM and sparse video
+for evidence audit. Clicking an example inserts the diagnostic template and
+concrete question without sending. Bracketed values are deliberately unfilled,
+not sample measurements or executable query arguments. Existing conversations
+can reopen examples through the composer menu without changing their draft.
+
 ## Source Basis
 
 - AOSP Winscope overview: `https://source.android.com/docs/core/graphics/winscope/overview`

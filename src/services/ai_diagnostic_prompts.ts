@@ -39,6 +39,52 @@ export const AI_DIAGNOSTIC_PROMPTS = [
   icon: string;
 }>;
 
+export const AI_DIAGNOSTIC_EXAMPLES = [
+  {id: 'app-launch', category: 'black-screen', title: 'App launch turns black',
+    en: 'The app briefly turns black during launch. Package: [package name]; displayId: [display ID]. Use the current timeline selection as the reported anomaly position and compare its neighboring entries. Check buffers, covering opaque layers, starting windows and parent animation leashes; state what the data supports and what is still unknown.',
+    zh: '启动应用时短暂黑屏。包名：[包名]；displayId：[显示屏 ID]。以我手动选择的当前时间轴位置作为报告的异常位置，对比前后条目，检查 Buffer、上层不透明遮挡、启动窗口和父级动画 leash；说明证据支持什么、还有什么未知。'},
+  {id: 'screen-wake', category: 'black-screen', title: 'Black screen after waking',
+    en: 'The display turns black after waking or unlocking. Reported interval: [start time] to [end time]; time domain: [device boot time or UTC]; displayId: [display ID]. After confirming these values, query the bounded interval and compare SF/WM state, lock-screen or shade coverage, alpha and buffers. Do not infer physical panel state from a layer snapshot.',
+    zh: '亮屏或解锁后出现黑屏。报告区间：[开始时间] 至 [结束时间]；时钟：[设备启动时间或 UTC]；displayId：[显示屏 ID]。确认这些值后查询有界区间，对比 SF／WM 状态、锁屏或通知栏遮挡、alpha 和 Buffer，不要由图层快照推断物理面板状态。'},
+  {id: 'split-screen', category: 'flicker', title: 'Flicker during split screen',
+    en: 'A brief flash appears while entering or resizing split screen. Use the current timeline selection and neighboring entries. Compare requested and calculated transform/crop/bounds of the target and parent transition leash; correlate actual transaction/transition IDs. Separate a structural jump from proof of a visible flash.',
+    zh: '进入分屏或调整分屏大小时画面短暂闪烁。读取当前时间轴位置及前后条目，对比目标层与父级 transition-leash 的 requested／calculated transform、crop、bounds，依据真实事务和转场 ID 关联变化；区分结构跳变与已经证实的可见闪烁。'},
+  {id: 'rotation', category: 'flicker', title: 'Frame jump during rotation',
+    en: 'During screen rotation, the app briefly jumps, flashes white/black or shows an old frame. Anomaly time: [trace time]; clock: [device boot time or UTC]; target: [known layer ID or window token]. Confirm the values, compare bounded neighbors, and inspect rotation/crop/transform, reparent, buffer frame number and transition lifecycle. Do not assume a fixed 16.7 ms frame interval.',
+    zh: '屏幕旋转时应用短暂跳变、白闪／黑闪或显示旧画面。异常时间：[trace 时间]；时钟：[设备启动时间或 UTC]；目标：[已知 layer ID 或 window token]。确认后对比有界相邻条目，检查旋转、crop／transform、reparent、Buffer frame number 和转场生命周期，不假设固定 16.7ms 帧周期。'},
+  {id: 'visible-layers', category: 'current-frame', title: 'Explain current layers',
+    en: 'Read my current manual timeline selection and explain which SF layers and WM windows are represented. List the requested/matched timestamps, display IDs, target, ancestors, effective alpha and covering layers. Distinguish focus, visibility flags and actual visible pixels; do not diagnose a time interval from one point.',
+    zh: '读取我手动拖拽后当前时间轴位置，解释其中的 SF 图层和 WM 窗口。列出请求／匹配时间、display ID、目标层、祖先、有效 alpha 和遮挡层；区分焦点、可见标记与真实可见像素，不由单点诊断整个异常区间。'},
+  {id: 'wm-alignment', category: 'current-frame', title: 'Compare current WM and SF',
+    en: 'For the current timeline selection, compare the WindowManager window/task/activity state with the corresponding SurfaceFlinger layers. Report actual matched timestamps and deltaNs for each source, and cite the fields/IDs that support object association. Identify unknown mappings instead of associating objects solely by their names.',
+    zh: '针对当前时间轴位置，对比 WindowManager 的 window／task／activity 状态与相应 SurfaceFlinger 图层。报告各来源实际匹配时间和 deltaNs，引用支撑对象关联的字段／ID；映射不明就标记未知，不只按名称推断归属。'},
+  {id: 'missing-wm', category: 'evidence-audit', title: 'Missing WindowManager evidence',
+    en: 'The result reports missing or incomplete WindowManager evidence. Check whether WM is not loaded, has no matching entry, lacks timestamps, failed to parse, or was truncated. Identify which current conclusions are blocked and which SF observations remain valid; give the minimum additional capture needed without assuming every trace is required.',
+    zh: '结果提示缺少或不完整的 WindowManager 证据。请核对是未加载 WM、无匹配条目、无时间戳、解析失败还是被截断，说明哪些结论因此受阻、哪些 SF 观察仍有效，并给出最小补采内容，不把所有 trace 一律视为必需。'},
+  {id: 'sparse-video', category: 'evidence-audit', title: 'Only sampled video is available',
+    en: 'I reported a possible one-frame flash, but the available recording analysis may contain sparse samples only. Audit original frame indices, sample count, time alignment, trace coverage and truncation. Explain whether the anomaly was actually sampled, why a large frame difference alone is insufficient, and the smallest continuous visual/state evidence needed next.',
+    zh: '我报告可能存在一帧闪烁，但录屏分析可能只有稀疏抽样。请检查原始帧索引、采样数、时间对齐、trace 覆盖和截断情况；说明异常是否真正被采样，为什么一次大帧差不足以下结论，以及下一步最少需要哪些连续视觉／状态证据。'},
+] as const;
+
+export type AiDiagnosticExampleId = typeof AI_DIAGNOSTIC_EXAMPLES[number]['id'];
+
+export function diagnosticExamples(category: AiDiagnosticPromptId) {
+  return AI_DIAGNOSTIC_EXAMPLES.filter((example) => example.category === category);
+}
+
+export function diagnosticExampleText(id: AiDiagnosticExampleId, language: 'en' | 'zh-CN'): string {
+  const example = AI_DIAGNOSTIC_EXAMPLES.find((item) => item.id === id)!;
+  return language === 'zh-CN' ? example.zh : example.en;
+}
+
+export function diagnosticExamplePrompt(id: AiDiagnosticExampleId, language: 'en' | 'zh-CN'): string {
+  const example = AI_DIAGNOSTIC_EXAMPLES.find((item) => item.id === id)!;
+  const boundary = language === 'zh-CN'
+    ? '实例中的方括号项尚未填写；如果与查询有关，先询问实际值，不能把占位项当作证据或执行参数。'
+    : 'Bracketed example fields are not filled in. Ask for actual values when needed; never treat placeholders as evidence or executable query arguments.';
+  return `${diagnosticPrompt(example.category, language)}\n\n${boundary}\n\n${diagnosticExampleText(id, language)}`;
+}
+
 /** Research provenance, not instructions to fetch documentation at runtime. */
 export const AI_DIAGNOSTIC_SOURCES = [
   {

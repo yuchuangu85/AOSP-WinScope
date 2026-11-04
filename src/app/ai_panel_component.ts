@@ -9,7 +9,7 @@ import {MatProgressBarModule} from '@angular/material/progress-bar';
 import {MatTooltipModule} from '@angular/material/tooltip';
 import {language, translate, TranslatePipe} from '@common/i18n';
 import {AiChatTurn, formatAnalysisDuration, formatConversationResponse, projectConversation,} from '@services/ai_conversation';
-import {AI_DIAGNOSTIC_PROMPTS, AiDiagnosticPromptId, diagnosticPrompt} from '@services/ai_diagnostic_prompts';
+import {AI_DIAGNOSTIC_PROMPTS, AiDiagnosticExampleId, AiDiagnosticPromptId, diagnosticExamplePrompt, diagnosticExamples, diagnosticExampleText, diagnosticPrompt} from '@services/ai_diagnostic_prompts';
 import {AiAttachment, AiCatalog, AiEvent, AiGatewayClient, AiProvider, AiSessionSummary, AiTraceQueryRequest,} from '@services/ai_gateway_client';
 import {isAiTraceQuery} from '@services/ai_trace_query_validation';
 import {WinscopeTraceQuery, WinscopeTraceSnapshot} from '@services/winscope_trace_query';
@@ -44,6 +44,8 @@ interface Draft {
 export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDestroy {
   readonly language = language;
   readonly diagnosticPrompts = AI_DIAGNOSTIC_PROMPTS;
+  selectedDiagnostic: AiDiagnosticPromptId = 'black-screen';
+  showDiagnosticExamples = true;
   @Input() endpoint: string | undefined;
   @Input() evidence: unknown;
   @Input() traceQuery?: (query: WinscopeTraceQuery) => Promise<WinscopeTraceSnapshot>;
@@ -597,9 +599,30 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
   }
 
   useDiagnosticPrompt(id: AiDiagnosticPromptId): void {
+    this.selectedDiagnostic = id;
+    this.showDiagnosticExamples = true;
     this.prompt = diagnosticPrompt(id, language());
     this.resizeComposer();
     this.focusComposer();
+  }
+
+  get selectedDiagnosticExamples() {
+    return diagnosticExamples(this.selectedDiagnostic);
+  }
+
+  exampleText(id: AiDiagnosticExampleId): string {
+    return diagnosticExampleText(id, language());
+  }
+
+  useDiagnosticExample(id: AiDiagnosticExampleId): void {
+    this.prompt = diagnosticExamplePrompt(id, language());
+    this.resizeComposer();
+    this.focusComposer();
+  }
+
+  openDiagnosticExamples(): void {
+    this.showDiagnosticExamples = true;
+    this.scrollToLatest();
   }
 
   toggleTraceContext(): void {
@@ -620,6 +643,7 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
   }
 
   newSession(): void {
+    this.showDiagnosticExamples = true;
     this.traceQueryRun = undefined;
     this.saveDraft();
     this.revision++;
@@ -643,6 +667,7 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
 
   async selectSession(id: string): Promise<void> {
     if (!this.client) return;
+    this.showDiagnosticExamples = false;
     if (this.traceQueryRun?.sessionId !== id) this.traceQueryRun = undefined;
     this.saveDraft();
     const revision = ++this.revision;
@@ -754,6 +779,7 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
     this.notice = '';
     this.running = true;
     this.submitting = true;
+    this.showDiagnosticExamples = false;
     this.reportPreview = '';
     this.followTail = true;
     // Clear only the submitted draft. Text typed while the request runs is kept.

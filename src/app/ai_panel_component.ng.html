@@ -245,13 +245,11 @@
                     'Add trace context or text notes to ground your analysis.' | tr
                   }}</p
                 >
-                <div class="suggestions">
-                  @for (template of diagnosticPrompts; track template.id) {
-                    <button mat-stroked-button [attr.data-diagnostic-prompt]="template.id"
-                      (click)="useDiagnosticPrompt(template.id)">{{ template.label | tr }}</button>
-                  }
-                </div>
+                <ng-container *ngTemplateOutlet="diagnosticExamplesPanel"></ng-container>
               </div>
+            }
+            @if (turns.length && showDiagnosticExamples) {
+              <ng-container *ngTemplateOutlet="diagnosticExamplesPanel"></ng-container>
             }
           </div>
         </div>
@@ -401,6 +399,8 @@
                 >
                 <button mat-menu-item (click)="useDiagnosticPrompt('evidence-audit')"
                   ><mat-icon>fact_check</mat-icon><span>{{ 'Audit evidence completeness' | tr }}</span></button>
+                <button mat-menu-item (click)="openDiagnosticExamples()"
+                  ><mat-icon>format_quote</mat-icon><span>{{ 'Diagnostic examples' | tr }}</span></button>
                 <button mat-menu-item (click)="openSettings()"
                   ><mat-icon>settings</mat-icon><span>{{ 'AI settings' | tr }}</span></button
                 >
@@ -528,3 +528,30 @@
     ><mat-icon>south_east</mat-icon></button
   >
 </section>
+<ng-template #diagnosticExamplesPanel>
+  <div class="suggestions" role="group" [attr.aria-label]="'Diagnostic scenarios' | tr">
+    @for (template of diagnosticPrompts; track template.id) {
+      <button mat-stroked-button [attr.data-diagnostic-prompt]="template.id"
+        [attr.aria-pressed]="selectedDiagnostic === template.id"
+        (click)="useDiagnosticPrompt(template.id)">{{ template.label | tr }}</button>
+    }
+  </div>
+  @if (showDiagnosticExamples) {
+    <section class="diagnostic-examples" [attr.aria-label]="'Diagnostic examples' | tr">
+      <div class="diagnostic-examples-heading">
+        <h4>{{ 'Diagnostic examples' | tr }}</h4>
+        <button mat-icon-button type="button" [attr.aria-label]="'Hide examples' | tr"
+          [matTooltip]="'Hide examples' | tr" (click)="showDiagnosticExamples = false"><mat-icon>close</mat-icon></button>
+      </div>
+      @for (example of selectedDiagnosticExamples; track example.id) {
+        <button type="button" class="diagnostic-example" [attr.data-diagnostic-example]="example.id"
+          [attr.aria-label]="'Use example: {name}' | tr: {name: example.title | tr}"
+          (click)="useDiagnosticExample(example.id)">
+          <mat-icon aria-hidden="true">format_quote</mat-icon>
+          <span class="diagnostic-example-content"><strong>{{ example.title | tr }}</strong><span>{{ exampleText(example.id) }}</span></span>
+          <mat-icon class="diagnostic-example-insert" aria-hidden="true">north_west</mat-icon>
+        </button>
+      }
+    </section>
+  }
+</ng-template>

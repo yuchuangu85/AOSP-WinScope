@@ -104,6 +104,7 @@ async function openConversationSettings() {
 }
 async function diagnosticPromptRegression() {
   const original = await evaluate("document.querySelector('.composer-input').value");
+  const viewport = await evaluate('({width:innerWidth,height:innerHeight})');
   const sessions = await evaluate("fetch('./ai/api/sessions').then(response=>response.json()).then(body=>body.sessions.length)");
   for (const id of ['black-screen','flicker','current-frame','evidence-audit']) {
     await click(`[data-diagnostic-prompt="${id}"]`);
@@ -112,10 +113,42 @@ async function diagnosticPromptRegression() {
     assert.ok(draft.includes('truncated') && draft.includes('sourceIndex'));
     assert.equal(await evaluate("document.querySelectorAll('.chat-turn').length"),0);
     assert.equal(await evaluate("document.activeElement===document.querySelector('.composer-input')"),true);
+    const examples = await evaluate("[...document.querySelectorAll('[data-diagnostic-example]')].map(button=>button.getAttribute('data-diagnostic-example'))");
+    assert.equal(examples.length,2, `${id}: concrete examples available`);
+    for (const example of examples) {
+      await click(`[data-diagnostic-example="${example}"]`);
+      const text = await evaluate("document.querySelector('.composer-input').value");
+      assert.ok(text.includes('never treat placeholders as evidence') && text.includes('winscope_query_trace'));
+      assert.equal(await evaluate("document.querySelectorAll('.chat-turn').length"),0);
+    }
   }
   assert.equal(await evaluate("fetch('./ai/api/sessions').then(response=>response.json()).then(body=>body.sessions.length)"),sessions);
-  await screenshot('ai-diagnostic-prompts.png');
   await typeMessage(original);
+  await settleAiWindow();
+  await screenshot('ai-diagnostic-prompts.png');
+  for (const [width, height] of [[1280,800],[390,844]]) {
+    await cdp('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false});
+    await settleAiWindow();
+    await evaluate(`(() => {
+      const transcript=document.querySelector('.ai-transcript'), section=document.querySelector('.diagnostic-examples');
+      transcript.scrollTop+=section.getBoundingClientRect().top-transcript.getBoundingClientRect().top-16;
+    })()`);
+    const examples = await evaluate(`(() => {
+      const panel=document.querySelector('.ai-panel'), region=document.querySelector('.diagnostic-examples');
+      const buttons=[...region.querySelectorAll('.diagnostic-example')];
+      return {overflow:panel.scrollWidth>panel.clientWidth,examples:buttons.length,fit:buttons.every(button=>{
+        const r=button.getBoundingClientRect();return r.width>0&&r.left>=-1&&r.right<=innerWidth+1;
+      })};
+    })()`);
+    assert.equal(examples.overflow,false);
+    assert.equal(examples.examples,2);
+    assert.equal(examples.fit,true);
+    await screenshot(`ai-diagnostic-examples-${width}.png`);
+  }
+  await cdp('Emulation.setDeviceMetricsOverride',{...viewport,deviceScaleFactor:1,mobile:false});
+  await settleAiWindow();
+  await typeMessage(original);
+  await settleAiWindow();
 }
 async function composerSpaceKeyRegression() {
   const initial = await evaluate("document.querySelector('.composer-input').value");
@@ -2483,6 +2516,7 @@ if(process.argv[2]==='app-server'){
       "native-space-insertion-and-arrow-caret-isolated-from-timeline-shortcuts",
       "completed-turn-displays-server-measured-elapsed-time",
       "four-evidence-bound-diagnostic-prompts-insert-without-sending",
+      "eight-scenario-examples-insert-with-evidence-boundaries-and-no-auto-send",
       "multi-turn-history",
       "report-preview",
       "markdown-and-html-download",

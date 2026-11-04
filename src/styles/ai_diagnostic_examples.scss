@@ -1,0 +1,46 @@
+.ai-panel {
+  .diagnostic-examples {
+    width: 100%;
+    max-width: 680px;
+    min-width: 0;
+    margin: 16px auto;
+    text-align: left;
+  }
+  .diagnostic-examples-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    h4 { margin: 0; font-size: 13px; font-weight: 500; }
+    button { width: 28px; height: 28px; padding: 0; }
+  }
+  .diagnostic-example {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    min-width: 0;
+    padding: 12px 4px;
+    border: 0;
+    border-bottom: 1px solid var(--border-color, var(--ai-composer-stroke));
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    > mat-icon { flex-shrink: 0; width: 18px; height: 18px; font-size: 18px; margin-top: 2px; }
+    &:hover { background: var(--hover-element-color); }
+    &:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+  }
+  .diagnostic-example-content {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+    gap: 4px;
+    overflow-wrap: anywhere;
+    strong { font-size: 13px; line-height: 20px; font-weight: 500; }
+    > span { color: var(--gray-text-color); font-size: 12px; line-height: 20px; }
+  }
+  .diagnostic-example-insert { color: var(--gray-text-color); }
+}

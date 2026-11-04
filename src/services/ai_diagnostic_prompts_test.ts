@@ -15,9 +15,26 @@
  */
 
 // prettier-ignore
-import {AI_DIAGNOSTIC_PROMPTS, AI_DIAGNOSTIC_SOURCES, AiDiagnosticPromptId, diagnosticPrompt} from './ai_diagnostic_prompts';
+import {AI_DIAGNOSTIC_EXAMPLES, AI_DIAGNOSTIC_PROMPTS, AI_DIAGNOSTIC_SOURCES, AiDiagnosticPromptId, diagnosticExamplePrompt, diagnosticExamples, diagnosticExampleText, diagnosticPrompt} from './ai_diagnostic_prompts';
 
 describe('AI diagnostic prompts', () => {
+  it('provides two concrete examples for each category with stable unique IDs', () => {
+    expect(AI_DIAGNOSTIC_EXAMPLES.length).toBe(8);
+    expect(new Set(AI_DIAGNOSTIC_EXAMPLES.map((example) => example.id)).size).toBe(8);
+    for (const category of AI_DIAGNOSTIC_PROMPTS) {
+      const examples = diagnosticExamples(category.id);
+      expect(examples.length).withContext(category.id).toBe(2);
+      for (const example of examples) {
+        expect(example.title).toBeTruthy();
+        expect(diagnosticExampleText(example.id, 'zh-CN')).toMatch(/[\u4e00-\u9fff]/);
+        expect(diagnosticExampleText(example.id, 'en')).not.toMatch(/[\u4e00-\u9fff]/);
+        expect(diagnosticExamplePrompt(example.id, 'en')).toContain(diagnosticPrompt(category.id, 'en'));
+        expect(diagnosticExamplePrompt(example.id, 'zh-CN')).toContain(diagnosticPrompt(category.id, 'zh-CN'));
+        expect(diagnosticExamplePrompt(example.id, 'zh-CN')).toContain('不能把占位项当作证据');
+        expect(diagnosticExamplePrompt(example.id, 'en')).toContain('never treat placeholders as evidence');
+      }
+    }
+  });
   const ids: AiDiagnosticPromptId[] = [
     'black-screen',
     'flicker',
