@@ -57,6 +57,28 @@ describe('ResizerComponent', () => {
     expect(dom.find('.resizer.drag-vertical')).toBeDefined();
   });
 
+  it('uses only a one-pixel line in horizontal line-only mode', () => {
+    component.lineOnly = true;
+    dom.detectChanges();
+    const divider = dom.get('resizer').getHTMLElement();
+    expect(divider.classList.contains('line-only')).toBeTrue();
+    expect(divider.getBoundingClientRect().width).toBe(1);
+    expect(getComputedStyle(divider).cursor).toBe('col-resize');
+    expect(dom.find('mat-icon')).toBeUndefined();
+    const hitArea = getComputedStyle(divider, '::before');
+    expect(hitArea.left).toBe('-4px');
+    expect(hitArea.right).toBe('-4px');
+  });
+
+  it('uses only a one-pixel line in vertical line-only mode', () => {
+    component.lineOnly = true;
+    changeDragAxis(vertical);
+    const divider = dom.get('resizer').getHTMLElement();
+    expect(divider.getBoundingClientRect().height).toBe(1);
+    expect(getComputedStyle(divider).cursor).toBe('row-resize');
+    expect(dom.find('mat-icon')).toBeUndefined();
+  });
+
   it('changes width of before view when dragging along horizontal drag axis', () => {
     checkResizeFromDrag(horizontal, true);
   });
@@ -196,6 +218,7 @@ describe('ResizerComponent', () => {
         <resizer
           [dragAxis]="dragAxis()"
           [dependentView]="getDependentView()"
+          [lineOnly]="lineOnly"
           [minSize]="minSize"
           [store]="store"
           [storeKey]="storeKey">
@@ -212,6 +235,7 @@ describe('ResizerComponent', () => {
     beforeView = viewChild.required<ElementRef<HTMLElement>>('before');
     afterView = viewChild.required<ElementRef<HTMLElement>>('after');
 
+    lineOnly = false;
     minSize = 0;
     store: Store | undefined;
     storeKey: string | undefined;

@@ -132,7 +132,7 @@ export class RectsComponent implements OnInit, OnDestroy {
   private static readonly ZOOM_SCROLL_RATIO = 0.3;
 
   constructor(
-    @Inject(ElementRef) private elementRef: ElementRef<HTMLElement>,
+    @Inject(ElementRef) readonly elementRef: ElementRef<HTMLElement>,
     @Inject(MatIconRegistry) private matIconRegistry: MatIconRegistry,
     @Inject(DomSanitizer) private domSanitizer: DomSanitizer,
     @Inject(ChangeDetectorRef) private changeDetectorRef: ChangeDetectorRef,

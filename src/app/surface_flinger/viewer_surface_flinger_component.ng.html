@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-<div class="card-grid">
+<div class="card-grid resizable-grid">
   <collapsed-sections
     [class.empty]="sections.areAllSectionsExpanded()"
     [sections]="sections"
@@ -26,6 +26,7 @@ limitations under the License.
   @let currStore = store();
 
   <rects-view
+    #rectsView
     class="rects-view"
     [class.collapsed]="sections.isSectionCollapsed(CollapsibleSectionType.RECTS)"
     [class.disabled-component]="data?.isPlaybackInitializing"
@@ -50,7 +51,23 @@ limitations under the License.
     (optionsChange)="onRectsUserOptionsChange.emit($event)"
   ></rects-view>
 
+  @if (
+    !sections.isSectionCollapsed(CollapsibleSectionType.RECTS) &&
+    (!sections.isSectionCollapsed(CollapsibleSectionType.HIERARCHY) || !arePropertiesCollapsed())
+  ) {
+    <resizer
+      class="main-resizer"
+      [lineOnly]="true"
+      dragAxis="horizontal"
+      [dependentView]="rectsView.elementRef.nativeElement"
+      [minSize]="180"
+      [store]="currStore"
+      [storeKey]="'sfLayersWidth'"
+    ></resizer>
+  }
+
   <hierarchy-view
+    #hierarchyView
     class="hierarchy-view"
     [class.collapsed]="sections.isSectionCollapsed(CollapsibleSectionType.HIERARCHY)"
     [class.disabled-component]="data?.isPlaybackInitializing"
@@ -71,6 +88,18 @@ limitations under the License.
   ></hierarchy-view>
 
   @if (!arePropertiesCollapsed()) {
+    @if (!sections.isSectionCollapsed(CollapsibleSectionType.HIERARCHY)) {
+      <resizer
+        class="main-resizer"
+        [lineOnly]="true"
+        dragAxis="horizontal"
+        [dependentView]="hierarchyView.elementRef.nativeElement"
+        [minSize]="220"
+        [store]="currStore"
+        [storeKey]="'sfHierarchyWidth'"
+      ></resizer>
+    }
+
     <div
       class="properties"
       [class.disabled-component]="data?.isPlaybackPlaying || data?.isPlaybackInitializing"

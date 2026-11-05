@@ -26,6 +26,10 @@ import {Store} from '@common/store/store';
   imports: [CommonModule, MatIconModule],
   templateUrl: './resizer_component.ng.html',
   styleUrls: ['./resizer_component.scss'],
+  host: {
+    '[class.line-only]': 'lineOnly()',
+    '[class.drag-vertical]': 'isDraggingVertical()',
+  },
 })
 export class ResizerComponent {
   private draggingReverse = false;
@@ -39,6 +43,7 @@ export class ResizerComponent {
   minSize = input<number>(36);
   store = input<Store>();
   storeKey = input<string>();
+  lineOnly = input(false);
 
   readonly isDraggingVertical = computed(() => {
     return this.dragAxis() === 'vertical';

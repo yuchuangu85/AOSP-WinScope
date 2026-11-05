@@ -125,7 +125,7 @@ export class HierarchyComponent {
   private readonly tree = viewChild(TreeComponent<UiHierarchyTreeNode>);
 
   constructor(
-    @Inject(ElementRef) private readonly elementRef: ElementRef<HTMLElement>,
+    @Inject(ElementRef) readonly elementRef: ElementRef<HTMLElement>,
   ) {}
 
   trackById(_: number, child: UiHierarchyTreeNode): string {

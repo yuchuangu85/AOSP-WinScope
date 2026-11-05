@@ -51,6 +51,7 @@ import './app/shared/hierarchy/hierarchy_tree_node_data_view_component_test';
 import './app/shared/log_view/select_with_filter_component_test';
 import './app/shared/properties/properties_component_test';
 import './app/shared/rects/rects_component_test';
+import './app/shared/resizer/resizer_component_test';
 import './app/shared/search_box/search_box_component_test';
 import './app/shared/timeline/expanded-timeline/expanded_timeline_component_test';
 import './app/shared/timeline/expanded-timeline/transition_timeline_component_test';

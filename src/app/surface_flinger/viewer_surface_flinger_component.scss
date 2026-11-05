@@ -16,6 +16,44 @@
 
 @use '../shared/styles/viewer_card_style';
 
+.resizable-grid {
+  gap: 0;
+  padding: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.resizable-grid > .rects-view:not(.collapsed),
+.resizable-grid > .hierarchy-view:not(.collapsed),
+.resizable-grid > .properties:not(.collapsed) {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.resizable-grid > .rects-view:not(.collapsed) {
+  min-width: 180px;
+}
+
+.resizable-grid > .hierarchy-view:not(.collapsed),
+.resizable-grid > .properties:not(.collapsed) {
+  min-width: 220px;
+}
+
+.resizable-grid > .main-resizer {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.properties > .property-groups:not(.collapsed),
+.properties > .properties-view:not(.collapsed) {
+  margin: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
 .properties {
   flex: 1;
   display: flex;

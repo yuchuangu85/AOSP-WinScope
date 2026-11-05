@@ -36,3 +36,33 @@
   height: fit-content;
   min-width: 8px;
 }
+
+:host.line-only {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 1px;
+  align-self: stretch;
+  width: 1px;
+  min-width: 1px;
+  background-color: var(--border-color);
+  cursor: col-resize;
+  user-select: none;
+}
+
+:host.line-only::before {
+  content: '';
+  position: absolute;
+  inset: 0 -4px;
+}
+
+:host.line-only.drag-vertical {
+  width: auto;
+  min-width: 0;
+  height: 1px;
+  min-height: 1px;
+  cursor: row-resize;
+}
+
+:host.line-only.drag-vertical::before {
+  inset: -4px 0;
+}
