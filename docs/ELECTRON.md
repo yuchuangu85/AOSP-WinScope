@@ -275,10 +275,10 @@ node desktop/release.mjs plan --commit "$(git rev-parse HEAD)"
 ```
 
 To check a proposed release version, pass it explicitly; it must already equal
-the root `package.json` version. For example, for the current `17.0.2` contract:
+the root `package.json` version. For example, for the current `17.0.3` contract:
 
 ```sh
-node desktop/release.mjs plan --version 17.0.2 --commit "$(git rev-parse HEAD)"
+node desktop/release.mjs plan --version 17.0.3 --commit "$(git rev-parse HEAD)"
 ```
 
 `plan` validates identity and emits the authoritative matrix and publication

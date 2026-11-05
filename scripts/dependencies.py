@@ -50,7 +50,7 @@ PYTHON_VERSIONS = {"3.11", "3.12", "3.13"}
 PUBLIC_NPM_REGISTRY = "https://registry.npmjs.org/"
 # This is the clean-checkout trust anchor for the complete generated closure.
 # Updating the lock deliberately requires updating this reviewable constant.
-DEPENDENCY_LOCK_SHA256 = "01e3ff26437a695bc5441c18bfcb3652636b59914024f6b6f26c9dfdc3aed3c9"
+DEPENDENCY_LOCK_SHA256 = "147b3d2d31836835a36abf2e3d5a94c83e0f70528fc7c22325e144022feadc63"
 
 ALLOWED_ORIGINS = {
     "android.googlesource.com",

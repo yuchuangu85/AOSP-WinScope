@@ -1,3 +1,4 @@
+import json
 import re
 import unittest
 from pathlib import Path
@@ -7,6 +8,19 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class CIConfigurationTest(unittest.TestCase):
+    def test_product_and_release_versions_match_the_root_package(self):
+        package = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
+        lock = json.loads((ROOT / "package-lock.json").read_text(encoding="utf-8"))
+        desktop = json.loads((ROOT / "desktop/app/package.json").read_text(encoding="utf-8"))
+        version = package["version"]
+        self.assertEqual(lock["version"], version)
+        self.assertEqual(lock["packages"][""]["version"], version)
+        self.assertEqual(desktop["version"], version)
+        for channel, suffix in (("alpha", "-alpha.1"), ("rc", "-rc.1"), ("stable", "")):
+            script = package["scripts"][f"publish:{channel}"]
+            self.assertIn(f"--version {version}{suffix} ", script)
+        self.assertIn(f"--tag v{version} ", package["scripts"]["publish:stable"])
+
     def test_only_desktop_packaging_and_publication_workflows_are_kept(self):
         workflows = {
             path.name
