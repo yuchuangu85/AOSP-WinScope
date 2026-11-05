@@ -73,9 +73,12 @@ class AiSettingsFormStub implements OnInit {
   @Input() loading = false;
   @Input() existingSession = false;
   @Input() importingProvider: 'codex' | 'claude' | '' = '';
+  @Input() importingAction: 'configuration' | 'models' | '' = '';
   @Input() importErrors: Record<string, string> = {};
   @Input() importedProviders: Record<string, AiProvider> = {};
+  @Input() modelListProviders: Record<string, AiProvider> = {};
   @Output() readonly importRequested = new EventEmitter<'codex' | 'claude'>();
+  @Output() readonly modelsRequested = new EventEmitter<'codex' | 'claude'>();
   @Output() readonly applied = new EventEmitter<AiSettingsValue>();
   draftModel = '';
   initializedAgentId = '';

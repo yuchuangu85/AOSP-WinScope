@@ -1,10 +1,10 @@
-import {spawn} from 'node:child_process';
 import {constants} from 'node:fs';
 import {access, open} from 'node:fs/promises';
 import {homedir} from 'node:os';
 import {delimiter, join, resolve} from 'node:path';
 import {isRecord} from './json';
 import {isEnvName} from './settings';
+import {spawnCommand} from './process';
 import {CommandProvider, localCommandConfig, sanitizeLocalConfig} from './providers';
 import {LocalConfigMetadata, ModelDescriptor, ReasoningLevel} from './types';
 
@@ -14,6 +14,7 @@ export interface LocalConfigOptions {
   env?: NodeJS.ProcessEnv;
   executables?: Partial<Record<LocalProviderId, string>>;
   timeoutMs?: number;
+  platform?: NodeJS.Platform;
 }
 
 const MODEL_ID = /^[a-zA-Z0-9][a-zA-Z0-9._:/@\[\]-]{0,127}$/;
@@ -31,9 +32,10 @@ export async function importLocalProvider(
 ): Promise<CommandProvider> {
   const home = options.home ?? homedir();
   const env = options.env ?? process.env;
+  const platform = options.platform ?? process.platform;
   const executable =
-    options.executables?.[id] ?? (await findExecutable(id, home, env));
-  const config = {...localCommandConfig(id), executable, cwd: home};
+    options.executables?.[id] ?? (await findExecutable(id, home, env, platform));
+  const config = {...localCommandConfig(id), executable, cwd: home, platform};
   if (id === 'codex') {
     const codexHome = resolve(home, env.CODEX_HOME ?? '.codex');
     await requireFile(
@@ -45,6 +47,7 @@ export async function importLocalProvider(
       home,
       {...env, CODEX_HOME: codexHome},
       options.timeoutMs ?? 20_000,
+      platform,
     );
     return new CommandProvider({
       ...config,
@@ -200,25 +203,37 @@ async function findExecutable(
   id: LocalProviderId,
   home: string,
   env: NodeJS.ProcessEnv,
+  platform: NodeJS.Platform = process.platform,
 ): Promise<string> {
+  const windowsPaths = platform === 'win32' ? [
+    env.APPDATA ? join(env.APPDATA, 'npm') : undefined,
+    env.LOCALAPPDATA ? join(env.LOCALAPPDATA, 'npm') : undefined,
+    join(home, 'AppData', 'Roaming', 'npm'),
+    join(home, 'AppData', 'Local', 'npm'),
+  ] : [];
   const paths = [
     ...(env.PATH ?? '').split(delimiter),
+    ...windowsPaths,
     join(home, '.local', 'bin'),
     join(home, '.npm-global', 'bin'),
+    join(home, '.npm', 'bin'),
     join(home, '.volta', 'bin'),
     '/opt/homebrew/bin',
     '/usr/local/bin',
   ];
+  const names = platform === 'win32'
+    ? [`${id}.cmd`, `${id}.exe`, `${id}.bat`, id]
+    : [id];
+  const accessMode = platform === 'win32' ? constants.F_OK : constants.X_OK;
   for (const directory of paths.filter(Boolean)) {
-    const path = resolve(
-      directory,
-      process.platform === 'win32' ? `${id}.exe` : id,
-    );
-    try {
-      await access(path, constants.X_OK);
-      return path;
-    } catch {
-      /* Try the next local installation. */
+    for (const name of names) {
+      const path = resolve(directory!, name);
+      try {
+        await access(path, accessMode);
+        return path;
+      } catch {
+        /* Try the next local installation. */
+      }
     }
   }
   throw new Error(
@@ -242,15 +257,16 @@ function readCodex(
   cwd: string,
   env: NodeJS.ProcessEnv,
   timeoutMs: number,
+  platform: NodeJS.Platform = process.platform,
 ): Promise<CodexConfiguration> {
   return new Promise((resolve, reject) => {
-    const child = spawn(executable, ['app-server'], {
+    const child = spawnCommand(executable, ['app-server'], {
       cwd,
       env,
       shell: false,
-      detached: process.platform !== 'win32',
+      detached: platform !== 'win32',
       stdio: ['pipe', 'pipe', 'pipe'],
-    });
+    }, platform);
     let buffer = '';
     let total = 0;
     let model: string | undefined;
@@ -268,7 +284,7 @@ function readCodex(
     const cursors = new Set<string>();
     let killTimer: ReturnType<typeof setTimeout> | undefined;
     const terminate = (signal: NodeJS.Signals) => {
-      if (process.platform !== 'win32' && child.pid) {
+      if (platform !== 'win32' && child.pid) {
         try {
           process.kill(-child.pid, signal);
         } catch {

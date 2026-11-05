@@ -101,6 +101,7 @@ export interface CommandProviderConfig {
   configuration?: ProviderConfiguration;
   configurationOverrides?: Partial<ProviderConfiguration>;
   configured?: boolean;
+  platform?: NodeJS.Platform;
 }
 
 export interface OpenAICompatibleProviderConfig {

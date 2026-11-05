@@ -83,9 +83,19 @@
             (click)="readConfiguration(section.id)"
           >
             <mat-icon>{{
-              importingProvider === section.id ? 'hourglass_top' : 'file_open'
+              importingProvider === section.id && importingAction === 'configuration' ? 'hourglass_top' : 'file_open'
             }}</mat-icon>
             {{ 'Get configuration' | tr }}
+          </button>
+          <button
+            mat-stroked-button
+            type="button"
+            [attr.aria-label]="'{name} model list' | tr: {name: section.name}"
+            [disabled]="runtimeDisabled || !item"
+            (click)="readModelList(section.id)"
+          >
+            <mat-icon>{{ importingProvider === section.id && importingAction === 'models' ? 'hourglass_top' : 'list' }}</mat-icon>
+            {{ 'Get model list' | tr }}
           </button>
         }
       </div>

@@ -6,6 +6,10 @@ import {dirname, join} from 'node:path';
 import {isRecord} from './json';
 import {AiSelection, ProviderConfiguration} from './types';
 
+export function isEnvName(value: unknown): value is string {
+  return typeof value === 'string';
+}
+
 export interface GatewaySettingsOptions { settingsPath?: string; }
 export interface SavedProviderSettings {
   id: string;
@@ -26,10 +30,6 @@ export function hasOnlyFields(value: Record<string, unknown>, fields: string[]):
   return Object.keys(value).every((key) => fields.includes(key));
 }
 
-export function isEnvName(value: unknown): value is string {
-  return typeof value === 'string' && /^[A-Za-z_][A-Za-z0-9_]{0,127}$/.test(value);
-}
-
 export function parseProviderConfiguration(value: unknown): ProviderConfiguration {
   if (!isRecord(value) || !hasOnlyFields(value, ['baseUrl', 'providerName', 'apiKeyEnv', 'timeoutMs'])) throw new Error('invalid provider configuration fields');
   const {baseUrl, providerName, apiKeyEnv, timeoutMs} = value;
@@ -40,7 +40,7 @@ export function parseProviderConfiguration(value: unknown): ProviderConfiguratio
     if (!/^https?:\/\//i.test(baseUrl) || !['http:', 'https:'].includes(url.protocol) || !url.hostname || url.username || url.password || /[?#]/.test(baseUrl) || /^https?:\/\/[^/]*@/i.test(baseUrl) || /%(?:0[0-9a-f]|1[0-9a-f]|7f)/i.test(baseUrl)) throw new Error('invalid provider base URL');
   }
   if (typeof providerName !== 'string' || providerName.length > 128 || /[\x00-\x1f\x7f]/.test(providerName)) throw new Error('invalid provider name');
-  if (typeof apiKeyEnv !== 'string' || (apiKeyEnv !== '' && !isEnvName(apiKeyEnv))) throw new Error('invalid API key environment variable name');
+  if (typeof apiKeyEnv !== 'string') throw new Error('invalid API key environment variable');
   if (typeof timeoutMs !== 'number' || !Number.isInteger(timeoutMs) || timeoutMs < 1000 || timeoutMs > 600_000) throw new Error('timeout must be between 1000 and 600000 milliseconds');
   return {baseUrl, providerName, apiKeyEnv, timeoutMs};
 }

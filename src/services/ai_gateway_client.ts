@@ -150,6 +150,23 @@ export class AiGatewayClient {
     return body.provider;
   }
 
+
+  async listLocalModels(
+    providerId: 'codex' | 'claude',
+    signal?: AbortSignal,
+  ): Promise<AiProvider> {
+    const body = await this.getJson<{provider: AiProvider}>(
+      'api/providers/list-models',
+      signal,
+      {
+        method: 'POST',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify({providerId}),
+      },
+    );
+    return body.provider;
+  }
+
   async saveSettings(
     selection: AiSettingsSelection,
     configuration?: AiProviderConfiguration,

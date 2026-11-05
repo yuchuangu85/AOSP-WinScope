@@ -118,6 +118,10 @@ describe('AiSettingsComponent', () => {
     return section(id).querySelector('button') as HTMLButtonElement;
   }
 
+  function modelButton(id: 'codex' | 'claude'): HTMLButtonElement {
+    return section(id).querySelectorAll('button')[1] as HTMLButtonElement;
+  }
+
   function selectProvider(id: string): void {
     const select = fixture.nativeElement.querySelector(
       'select[data-field="active-provider"]',
@@ -233,6 +237,16 @@ describe('AiSettingsComponent', () => {
     expect(button('claude').getAttribute('aria-label')).toBe(
       'Get Claude configuration',
     );
+  });
+
+  it('requests a fresh model list without changing the configuration action', async () => {
+    await render();
+    const requested = spyOn(component.modelsRequested, 'emit');
+    expect(modelButton('codex').textContent).toContain('Get model list');
+    expect(modelButton('codex').getAttribute('aria-label')).toBe('Codex model list');
+    modelButton('codex').click();
+    expect(requested).toHaveBeenCalledOnceWith('codex');
+    expect(component.draft.providerId).toBe('');
   });
 
   it('waits for catalog and conversation loading before initializing drafts', async () => {
@@ -642,8 +656,6 @@ describe('AiSettingsComponent', () => {
       'https://example.test?api_key=sk-secret', 'https://example.test#secret',
       'https://exam ple.test', 'https://example.test/' + 'a'.repeat(2048),
     ].map((value) => ({key: 'baseUrl' as const, value, error: 'HTTP or HTTPS service URL'})),
-    ...['sk-secret-token', '1_API_KEY', 'API KEY', 'A'.repeat(129)].map((value) =>
-      ({key: 'apiKeyEnv' as const, value, error: 'environment variable name'})),
     ...[999, 600_001, 1500.5, Number.NaN].map((value) =>
       ({key: 'timeoutMs' as const, value, error: 'timeout between 1000 and 600000'})),
     ...['a'.repeat(129), 'bad\nname', 'bad\u007fname'].map((value) =>
@@ -671,6 +683,14 @@ describe('AiSettingsComponent', () => {
       expect(applied).toHaveBeenCalledTimes(1);
     });
   }
+
+  it('accepts any non-empty API key reference without format validation', async () => {
+    await render();
+    const applied = spyOn(component.applied, 'emit');
+    component.configurationChanged('codex', 'apiKeyEnv', 'KEY=value');
+    component.save();
+    expect(applied.calls.mostRecent().args[0]!.configuration?.apiKeyEnv).toBe('KEY=value');
+  });
 
   for (const timeoutMs of [1000, 600_000]) {
     it(`accepts valid configuration boundaries at ${timeoutMs} milliseconds`, async () => {

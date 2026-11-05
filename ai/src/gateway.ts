@@ -123,6 +123,7 @@ export class AiGateway {
       if (method === 'GET' && url.pathname === '/api/providers') return this.json(response, 200, {providers: this.runtime.providers.list(), ...(this.selection ? {selection: this.selection} : {})});
       if (method === 'POST' && url.pathname === '/api/settings') return await this.saveSettings(request, response);
       if (method === 'POST' && url.pathname === '/api/providers/import-local') return await this.importLocalConfiguration(request, response);
+      if (method === 'POST' && url.pathname === '/api/providers/list-models') return await this.listLocalModels(request, response);
       if (method === 'GET' && url.pathname === '/api/agents') return this.json(response, 200, {agents: this.runtime.agents.list()});
       if (method === 'GET' && url.pathname === '/api/skills') return this.json(response, 200, {skills: this.runtime.skills.list()});
       if (method === 'GET' && url.pathname === '/api/sessions') {
@@ -154,6 +155,26 @@ export class AiGateway {
       this.json(response, 404, {error: 'not found'});
     } catch (error) {
       this.json(response, error instanceof HttpError ? error.statusCode : 500, {error: error instanceof Error ? error.message : String(error)});
+    }
+  }
+  private async listLocalModels(request: IncomingMessage, response: ServerResponse): Promise<void> {
+    const body = await readJson(request);
+    const id = body.providerId;
+    if ((id !== 'codex' && id !== 'claude') || Object.keys(body).some((key) => key !== 'providerId')) {
+      throw new HttpError(400, 'Choose Codex or Claude to read its model list.');
+    }
+    this.lockSettings(id);
+    try {
+      const provider = await importLocalProvider(id, this.localConfigOptions);
+      if (this.closePromise) throw new HttpError(503, 'AI gateway is shutting down');
+      const descriptor = provider.descriptor!;
+      this.runtime.providers.register(provider);
+      this.json(response, 200, {provider: descriptor});
+    } catch (error) {
+      if (error instanceof HttpError) throw error;
+      throw new HttpError(422, error instanceof Error ? error.message : 'Model list could not be read.');
+    } finally {
+      this.importingProviders.delete(id);
     }
   }
   private async importLocalConfiguration(request: IncomingMessage, response: ServerResponse): Promise<void> {

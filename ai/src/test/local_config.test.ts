@@ -95,8 +95,20 @@ if (process.argv[2] === 'app-server') {
 `,
   );
   await chmod(executable, 0o700);
+  const windowsNpm = join(home, 'AppData', 'Roaming', 'npm');
+  await mkdir(windowsNpm, {recursive: true});
+  const shim = process.platform === 'win32'
+    ? `@echo off\r\n"${process.execPath}" "${executable}" %*\r\n`
+    : `#!/bin/sh\nexec ${JSON.stringify(process.execPath)} ${JSON.stringify(executable)} "$@"\n`;
+  for (const id of ['codex', 'claude']) {
+    const shimPath = join(windowsNpm, `${id}.cmd`);
+    await writeFile(shimPath, shim);
+    await chmod(shimPath, 0o700);
+  }
   return {
     home,
+    windowsNpm,
+    windowsShim: join(windowsNpm, 'codex.cmd'),
     options: {
       home,
       env: {
@@ -163,6 +175,29 @@ test('Codex imports effective config and paginated models through read-only stru
     ]);
     assert.equal(result.codexHome, join(context.home, '.codex'));
     assert.equal(result.cwd, await realpath(context.home));
+  } finally {
+    await context.cleanup();
+  }
+});
+
+test('Windows discovers npm .cmd shims and runs imported providers', async () => {
+  const context = await fixture();
+  try {
+    const env = {...context.options.env, PATH: ''};
+    const codex = await importLocalProvider('codex', {
+      home: context.home,
+      env,
+      platform: 'win32',
+    });
+    const claude = await importLocalProvider('claude', {
+      home: context.home,
+      env,
+      platform: 'win32',
+    });
+    assert.equal(codex.descriptor.defaultModelId, 'custom/codex');
+    assert.equal(claude.descriptor.defaultModelId, 'custom/claude[1m]');
+    const result = JSON.parse((await codex.run({prompt: 'windows shim'})).output);
+    assert.equal(result.codexHome, join(context.home, '.codex'));
   } finally {
     await context.cleanup();
   }
@@ -402,6 +437,12 @@ test('gateway import refreshes providers, executes the selected model, preserves
     );
     assert.equal(blocked.status, 403);
     await blocked.text();
+    const listed = await post('/api/providers/list-models', {providerId: 'codex'});
+    assert.equal(listed.status, 200);
+    const listedDescriptor = JSON.parse(await listed.text()).provider as ProviderDescriptor;
+    assert.equal(listedDescriptor.id, 'codex');
+    assert.ok(listedDescriptor.models.some((model) => model.id === 'custom/codex'));
+
     const imported = new Map<string, ProviderDescriptor>();
     for (const providerId of ['codex', 'claude']) {
       const response = await post('/api/providers/import-local', {providerId});

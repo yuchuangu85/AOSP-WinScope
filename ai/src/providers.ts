@@ -1,6 +1,6 @@
-import {spawn} from 'node:child_process';
 import {performance} from 'node:perf_hooks';
 import {isRecord} from './json';
+import {spawnCommand} from './process';
 import {isEnvName, parseProviderConfiguration} from './settings';
 import {
   CommandProviderConfig, LocalConfigMetadata, OpenAICompatibleProviderConfig, Provider,
@@ -172,11 +172,11 @@ export class CommandProvider implements Provider {
     const timeout = createTimeout(request.timeoutMs ?? configuration?.timeoutMs ?? this.config.timeoutMs ?? 120_000, request.signal);
     const started = performance.now();
     return new Promise((resolve, reject) => {
-      const child = spawn(this.config.executable, args, {
+      const child = spawnCommand(this.config.executable, args, {
         env,
         cwd: this.config.cwd,
         shell: false, stdio: ['pipe', 'pipe', 'pipe'],
-      });
+      }, this.config.platform);
       let stdout = '';
       let stderr = '';
       let settled = false;

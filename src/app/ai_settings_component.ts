@@ -53,9 +53,12 @@ export class AiSettingsComponent implements OnInit, OnChanges {
   @Input() loading = false;
   @Input() existingSession = false;
   @Input() importingProvider: 'codex' | 'claude' | '' = '';
+  @Input() importingAction: 'configuration' | 'models' | '' = '';
   @Input() importErrors: Record<string, string> = {};
   @Input() importedProviders: Record<string, AiProvider> = {};
+  @Input() modelListProviders: Record<string, AiProvider> = {};
   @Output() readonly importRequested = new EventEmitter<'codex' | 'claude'>();
+  @Output() readonly modelsRequested = new EventEmitter<'codex' | 'claude'>();
   @Output() readonly applied = new EventEmitter<AiSettingsValue>();
 
   draft: AiModelSelection = {...this.selection};
@@ -98,6 +101,13 @@ export class AiSettingsComponent implements OnInit, OnChanges {
     // Restoration may finish in the same update that enables the form.
     if (changes['selection'] && (this.runtimeDisabled || pristine)) {
       this.synchronizeSelection();
+    }
+    if (changes['modelListProviders']) {
+      for (const id of Object.keys(this.modelListProviders)) {
+        if (this.providerDrafts[id]) {
+          this.providerDrafts[id] = this.normalizeModel(id, this.providerDrafts[id]);
+        }
+      }
     }
     if (changes['importedProviders']) {
       for (const [id, provider] of Object.entries(this.importedProviders)) {
@@ -155,9 +165,11 @@ export class AiSettingsComponent implements OnInit, OnChanges {
 
   providerFor(id: string): AiProvider | undefined {
     const provider = this.catalog.providers.find((item) => item.id === id);
-    return provider && this.importedProviders[id]?.id === id
-      ? this.importedProviders[id]
-      : provider;
+    return this.modelListProviders[id]?.id === id
+      ? this.modelListProviders[id]
+      : this.importedProviders[id]?.id === id
+        ? this.importedProviders[id]
+        : provider;
   }
 
   modelsFor(id: string): Array<{id: string; name: string; levels?: string[]}> {
@@ -230,6 +242,16 @@ export class AiSettingsComponent implements OnInit, OnChanges {
     this.draft.providerId = id;
     this.clearError();
     this.synchronizeActiveModel();
+  }
+
+  readModelList(providerId: string): void {
+    if (
+      !this.runtimeDisabled &&
+      (providerId === 'codex' || providerId === 'claude') &&
+      this.providerFor(providerId)
+    ) {
+      this.modelsRequested.emit(providerId);
+    }
   }
 
   readConfiguration(providerId: string): void {
@@ -430,12 +452,6 @@ export class AiSettingsComponent implements OnInit, OnChanges {
       } catch {
         return 'Enter an HTTP or HTTPS service URL without credentials, query parameters or fragments.';
       }
-    }
-    if (
-      configuration.apiKeyEnv &&
-      !/^[A-Za-z_][A-Za-z0-9_]{0,127}$/.test(configuration.apiKeyEnv)
-    ) {
-      return 'Enter a valid API key environment variable name.';
     }
     if (
       !Number.isInteger(configuration.timeoutMs) ||

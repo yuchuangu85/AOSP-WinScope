@@ -66,14 +66,13 @@ test('settings persist active configuration and selection atomically, reopen and
   } finally { await context.gateway.close(); await rm(directory, {recursive: true, force: true}); }
 });
 
-test('settings validation rejects unknown fields, invalid active models, URLs, env names and timeouts without mutation', async () => {
+test('settings validation rejects unknown fields, invalid active models, URLs and timeouts without mutation', async () => {
   const context = await start();
   try {
     const invalid = [
       {}, {selection, env: {KEY: 'RAW_SECRET'}}, {selection: {...selection, cwd: '/tmp'}},
       ...[{agentId: 'missing'}, {providerId: 'missing'}, {modelId: 'not-listed'}, {modelId: '__custom__', customModel: 'bad;command'}, {reasoningLevel: 'max'}, {reasoningLevel: ['high']}].map((patch) => ({selection: {...selection, ...patch}})),
       ...['ftp://example/v1', 'file:///tmp/config', 'https://user:RAW_SECRET@example/v1', 'https://@example/v1', 'https://example/v1?key=RAW_SECRET', 'https://example/v1#RAW_SECRET', 'https://example/v1?', 'https://example/v1#', 'https://example/\nRAW_SECRET', 'https://example/%0aRAW_SECRET', 'https:\\example/v1'].map((baseUrl) => ({selection, configuration: {...configuration, baseUrl}})),
-      ...['bad-name', 'RAW SECRET', 'KEY=secret', '1KEY'].map((apiKeyEnv) => ({selection, configuration: {...configuration, apiKeyEnv}})),
       ...[999, 600001, 1000.1, '1000', null].map((timeoutMs) => ({selection, configuration: {...configuration, timeoutMs}})),
       ...[{apiKey: 'RAW_SECRET'}, {args: ['--dangerous']}, {executable: '/bin/sh'}, {env: {KEY: 'RAW_SECRET'}}, {providerName: 'bad\nname'}].map((patch) => ({selection, configuration: {...configuration, ...patch}})),
       {selection: {...selection, providerId: 'ds', modelId: 'default', customModel: ''}, configuration},
@@ -86,6 +85,9 @@ test('settings validation rejects unknown fields, invalid active models, URLs, e
     }
     assert.equal((await context.catalog()).selection, undefined);
     assert.equal(context.providers.get('codex').descriptor?.configured, false);
+    const unusualKeyReference = await context.post({selection, configuration: {...configuration, apiKeyEnv: 'KEY=value'}});
+    assert.equal(unusualKeyReference.status, 200);
+    await unusualKeyReference.text();
     const accepted = await context.post({selection, configuration});
     assert.equal(accepted.status, 200);
     await accepted.text();

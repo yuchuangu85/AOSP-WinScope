@@ -81,8 +81,10 @@ export class AppSettingsComponent implements OnInit, OnChanges, OnDestroy {
   loading = false;
   loadError = '';
   importingProvider: ImportProvider | '' = '';
+  importingAction: 'configuration' | 'models' | '' = '';
   importErrors: Record<string, string> = {};
   importedProviders: Record<string, AiProvider> = {};
+  modelListProviders: Record<string, AiProvider> = {};
   saving = false;
   saveError = '';
 
@@ -241,14 +243,57 @@ export class AppSettingsComponent implements OnInit, OnChanges, OnDestroy {
     }
   }
 
+  async listLocalModels(providerId: ImportProvider): Promise<void> {
+    if (!this.client || this.runtimeDisabled || !this.catalogReady) return;
+    const client = this.client;
+    const controller = new AbortController();
+    this.importController = controller;
+    this.importingProvider = providerId;
+    this.importingAction = 'models';
+    this.importErrors = {...this.importErrors, [providerId]: ''};
+    const isCurrent = () =>
+      !this.inactive &&
+      !controller.signal.aborted &&
+      this.importController === controller &&
+      this.client === client;
+    try {
+      const provider = await client.listLocalModels(providerId, controller.signal);
+      if (!isCurrent()) return;
+      this.catalog = {
+        ...this.catalog,
+        providers: this.catalog.providers.map((item) => item.id === providerId ? provider : item),
+      };
+      this.modelListProviders = {...this.modelListProviders, [providerId]: provider};
+      this.loadError = '';
+      this.catalogChanged.emit(this.catalog);
+    } catch {
+      if (isCurrent()) {
+        this.importErrors = {
+          ...this.importErrors,
+          [providerId]: 'Could not read the model list. Check the CLI configuration on the gateway machine and try again.',
+        };
+      }
+    } finally {
+      if (isCurrent()) {
+        this.importingProvider = '';
+        this.importingAction = '';
+        this.importController = undefined;
+      }
+    }
+  }
+
   async importLocalConfig(providerId: ImportProvider): Promise<void> {
     if (!this.client || this.runtimeDisabled || !this.catalogReady) return;
     const client = this.client;
     const controller = new AbortController();
     this.importController = controller;
     this.importingProvider = providerId;
+    this.importingAction = 'configuration';
     this.importErrors = {...this.importErrors, [providerId]: ''};
     const importedProviders = {...this.importedProviders};
+    const modelListProviders = {...this.modelListProviders};
+    delete modelListProviders[providerId];
+    this.modelListProviders = modelListProviders;
     delete importedProviders[providerId];
     this.importedProviders = importedProviders;
     const isCurrent = () =>
@@ -283,6 +328,7 @@ export class AppSettingsComponent implements OnInit, OnChanges, OnDestroy {
     } finally {
       if (isCurrent()) {
         this.importingProvider = '';
+        this.importingAction = '';
         this.importController = undefined;
       }
     }
@@ -296,6 +342,7 @@ export class AppSettingsComponent implements OnInit, OnChanges, OnDestroy {
     this.loadError = '';
     this.importErrors = {};
     this.importedProviders = {};
+    this.modelListProviders = {};
     this.saveError = '';
     this.client = this.endpoint
       ? new AiGatewayClient(this.endpoint)

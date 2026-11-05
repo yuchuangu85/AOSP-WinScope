@@ -188,9 +188,12 @@
             [loading]="loading || saving || loadingConversation || !canConfigureAi"
             [existingSession]="existingSession"
             [importingProvider]="importingProvider"
+            [importingAction]="importingAction"
             [importErrors]="importErrors"
             [importedProviders]="importedProviders"
+            [modelListProviders]="modelListProviders"
             (importRequested)="importLocalConfig($event)"
+            (modelsRequested)="listLocalModels($event)"
             (applied)="applySettings($event)"
           ></ai-settings>
         }

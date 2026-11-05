@@ -114,12 +114,11 @@ models, so model changes cannot silently switch providers. Ongoing runs are not
 interrupted when settings or a different conversation is opened.
 
 - Codex requires a locally installed CLI with `app-server`, a readable
-  `$CODEX_HOME/config.toml` (default `~/.codex/config.toml`), and its existing
-  authentication. The gateway uses `config/read` and paginated `model/list` JSON-RPC
+  `$CODEX_HOME/config.toml` (default `~/.codex/config.toml` on Linux/macOS; `%USERPROFILE%\.codex\config.toml` on Windows), and its existing authentication. The gateway uses `config/read` and paginated `model/list` JSON-RPC
   calls, letting Codex resolve TOML, profiles and custom model catalogs. Reading
   configuration does not create an agent thread or run a model turn.
 - Claude reads `$CLAUDE_CONFIG_DIR/settings.json` (default
-  `~/.claude/settings.json`). The list includes the configured model, local
+  `~/.claude/settings.json` on Linux/macOS; `%USERPROFILE%\.claude\settings.json` on Windows). The list includes the configured model, local
   `modelPicker.options`, `ANTHROPIC_DEFAULT_*_MODEL` mappings and built-in aliases.
   `ANTHROPIC_MODEL` in the gateway environment overrides the configured default.
   Namespaced models and context suffixes such as `[1m]` remain intact.
@@ -258,3 +257,6 @@ simple browser form/text requests are rejected before provider execution.
 OPTIONS is rejected and no CORS permission headers are emitted. This boundary
 prevents remote web origins and DNS-rebinding hostnames from using local agent
 commands; it is not authentication against other applications on the same host.
+
+
+On Windows, the gateway discovers npm-installed `codex.cmd` and `claude.cmd` shims in `PATH`, `%APPDATA%\npm`, `%LOCALAPPDATA%\npm`, and the corresponding user profile npm directories. The gateway starts these shims through the Windows command interpreter without exposing raw configuration or credentials to the browser.

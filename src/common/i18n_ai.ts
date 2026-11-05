@@ -61,6 +61,7 @@ export const AI_TRANSLATIONS: Record<string, string> = {
   'Could not save AI settings. Check the configuration and try again.':
     '无法保存 AI 设置。请检查配置后重试。',
   'Get configuration': '获取配置',
+  'Get model list': '获取模型列表',
   'Get Codex configuration': '获取 Codex 配置',
   'Get Claude configuration': '获取 Claude 配置',
   'Service URL': '服务地址',
@@ -232,6 +233,8 @@ export const AI_TRANSLATIONS: Record<string, string> = {
   'Claude local configuration': 'Claude 本地配置',
   'Could not read local configuration. Check the CLI configuration on the gateway machine and try again.':
     '无法读取本地配置。请检查网关所在机器的 CLI 配置后重试。',
+  'Could not read the model list. Check the CLI configuration on the gateway machine and try again.':
+    '无法读取模型列表。请检查网关所在机器的 CLI 配置后重试。',
   'Reasoning level': '推理级别',
   'Agent default': '智能体默认值',
   'Custom model…': '自定义模型…',
@@ -283,8 +286,6 @@ export const AI_TRANSLATIONS: Record<string, string> = {
   'Choose a supported reasoning level.': '请选择支持的推理级别。',
   'Enter an HTTP or HTTPS service URL without credentials, query parameters or fragments.':
     '请输入 HTTP 或 HTTPS 服务地址，不得包含凭据、查询参数或片段。',
-  'Enter a valid API key environment variable name.':
-    '请输入有效的 API 密钥环境变量名。',
   'Enter a timeout between 1000 and 600000 milliseconds.':
     '请输入 1000 到 600000 毫秒之间的超时时间。',
   'Enter a provider name of up to 128 characters.':
