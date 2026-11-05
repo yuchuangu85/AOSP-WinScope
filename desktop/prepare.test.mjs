@@ -186,8 +186,9 @@ const entry = (name, options = {}) => ({
   ...options,
 });
 
-test("four immutable SSOT native targets map Go, capture, ADB sources and architectures", () => {
+test("five immutable SSOT native targets map Go, capture, ADB sources and architectures", () => {
   const keys = [
+    "darwin-x64",
     "darwin-arm64",
     "win32-x64",
     "linux-x64",
@@ -603,7 +604,7 @@ test("manifests are schema 1 exact sorted inventories and never inventory themse
   await assert.rejects(verifyRuntime(root, target), /checksum mismatch/);
 });
 
-test("all four runtimes record real native components and explicit ARM compatibility", async (t) => {
+test("all five runtimes record real native components and explicit ARM compatibility", async (t) => {
   const base = await temporary(t);
   for (const target of targets) {
     const root = await fixture(path.join(base, target.key), target);

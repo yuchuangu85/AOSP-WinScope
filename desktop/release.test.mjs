@@ -138,10 +138,11 @@ async function publication(t) {
   return { root, artifacts, output };
 }
 
-test("one target registry provides exactly four native targets and eight installer formats", () => {
+test("one target registry provides exactly five native targets and ten installer formats", () => {
   assert.deepEqual(
     new Set(registry.targets.map((t) => t.key)),
     new Set([
+      "darwin-x64",
       "darwin-arm64",
       "win32-x64",
       "linux-x64",
@@ -153,6 +154,7 @@ test("one target registry provides exactly four native targets and eight install
   assert.deepEqual(
     registry.targets.map((target) => [target.key, [...target.formats]]),
     [
+      ["darwin-x64", ["dmg", "pkg"]],
       ["darwin-arm64", ["dmg", "pkg"]],
       ["win32-x64", ["exe", "msi"]],
       ["linux-x64", ["deb", "rpm"]],
@@ -170,13 +172,23 @@ test("one target registry provides exactly four native targets and eight install
     assert.throws(() => registry.targetFor(...args));
 });
 
-test("plan binds package version, exact Electron, four targets and commit", async (t) => {
+test("plan binds package version, exact Electron, five targets and commit", async (t) => {
   const root = await temp(t),
     packageFile = path.join(root, "package.json");
   await write(packageFile, pkg);
   const result = await plan({ commit, packageFile });
   assert.equal(result.version, version);
   assert.deepEqual(result.matrix, registry.matrix());
+  assert.deepEqual(
+    result.matrix.include.find((row) => row.target === "darwin-x64"),
+    {
+      platform: "darwin",
+      arch: "x64",
+      runner: "macos-26-intel",
+      python: "x64",
+      target: "darwin-x64",
+    },
+  );
   assert.equal(
     result["publication-artifact"],
     `electron-publication-${commit}`,
@@ -245,22 +257,29 @@ test("record requires all native package formats and raw smoke evidence", async 
   );
 });
 
-test("collect verifies and flattens four reports, eight installers and raw acceptance", async (t) => {
+test("collect verifies and flattens five reports, ten installers and raw acceptance", async (t) => {
   const { output } = await publication(t);
   const result = await verify({ directory: output, version, commit });
-  assert.equal(result.targets, 4);
-  assert.equal(result.files, 17);
+  assert.equal(result.targets, 5);
+  assert.equal(result.files, 21);
   const index = JSON.parse(
     await fs.readFile(path.join(output, "desktop-release.json"), "utf8"),
   );
-  assert.equal(index.targets.length, 4);
+  assert.equal(index.targets.length, 5);
   assert.equal(
     index.files.filter(
       (x) => !x.name.endsWith(".json") && !x.name.endsWith("-source.tar.gz"),
     ).length,
-    8,
+    10,
   );
   assert.ok(index.files.some((x) => x.name.endsWith(".pkg")));
+  for (const format of ["dmg", "pkg"])
+    assert.ok(
+      index.files.some(
+        (x) =>
+          x.name === `aosp-winscope-desktop-${version}-darwin-x64.${format}`,
+      ),
+    );
   assert.ok(index.files.some((x) => x.name.endsWith(".msi")));
   assert.ok(index.targets.every((x) => x.target !== "win32-arm64"));
   assert.ok(index.files.every((x) => !/\.(zip|AppImage)$/.test(x.name)));
@@ -268,7 +287,7 @@ test("collect verifies and flattens four reports, eight installers and raw accep
     (await fs.readFile(path.join(output, "desktop-SHA256SUMS.txt"), "utf8"))
       .trim()
       .split("\n").length,
-    18,
+    22,
   );
 });
 
@@ -283,7 +302,7 @@ for (const variant of [
 ]) {
   test(`collect rejects ${variant} before publishing output`, async (t) => {
     const { root, artifacts } = await publication(t);
-    const target = registry.targets[0],
+    const target = registry.targetFor("darwin", "x64"),
       directory = path.join(artifacts, artifactName(target, commit));
     const reportFile = path.join(
       directory,

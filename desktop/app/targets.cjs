@@ -3,6 +3,18 @@
 const definitions = [
   {
     platform: "darwin",
+    arch: "x64",
+    goos: "darwin",
+    goarch: "amd64",
+    archive: "darwin",
+    suffix: "",
+    runner: "macos-26-intel",
+    captureArch: "x64",
+    adbArch: "universal",
+    formats: ["dmg", "pkg"],
+  },
+  {
+    platform: "darwin",
     arch: "arm64",
     goos: "darwin",
     goarch: "arm64",

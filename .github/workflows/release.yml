@@ -134,10 +134,10 @@ jobs:
           cat > "$RUNNER_TEMP/release-notes.md" <<EOF
           ## AOSP-WinScope $DESKTOP_VERSION desktop candidate
 
-          Built from commit $SOURCE_SHA by the complete four-target packaging run:
+          Built from commit $SOURCE_SHA by the complete five-target packaging run:
           https://github.com/$GH_REPO/actions/runs/$SOURCE_RUN_ID
 
-          Includes eight native installers, Linux ARM64 application source, per-target
+          Includes ten native installers, Linux ARM64 application source, per-target
           acceptance reports, desktop-release.json, and desktop-SHA256SUMS.txt.
 
           This is an automated candidate pre-release, not official release approval.

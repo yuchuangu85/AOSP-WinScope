@@ -3,7 +3,7 @@
 ## Status
 
 Accepted for implementation on 2026-11-02; implementation and native hosted
-qualification are underway. This is a release contract, not a report of four
+qualification are underway. This is a release contract, not a report of five
 passing hosted jobs, completed source/license compliance, signing, or a published
 release. It supersedes ADR 0029's four-target and candidate-only delivery scope,
 not its runtime or security decisions.
@@ -21,8 +21,9 @@ security workflow remain removed. This candidate automation does not restore
 official release authority or weaken the native/local/manual trust contracts.
 
 Desktop target scope updated on 2026-11-05: removed the `darwin-x64` (macOS Intel)
-target. The contract now requires four native targets and eight installer assets;
-macOS is arm64-only. Historical Intel references below record the prior scope.
+target temporarily. A subsequent request on the same day restored native Intel
+packaging on `macos-26-intel`. The current contract requires five native targets
+and ten installer assets; macOS ships separate x64 and arm64 packages.
 
 Publisher draft metadata updated on 2026-11-05: `release.yml` now reads an
 unpublished draft by numeric release id (GraphQL `databaseId`) because GitHub's
@@ -31,7 +32,7 @@ The same id is used to publish with `draft=false`.
 
 ## Context
 
-Users need native Apple Silicon macOS packages, Windows AMD64
+Users need native Intel and Apple Silicon macOS packages, Windows AMD64
 packages, and Linux x64 and ARM64 packages available together in GitHub
 Releases. A target flag alone cannot supply an Electron binary, native frozen
 Python/Go runtime, compatible ADB, or trustworthy acceptance evidence. The
@@ -49,12 +50,13 @@ available for explicitly manual/local use.
 Use [`desktop/app/targets.cjs`](../../desktop/app/targets.cjs) as the single source
 of truth for targets, component architectures, runner selection, and formats:
 
+- `darwin-x64`: `macos-26-intel`, DMG and PKG only.
 - `darwin-arm64`: `macos-26`, DMG and PKG only.
 - `win32-x64`: `windows-2025`, NSIS EXE and MSI only.
 - `linux-x64`: `ubuntu-22.04`, DEB and RPM only.
 - `linux-arm64`: `ubuntu-24.04-arm`, DEB and RPM only.
 
-Require all **four targets and eight installer assets**, plus the separate Linux
+Require all **five targets and ten installer assets**, plus the separate Linux
 ARM64 application-source asset described below. Windows ARM64 desktop and
 desktop ZIP, AppImage, and binary tar.gz outputs are excluded. CI also generates
 and publishes no portable Launcher ZIPs. This policy does not remove the required
@@ -64,7 +66,7 @@ Pin Electron `45.2.1`, electron-builder `26.18.1`, and PyInstaller `6.22.3`;
 build Electron, frozen
 capture, and Go for the matching native OS/CPU. macOS minimum is 13 under
 Electron's policy and Windows x64 minimum is 10.
-Ship macOS applications as native Apple Silicon packages, not a
+Ship macOS applications as separate native Intel and Apple Silicon packages, not a
 universal macOS package. Windows ia32, Linux armv7, and Linux riscv64 have no
 official Electron `45.2.1` assets and are excluded. Windows ia32/Linux armv7 were
 removed in Electron 44; additional builder flags do not restore those assets.
@@ -102,7 +104,7 @@ only after confirming the checkout is clean and `HEAD` matches the release
 commit. Bind its name, size, and SHA-256 into the target report, aggregate index,
 and desktop checksum inventory. The app source archive complements, rather than
 replaces, the bundled ADB/library source and package evidence. It is not an
-installer and is not counted among the eight installer assets.
+installer and is not counted among the ten installer assets.
 
 Provide a concrete user-controlled replacement/relink route in
 [Electron Desktop](../ELECTRON.md#linux-arm64-source-and-replacementrelink-procedure):
@@ -170,10 +172,10 @@ settings/language persistence across same-profile restart, and cleanup of owned
 services. Preserve raw acceptance as well as its summary so collection can
 revalidate it.
 
-`collect` requires exactly four same-commit native delivery artifacts and a fresh
+`collect` requires exactly five same-commit native delivery artifacts and a fresh
 output directory. `verify` rechecks every target, format, raw acceptance report,
 source asset, identity, size, digest, and exact file/checksum inventory. Reject
-partial, duplicate, mixed-version/commit, stale, or altered deliveries. All four
+partial, duplicate, mixed-version/commit, stale, or altered deliveries. All five
 native jobs must succeed; there is no silent allow-partial mode.
 
 ### Packaging artifacts and automatic candidate publication
@@ -212,7 +214,7 @@ For separately authorized local/manual publication, stage release evidence and
 desktop assets in separate verified flat directories,
 `dist/public/<version>` and `dist/desktop/public/<version>`. The former contains
 only integrity/source/license/gate evidence, no portable executable or archive;
-the latter contains the eight native installers and required source/metadata.
+the latter contains the ten native installers and required source/metadata.
 Publish both inventories in one release for the tag. Refuse any existing release,
 including a prior draft;
 never clobber or automatically overwrite it. Create the new release as a draft,
@@ -232,10 +234,10 @@ ZIP product or permission to generate portable archives in CI.
 Normalize installer names to
 `aosp-winscope-desktop-<version>-<platform>-<arch>.<format>`, with `darwin`,
 `win32`, or `linux` platform identifiers. Require `.dmg`/`.pkg` for
-`darwin-arm64` only, `.exe` (NSIS)/`.msi` for `win32-x64` only, and
+each `darwin-x64` and `darwin-arm64`, `.exe` (NSIS)/`.msi` for `win32-x64` only, and
 `.deb`/`.rpm` for each `linux-x64` and `linux-arm64`.
 The desktop flat directory also carries the Linux ARM64 full application-source
-archive, four `desktop-target-<target>.json` reports, four
+archive, five `desktop-target-<target>.json` reports, five
 `desktop-acceptance-<target>.json` raw acceptance reports,
 `desktop-release.json`, and `desktop-SHA256SUMS.txt`. The index records identity,
 unsigned status, targets/formats, compatibility, and per-file sizes/digests.
@@ -277,10 +279,10 @@ separate qualification requirements.
 
 Keep the dated 2026-11-02 macOS ARM64 local results in
 [Electron Desktop](../ELECTRON.md) as historical, platform-specific evidence.
-They do not prove Windows, Linux, all eight installers, native Linux
+They do not prove Intel macOS, Windows, Linux, all ten installers, native Linux
 ARM64 GPG/source assembly, or hosted release execution. Real native Linux ARM64
 GPG/packager and replacement-path execution, complete application source/license
-review, four hosted target acceptances with two-run reports, installer
+review, five hosted target acceptances with two-run reports, installer
 upgrade/clean-machine acceptance, and the unchanged official gates remain
 evidence requirements. Historical ZIP output remains historical evidence, not a
 current required installer; it does not establish PKG/MSI qualification under

@@ -193,7 +193,7 @@ async function fixture(t, platform = "darwin", arch = "arm64") {
 test("runtime verifies complete payload, target and changed binary bytes", async (t) => {
   const { root } = await fixture(t);
   await verifyRuntime(root, "darwin", "arm64");
-  await assert.rejects(verifyRuntime(root, "darwin", "x64"), /Unsupported/);
+  await assert.rejects(verifyRuntime(root, "darwin", "x64"), /does not match/);
   await assert.rejects(verifyRuntime(root, "linux", "arm64"), /does not match/);
   await assert.rejects(verifyRuntime(root, "freebsd", "x64"), /Unsupported/);
   await writeFile(path.join(root, "capture/winscope-capture"), "tampered");
@@ -203,7 +203,7 @@ test("runtime verifies complete payload, target and changed binary bytes", async
   );
 });
 
-test("startup accepts all four native binary payloads, including Windows ia32 ADB", async (t) => {
+test("startup accepts all five native binary payloads, including Windows ia32 ADB", async (t) => {
   for (const target of targets) {
     const { root, manifest } = await fixture(t, target.platform, target.arch);
     assert.deepEqual(

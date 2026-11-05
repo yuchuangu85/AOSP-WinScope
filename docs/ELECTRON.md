@@ -8,16 +8,16 @@ default-branch manual builds as candidate GitHub Pre-releases. Required
 source, license, integrity, and native acceptance evidence accompanies those
 artifacts. Legacy
 portable browser/Launcher and APS CLI contracts remain available for manual/local
-use only; GitHub CI does not generate or publish those products. The four-target,
-eight-installer contract below is implementation work
+use only; GitHub CI does not generate or publish those products. The five-target,
+ten-installer contract below is implementation work
 in progress, not evidence that hosted builds or public release qualification
 have passed.
 
 ## Installation and runtime prerequisites
 
-Choose the artifact matching the machine: macOS arm64 (Apple Silicon), Windows
-x64 (AMD64), Linux x64, or Linux arm64. macOS Intel (x64) and Windows ARM64
-desktop are not supported. These are distinct native Electron packages, not a universal
+Choose the artifact matching the machine: macOS arm64 (Apple Silicon), macOS x64
+(Intel), Windows x64 (AMD64), Linux x64, or Linux arm64. Windows ARM64 desktop is
+not supported. These are distinct native Electron packages, not a universal
 macOS binary or a
 cross-platform validation claim. Manual/PR runs upload candidates to the GitHub
 Actions run's artifacts; successful default-branch manual builds also produce
@@ -62,21 +62,21 @@ Electron `45.2.1`, the Go Launcher, and PyInstaller `6.22.3` capture are native 
 each listed OS/CPU. Go uses `amd64` for the Electron `x64` targets. ADB's
 architecture and provider are deliberately separate from the application label:
 
+- `darwin-x64`: Intel macOS, runner `macos-26-intel`, DMG and PKG only.
 - `darwin-arm64`: Apple Silicon macOS, runner `macos-26`, DMG and PKG only.
 - `win32-x64`: Windows AMD64, runner `windows-2025`, NSIS EXE and MSI only.
 - `linux-x64`: Linux AMD64, runner `ubuntu-22.04`, DEB and RPM only.
 - `linux-arm64`: Linux ARM64, runner `ubuntu-24.04-arm`, DEB and RPM only.
 
-This is **four targets and eight installer assets**; macOS Intel (`x64`) is not
-a supported desktop target. CI excludes portable Launcher
+This is **five targets and ten installer assets**. CI excludes portable Launcher
 ZIPs, desktop ZIPs, AppImage, and binary tar.gz products. The Linux ARM64 source
 tar.gz remains a separate required legal/source artifact, not an installer.
 Legacy portable packaging/APS tools are manual-only; their local contracts are
 not removed by this CI policy.
 
 macOS requires macOS 13 (Ventura) or later under Electron's support policy.
-macOS packages are native Apple Silicon (`arm64`) applications, not universal
-binaries.
+Intel and Apple Silicon
+packages are released together, not combined into a universal application.
 Windows x64 requires Windows 10 or later. Runner labels are build environments,
 not proof of acceptance on every supported OS version.
 
@@ -268,7 +268,7 @@ Gatekeeper/SmartScreen bypass is part of this contract.
 
 ### Release planning and candidate commands
 
-Inspect the version and four-target plan without building or publishing:
+Inspect the version and five-target plan without building or publishing:
 
 ```sh
 node -p "require('./package.json').version"
@@ -307,11 +307,11 @@ dirty branch as a release shortcut.
 The release helper separates local evidence and publication checks:
 
 - `node desktop/release.mjs plan`: validate root version/commit and resolve the
-  four-target matrix.
+  five-target matrix.
 - `node desktop/release.mjs record`: bind one target's runtime manifest,
   `acceptance.json`, version, commit, source archive where required, and every
   required installer format to hashed delivery files.
-- `node desktop/release.mjs collect`: require exactly four complete same-commit
+- `node desktop/release.mjs collect`: require exactly five complete same-commit
   native deliveries and create a fresh flat publication directory.
 - `node desktop/release.mjs verify`: recheck target/format completeness, raw
   acceptance, source evidence, identity, sizes, SHA-256 values, index, and checksum
@@ -335,7 +335,7 @@ The Linux ARM64 delivery additionally requires
 `aosp-winscope-desktop-<version>-linux-arm64-source.tar.gz`: the full tracked
 application source at the exact release commit, produced with `git archive`
 from a clean matching checkout. It is a separate required legal/source asset,
-not one of the eight installers or a desktop binary archive. The packaged
+not one of the ten installers or a desktop binary archive. The packaged
 `platform-tools` tree must also retain the original
 binary DEBs, complete matching library/ADB source archives and Debian/Ubuntu
 changes, signed APT indexes/metadata, notices, licenses, and provenance described
@@ -471,7 +471,7 @@ Target CPU/OS labels do not imply compatibility with every OS version. This
 historical check predates the expanded matrix: Linux x64 now uses Ubuntu 22.04
 and Linux ARM64 Ubuntu 24.04 as their native build baselines.
 
-This dated evidence is not a new verification of the four-target, eight-installer
+This dated evidence is not a new verification of the five-target, ten-installer
 contract. The historical ZIP is not a required output under the current contract,
 and no PKG or MSI build or installation result is established by that evidence.
 The new Linux ARM64 packager's real native/GPG path and hosted native CI have
@@ -505,6 +505,7 @@ production Web (including Trace Processor WASM) and AI once, and transfers
 `dist/prod` and `ai/dist` as a same-run, same-commit artifact. Native jobs restore
 those paths without running `deps:prepare` or a production Perfetto build:
 
+- `macos-26-intel`: macOS x64.
 - `macos-26`: macOS arm64.
 - `windows-2025`: Windows x64.
 - `ubuntu-22.04`: Linux x64.
@@ -526,7 +527,7 @@ a native job fails. The packaged `acceptance.json` must contain two successful
 runs of the actual packaged executable: real Perfetto trace upload/viewing,
 settings/language persistence across same-profile restart, renderer isolation,
 bundled capture/AI, and owned-service cleanup. Native reports and every format
-must match the root version and commit. All four jobs must succeed before
+must match the root version and commit. All five jobs must succeed before
 collection; a failed target cannot silently become a partial release. There is
 no automatic update feed. CI artifact upload is not release approval.
 GitHub Actions may wrap transferred artifacts in ZIP transport; that is not a
@@ -542,20 +543,20 @@ aggregate `electron-publication-<commit>`. In the per-target delivery,
 digest, acceptance, source archive where required, and installer sizes/hashes.
 
 The flat aggregate is staged at `dist/desktop/public/<version>`. The GitHub
-Release contract requires these eight installer names, using `arm64` packages for
-macOS, `x64` only for Windows, and separate `x64` and `arm64` packages for Linux:
+Release contract requires these ten installer names, using separate `x64` and
+`arm64` packages for macOS and Linux and `x64` only for Windows:
 
-- `aosp-winscope-desktop-<version>-darwin-arm64.dmg` and `.pkg`.
+- `aosp-winscope-desktop-<version>-darwin-<arch>.dmg` and `.pkg` (`x64`, `arm64`).
 - `aosp-winscope-desktop-<version>-win32-x64.exe` (NSIS) and `.msi`.
 - `aosp-winscope-desktop-<version>-linux-<arch>.deb` and `.rpm` (`x64`, `arm64`).
 
 Builder-local names use `mac`/`win`; `record` normalizes them to `darwin`/`win32`
 for publication. The aggregate also contains the Linux ARM64
-`aosp-winscope-desktop-<version>-linux-arm64-source.tar.gz`, four
-`desktop-target-<target>.json` reports, four
+`aosp-winscope-desktop-<version>-linux-arm64-source.tar.gz`, five
+`desktop-target-<target>.json` reports, five
 `desktop-acceptance-<target>.json` raw reports, `desktop-release.json`, and
 `desktop-SHA256SUMS.txt`. The index identifies the version, source commit,
-Electron version, unsigned status, all four targets/formats, and component
+Electron version, unsigned status, all five targets/formats, and component
 compatibility; its file inventory records names, sizes, and SHA-256 values.
 `desktop-SHA256SUMS.txt` covers that index and every listed desktop file,
 including the app source archive, but not itself. Preserve the `desktop-` checksum
@@ -570,8 +571,8 @@ release approval.
 
 ### Automatic candidate publication and trust boundary
 
-1. **Candidate gate:** the read-only native workflow requires all four targets,
-   all eight installers (two required formats per target), Linux ARM64
+1. **Candidate gate:** the read-only native workflow requires all five targets,
+   all ten installers (two required formats per target), Linux ARM64
    application-source delivery, packaged two-run acceptance, matching identity,
    and verified index/checksums. Passing yields
    Actions artifacts, not public release approval or a signing claim. Its

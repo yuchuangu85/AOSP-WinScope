@@ -8,8 +8,8 @@ Processor WASM, Go Launcher, frozen Python capture service, a pinned ADB provide
 install Node.js, Python, or ADB separately; optional Codex/Claude CLIs and their
 authentication remain user-managed. No credentials or model access are bundled.
 
-The desktop release contract covers four native Electron targets: macOS Apple
-Silicon (`arm64`), Windows AMD64 (`x64`), and Linux
+The desktop release contract covers five native Electron targets: macOS Intel
+(`x64`) and Apple Silicon (`arm64`), Windows AMD64 (`x64`), and Linux
 `x64` and `arm64`. macOS requires 13 or later; Windows x64 requires Windows 10
 or later. Windows ARM64 desktop is not supported. The Windows x64 packages bundle
 Google's **32-bit x86 ADB**, while Electron, Go, and frozen capture are native
@@ -18,8 +18,8 @@ initially targets Ubuntu 24.04 with native Ubuntu ADB and requires glibc 2.38 or
 later, not arbitrary Linux distributions. USB debugging, authorization, drivers,
 OS rights, and Linux udev permissions still apply.
 
-The four-target contract requires eight installer assets: DMG/PKG only for
-Apple Silicon macOS, NSIS EXE/MSI only for Windows x64, and DEB/RPM only for each
+The five-target contract requires ten installer assets: DMG/PKG only for each
+macOS architecture, NSIS EXE/MSI only for Windows x64, and DEB/RPM only for each
 Linux architecture. The read-only
 [`electron.yml`](.github/workflows/electron.yml) Desktop packaging workflow runs
 manually or on path-filtered PRs and retains its reusable interface. After a
