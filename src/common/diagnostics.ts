@@ -48,7 +48,7 @@ export function makeDiagnosticBlob(input: DiagnosticInput): Blob {
   const diagnostics = {
     schemaVersion: 1,
     generatedAt: (input.generatedAt ?? new Date()).toISOString(),
-    product: 'AOSP-WinScope',
+    product: 'Winscope',
     privacyMode: input.privacyMode,
     runtime: {
       hostKind: input.runtimeConfig.host.kind,

@@ -47,7 +47,7 @@ export class AppSettingsComponent implements OnInit, OnChanges, OnDestroy {
   readonly defaultDisplayScale = DEFAULT_DISPLAY_SCALE;
   readonly displayScaleOptions = DISPLAY_SCALE_OPTIONS;
   readonly appVersion = appMetadata.version;
-  readonly appName = 'AOSP WinScope';
+  readonly appName = 'Winscope';
 
   @Input() endpoint?: string;
   @Input() section: SettingsSection = 'general';

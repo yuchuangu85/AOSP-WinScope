@@ -197,7 +197,7 @@ class ElectronWorkflowTest(unittest.TestCase):
             with self.subTest(platform=platform, arch=arch, exists=exists, override=override):
                 with tempfile.TemporaryDirectory(prefix="winscope unpacked ") as temporary:
                     root = Path(temporary)
-                    config = {"productName": "AOSP WinScope"}
+                    config = {"productName": "Winscope"}
                     if override:
                         config["win"] = {"executableName": "Trace Inspector"}
                     (root / "desktop").mkdir()
@@ -206,7 +206,7 @@ class ElectronWorkflowTest(unittest.TestCase):
                         encoding="utf-8",
                     )
                     expected_name = (
-                        ("Trace Inspector.exe" if override else "AOSP WinScope.exe")
+                        ("Trace Inspector.exe" if override else "Winscope.exe")
                         if platform == "Windows" else "aosp-winscope-desktop"
                     )
                     for fixture_arch in ("x64", "arm64"):

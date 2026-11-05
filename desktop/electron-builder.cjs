@@ -59,7 +59,7 @@ module.exports = async function createConfiguration({
   process.env.CSC_IDENTITY_AUTO_DISCOVERY = "false";
   return {
     appId: "com.aosp.winscope",
-    productName: "AOSP WinScope",
+    productName: "Winscope",
     icon: path.join(projectRoot, "desktop/icon.png"),
     extraMetadata: { version: metadata.version },
     electronVersion,
@@ -74,7 +74,10 @@ module.exports = async function createConfiguration({
     nodeGypRebuild: false,
     buildDependenciesFromSource: false,
     publish: null,
-    artifactName: "aosp-winscope-desktop-${version}-${os}-${arch}.${ext}",
+    artifactName:
+      host.platform === "win32"
+        ? "Winscope-${version}-${arch}.${ext}"
+        : "Winscope-${version}-${os}-${arch}.${ext}",
     mac: {
       target: [
         {

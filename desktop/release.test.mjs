@@ -103,7 +103,7 @@ async function inputTarget(root, target) {
     await write(
       path.join(
         packages,
-        `aosp-winscope-desktop-${version}-${os}-${builderArch[format]?.[target.arch] ?? target.arch}.${format}`,
+        `${target.platform === "win32" ? `Winscope-${version}-${target.arch}` : `Winscope-${version}-${os}-${builderArch[format]?.[target.arch] ?? target.arch}`}.${format}`,
       ),
       `${target.key}:${format}`,
     );
@@ -242,7 +242,7 @@ test("record requires all native package formats and raw smoke evidence", async 
   await fs.rm(
     path.join(
       options.packages,
-      `aosp-winscope-desktop-${version}-linux-aarch64.rpm`,
+      `Winscope-${version}-linux-aarch64.rpm`,
     ),
   );
   await assert.rejects(
@@ -277,13 +277,13 @@ test("collect verifies and flattens five reports, ten installers and raw accepta
     assert.ok(
       index.files.some(
         (x) =>
-          x.name === `aosp-winscope-desktop-${version}-darwin-x64.${format}`,
+          x.name === `Winscope-${version}-darwin-x64.${format}`,
       ),
     );
   for (const format of ["exe", "msi"])
     assert.ok(
       index.files.some(
-        (x) => x.name === `aosp-winscope-desktop-${version}-x64.${format}`,
+        (x) => x.name === `Winscope-${version}-x64.${format}`,
       ),
     );
   assert.ok(

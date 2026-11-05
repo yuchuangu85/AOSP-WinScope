@@ -828,7 +828,7 @@ describe('AppSettingsComponent', () => {
     expect(element('#settings-general-panel').hidden).toBeTrue();
     expect(element('#settings-ai-panel').hidden).toBeTrue();
     expect(element('.app-version').textContent?.trim()).toBe(appMetadata.version);
-    expect(element('.about-product').textContent).toBe('AOSP WinScope');
+    expect(element('.about-product').textContent).toBe('Winscope');
     expect(element('.about-details dt').textContent).toBe('Version');
     setLanguage('zh-CN');
     fixture.detectChanges();

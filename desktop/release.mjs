@@ -92,9 +92,9 @@ function packageName(target, version, format, builder = false) {
     ? (BUILDER_ARCH[format]?.[target.arch] ?? target.arch)
     : target.arch;
   const publishedStem =
-    !builder && target.platform === "win32"
-      ? `aosp-winscope-desktop-${version}-${arch}`
-      : `aosp-winscope-desktop-${version}-${os}-${arch}`;
+    target.platform === "win32"
+      ? `Winscope-${version}-${arch}`
+      : `Winscope-${version}-${os}-${arch}`;
   return basename(`${publishedStem}.${format}`);
 }
 
@@ -102,7 +102,7 @@ const reportName = (target) => `desktop-target-${target.key}.json`;
 const needsSource = (target) =>
   target.platform === "linux" && target.arch === "arm64";
 const applicationSourceName = (target, version) =>
-  `aosp-winscope-desktop-${version}-${target.key}-source.tar.gz`;
+  `Winscope-${version}-${target.key}-source.tar.gz`;
 export const artifactName = (target, commit) =>
   `electron-installers-${target.key}-${commit}`;
 
@@ -442,7 +442,7 @@ export async function collect({ artifacts, version, commit, output }) {
   );
   const index = {
     schemaVersion: 1,
-    product: "AOSP-WinScope Desktop",
+    product: "Winscope Desktop",
     version,
     commit,
     signing: "unsigned",
@@ -549,7 +549,7 @@ export async function verify({ directory, version, commit }) {
   const index = await json(path.join(directory, INDEX));
   requireValue(
     index.schemaVersion === 1 &&
-      index.product === "AOSP-WinScope Desktop" &&
+      index.product === "Winscope Desktop" &&
       index.version === version &&
       index.commit === commit &&
       index.signing === "unsigned" &&

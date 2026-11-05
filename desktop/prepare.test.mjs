@@ -775,7 +775,9 @@ test("builder config keeps dedicated CJS app, resources outside ASAR and exact v
   assert.equal(config.publish, null);
   assert.equal(
     config.artifactName,
-    "aosp-winscope-desktop-${version}-${os}-${arch}.${ext}",
+    target.platform === "win32"
+      ? "Winscope-${version}-${arch}.${ext}"
+      : "Winscope-${version}-${os}-${arch}.${ext}",
   );
   await config.beforePack({
     electronPlatformName: target.platform,
@@ -784,7 +786,7 @@ test("builder config keeps dedicated CJS app, resources outside ASAR and exact v
   const packed = path.join(root, "packaged");
   const packagedRuntime =
     target.platform === "darwin"
-      ? path.join(packed, "AOSP WinScope.app/Contents/Resources/runtime")
+      ? path.join(packed, "Winscope.app/Contents/Resources/runtime")
       : path.join(packed, "resources/runtime");
   await fs.mkdir(path.dirname(packagedRuntime), { recursive: true });
   await copyTree(
@@ -794,7 +796,7 @@ test("builder config keeps dedicated CJS app, resources outside ASAR and exact v
   const packContext = {
     electronPlatformName: target.platform,
     appOutDir: packed,
-    packager: { appInfo: { productFilename: "AOSP WinScope" } },
+    packager: { appInfo: { productFilename: "Winscope" } },
   };
   await config.afterPack(packContext);
   await put(packagedRuntime, "ai/config.js", "copy corrupted");

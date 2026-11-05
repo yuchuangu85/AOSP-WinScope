@@ -1,6 +1,6 @@
 {
   "name": "aosp-winscope-desktop",
-  "productName": "AOSP-WinScope",
+  "productName": "Winscope",
   "version": "17.0.2",
   "description": "Local Android window and graphics trace analysis",
   "homepage": "https://github.com/yuchuangu85/AOSP-WinScope",

@@ -567,7 +567,7 @@ jobs:
             -f ref="refs/tags/$RELEASE_TAG" -f sha="$SOURCE_SHA" --jq '.object.sha')
           test "$created" = "$SOURCE_SHA"
           cat > "$RUNNER_TEMP/release-notes.md" <<EOF
-          ## AOSP-WinScope $DESKTOP_VERSION desktop release
+          ## Winscope $DESKTOP_VERSION
 
           Built from commit $SOURCE_SHA by the complete five-target packaging run:
           https://github.com/$GH_REPO/actions/runs/$SOURCE_RUN_ID
@@ -575,14 +575,14 @@ jobs:
           Includes ten native installers, Linux ARM64 application source, per-target
           acceptance reports, desktop-release.json, and desktop-SHA256SUMS.txt.
 
-          This is an automated desktop release; official OIDC and publisher trust are not claimed.
+          This is an automated Winscope release; official OIDC and publisher trust are not claimed.
           Packages have no authenticated OS publisher signature or Apple notarization;
           this workflow supplies no official OIDC attestation. See docs/ELECTRON.md
           at the source commit for compatibility, installation, and trust boundaries.
           EOF
           gh release create "$RELEASE_TAG" "$RUNNER_TEMP/desktop-publication"/* \
             --draft --latest=true --verify-tag \
-            --title "AOSP-WinScope $DESKTOP_VERSION desktop release" \
+            --title "Winscope $DESKTOP_VERSION" \
             --notes-file "$RUNNER_TEMP/release-notes.md"
           # Drafts are not returned by the published-release tag endpoint, so keep
           # the numeric release id for the metadata gate and final publication.

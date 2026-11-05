@@ -33,7 +33,7 @@ const {
   isTrustedPreferenceSender,
 } = require("./preferences.cjs");
 
-app.setName("AOSP-WinScope");
+app.setName("Winscope");
 if (process.env.WINSCOPE_DESKTOP_USER_DATA) {
   // Used only by source development and installed-binary acceptance tests.
   const directory = path.resolve(process.env.WINSCOPE_DESKTOP_USER_DATA);
@@ -58,7 +58,7 @@ async function fail(error) {
   console.error(error.message);
   if (!process.env.WINSCOPE_DESKTOP_SMOKE) {
     dialog.showErrorBox(
-      "AOSP-WinScope",
+      "Winscope",
       `${error.message}\n\nReinstall the application if its bundled runtime is incomplete.`,
     );
   }
@@ -109,7 +109,7 @@ function createWindow() {
     height: 960,
     minWidth: 800,
     minHeight: 600,
-    title: "AOSP-WinScope",
+    title: "Winscope",
     show: false,
     backgroundColor: "#303030",
     autoHideMenuBar: false,
@@ -149,7 +149,7 @@ function createWindow() {
       buttons: ["Stay", "Leave"],
       defaultId: 0,
       cancelId: 0,
-      title: "AOSP-WinScope",
+      title: "Winscope",
       message: "Close the current trace?",
       detail:
         "The current trace view will be closed. Original trace files are not changed.",

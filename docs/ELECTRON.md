@@ -330,7 +330,7 @@ gate.
 ### Linux ARM64 source and replacement/relink procedure
 
 The Linux ARM64 delivery additionally requires
-`aosp-winscope-desktop-<version>-linux-arm64-source.tar.gz`: the full tracked
+`Winscope-<version>-linux-arm64-source.tar.gz`: the full tracked
 application source at the exact release commit, produced with `git archive`
 from a clean matching checkout. It is a separate required legal/source asset,
 not one of the ten installers or a desktop binary archive. The packaged
@@ -408,7 +408,7 @@ npx --no-install electron-builder --config desktop/electron-builder.cjs \
 sudo chown root:root dist/desktop/relinked/linux-arm64-unpacked/chrome-sandbox
 sudo chmod 4755 dist/desktop/relinked/linux-arm64-unpacked/chrome-sandbox
 xvfb-run -a node desktop/smoke.mjs \
-  --executable dist/desktop/relinked/linux-arm64-unpacked/aosp-winscope-desktop
+  --executable dist/desktop/relinked/linux-arm64-unpacked/Winscope
 npx --no-install electron-builder --config desktop/electron-builder.cjs \
   --prepackaged dist/desktop/relinked/linux-arm64-unpacked \
   --arm64 --publish never -c.directories.output=dist/desktop/relinked
@@ -432,11 +432,11 @@ its built-in image tool. This does not rebuild or modify the application:
 
 ```sh
 stage=$(mktemp -d)
-ditto "dist/desktop/packages/mac-arm64/AOSP WinScope.app" "$stage/AOSP WinScope.app"
+ditto "dist/desktop/packages/mac-arm64/Winscope.app" "$stage/Winscope.app"
 ln -s /Applications "$stage/Applications"
-hdiutil create -volname "AOSP WinScope" -srcfolder "$stage" -format UDZO \
-  -o "dist/desktop/packages/AOSP WinScope-native-arm64.dmg"
-hdiutil verify "dist/desktop/packages/AOSP WinScope-native-arm64.dmg"
+hdiutil create -volname "Winscope" -srcfolder "$stage" -format UDZO \
+  -o "dist/desktop/packages/Winscope-native-arm64.dmg"
+hdiutil verify "dist/desktop/packages/Winscope-native-arm64.dmg"
 ```
 
 Use the matching architecture's unpacked app. Do not overwrite an existing
@@ -543,15 +543,15 @@ The flat aggregate is staged at `dist/desktop/public/<version>`. The GitHub
 Release contract requires these ten installer names, using separate `x64` and
 `arm64` packages for macOS and Linux and `x64` only for Windows:
 
-- `aosp-winscope-desktop-<version>-darwin-<arch>.dmg` and `.pkg` (`x64`, `arm64`).
-- `aosp-winscope-desktop-<version>-x64.exe` (NSIS) and `.msi`. The internal
+- `Winscope-<version>-darwin-<arch>.dmg` and `.pkg` (`x64`, `arm64`).
+- `Winscope-<version>-x64.exe` (NSIS) and `.msi`. The internal
   target ID remains `win32-x64`; only the published Windows asset name uses the
   shorter `x64` label.
-- `aosp-winscope-desktop-<version>-linux-<arch>.deb` and `.rpm` (`x64`, `arm64`).
+- `Winscope-<version>-linux-<arch>.deb` and `.rpm` (`x64`, `arm64`).
 
 Builder-local names use `mac`/`win`; `record` normalizes them to `darwin`/`win32`
 for publication. The aggregate also contains the Linux ARM64
-`aosp-winscope-desktop-<version>-linux-arm64-source.tar.gz`, five
+`Winscope-<version>-linux-arm64-source.tar.gz`, five
 `desktop-target-<target>.json` reports, five
 `desktop-acceptance-<target>.json` raw reports, `desktop-release.json`, and
 `desktop-SHA256SUMS.txt`. The index identifies the version, source commit,
@@ -655,7 +655,7 @@ Control-click → Open on macOS 13/14. Clearing the download flag from the
 installed copy works as well and needs no approval:
 
 ```sh
-xattr -dr com.apple.quarantine "/Applications/AOSP WinScope.app"
+xattr -dr com.apple.quarantine "/Applications/Winscope.app"
 ```
 
 A locally built, completely unsigned bundle (`npm run desktop:dist` without the

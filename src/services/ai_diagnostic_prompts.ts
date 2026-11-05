@@ -88,7 +88,7 @@ export function diagnosticExamplePrompt(id: AiDiagnosticExampleId, language: 'en
 /** Research provenance, not instructions to fetch documentation at runtime. */
 export const AI_DIAGNOSTIC_SOURCES = [
   {
-    title: 'AOSP Winscope overview',
+    title: 'Winscope overview',
     url: 'https://source.android.com/docs/core/graphics/winscope/overview',
   },
   {
