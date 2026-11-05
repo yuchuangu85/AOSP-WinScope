@@ -51,21 +51,37 @@ class ElectronWorkflowTest(unittest.TestCase):
         self.assertNotIn("push:", triggers)
         self.assertNotIn("pull_request_target:", triggers)
 
-    def test_actions_are_immutable_and_every_job_is_read_only_without_credentials(self):
+    def test_actions_are_immutable_and_only_the_publish_job_gets_write_access(self):
         self.assertIn("permissions:\n  contents: read", self.workflow)
         uses = re.findall(r"^\s+(?:- )?uses: ([^\s]+)", self.workflow, re.MULTILINE)
         self.assertGreater(len(uses), 5)
         for action in uses:
             self.assertRegex(action, r"^[^@]+@[0-9a-f]{40}$")
         for forbidden in (
-            ": write", "secrets.", "secrets: inherit", "GH_TOKEN", "GITHUB_TOKEN",
-            "gh release", "actions/attest@", "git push", "--publish always",
+            "secrets.", "secrets: inherit", "GITHUB_TOKEN",
+            "actions/attest@", "git push", "--publish always",
             "--publish onTag", "--publish onTagOrDraft",
         ):
-            self.assertNotIn(forbidden, self.workflow)
+            self.assertNotIn(forbidden, self.job("plan") + self.job("shared") + self.job("native") + self.job("bundle"))
         checkouts = re.findall(r"uses: actions/checkout@", self.workflow)
         self.assertEqual(len(checkouts), self.workflow.count("persist-credentials: false"))
         self.assertIn('CSC_IDENTITY_AUTO_DISCOVERY: "false"', self.job("native"))
+        publish = self.job("publish")
+        self.assertIn("permissions:\n      actions: read\n      contents: write", publish)
+        self.assertIn("GH_TOKEN: ${{ github.token }}", publish)
+        self.assertIn("gh release create", publish)
+
+    def test_publish_runs_only_after_verified_bundle_on_default_branch_manual_dispatch(self):
+        publish = self.job("publish")
+        self.assertIn("needs: [bundle, plan]", publish)
+        self.assertIn("needs.bundle.result == 'success'", publish)
+        self.assertIn("needs.plan.result == 'success'", publish)
+        self.assertIn("github.event_name == 'workflow_dispatch'", publish)
+        self.assertIn("github.ref_name == github.event.repository.default_branch", publish)
+        self.assertLess(publish.index("actions/download-artifact@"), publish.index("node desktop/release.mjs verify"))
+        self.assertLess(publish.index("node desktop/release.mjs verify"), publish.index("gh release create"))
+        self.assertLess(publish.index("node desktop/release.mjs check-remote"), publish.index("gh api -X PATCH"))
+        self.assertNotIn("workflow_run", publish)
 
     def test_plan_always_checks_out_and_uses_cli_outputs_before_native_work(self):
         plan = self.job("plan")

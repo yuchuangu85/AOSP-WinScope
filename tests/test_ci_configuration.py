@@ -13,7 +13,7 @@ class CIConfigurationTest(unittest.TestCase):
             for path in (ROOT / ".github/workflows").iterdir()
             if path.is_file() and path.suffix in {".yml", ".yaml"}
         }
-        self.assertEqual(workflows, {"electron.yml", "release.yml"})
+        self.assertEqual(workflows, {"electron.yml"})
 
     def test_desktop_ci_does_not_invoke_legacy_release_publishers(self):
         workflow = (ROOT / ".github/workflows/electron.yml").read_text(encoding="utf-8")

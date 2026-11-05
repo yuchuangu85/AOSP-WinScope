@@ -91,7 +91,11 @@ function packageName(target, version, format, builder = false) {
   const arch = builder
     ? (BUILDER_ARCH[format]?.[target.arch] ?? target.arch)
     : target.arch;
-  return basename(`aosp-winscope-desktop-${version}-${os}-${arch}.${format}`);
+  const publishedStem =
+    !builder && target.platform === "win32"
+      ? `aosp-winscope-desktop-${version}-${arch}`
+      : `aosp-winscope-desktop-${version}-${os}-${arch}`;
+  return basename(`${publishedStem}.${format}`);
 }
 
 const reportName = (target) => `desktop-target-${target.key}.json`;

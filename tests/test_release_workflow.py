@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-WORKFLOW = ROOT / ".github/workflows/release.yml"
+WORKFLOW = ROOT / ".github/workflows/electron.yml"
 SHA = "a" * 40
 REPO = "example/winscope"
 
@@ -19,9 +19,18 @@ class ReleaseWorkflowTest(unittest.TestCase):
     def setUp(self):
         self.workflow = WORKFLOW.read_text(encoding="utf-8")
 
+    def job(self, name):
+        match = re.search(
+            rf"^  {re.escape(name)}:\n(.*?)(?=^  [\w-]+:|\Z)",
+            self.workflow,
+            re.MULTILINE | re.DOTALL,
+        )
+        self.assertIsNotNone(match, name)
+        return match.group(1)
+
     def step(self, marker):
         matches = [
-            step for step in re.split(r"(?=^      - )", self.workflow, flags=re.MULTILINE)
+            step for step in re.split(r"(?=^      - )", self.job("publish"), flags=re.MULTILINE)
             if marker in step
         ]
         self.assertEqual(len(matches), 1, marker)
@@ -42,95 +51,85 @@ class ReleaseWorkflowTest(unittest.TestCase):
             capture_output=True, text=True, check=False,
         )
 
-    def test_completed_packaging_run_is_the_only_trigger(self):
+    def test_publication_is_in_the_packaging_workflow_and_only_manual_default_dispatch_can_publish(self):
         triggers = self.workflow.split("\npermissions:", 1)[0]
-        self.assertIn("workflow_run:", triggers)
-        self.assertIn("workflows: [Electron desktop candidates]", triggers)
-        self.assertIn("types: [completed]", triggers)
-        for forbidden in ("workflow_dispatch:", "pull_request:", "push:", "schedule:"):
-            self.assertNotIn(forbidden, triggers)
-        self.assertIn("group: desktop-release-${{ github.event.workflow_run.id }}", self.workflow)
-        self.assertIn("cancel-in-progress: false", self.workflow)
+        self.assertIn("workflow_dispatch:", triggers)
+        self.assertIn("pull_request:", triggers)
+        self.assertIn("workflow_call:", triggers)
+        self.assertNotIn("workflow_run:", triggers)
+        self.assertNotIn(".github/workflows/release.yml", self.workflow)
+        publish = self.job("publish")
+        self.assertIn("needs: [bundle, plan]", publish)
+        self.assertIn("github.event_name == 'workflow_dispatch'", publish)
+        self.assertIn("github.ref_name == github.event.repository.default_branch", publish)
 
-    def test_job_gate_rejects_prs_forks_other_branches_and_failed_builds(self):
-        expression = self.workflow.split("    if: >-\n", 1)[1].split("    runs-on:", 1)[0]
+    def test_publish_gate_rejects_non_manual_non_default_or_incomplete_runs(self):
+        expression = self.job("publish").split("    if: >-\n", 1)[1].split("    runs-on:", 1)[0]
         expression = expression.strip().removeprefix("${{").removesuffix("}}").strip()
-        event = {
-            "repository": {"default_branch": "main"},
-            "workflow_run": {"conclusion": "success", "event": "workflow_dispatch",
-                             "head_repository": {"full_name": REPO}, "head_branch": "main"},
+        base = {
+            "needs": {"bundle": {"result": "success"}, "plan": {"result": "success"}},
+            "github": {"event_name": "workflow_dispatch", "ref_name": "main",
+                      "ref_type": "branch", "ref": "refs/heads/main", "repository": REPO,
+                      "workflow_ref": f"{REPO}/.github/workflows/electron.yml@refs/heads/main",
+                      "event": {"repository": {"default_branch": "main"}}},
+            "cancelled": False,
         }
-        cases = [(event, True)]
-        for key, value in (
-            ("conclusion", "failure"), ("conclusion", "cancelled"),
-            ("conclusion", "skipped"), ("event", "pull_request"),
-            ("event", "pull_request_target"), ("event", "push"),
-            ("event", "workflow_call"), ("head_branch", "feature"),
-            ("head_repository", {"full_name": "fork/winscope"}),
+        cases = [(base, True)]
+        for path, value in (
+            (("needs", "bundle", "result"), "failure"),
+            (("needs", "bundle", "result"), "skipped"),
+            (("needs", "bundle", "result"), "cancelled"),
+            (("needs", "plan", "result"), "failure"),
+            (("needs", "plan", "result"), "skipped"),
+            (("needs", "plan", "result"), "cancelled"),
+            (("github", "event_name"), "pull_request"),
+            (("github", "event_name"), "pull_request_target"),
+            (("github", "event_name"), "push"),
+            (("github", "event_name"), "workflow_call"),
+            (("github", "ref_name"), "feature"),
+            (("github", "ref_type"), "tag"),
+            (("github", "workflow_ref"), f"{REPO}/.github/workflows/caller.yml@refs/heads/main"),
+            (("github", "workflow_ref"), "fork/winscope/.github/workflows/electron.yml@refs/heads/main"),
+            (("cancelled",), True),
         ):
-            changed = copy.deepcopy(event)
-            changed["workflow_run"][key] = value
+            changed = copy.deepcopy(base)
+            target = changed
+            for key in path[:-1]:
+                target = target[key]
+            target[path[-1]] = value
             cases.append((changed, False))
         result = subprocess.run(
             ["node", "-e", textwrap.dedent('''\
                 const vm = require("node:vm");
-                const {expression, events, repository} = JSON.parse(require("node:fs").readFileSync(0));
-                console.log(JSON.stringify(events.map(event => vm.runInNewContext(
-                  expression, {github: {event, repository}}, {timeout: 1000}
+                const {expression, cases} = JSON.parse(require("node:fs").readFileSync(0));
+                console.log(JSON.stringify(cases.map(([context]) => vm.runInNewContext(
+                  expression, {...context,
+                    cancelled: () => context.cancelled,
+                    format: (template, ...values) => template.replace(/\\{(\\d+)\\}/g, (_, i) => values[i]),
+                  }, {timeout: 1000}
                 ))));
             ''')],
-            input=json.dumps({"expression": expression, "events": [x[0] for x in cases],
-                              "repository": REPO}),
+            input=json.dumps({"expression": expression, "cases": cases}),
             capture_output=True, text=True, check=True,
         )
-        self.assertEqual(json.loads(result.stdout), [x[1] for x in cases])
+        self.assertEqual(json.loads(result.stdout), [expected for _, expected in cases])
 
-    def test_actions_are_pinned_and_only_the_publisher_gets_write_access(self):
+    def test_actions_are_pinned_and_only_publish_has_write_access(self):
         self.assertIn("permissions:\n  contents: read", self.workflow)
-        self.assertIn("permissions:\n      actions: read\n      contents: write", self.workflow)
         for action in re.findall(r"uses: (\S+)", self.workflow):
             self.assertRegex(action, r"^[^@]+@[0-9a-f]{40}$")
-        self.assertIn("persist-credentials: false", self.workflow)
-        for forbidden in ("secrets.", "secrets: inherit", "id-token: write", "npm ci",
-                          "npm run", "--clobber", "git push", "actions/cache@"):
+        self.assertIn("permissions:\n      actions: read\n      contents: write", self.job("publish"))
+        for job in ("plan", "shared", "native", "bundle"):
+            self.assertNotIn("contents: write", self.job(job))
+        for forbidden in ("secrets.", "secrets: inherit", "id-token: write", "--clobber", "git push", "actions/cache@"):
             self.assertNotIn(forbidden, self.workflow)
-        self.assertNotIn("GH_TOKEN", self.step("Reverify all targets"))
+        for forbidden in ("npm ci", "npm run", "actions/cache@"):
+            self.assertNotIn(forbidden, self.job("publish"))
+        self.assertNotIn("GH_TOKEN", self.step("Verify the complete publication aggregate"))
 
-    def test_source_run_is_rechecked_before_checkout_or_artifact_download(self):
-        script = self.script("Validate the successful source run")
-        fixture = {
-            "id": 123, "run_attempt": 1, "name": "Electron desktop candidates",
-            "path": ".github/workflows/electron.yml", "status": "completed",
-            "conclusion": "success", "event": "workflow_dispatch",
-            "repository": {"full_name": REPO}, "head_repository": {"full_name": REPO},
-            "head_branch": "main", "head_sha": SHA,
-        }
-        cases = [(fixture, True)]
-        for key, value in (
-            ("id", 124), ("run_attempt", 2), ("name", "Other workflow"),
-            ("path", ".github/workflows/other.yml"), ("status", "in_progress"),
-            ("conclusion", "failure"), ("event", "pull_request"),
-            ("repository", {"full_name": "fork/winscope"}),
-            ("head_repository", {"full_name": "fork/winscope"}),
-            ("head_branch", "feature"), ("head_sha", "b" * 40),
-        ):
-            cases.append(({**fixture, key: value}, False))
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            for value, valid in cases:
-                with self.subTest(value=value):
-                    (root / "fixture.json").write_text(json.dumps(value), encoding="utf-8")
-                    result = self.run_script('gh() { cat fixture.json; }\n' + script, root)
-                    self.assertEqual(result.returncode == 0, valid, result.stderr)
-            for env in ({"SOURCE_SHA": "main"}, {"SOURCE_RUN_ID": "1; exit 0"}):
-                result = self.run_script('gh() { exit 90; }\n' + script, root, **env)
-                self.assertNotEqual(result.returncode, 0)
-        self.assertLess(self.workflow.index("Validate the successful source run"),
-                        self.workflow.index("actions/checkout@"))
-
-    def test_exact_commit_and_default_branch_ancestry_are_required(self):
-        self.assertIn("ref: ${{ github.event.workflow_run.head_sha }}", self.workflow)
-        self.assertNotIn("github.sha", self.workflow)
+    def test_exact_source_commit_and_default_branch_ancestry_are_required(self):
+        self.assertIn("ref: ${{ github.sha }}", self.workflow)
+        self.assertIn('git merge-base --is-ancestor "$SOURCE_SHA" "origin/$DEFAULT_BRANCH"', self.workflow)
         script = self.script("Require the exact source commit")
         stub = '''\
             git() {
@@ -149,42 +148,62 @@ class ReleaseWorkflowTest(unittest.TestCase):
                                          ACTUAL_SHA=actual, ANCESTOR_STATUS=ancestor,
                                          WORKFLOW_DIFF_STATUS=difference)
                 self.assertEqual(result.returncode == 0, valid, result.stderr)
-        self.assertLess(self.workflow.index("git merge-base --is-ancestor"),
-                        self.workflow.index("actions/setup-node@"))
 
-    def test_artifact_download_is_bound_to_the_source_run_and_publication_name(self):
+    def test_artifact_download_is_bound_to_this_run_and_publication_name(self):
         step = self.step("actions/download-artifact@")
         for value in (
             "name: ${{ steps.identity.outputs.publication-artifact }}",
-            "run-id: ${{ github.event.workflow_run.id }}",
             "github-token: ${{ github.token }}", "repository: ${{ github.repository }}",
             "path: ${{ runner.temp }}/desktop-publication",
         ):
             self.assertIn(value, step)
-        self.assertNotIn("pattern:", step)
+        self.assertNotIn("run-id:", step)
         identity = self.step("id: identity")
         self.assertIn('node desktop/release.mjs plan --commit "$SOURCE_SHA"', identity)
         self.assertIn('"$version" "$SOURCE_RUN_ID" >> "$GITHUB_OUTPUT"', identity)
 
     def test_release_steps_are_sequential_success_only_with_remote_digest_gate(self):
         markers = (
-            "Validate the successful source run", "actions/checkout@",
-            "git merge-base --is-ancestor", "id: identity", "actions/download-artifact@",
-            "node desktop/release.mjs verify", "gh release create",
-            "node desktop/release.mjs check-remote", "test \"$remote_sha\" = \"$SOURCE_SHA\"",
+            "actions/download-artifact@", "node desktop/release.mjs verify",
+            "gh release create", "node desktop/release.mjs check-remote",
             "gh api -X PATCH",
         )
-        positions = [self.workflow.index(marker) for marker in markers]
+        positions = [self.job("publish").index(marker) for marker in markers]
         self.assertEqual(positions, sorted(positions))
-        self.assertNotIn("continue-on-error", self.workflow)
-        self.assertEqual(self.workflow.count("    if:"), 1)
+        self.assertNotIn("continue-on-error", self.job("publish"))
         self.assertIn('--tag "$RELEASE_TAG"', self.step("Verify the uploaded draft"))
-        self.assertIn("--draft --prerelease --latest=false --verify-tag", self.workflow)
-        self.assertIn("-F draft=false -F prerelease=true -f make_latest=false", self.workflow)
-        # Drafts are invisible to the published-release tag endpoint; only the
-        # numeric release id can load their metadata.
-        self.assertNotIn("releases/tags", self.workflow)
-        self.assertIn('releases/$RELEASE_ID', self.workflow)
+        self.assertIn("--draft --latest=true --verify-tag", self.job("publish"))
+        self.assertNotIn("--prerelease", self.job("publish"))
+        self.assertIn("-F draft=false -F prerelease=false -f make_latest=true", self.job("publish"))
+        self.assertNotIn("releases/tags", self.job("publish"))
+        self.assertIn("releases/$RELEASE_ID", self.job("publish"))
+        self.assertIn('test "$remote_sha" = "$SOURCE_SHA"', self.job("publish"))
+        self.assertIn("gh release view", self.step("Publish the verified stable release"))
+
+    def test_manual_runs_are_not_cancelled_by_new_builds(self):
+        self.assertIn("cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}", self.workflow)
+
+    def test_published_release_is_verified_and_linked_in_summary(self):
+        script = self.script("Publish the verified stable release")
+        stub = '''\
+            gh() {
+              if [[ "$1 $2" = 'api -X' ]]; then return 0
+              elif [[ "$1 $2" = 'release view' ]]; then
+                [[ "$SCENARIO" != view-failure ]] || return 80
+                echo https://example.test/release
+              else return 90; fi
+            }
+        '''
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for scenario in ("success", "view-failure"):
+                summary = root / scenario
+                result = self.run_script(textwrap.dedent(stub) + script, root,
+                                         SCENARIO=scenario, RELEASE_ID="434614696",
+                                         GITHUB_STEP_SUMMARY=str(summary))
+                self.assertEqual(result.returncode == 0, scenario == "success", result.stderr)
+                if scenario == "success":
+                    self.assertEqual(summary.read_text().strip(), "https://example.test/release")
 
     def test_creation_refuses_existing_releases_tags_and_lookup_failures(self):
         script = self.script("Create a new tag and unpublished draft")
@@ -229,7 +248,7 @@ class ReleaseWorkflowTest(unittest.TestCase):
         # and verification commands stubbed. Digest behavior is tested in Node.
         script = "\n".join(self.script(marker) for marker in (
             "Create a new tag and unpublished draft", "Verify the uploaded draft",
-            "Publish the verified candidate",
+            "Publish the verified stable release",
         ))
         stub = '''\
             git() { return 0; }

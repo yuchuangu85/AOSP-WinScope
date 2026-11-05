@@ -20,12 +20,11 @@ OS rights, and Linux udev permissions still apply.
 
 The five-target contract requires ten installer assets: DMG/PKG only for each
 macOS architecture, NSIS EXE/MSI only for Windows x64, and DEB/RPM only for each
-Linux architecture. The read-only
-[`electron.yml`](.github/workflows/electron.yml) Desktop packaging workflow runs
-manually or on path-filtered PRs and retains its reusable interface. After a
-manual run on the repository's default branch succeeds,
-[`release.yml`](.github/workflows/release.yml) automatically revalidates its
-complete publication and publishes a GitHub **Pre-release** tagged
+Linux architecture. The packaging jobs in
+[`electron.yml`](.github/workflows/electron.yml) run manually or on path-filtered
+PRs and retain the reusable interface. After a manual run on the repository's
+default branch succeeds, its inline `publish` job automatically revalidates the
+complete publication and publishes a GitHub **Release** tagged
 `v<version>-desktop.<packaging-run-id>`. PRs, other branches, failed or cancelled
 runs do not publish. Uploads remain unpublished drafts until their exact asset
 names, sizes, and SHA-256 digests pass remote verification; existing releases

@@ -2,11 +2,11 @@
 
 Electron Desktop is the install-and-run distribution of WinScope. It embeds the
 existing Web UI and reuses the Go Launcher; it is not a replacement trace parser
-or a second implementation of capture or AI. CI generates native installers and
-uploads Actions artifacts. A separate publisher automatically releases successful
-default-branch manual builds as candidate GitHub Pre-releases. Required
-source, license, integrity, and native acceptance evidence accompanies those
-artifacts. Legacy
+or a second implementation of capture or AI. CI generates native installers
+and uploads Actions artifacts. The same workflow automatically releases successful
+default-branch manual builds as GitHub Releases through its `publish` job.
+Required source, license, integrity, and native acceptance evidence accompanies
+those artifacts. Legacy
 portable browser/Launcher and APS CLI contracts remain available for manual/local
 use only; GitHub CI does not generate or publish those products. The five-target,
 ten-installer contract below is implementation work
@@ -21,10 +21,9 @@ not supported. These are distinct native Electron packages, not a universal
 macOS binary or a
 cross-platform validation claim. Manual/PR runs upload candidates to the GitHub
 Actions run's artifacts; successful default-branch manual builds also produce
-an automatically published candidate Pre-release.
-The protected official-release workflow remains removed; candidate publication
-is not official release approval. Only install an
-artifact from a trusted source.
+an automatically published stable Release. The protected official-release
+workflow remains removed; the desktop Release is not official release approval.
+Only install an artifact from a trusted source.
 
 On macOS, open the DMG and install the application in Applications, or run the
 PKG installer. On Windows x64, run the NSIS EXE or MSI installer. On Linux,
@@ -297,12 +296,11 @@ on a reviewed, committed ref, or the equivalent command:
 gh workflow run electron.yml --ref <reviewed-committed-ref>
 ```
 
-This command is a documented remote operation, not part of local verification.
-Once `release.yml` exists on the default branch, a successful manual run on that
-branch automatically publishes a candidate Pre-release; use another branch for
-packaging-only checks. PR runs never publish. No Actions dispatch, tag creation,
-or publication is performed by local workflow validation. Do not tag or push a
-dirty branch as a release shortcut.
+Once `electron.yml` is on the default branch, a successful manual run on that
+branch automatically publishes a stable GitHub Release through its `publish` job;
+use another branch for packaging-only checks. PR runs never publish. No Actions
+dispatch, tag creation, or publication is performed by local workflow validation.
+Do not tag or push a dirty branch as a release shortcut.
 
 The release helper separates local evidence and publication checks:
 
@@ -484,15 +482,14 @@ all-platform installer acceptance, and public release approval remain open.
 on manual dispatch or path-filtered pull requests and retains its reusable
 `workflow_call` interface. It has no push, tag, or scheduled trigger. The duplicate
 `package.yml` entry point, `official-release.yml`, `publish-candidate.yml`, and
-`security.yml` remain removed. The new
-[`release.yml`](../.github/workflows/release.yml) listens for completed Desktop
-packaging runs and automatically publishes eligible candidates. There is no
+`security.yml` remain removed. Its inline `publish` job automatically publishes
+eligible candidates after the verified `bundle` job. There is no
 standalone security-scan workflow. Local official-release and security commands
 remain available; this candidate automation does not waive their validation contracts.
 
-The Desktop packaging workflow has read-only repository permissions and immutable
-action SHAs. It never publishes a release itself; only the separate publisher's
-job receives `actions: read` and `contents: write` through `GITHUB_TOKEN`.
+The packaging jobs have read-only repository permissions and immutable action SHAs.
+Only the inline `publish` job receives `actions: read` and `contents: write`
+through `GITHUB_TOKEN`.
 
 The lineage audit is recorded separately and is not release approval. The
 current checkout's unrecorded clean-room adaptation delta prevents that audit
@@ -547,7 +544,9 @@ Release contract requires these ten installer names, using separate `x64` and
 `arm64` packages for macOS and Linux and `x64` only for Windows:
 
 - `aosp-winscope-desktop-<version>-darwin-<arch>.dmg` and `.pkg` (`x64`, `arm64`).
-- `aosp-winscope-desktop-<version>-win32-x64.exe` (NSIS) and `.msi`.
+- `aosp-winscope-desktop-<version>-x64.exe` (NSIS) and `.msi`. The internal
+  target ID remains `win32-x64`; only the published Windows asset name uses the
+  shorter `x64` label.
 - `aosp-winscope-desktop-<version>-linux-<arch>.deb` and `.rpm` (`x64`, `arm64`).
 
 Builder-local names use `mac`/`win`; `record` normalizes them to `darwin`/`win32`
@@ -566,26 +565,25 @@ assets. The separate `dist/public/<version>` publication carries only
 integrity/source/license/gate evidence, no portable executable or archive.
 Names and local checksums alone do not prove provenance or OS trust. The retained
 packaging workflow does not produce official OIDC attestations. Its successful
-default-branch manual runs are eligible for candidate publication, not official
-release approval.
+default-branch manual runs publish the stable desktop Release; this is not
+official provenance or approval.
 
-### Automatic candidate publication and trust boundary
+### Automatic Release And Trust Boundary
 
-1. **Candidate gate:** the read-only native workflow requires all five targets,
+1. **Build gate:** the read-only native workflow requires all five targets,
    all ten installers (two required formats per target), Linux ARM64
    application-source delivery, packaged two-run acceptance, matching identity,
    and verified index/checksums. Passing yields
    Actions artifacts, not public release approval or a signing claim. Its
    separately recorded lineage audit cannot approve an official release.
-2. **Candidate publication:** `release.yml` handles `workflow_run: completed`
-   only for a successful `workflow_dispatch` run from the same repository's
-   default branch. It re-fetches the run ID, attempt, workflow path, status,
-   repository, branch, and source SHA before checking out code; the source must
-   still be an ancestor of the default branch. It uses the source run's
-   `head_sha`, not the publisher's `github.sha`, and downloads only
-   `electron-publication-<source-commit>` from that exact run into the runner's
-   temporary directory, outside the executable checkout. Neither PR builds
-   nor manually dispatched non-default branches gain publication credentials.
+2. **Release publication:** the inline `publish` job in `electron.yml` runs
+   only after `bundle` succeeds for a `workflow_dispatch` on the repository's
+   default branch. It uses the current run ID and source SHA, checks the commit
+   against the default branch, and downloads only
+   `electron-publication-<source-commit>` from that same run into the runner's
+   temporary directory, outside the executable checkout. PR builds, reusable
+   calls, and manually dispatched non-default branches do not gain publication
+   credentials.
 3. **Draft-first, complete publication:** after `verify` rechecks the entire
    aggregate, the publisher refuses an existing release or tag, creates
    `v<version>-desktop.<packaging-run-id>` at the packaged commit, and uploads
@@ -594,8 +592,8 @@ release approval.
    release id. `check-remote --tag` requires the exact asset set, uploaded states,
    sizes, and REST SHA-256 digests; the tag
    must still point to the source commit. Only then does the workflow publish
-   with `--prerelease --latest=false`. It does not rebuild, add portable ZIPs,
-   or replace the stable Latest release. Upload/verification failures leave the
+   with `prerelease=false` and `make_latest=true`, making it the repository's stable Latest release. It does not rebuild, add portable ZIPs, or replace
+   release assets. Upload/verification failures leave the
    draft unpublished (and may leave the new tag); reruns refuse existing state
    rather than clobbering it. Diagnose that state before a new packaging run.
 4. **Not official release qualification:** no official OIDC provenance,
@@ -603,19 +601,15 @@ release approval.
    evidence is added. Existing local tools such as `scripts/installer_evidence.py`
    and `scripts/validate.py` remain available for separately authorized official
    release work. Existing provenance, advisory, and external-evidence failures
-   are not waived by candidate publication.
+   are not waived by stable desktop publication.
 
-The publisher workflow must be committed to the default branch before GitHub
-can emit its `workflow_run` trigger. Repository/organization policy must allow
-the job's `contents: write` token permission and creation of the candidate tags;
-no PAT or signing secret is configured by this change. Local unit tests and
-`actionlint` validate wiring and failure behavior, not a hosted publication.
-GitHub may require `Workflows: write` to release an older commit whose workflow
-files differ from the current default branch; `GITHUB_TOKEN` cannot receive
-that permission. The publisher fails before creating release state when it
-detects that difference. Run packaging again on the current default branch
-rather than weakening token permissions. Drafts remain accessible to users with
-repository push access; unpublished is not a separate confidentiality guarantee.
+The workflow must be committed to the default branch before a default-branch
+manual dispatch can publish. Repository/organization policy must allow the job's
+`contents: write` token permission and creation of the release tags; no PAT or
+signing secret is configured by this change. Local unit tests and `actionlint`
+validate wiring and failure behavior, not a hosted publication. Drafts remain
+accessible to users with repository push access; unpublished is not a separate
+confidentiality guarantee.
 
 ## Signing and evidence boundaries
 

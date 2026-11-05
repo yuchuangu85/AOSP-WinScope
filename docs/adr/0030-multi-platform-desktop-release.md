@@ -9,26 +9,32 @@ release. It supersedes ADR 0029's four-target and candidate-only delivery scope,
 not its runtime or security decisions.
 
 CI distribution policy updated on 2026-11-04: native installers and required
-evidence only; no portable executable/archive generation or publication in
-GitHub workflows. Local/manual legacy CLI contracts are retained.
+evidence only; no portable executable/archive generation in GitHub workflows.
+Candidate publication is limited to the verified native aggregate. Local/manual
+legacy CLI contracts are retained.
 
-CI automation updated on 2026-11-04: retain `electron.yml` for read-only Desktop
-packaging, native smoke checks, and artifact uploads; add `release.yml` to publish
-successful default-branch manual builds as candidate Pre-releases after local
-and remote asset verification. The duplicate packaging entry point, protected
-official-release workflow, old manual candidate publisher, and standalone
-security workflow remain removed. This candidate automation does not restore
-official release authority or weaken the native/local/manual trust contracts.
+CI automation updated on 2026-11-04: retain `electron.yml` for Desktop packaging,
+native smoke checks, and artifact uploads; publish successful default-branch manual
+builds as stable Releases after local and remote asset verification. The
+separate packaging entry point, protected official-release workflow, old manual
+candidate publisher, and standalone security workflow remain removed. This
+candidate automation does not restore official release authority or weaken the
+native/local/manual trust contracts.
 
 Desktop target scope updated on 2026-11-05: removed the `darwin-x64` (macOS Intel)
 target temporarily. A subsequent request on the same day restored native Intel
 packaging on `macos-26-intel`. The current contract requires five native targets
 and ten installer assets; macOS ships separate x64 and arm64 packages.
 
-Publisher draft metadata updated on 2026-11-05: `release.yml` now reads an
+Publisher draft metadata updated on 2026-11-05: the inline publisher reads an
 unpublished draft by numeric release id (GraphQL `databaseId`) because GitHub's
 release-by-tag endpoint serves published releases only and answers 404 for drafts.
 The same id is used to publish with `draft=false`.
+
+CI workflow consolidated on 2026-11-05: packaging and candidate publication now
+run from the same `.github/workflows/electron.yml` file. The `publish` job is
+dependent on the verified `bundle` job and is gated to successful manual dispatches
+on the default branch.
 
 ## Context
 
@@ -130,10 +136,11 @@ and [ADR 0017](0017-ship-redistribution-evidence-with-every-release.md).
 
 ### Reuse the canonical shared build
 
-Keep [`electron.yml`](../../.github/workflows/electron.yml) read-only and reusable
-through `workflow_call`, in addition to manual and path-filtered PR candidate
-runs. The separate `release.yml` consumes eligible completed runs; the duplicate
-`package.yml` entry point remains removed. Neither adds a push or scheduled trigger.
+Keep [`electron.yml`](../../.github/workflows/electron.yml) reusable through
+`workflow_call`, in addition to manual and path-filtered PR candidate runs. Its
+packaging jobs are read-only; the inline `publish` job consumes the verified
+aggregate after eligible manual default-branch runs. The duplicate `package.yml`
+entry point remains removed. Neither adds a push or scheduled trigger.
 Manual/PR runs build shared Web, Trace Processor WASM,
 and AI once through the pinned Linux build pipeline. Native jobs consume same-run, same-commit
 `dist/prod` and `ai/dist` via `--skip-web-build`; they must not silently rebuild
@@ -178,7 +185,7 @@ source asset, identity, size, digest, and exact file/checksum inventory. Reject
 partial, duplicate, mixed-version/commit, stale, or altered deliveries. All five
 native jobs must succeed; there is no silent allow-partial mode.
 
-### Packaging artifacts and automatic candidate publication
+### Packaging Artifacts And Automatic Release
 
 The candidate gate produces Actions artifacts, not official publication:
 `electron-installers-<target>-<commit>` and
@@ -187,28 +194,27 @@ The candidate gate produces Actions artifacts, not official publication:
 recorded lineage audit does not approve a release or waive official lineage
 failure.
 
-The separate `release.yml` uses `workflow_run: completed` to publish only
-successful manual builds on the same repository's default branch. PRs, forks,
-other branches, failures, and cancellations do not publish. Revalidate the
-source run's identity/path/attempt, default-branch ancestry, exact source SHA,
-and complete aggregate from that run before creating any release state.
+The inline `publish` job uses the completed `bundle` aggregate to publish only
+successful manual builds on the same repository's default branch. PRs, reusable
+calls, other branches, failures, and cancellations do not publish. Revalidate the
+current run's exact source SHA, default-branch ancestry, and complete aggregate
+before creating any release state.
 Create a unique `v<version>-desktop.<packaging-run-id>` tag at the source commit,
 refuse existing tags/releases, and upload all desktop files to an unpublished draft.
 Fetch the unpublished draft by numeric release id rather than by tag: the
 release-by-tag endpoint returns published releases only. Reuse
 `desktop/release.mjs check-remote --tag` to verify exact asset names,
 uploaded states, sizes, and REST SHA-256 digests, then recheck the tag's source
-SHA before publishing with `prerelease=true` and `make_latest=false`. Failures
-leave the draft unpublished; reruns never overwrite it. Only this publisher gets
-`contents: write`; the build stays read-only and all actions stay SHA-pinned.
+SHA before publishing with `prerelease=false` and `make_latest=true`. Failures
+leave the draft unpublished; reruns never overwrite it. Only this `publish` job gets
+`contents: write`; packaging stays read-only and all actions stay SHA-pinned.
 
 Tags do not trigger packaging. The protected official publisher remains absent.
 `scripts/installer_evidence.py` and official validation tools remain local/manual;
 their lineage, external-evidence, and approval requirements are unchanged.
 GitHub workflows invoke neither `publish.py` nor `verify-aps-release.py`, and
-never publish raw protected external secret manifests. Candidate Pre-releases
-are not OIDC-attested official releases and do not waive provenance or advisory
-blockers to separately authorized official release work.
+never publish raw protected external secret manifests. Stable desktop Releases are not OIDC-attested official releases and do not waive
+provenance or advisory blockers to separately authorized official release work.
 
 For separately authorized local/manual publication, stage release evidence and
 desktop assets in separate verified flat directories,

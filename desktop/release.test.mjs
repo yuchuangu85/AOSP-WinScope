@@ -280,7 +280,17 @@ test("collect verifies and flattens five reports, ten installers and raw accepta
           x.name === `aosp-winscope-desktop-${version}-darwin-x64.${format}`,
       ),
     );
-  assert.ok(index.files.some((x) => x.name.endsWith(".msi")));
+  for (const format of ["exe", "msi"])
+    assert.ok(
+      index.files.some(
+        (x) => x.name === `aosp-winscope-desktop-${version}-x64.${format}`,
+      ),
+    );
+  assert.ok(
+    index.files
+      .filter((x) => /\.(exe|msi)$/.test(x.name))
+      .every((x) => !x.name.includes("win32-x64")),
+  );
   assert.ok(index.targets.every((x) => x.target !== "win32-arm64"));
   assert.ok(index.files.every((x) => !/\.(zip|AppImage)$/.test(x.name)));
   assert.equal(
