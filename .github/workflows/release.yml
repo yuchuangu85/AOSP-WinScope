@@ -149,6 +149,17 @@ jobs:
             --draft --prerelease --latest=false --verify-tag \
             --title "AOSP-WinScope $DESKTOP_VERSION desktop candidate" \
             --notes-file "$RUNNER_TEMP/release-notes.md"
+          # The published-release tag endpoint hides drafts, so keep the numeric
+          # draft id for the metadata gate and for publishing.
+          # shellcheck disable=SC2016
+          RELEASE_ID=$(gh api graphql \
+            -f query='query($owner: String!, $repo: String!, $tag: String!) {
+              repository(owner: $owner, name: $repo) { release(tagName: $tag) { databaseId } }
+            }' \
+            -f owner="${GH_REPO%%/*}" -f repo="${GH_REPO##*/}" -f tag="$RELEASE_TAG" \
+            --jq '.data.repository.release.databaseId')
+          [[ "$RELEASE_ID" =~ ^[1-9][0-9]*$ ]]
+          echo "RELEASE_ID=$RELEASE_ID" >> "$GITHUB_ENV"
 
       - name: Verify the uploaded draft and exact tag before public visibility
         env:
@@ -157,7 +168,9 @@ jobs:
           RELEASE_TAG: ${{ steps.identity.outputs.tag }}
         run: |
           set -euo pipefail
-          gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" > "$RUNNER_TEMP/uploaded-release.json"
+          # Draft metadata exists only behind the release id; the tag lookup
+          # answers 404 for unpublished drafts.
+          gh api "repos/$GH_REPO/releases/$RELEASE_ID" > "$RUNNER_TEMP/uploaded-release.json"
           node desktop/release.mjs check-remote --desktop "$RUNNER_TEMP/desktop-publication" \
             --metadata "$RUNNER_TEMP/uploaded-release.json" \
             --version "$DESKTOP_VERSION" --commit "$SOURCE_SHA" --tag "$RELEASE_TAG"
@@ -170,5 +183,8 @@ jobs:
           RELEASE_TAG: ${{ steps.identity.outputs.tag }}
         run: |
           set -euo pipefail
-          gh release edit "$RELEASE_TAG" --draft=false --prerelease --latest=false
-          gh release view "$RELEASE_TAG" --json url --jq '.url' >> "$GITHUB_STEP_SUMMARY"
+          gh api -X PATCH "repos/$GH_REPO/releases/$RELEASE_ID" \
+            -F draft=false -F prerelease=true -f make_latest=false > /dev/null
+          gh release view "$RELEASE_TAG" --json url,isDraft \
+            --jq 'if .isDraft then error("candidate remained a draft") else .url end' \
+            >> "$GITHUB_STEP_SUMMARY"

@@ -24,6 +24,11 @@ Desktop target scope updated on 2026-11-05: removed the `darwin-x64` (macOS Inte
 target. The contract now requires four native targets and eight installer assets;
 macOS is arm64-only. Historical Intel references below record the prior scope.
 
+Publisher draft metadata updated on 2026-11-05: `release.yml` now reads an
+unpublished draft by numeric release id (GraphQL `databaseId`) because GitHub's
+release-by-tag endpoint serves published releases only and answers 404 for drafts.
+The same id is used to publish with `draft=false`.
+
 ## Context
 
 Users need native Apple Silicon macOS packages, Windows AMD64
@@ -187,7 +192,9 @@ source run's identity/path/attempt, default-branch ancestry, exact source SHA,
 and complete aggregate from that run before creating any release state.
 Create a unique `v<version>-desktop.<packaging-run-id>` tag at the source commit,
 refuse existing tags/releases, and upload all desktop files to an unpublished draft.
-Reuse `desktop/release.mjs check-remote --tag` to verify exact asset names,
+Fetch the unpublished draft by numeric release id rather than by tag: the
+release-by-tag endpoint returns published releases only. Reuse
+`desktop/release.mjs check-remote --tag` to verify exact asset names,
 uploaded states, sizes, and REST SHA-256 digests, then recheck the tag's source
 SHA before publishing with `prerelease=true` and `make_latest=false`. Failures
 leave the draft unpublished; reruns never overwrite it. Only this publisher gets

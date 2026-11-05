@@ -37,6 +37,7 @@ class ReleaseWorkflowTest(unittest.TestCase):
                  "SOURCE_RUN_ATTEMPT": "1", "SOURCE_SHA": SHA,
                  "DEFAULT_BRANCH": "main", "DESKTOP_VERSION": "17.0.2",
                  "RELEASE_TAG": "v17.0.2-desktop.123", "RUNNER_TEMP": str(root),
+                 "GITHUB_ENV": str(root / "github-env"),
                  **env},
             capture_output=True, text=True, check=False,
         )
@@ -171,7 +172,7 @@ class ReleaseWorkflowTest(unittest.TestCase):
             "git merge-base --is-ancestor", "id: identity", "actions/download-artifact@",
             "node desktop/release.mjs verify", "gh release create",
             "node desktop/release.mjs check-remote", "test \"$remote_sha\" = \"$SOURCE_SHA\"",
-            "gh release edit",
+            "gh api -X PATCH",
         )
         positions = [self.workflow.index(marker) for marker in markers]
         self.assertEqual(positions, sorted(positions))
@@ -179,7 +180,11 @@ class ReleaseWorkflowTest(unittest.TestCase):
         self.assertEqual(self.workflow.count("    if:"), 1)
         self.assertIn('--tag "$RELEASE_TAG"', self.step("Verify the uploaded draft"))
         self.assertIn("--draft --prerelease --latest=false --verify-tag", self.workflow)
-        self.assertIn('--draft=false --prerelease --latest=false', self.workflow)
+        self.assertIn("-F draft=false -F prerelease=true -f make_latest=false", self.workflow)
+        # Drafts are invisible to the published-release tag endpoint; only the
+        # numeric release id can load their metadata.
+        self.assertNotIn("releases/tags", self.workflow)
+        self.assertIn('releases/$RELEASE_ID', self.workflow)
 
     def test_creation_refuses_existing_releases_tags_and_lookup_failures(self):
         script = self.script("Create a new tag and unpublished draft")
@@ -194,6 +199,9 @@ class ReleaseWorkflowTest(unittest.TestCase):
                 echo "$SOURCE_SHA"
               elif [[ "$1 $2" = 'release create' ]]; then
                 echo create-draft >> events
+              elif [[ "$*" = *graphql* ]]; then
+                [[ "$SCENARIO" != draft-lookup-failure ]] || return 83
+                echo 434614696
               else return 90; fi
             }
             git() {
@@ -208,6 +216,7 @@ class ReleaseWorkflowTest(unittest.TestCase):
                 ("success", ["create-tag", "create-draft"]),
                 ("existing-release", []), ("existing-tag", []),
                 ("api-failure", []), ("git-failure", []), ("tag-failure", ["create-tag"]),
+                ("draft-lookup-failure", ["create-tag", "create-draft"]),
             ):
                 with self.subTest(scenario=scenario):
                     (root / "events").write_text("", encoding="utf-8")
@@ -227,14 +236,17 @@ class ReleaseWorkflowTest(unittest.TestCase):
             node() { [[ "$SCENARIO" != bad-digest ]]; }
             gh() {
               if [[ "$*" = *releases?per_page* ]]; then return 0
+              elif [[ "$*" = *graphql* ]]; then echo 434614696
+              elif [[ "$*" = *" -X PATCH "* ]]; then
+                echo public >> events
+                echo '{"draft":false}'
+              elif [[ "$*" = *releases/434614696* ]]; then echo '{}'
               elif [[ "$*" = *git/refs* ]]; then echo "$SOURCE_SHA"
               elif [[ "$*" = *git/ref/tags* ]]; then
                 if [[ "$SCENARIO" = wrong-tag-commit ]]; then echo wrong; else echo "$SOURCE_SHA"; fi
-              elif [[ "$*" = *releases/tags* ]]; then echo '{}'
               elif [[ "$1 $2" = 'release create' ]]; then
                 echo draft >> events
                 [[ "$SCENARIO" != upload-failure ]]
-              elif [[ "$1 $2" = 'release edit' ]]; then echo public >> events
               elif [[ "$1 $2" = 'release view' ]]; then echo https://example.test/release
               else return 90; fi
             }

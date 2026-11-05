@@ -318,7 +318,9 @@ The release helper separates local evidence and publication checks:
   inventory.
 - `node desktop/release.mjs check-remote`: compare the uploaded draft's exact
   asset set, sizes, and REST `sha256:` digests against both verified local
-  publication directories before public visibility. The optional
+  publication directories before public visibility. Read the draft metadata by
+  numeric release id: the release-by-tag endpoint returns published releases only,
+  so a draft lookup by tag is a 404. The optional
   `--tag v<version>-desktop.<packaging-run-id>` selects a version-bound candidate
   tag; without it the official `v<version>` tag contract is unchanged.
 
@@ -586,8 +588,10 @@ release approval.
 3. **Draft-first, complete publication:** after `verify` rechecks the entire
    aggregate, the publisher refuses an existing release or tag, creates
    `v<version>-desktop.<packaging-run-id>` at the packaged commit, and uploads
-   the complete flat directory to an unpublished draft. `check-remote --tag` requires
-   the exact asset set, uploaded states, sizes, and REST SHA-256 digests; the tag
+   the complete flat directory to an unpublished draft. Because the release-by-tag
+   endpoint serves published releases only, the draft is read by its numeric
+   release id. `check-remote --tag` requires the exact asset set, uploaded states,
+   sizes, and REST SHA-256 digests; the tag
    must still point to the source commit. Only then does the workflow publish
    with `--prerelease --latest=false`. It does not rebuild, add portable ZIPs,
    or replace the stable Latest release. Upload/verification failures leave the
