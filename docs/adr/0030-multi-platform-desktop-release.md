@@ -15,7 +15,9 @@ legacy CLI contracts are retained.
 
 CI automation updated on 2026-11-04: retain `electron.yml` for Desktop packaging,
 native smoke checks, and artifact uploads; publish successful default-branch manual
-builds as stable Releases after local and remote asset verification. The
+builds as stable Releases after local and remote asset verification. A push of a
+stable release tag named `v<package.json version>` publishes the same stable
+Release under the pushed tag. The
 separate packaging entry point, protected official-release workflow, old manual
 candidate publisher, and standalone security workflow remain removed. This
 candidate automation does not restore official release authority or weaken the
@@ -35,6 +37,12 @@ CI workflow consolidated on 2026-11-05: packaging and candidate publication now
 run from the same `.github/workflows/electron.yml` file. The `publish` job is
 dependent on the verified `bundle` job and is gated to successful manual dispatches
 on the default branch.
+
+Release-tag publishing added on 2026-11-09: pushing a stable release tag named
+`v<package.json version>` runs the same packaging workflow and publishes the
+stable Release under that pushed tag. Manual default-branch dispatches keep the
+CI-generated `v<version>-desktop.<packaging-run-id>` tag; PRs, non-default
+branches, and any other tag name never publish.
 
 ## Context
 
@@ -137,10 +145,11 @@ and [ADR 0017](0017-ship-redistribution-evidence-with-every-release.md).
 ### Reuse the canonical shared build
 
 Keep [`electron.yml`](../../.github/workflows/electron.yml) reusable through
-`workflow_call`, in addition to manual and path-filtered PR candidate runs. Its
-packaging jobs are read-only; the inline `publish` job consumes the verified
-aggregate after eligible manual default-branch runs. The duplicate `package.yml`
-entry point remains removed. Neither adds a push or scheduled trigger.
+`workflow_call`, in addition to manual, release-tag, and path-filtered PR candidate
+runs. Its packaging jobs are read-only; the inline `publish` job consumes the
+verified aggregate after eligible manual default-branch runs and stable
+release-tag pushes. The duplicate `package.yml`
+entry point remains removed. There is no scheduled trigger.
 Manual/PR runs build shared Web, Trace Processor WASM,
 and AI once through the pinned Linux build pipeline. Native jobs consume same-run, same-commit
 `dist/prod` and `ai/dist` via `--skip-web-build`; they must not silently rebuild
@@ -195,12 +204,15 @@ recorded lineage audit does not approve a release or waive official lineage
 failure.
 
 The inline `publish` job uses the completed `bundle` aggregate to publish only
-successful manual builds on the same repository's default branch. PRs, reusable
-calls, other branches, failures, and cancellations do not publish. Revalidate the
-current run's exact source SHA, default-branch ancestry, and complete aggregate
-before creating any release state.
-Create a unique `v<version>-desktop.<packaging-run-id>` tag at the source commit,
-refuse existing tags/releases, and upload all desktop files to an unpublished draft.
+successful manual builds on the same repository's default branch and pushes of a
+stable release tag that names the committed package version. PRs, reusable
+calls, other branches, other tag names, failures, and cancellations do not publish.
+Revalidate the current run's exact source SHA, default-branch ancestry, and
+complete aggregate before creating any release state.
+A manual run creates a unique `v<version>-desktop.<packaging-run-id>` tag at the
+source commit; a tag run reuses the pushed `v<version>` tag and verifies it points
+at that commit. Refuse existing releases and upload all desktop files to an
+unpublished draft.
 Fetch the unpublished draft by numeric release id rather than by tag: the
 release-by-tag endpoint returns published releases only. Reuse
 `desktop/release.mjs check-remote --tag` to verify exact asset names,
@@ -209,7 +221,8 @@ SHA before publishing with `prerelease=false` and `make_latest=true`. Failures
 leave the draft unpublished; reruns never overwrite it. Only this `publish` job gets
 `contents: write`; packaging stays read-only and all actions stay SHA-pinned.
 
-Tags do not trigger packaging. The protected official publisher remains absent.
+Release tags trigger packaging; CI-generated candidate tags and other tags do not.
+The protected official publisher remains absent.
 `scripts/installer_evidence.py` and official validation tools remain local/manual;
 their lineage, external-evidence, and approval requirements are unchanged.
 GitHub workflows invoke neither `publish.py` nor `verify-aps-release.py`, and

@@ -47,13 +47,16 @@ class ReleaseWorkflowTest(unittest.TestCase):
                  "DEFAULT_BRANCH": "main", "DESKTOP_VERSION": "17.0.2",
                  "RELEASE_TAG": "v17.0.2-desktop.123", "RUNNER_TEMP": str(root),
                  "GITHUB_ENV": str(root / "github-env"),
+                 "GITHUB_EVENT_NAME": "workflow_dispatch", "GITHUB_REF_NAME": "main",
                  **env},
             capture_output=True, text=True, check=False,
         )
 
-    def test_publication_is_in_the_packaging_workflow_and_only_manual_default_dispatch_can_publish(self):
+    def test_publication_is_in_the_packaging_workflow_and_only_trusted_events_can_publish(self):
         triggers = self.workflow.split("\npermissions:", 1)[0]
         self.assertIn("workflow_dispatch:", triggers)
+        self.assertIn('  push:\n    tags:\n', triggers)
+        self.assertIn('      - "v[0-9]+.[0-9]+.[0-9]+"', triggers)
         self.assertIn("pull_request:", triggers)
         self.assertIn("workflow_call:", triggers)
         self.assertNotIn("workflow_run:", triggers)
@@ -62,6 +65,8 @@ class ReleaseWorkflowTest(unittest.TestCase):
         self.assertIn("needs: [bundle, plan]", publish)
         self.assertIn("github.event_name == 'workflow_dispatch'", publish)
         self.assertIn("github.ref_name == github.event.repository.default_branch", publish)
+        self.assertIn("github.event_name == 'push'", publish)
+        self.assertIn("github.ref_type == 'tag'", publish)
 
     def test_publish_gate_rejects_non_manual_non_default_or_incomplete_runs(self):
         expression = self.job("publish").split("    if: >-\n", 1)[1].split("    runs-on:", 1)[0]
@@ -97,6 +102,18 @@ class ReleaseWorkflowTest(unittest.TestCase):
             for key in path[:-1]:
                 target = target[key]
             target[path[-1]] = value
+            cases.append((changed, False))
+        tag = copy.deepcopy(base)
+        tag["github"].update({
+            "event_name": "push", "ref_type": "tag", "ref_name": "v17.0.2",
+            "ref": "refs/tags/v17.0.2",
+            "workflow_ref": f"{REPO}/.github/workflows/electron.yml@refs/tags/v17.0.2",
+        })
+        cases.append((tag, True))
+        for field, value in (("ref_type", "branch"),
+                             ("workflow_ref", f"{REPO}/.github/workflows/caller.yml@refs/tags/v17.0.2")):
+            changed = copy.deepcopy(tag)
+            changed["github"][field] = value
             cases.append((changed, False))
         result = subprocess.run(
             ["node", "-e", textwrap.dedent('''\
@@ -206,7 +223,7 @@ class ReleaseWorkflowTest(unittest.TestCase):
                     self.assertEqual(summary.read_text().strip(), "https://example.test/release")
 
     def test_creation_refuses_existing_releases_tags_and_lookup_failures(self):
-        script = self.script("Create a new tag and unpublished draft")
+        script = self.script("Create an unpublished draft without overwriting releases")
         stub = '''\
             gh() {
               if [[ "$*" = *releases?per_page* ]]; then
@@ -247,7 +264,7 @@ class ReleaseWorkflowTest(unittest.TestCase):
         # Execute the real step bodies in one fail-fast shell with only network
         # and verification commands stubbed. Digest behavior is tested in Node.
         script = "\n".join(self.script(marker) for marker in (
-            "Create a new tag and unpublished draft", "Verify the uploaded draft",
+            "Create an unpublished draft without overwriting releases", "Verify the uploaded draft",
             "Publish the verified stable release",
         ))
         stub = '''\
@@ -281,6 +298,62 @@ class ReleaseWorkflowTest(unittest.TestCase):
                     self.assertEqual((root / "events").read_text().splitlines(),
                                      ["draft", "public"] if scenario == "success" else ["draft"])
 
+    def test_identity_uses_the_pushed_release_tag_only_for_tag_runs(self):
+        script = self.script("id: identity")
+        stub = '''
+            node() {
+              if [[ "$1" = -p ]]; then echo 17.0.2; return 0; fi
+              return 0
+            }
+        '''
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for event, ref_name, expected, valid in (
+                ("workflow_dispatch", "main", "tag=v17.0.2-desktop.123\n", True),
+                ("push", "v17.0.2", "tag=v17.0.2\n", True),
+                ("push", "v17.0.1", "", False),
+            ):
+                with self.subTest(event=event, ref_name=ref_name):
+                    output = root / "output"
+                    output.write_text("", encoding="utf-8")
+                    result = self.run_script(stub + script, root,
+                                             GITHUB_OUTPUT=str(output),
+                                             GITHUB_EVENT_NAME=event,
+                                             GITHUB_REF_NAME=ref_name)
+                    self.assertEqual(result.returncode == 0, valid, result.stderr)
+                    self.assertEqual(output.read_text(encoding="utf-8"), expected)
+
+    def test_pushed_release_tag_is_verified_and_reused_without_creating_a_tag(self):
+        script = self.script("Create an unpublished draft")
+        stub = '''
+            gh() {
+              if [[ "$*" = *releases?per_page* ]]; then return 0
+              elif [[ "$1 $2" = 'release create' ]]; then echo create-draft >> events
+              elif [[ "$*" = *graphql* ]]; then echo 434614696
+              else return 90; fi
+            }
+            git() {
+              if [[ "$1" = rev-parse ]]; then
+                [[ "$SCENARIO" = wrong-tag-commit ]] || printf '%s' "$SOURCE_SHA"
+                return 0
+              elif [[ "$1" = fetch ]]; then echo fetch >> events; return 0
+              else return 90; fi
+            }
+        '''
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for scenario, expected in (
+                ("success", ["create-draft"]),
+                ("wrong-tag-commit", []),
+            ):
+                with self.subTest(scenario=scenario):
+                    (root / "events").write_text("", encoding="utf-8")
+                    result = self.run_script(textwrap.dedent(stub) + script, root,
+                                             SCENARIO=scenario,
+                                             GITHUB_EVENT_NAME="push",
+                                             RELEASE_TAG="v17.0.2")
+                    self.assertEqual(result.returncode == 0, scenario == "success", result.stderr)
+                    self.assertEqual((root / "events").read_text().splitlines(), expected)
 
 if __name__ == "__main__":
     unittest.main()

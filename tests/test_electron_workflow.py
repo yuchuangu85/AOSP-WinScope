@@ -33,10 +33,12 @@ class ElectronWorkflowTest(unittest.TestCase):
         self.assertEqual(len(matches), 1, marker)
         return matches[0]
 
-    def test_manual_pr_and_reusable_triggers_expose_optional_inputs_and_verified_output(self):
+    def test_release_tag_manual_pr_and_reusable_triggers_expose_optional_inputs_and_verified_output(self):
         triggers = self.workflow.split("\npermissions:", 1)[0]
         for trigger in ("workflow_dispatch:", "pull_request:", "workflow_call:"):
             self.assertIn(trigger, triggers)
+        self.assertIn('  push:\n    tags:\n', triggers)
+        self.assertIn('      - "v[0-9]+.[0-9]+.[0-9]+"', triggers)
         for name in ("release-version", "shared-artifact"):
             self.assertIn(
                 f'{name}:\n        type: string\n        required: false\n        default: ""',
@@ -48,7 +50,6 @@ class ElectronWorkflowTest(unittest.TestCase):
         self.assertIn("tests/test_ci_configuration.py", triggers)
         self.assertNotIn("official-release.yml", triggers)
         self.assertNotIn("tests/test_official_release.py", triggers)
-        self.assertNotIn("push:", triggers)
         self.assertNotIn("pull_request_target:", triggers)
 
     def test_actions_are_immutable_and_only_the_publish_job_gets_write_access(self):
@@ -71,13 +72,15 @@ class ElectronWorkflowTest(unittest.TestCase):
         self.assertIn("GH_TOKEN: ${{ github.token }}", publish)
         self.assertIn("gh release create", publish)
 
-    def test_publish_runs_only_after_verified_bundle_on_default_branch_manual_dispatch(self):
+    def test_publish_runs_only_after_verified_bundle_for_default_branch_dispatch_or_release_tag(self):
         publish = self.job("publish")
         self.assertIn("needs: [bundle, plan]", publish)
         self.assertIn("needs.bundle.result == 'success'", publish)
         self.assertIn("needs.plan.result == 'success'", publish)
         self.assertIn("github.event_name == 'workflow_dispatch'", publish)
         self.assertIn("github.ref_name == github.event.repository.default_branch", publish)
+        self.assertIn("github.event_name == 'push'", publish)
+        self.assertIn("github.ref_type == 'tag'", publish)
         self.assertLess(publish.index("actions/download-artifact@"), publish.index("node desktop/release.mjs verify"))
         self.assertLess(publish.index("node desktop/release.mjs verify"), publish.index("gh release create"))
         self.assertLess(publish.index("node desktop/release.mjs check-remote"), publish.index("gh api -X PATCH"))
@@ -140,7 +143,7 @@ class ElectronWorkflowTest(unittest.TestCase):
     def test_shared_build_runs_once_only_without_a_supplied_artifact(self):
         shared = self.job("shared")
         self.assertIn("needs: plan", shared)
-        self.assertIn("if: inputs.shared-artifact == ''", shared)
+        self.assertIn("if: ${{ !inputs.shared-artifact }}", shared)
         for command in ("npm run build:prod", "npm run ai:build"):
             self.assertEqual(self.workflow.count(command), 1)
             self.assertIn(command, shared)

@@ -4,7 +4,8 @@ Electron Desktop is the install-and-run distribution of WinScope. It embeds the
 existing Web UI and reuses the Go Launcher; it is not a replacement trace parser
 or a second implementation of capture or AI. CI generates native installers
 and uploads Actions artifacts. The same workflow automatically releases successful
-default-branch manual builds as GitHub Releases through its `publish` job.
+default-branch manual builds and pushed stable release tags as GitHub Releases
+through its `publish` job.
 Required source, license, integrity, and native acceptance evidence accompanies
 those artifacts. Legacy
 portable browser/Launcher and APS CLI contracts remain available for manual/local
@@ -20,8 +21,8 @@ Choose the artifact matching the machine: macOS arm64 (Apple Silicon), macOS x64
 not supported. These are distinct native Electron packages, not a universal
 macOS binary or a
 cross-platform validation claim. Manual/PR runs upload candidates to the GitHub
-Actions run's artifacts; successful default-branch manual builds also produce
-an automatically published stable Release. The protected official-release
+Actions run's artifacts; successful default-branch manual builds and pushed stable
+release tags also produce an automatically published stable Release. The protected official-release
 workflow remains removed; the desktop Release is not official release approval.
 Only install an artifact from a trusted source.
 
@@ -289,17 +290,29 @@ match a tag. The official policy accepts `v17.<minor>.<patch>` and optional
 `-alpha.<n>` or `-rc.<n>` suffixes, requires the tag commit to be an ancestor of
 `origin/main`, and retains the protected `official-release` environment.
 
-For a candidate run, use Actions **Electron desktop candidates → Run workflow**
-on a reviewed, committed ref, or the equivalent command:
+Publish a version by pushing the stable release tag that names the committed
+`package.json` version (`v<major>.<minor>.<patch>`); any other tag name fails the
+plan step before a native build starts:
+
+```sh
+git tag v<version> <commit>
+git push origin v<version>
+```
+
+The pushed tag is the Release tag. For a packaging-only run, or to publish under
+the CI-generated `v<version>-desktop.<packaging-run-id>` candidate tag, use
+Actions **Electron desktop candidates → Run workflow** on a reviewed, committed
+ref, or the equivalent command:
 
 ```sh
 gh workflow run electron.yml --ref <reviewed-committed-ref>
 ```
 
 Once `electron.yml` is on the default branch, a successful manual run on that
-branch automatically publishes a stable GitHub Release through its `publish` job;
-use another branch for packaging-only checks. PR runs never publish. No Actions
-dispatch, tag creation, or publication is performed by local workflow validation.
+branch or a successful stable release-tag push automatically publishes a stable
+GitHub Release through its `publish` job; use another branch for packaging-only
+checks. PR runs and non-release tags never publish. No Actions dispatch, tag
+creation, or publication is performed by local workflow validation.
 Do not tag or push a dirty branch as a release shortcut.
 
 The release helper separates local evidence and publication checks:
@@ -480,7 +493,8 @@ all-platform installer acceptance, and public release approval remain open.
 
 [`.github/workflows/electron.yml`](../.github/workflows/electron.yml) packages Desktop installers
 on manual dispatch or path-filtered pull requests and retains its reusable
-`workflow_call` interface. It has no push, tag, or scheduled trigger. The duplicate
+`workflow_call` interface. It is also triggered by pushes of a stable release tag
+matching `v<major>.<minor>.<patch>`; there is no scheduled trigger. The duplicate
 `package.yml` entry point, `official-release.yml`, `publish-candidate.yml`, and
 `security.yml` remain removed. Its inline `publish` job automatically publishes
 eligible candidates after the verified `bundle` job. There is no
@@ -565,8 +579,8 @@ assets. The separate `dist/public/<version>` publication carries only
 integrity/source/license/gate evidence, no portable executable or archive.
 Names and local checksums alone do not prove provenance or OS trust. The retained
 packaging workflow does not produce official OIDC attestations. Its successful
-default-branch manual runs publish the stable desktop Release; this is not
-official provenance or approval.
+default-branch manual runs and stable release-tag pushes publish the desktop
+Release; this is not official provenance or approval.
 
 ### Automatic Release And Trust Boundary
 
@@ -578,15 +592,17 @@ official provenance or approval.
    separately recorded lineage audit cannot approve an official release.
 2. **Release publication:** the inline `publish` job in `electron.yml` runs
    only after `bundle` succeeds for a `workflow_dispatch` on the repository's
-   default branch. It uses the current run ID and source SHA, checks the commit
-   against the default branch, and downloads only
-   `electron-publication-<source-commit>` from that same run into the runner's
-   temporary directory, outside the executable checkout. PR builds, reusable
-   calls, and manually dispatched non-default branches do not gain publication
+   default branch or for a push of a stable release tag. It uses the current
+   run ID and source SHA, checks the commit against the default branch, and
+   downloads only `electron-publication-<source-commit>` from that same run
+   into the runner's temporary directory, outside the executable checkout. PR
+   builds, reusable calls, manually dispatched non-default branches, and tags
+   that do not name the committed package version do not gain publication
    credentials.
 3. **Draft-first, complete publication:** after `verify` rechecks the entire
-   aggregate, the publisher refuses an existing release or tag, creates
-   `v<version>-desktop.<packaging-run-id>` at the packaged commit, and uploads
+   aggregate, the publisher refuses an existing release, uses the pushed release
+   tag for a tag run (or creates `v<version>-desktop.<packaging-run-id>` at the
+   packaged commit for a manual run), and uploads
    the complete flat directory to an unpublished draft. Because the release-by-tag
    endpoint serves published releases only, the draft is read by its numeric
    release id. `check-remote --tag` requires the exact asset set, uploaded states,
@@ -604,7 +620,7 @@ official provenance or approval.
    are not waived by stable desktop publication.
 
 The workflow must be committed to the default branch before a default-branch
-manual dispatch can publish. Repository/organization policy must allow the job's
+manual dispatch or stable release-tag push can publish. Repository/organization policy must allow the job's
 `contents: write` token permission and creation of the release tags; no PAT or
 signing secret is configured by this change. Local unit tests and `actionlint`
 validate wiring and failure behavior, not a hosted publication. Drafts remain
