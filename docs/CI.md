@@ -1,6 +1,6 @@
 # Github CI
 
-## 打Tag触发发布版本
+## 打Tag触发CI发布版本
 
 ### 0) 确认版本与分支（当前 main、package.json = 17.0.3）
 
