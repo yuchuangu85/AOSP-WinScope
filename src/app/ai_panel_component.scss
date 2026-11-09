@@ -218,6 +218,41 @@ select:focus-visible {
 .assistant-content {
   padding-left: 32px;
 }
+.reasoning-block {
+  margin: 0 0 12px 32px;
+  max-width: calc(100% - 32px);
+}
+.reasoning-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 32px;
+  padding: 4px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--ai-window-header-fill);
+  color: var(--gray-text-color);
+  text-align: left;
+}
+.reasoning-toggle:hover { background: var(--hover-element-color); }
+.reasoning-toggle mat-icon { width: 16px; height: 16px; font-size: 16px; }
+.reasoning-chevron { margin-left: auto; transition: transform 120ms ease; }
+.reasoning-block.expanded .reasoning-chevron { transform: rotate(180deg); }
+.reasoning-content {
+  max-height: min(260px, 32vh);
+  margin-top: 4px;
+  padding: 8px 10px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border-left: 2px solid var(--primary);
+  background: color-mix(in srgb, var(--ai-window-header-fill) 70%, transparent);
+  color: var(--gray-text-color);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 1.5;
+}
 .message-actions {
   display: flex;
   align-items: center;
@@ -578,6 +613,7 @@ select:focus-visible {
   .assistant-content {
     padding-left: 0;
   }
+  .reasoning-block { margin-left: 0; max-width: 100%; }
   .ai-empty {
     padding: 16px 4px;
     min-height: 120px;

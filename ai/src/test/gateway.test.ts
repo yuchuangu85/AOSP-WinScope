@@ -76,7 +76,7 @@ async function setup(provider?: Parameters<ProviderRegistry['register']>[0], ext
   assert.ok(address && typeof address === 'object');
   const base = `http://127.0.0.1:${address.port}`;
   const post = (path: string, body: unknown) => fetch(`${base}${path}`, {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify(body)});
-  const detail = async (id: string) => await (await fetch(`${base}/api/sessions/${id}`)).json() as {status: string; result?: AgentRunResult; pendingTraceQuery?: {queryId: string; contextId: string; query: TraceDataQuery}; events: Array<{id: number; event: {type: string; data?: Record<string, unknown>}}>};
+  const detail = async (id: string) => await (await fetch(`${base}/api/sessions/${id}`)).json() as {status: string; error?: string; result?: AgentRunResult; pendingTraceQuery?: {queryId: string; contextId: string; query: TraceDataQuery}; events: Array<{id: number; event: {type: string; data?: Record<string, unknown>}}>};
   const settled = async (id: string) => {
     for (let i = 0; i < 100; i++) {
       const session = await detail(id);
@@ -87,6 +87,49 @@ async function setup(provider?: Parameters<ProviderRegistry['register']>[0], ext
   };
   return {gateway, base, post, detail, settled};
 }
+
+test('gateway persists provider reasoning events separately from the final answer', async () => {
+  const context = await setup({
+    id: 'reasoning',
+    run: async (request) => {
+      request.onReasoning?.('first thought');
+      request.onReasoning?.(' and second thought');
+      return {providerId: 'reasoning', output: 'final answer', reasoning: 'fallback', durationMs: 0};
+    },
+  });
+  try {
+    const start = await context.post('/api/analyze', {agentId: 'chat', prompt: 'explain'});
+    assert.equal(start.status, 202);
+    const session = await start.json() as {sessionId: string};
+    const settled = await context.settled(session.sessionId);
+    assert.equal(settled.status, 'completed');
+    assert.equal(settled.result?.provider?.output, 'final answer');
+    const reasoning = settled.events.filter((item) => item.event.type === 'provider_reasoning');
+    assert.deepEqual(reasoning.map((item) => item.event.data?.delta), ['first thought', ' and second thought']);
+    assert.equal(settled.result?.provider?.reasoning, 'fallback');
+    assert.match(JSON.stringify(settled.events), /fallback/);
+    const stream = await (await fetch(`${context.base}/api/sessions/${session.sessionId}/stream`)).text();
+    assert.match(stream, /provider_reasoning/);
+    assert.match(stream, /final answer/);
+  } finally { await context.gateway.close(); }
+});
+
+test('gateway reports provider timeout as failure rather than user cancellation', async () => {
+  const context = await setup({
+    id: 'timeout',
+    run: async () => ({providerId: 'timeout', output: 'AI provider timed out', durationMs: 1, timedOut: true}),
+  });
+  try {
+    const start = await context.post('/api/analyze', {agentId: 'chat', prompt: 'timeout'});
+    assert.equal(start.status, 202);
+    const session = await start.json() as {sessionId: string};
+    const settled = await context.settled(session.sessionId);
+    assert.equal(settled.status, 'failed');
+    assert.equal(settled.error, 'AI provider timed out');
+    assert.equal(settled.events.at(-1)?.event.type, 'error');
+    assert.equal(settled.events.some((item) => item.event.type === 'analysis_cancelled'), false);
+  } finally { await context.gateway.close(); }
+});
 
 async function requestedTraceQuery(context: Awaited<ReturnType<typeof setup>>, sessionId: string, after = 0) {
   for (let i = 0; i < 100; i++) {

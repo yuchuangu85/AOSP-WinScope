@@ -58,6 +58,7 @@ export interface TextAttachment {
 export interface ProviderRequest {
   prompt: string;
   modelId?: string;
+  onReasoning?: (delta: string) => void;
   reasoningLevel?: ReasoningLevel;
   history?: ChatTurn[];
   signal?: AbortSignal;
@@ -67,8 +68,10 @@ export interface ProviderRequest {
 export interface ProviderResponse {
   providerId: string;
   output: string;
+  reasoning?: string;
   durationMs: number;
   exitCode?: number;
+  timedOut?: boolean;
   cancelled?: boolean;
 }
 
@@ -83,6 +86,7 @@ export interface CommandProviderConfig {
   kind: 'command';
   executable: string;
   args?: string[];
+  jsonEvents?: boolean;
   name?: string;
   models?: ModelDescriptor[];
   modelArgs?: string[];

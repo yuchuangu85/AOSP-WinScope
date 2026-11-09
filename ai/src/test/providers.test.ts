@@ -141,3 +141,65 @@ test('configured default model preserves per-model effort through OpenAI executi
     await assert.rejects(provider.run({prompt: 'x', modelId: 'special', reasoningLevel: 'low'}), /does not support/);
   } finally { await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())); }
 });
+
+test('Codex JSON events expose public progress as reasoning and keep the final message as output', async () => {
+  const script = [
+    "const events=[",
+    "{type:'item.started',item:{type:'command_execution',command:'node inspect.js'}},",
+    "{type:'item.completed',item:{type:'agent_message',text:'I inspected the evidence and compared the timestamps.'}},",
+    "{type:'item.completed',item:{type:'agent_message',text:'Final answer'}},",
+    "]; for (const event of events) process.stdout.write(JSON.stringify(event)+'\\n');",
+  ].join('');
+  const provider = new CommandProvider({
+    id: 'codex-json', kind: 'command', executable: process.execPath,
+    args: ['-e', script], jsonEvents: true,
+  });
+  const reasoning: string[] = [];
+  const result = await provider.run({prompt: 'test', onReasoning: (delta) => reasoning.push(delta)});
+  assert.equal(result.output, 'Final answer');
+  assert.deepEqual(reasoning, ['Running tool: node inspect.js', 'I inspected the evidence and compared the timestamps.']);
+  assert.equal(result.reasoning, 'Running tool: node inspect.js\n\nI inspected the evidence and compared the timestamps.');
+});
+
+test('OpenAI-compatible responses expose reasoning without mixing it into the answer', async () => {
+  const server = createServer(async (_request, response) => {
+    response.setHeader('content-type', 'application/json');
+    response.end(JSON.stringify({choices: [{message: {content: '<think>hidden</think>answer'}}]}));
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address();
+  assert.ok(address && typeof address === 'object');
+  try {
+    const provider = new OpenAICompatibleProvider({id: 'thinking', kind: 'openai-compatible', baseUrl: `http://127.0.0.1:${address.port}/v1`, model: 'configured'});
+    const result = await provider.run({prompt: 'current'});
+    assert.equal(result.output, 'answer');
+    assert.equal(result.reasoning, 'hidden');
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
+test('OpenAI-compatible streaming forwards reasoning deltas and preserves the final answer', async () => {
+  const server = createServer(async (_request, response) => {
+    response.setHeader('content-type', 'text/event-stream');
+    response.end([
+      'data: ' + JSON.stringify({choices: [{delta: {reasoning_content: 'first '}}]}),
+      'data: ' + JSON.stringify({choices: [{delta: {reasoning_content: 'thought'}}]}),
+      'data: ' + JSON.stringify({choices: [{delta: {content: 'answer'}, finish_reason: 'stop'}]}),
+      'data: [DONE]',
+    ].join('\n\n') + '\n\n');
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address();
+  assert.ok(address && typeof address === 'object');
+  try {
+    const deltas: string[] = [];
+    const provider = new OpenAICompatibleProvider({id: 'stream', kind: 'openai-compatible', baseUrl: `http://127.0.0.1:${address.port}/v1`, model: 'configured'});
+    const result = await provider.run({prompt: 'current', onReasoning: (delta) => deltas.push(delta)});
+    assert.equal(result.output, 'answer');
+    assert.equal(result.reasoning, 'first thought');
+    assert.deepEqual(deltas, ['first ', 'thought']);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});

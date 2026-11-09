@@ -168,6 +168,7 @@ test('Codex imports effective config and paginated models through read-only stru
       '--color',
       'never',
       '--skip-git-repo-check',
+      '--json',
       '--model',
       'custom/second',
       '-c',

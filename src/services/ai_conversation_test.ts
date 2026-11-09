@@ -180,4 +180,19 @@ describe('AI conversation projection', () => {
     expect(turns[0].status).toBe('failed');
     expect(turns[0].response).toBe('Provider unavailable');
   });
+  it('keeps streamed reasoning separate from the final response and preserves duplicate deltas', () => {
+    const [turn] = projectConversation([
+      {type: 'analysis_started', data: {prompt: 'Explain'}},
+      {type: 'provider_reasoning', data: {delta: 'First '}},
+      {type: 'provider_reasoning', data: {delta: 'thought'}},
+      {type: 'analysis_completed', data: {provider: {reasoning: 'ignored fallback', output: 'Answer'}}},
+    ]);
+    expect(turn.reasoning).toBe('First thought');
+    expect(turn.response).toBe('Answer');
+    const [fallback] = projectConversation([
+      {type: 'analysis_started', data: {prompt: 'Explain'}},
+      {type: 'analysis_completed', data: {provider: {reasoning: 'Saved thought', output: 'Answer'}}},
+    ]);
+    expect(fallback.reasoning).toBe('Saved thought');
+  });
 });

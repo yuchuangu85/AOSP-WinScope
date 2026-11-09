@@ -14,6 +14,7 @@ export interface AiChatTurn {
   prompt: string;
   attachments: string[];
   response: string;
+  reasoning?: string;
   /** Display-only projection; provider text is always a raw part. */
   responseParts?: AiResponsePart[];
   status: 'running' | 'completed' | 'failed' | 'cancelled';
@@ -27,6 +28,9 @@ export interface AiChatTurn {
 export function projectConversation(events: AiEvent[]): AiChatTurn[] {
   const turns: AiChatTurn[] = [];
   let turn: AiChatTurn | undefined;
+  let reasoningDeltaReceived = false;
+  let reasoningRoundHasContent = false;
+  let reasoningNeedsSeparator = false;
   for (const [index, event] of events.entries()) {
     const data = isRecord(event.data) ? event.data : {};
     if (event.type === 'analysis_started') {
@@ -47,6 +51,9 @@ export function projectConversation(events: AiEvent[]): AiChatTurn[] {
         links: [],
       };
       turns.push(turn);
+      reasoningDeltaReceived = false;
+      reasoningRoundHasContent = false;
+      reasoningNeedsSeparator = false;
     }
     if (!turn) continue;
     if (event.type === 'skill_started' || event.type === 'skill_completed') {
@@ -54,10 +61,16 @@ export function projectConversation(events: AiEvent[]): AiChatTurn[] {
     }
     if (event.type === 'provider_started') {
       turn.activity = `Waiting for ${data['providerId'] ?? 'model'}…`;
+      if (reasoningRoundHasContent && turn.reasoning) reasoningNeedsSeparator = true;
+      reasoningRoundHasContent = false;
     }
     if (event.type === 'trace_query_requested') turn.activity = 'Reading trace data…';
     if (event.type === 'trace_query_completed') turn.activity = 'Trace data received';
     if (event.type === 'analysis_completed') {
+      if (!reasoningDeltaReceived && isRecord(data['provider']) &&
+        typeof data['provider']['reasoning'] === 'string') {
+        turn.reasoning = data['provider']['reasoning'];
+      }
       turn.responseParts = responseParts(event.data);
       turn.response = formatConversationResponse(turn, interpolateEnglish);
       turn.links = findingLinks(event.data);
@@ -66,6 +79,19 @@ export function projectConversation(events: AiEvent[]): AiChatTurn[] {
       const duration = data['durationMs'];
       if (typeof duration === 'number' && Number.isFinite(duration) && duration >= 0) {
         turn.durationMs = duration;
+      }
+    }
+    if (event.type === 'provider_reasoning' && turn.status === 'running') {
+      const reasoningData = isRecord(event.data) ? event.data : {};
+      const delta = reasoningData['delta'];
+      if (typeof delta === 'string') {
+        reasoningDeltaReceived = true;
+        if (delta.length > 0) {
+          const separator = reasoningNeedsSeparator && turn.reasoning ? '\n' : '';
+          turn.reasoning = `${turn.reasoning ?? ''}${separator}${delta}`;
+          reasoningRoundHasContent = true;
+          reasoningNeedsSeparator = false;
+        }
       }
     }
     if (event.type === 'error' || event.type === 'analysis_cancelled') {

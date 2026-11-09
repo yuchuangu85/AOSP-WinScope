@@ -135,8 +135,8 @@
                 },
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning": "6kb",
-                  "maximumError": "10kb"
+                  "maximumWarning": "11kb",
+                  "maximumError": "11kb"
                 }
               ],
               "tsConfig": "tsconfig.prod.json",

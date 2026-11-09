@@ -118,10 +118,15 @@ export class AgentRuntime {
       let queryContext = '';
       let evidenceBytes = Buffer.byteLength(evidenceText ?? '', 'utf8');
       while (true) {
+        let streamedReasoning = false;
         request.signal?.throwIfAborted();
         emit({type: 'provider_started', data: {providerId, ...(request.modelId ? {modelId: request.modelId} : {}), ...(request.reasoningLevel ? {reasoningLevel: request.reasoningLevel} : {})}});
         request.signal?.throwIfAborted();
-        provider = await this.providers.get(providerId).run({prompt: prompt() + (request.queryTrace ? TRACE_QUERY_INSTRUCTIONS : '') + queryContext, signal: request.signal, modelId: request.modelId, reasoningLevel: request.reasoningLevel, history: request.history});
+        provider = await this.providers.get(providerId).run({prompt: prompt() + (request.queryTrace ? TRACE_QUERY_INSTRUCTIONS : '') + queryContext, signal: request.signal, modelId: request.modelId, reasoningLevel: request.reasoningLevel, history: request.history, onReasoning: (delta) => {
+          streamedReasoning = true;
+          emit({type: 'provider_reasoning', data: {providerId, delta}});
+        }});
+        if (provider.reasoning && !streamedReasoning) emit({type: 'provider_reasoning', data: {providerId, delta: provider.reasoning}});
         emit({type: 'provider_completed', data: {providerId: provider.providerId, cancelled: provider.cancelled ?? false}});
         if (!request.queryTrace) break;
         request.signal?.throwIfAborted();

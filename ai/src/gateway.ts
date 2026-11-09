@@ -385,7 +385,11 @@ export class AiGateway {
         history: session.history, attachments: input.attachments, signal,
         ...(input.traceQueryEnabled ? {queryTrace: (query: TraceDataQuery) => this.queryTrace(session, signal, input.traceQueryContextId!, query)} : {}),
       }, {onEvent: (event) => this.emit(session, event)});
-      if (signal.aborted || result.provider?.cancelled) {
+      if (result.provider?.timedOut) {
+        session.status = 'failed';
+        session.error = result.provider.output;
+        this.emit(session, {type: 'error', message: result.provider.output});
+      } else if (signal.aborted || result.provider?.cancelled) {
         session.status = 'cancelled';
         this.emit(session, {type: 'analysis_cancelled', message: 'Analysis stopped'});
       } else {

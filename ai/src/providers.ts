@@ -7,6 +7,7 @@ import {
   ProviderConfig, ProviderConfiguration, ProviderDescriptor, ProviderRequest, ProviderResponse,
 } from './types';
 
+const DEFAULT_PROVIDER_TIMEOUT_MS = 600_000;
 const SECRET_LIKE = /(?:(?:^|[^a-z0-9])(?:sk|pk|gh[pousr]|xox[baprs])[-_]|api[-_]?key|auth|bearer|credential|password|secret|token|[a-zA-Z0-9_-]{24,})/i;
 
 export function sanitizeLocalConfig(
@@ -92,7 +93,7 @@ export class CommandProvider implements Provider {
         baseUrl: metadata?.baseUrl ?? (config.importedFrom ? '' : config.configurationKind === 'codex' ? 'https://api.openai.com/v1' : 'https://api.anthropic.com'),
         providerName: metadata?.providerName ?? (config.configurationKind === 'codex' ? 'OpenAI' : 'Claude'),
         apiKeyEnv: isEnvName(config.importedApiKeyEnv) ? config.importedApiKeyEnv : config.importedFrom ? '' : config.configurationKind === 'codex' ? 'OPENAI_API_KEY' : 'ANTHROPIC_API_KEY',
-        timeoutMs: config.timeoutMs ?? 120_000,
+        timeoutMs: config.timeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS,
       };
       this.descriptor.configured = config.configured ?? Boolean(config.importedFrom);
       const apiKeyEnv = config.configurationOverrides?.apiKeyEnv;
@@ -169,7 +170,7 @@ export class CommandProvider implements Provider {
       if (!this.config.reasoningArgs || !levels.includes(request.reasoningLevel)) throw new Error(`${this.id} does not support reasoning level ${request.reasoningLevel}`);
       args.push(...this.config.reasoningArgs.map((arg) => arg.replaceAll('{{level}}', request.reasoningLevel!)));
     }
-    const timeout = createTimeout(request.timeoutMs ?? configuration?.timeoutMs ?? this.config.timeoutMs ?? 120_000, request.signal);
+    const timeout = createTimeout(request.timeoutMs ?? configuration?.timeoutMs ?? this.config.timeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS, request.signal);
     const started = performance.now();
     return new Promise((resolve, reject) => {
       const child = spawnCommand(this.config.executable, args, {
@@ -199,7 +200,43 @@ export class CommandProvider implements Provider {
           finish(() => reject(new Error(`${this.id} output exceeded 1 MiB`)));
         }
       };
-      child.stdout.on('data', (chunk: string) => collect(chunk, false));
+      let jsonBuffer = '';
+      let jsonLastMessage = '';
+      let jsonReasoning = '';
+      const emitJsonReasoning = (text: string) => {
+        const value = text.trim();
+        if (!value || !request.onReasoning) return;
+        jsonReasoning += (jsonReasoning ? '\n\n' : '') + value;
+        request.onReasoning(value);
+      };
+      const consumeJsonChunk = (chunk: string) => {
+        jsonBuffer += chunk;
+        while (jsonBuffer.includes('\n')) {
+          const end = jsonBuffer.indexOf('\n');
+          const line = jsonBuffer.slice(0, end).trim();
+          jsonBuffer = jsonBuffer.slice(end + 1);
+          if (!line) continue;
+          let event: unknown;
+          try { event = JSON.parse(line); } catch { continue; }
+          if (!isRecord(event) || !isRecord(event.item)) continue;
+          const item = event.item;
+          const itemType = item.type;
+          if (itemType === 'agent_message' && typeof item.text === 'string') {
+            if (jsonLastMessage) emitJsonReasoning(jsonLastMessage);
+            jsonLastMessage = item.text;
+          } else if (itemType === 'reasoning') {
+            const text = typeof item.text === 'string' ? item.text : typeof item.summary === 'string' ? item.summary : '';
+            if (text) emitJsonReasoning(text);
+          } else if (itemType === 'command_execution' && event.type === 'item.started') {
+            const command = typeof item.command === 'string' ? item.command : 'tool';
+            emitJsonReasoning(`Running tool: ${command}`);
+          }
+        }
+      };
+      child.stdout.on('data', (chunk: string) => {
+        collect(chunk, false);
+        if (this.config.jsonEvents) consumeJsonChunk(chunk);
+      });
       child.stderr.on('data', (chunk: string) => collect(chunk, true));
       timeout.signal.addEventListener('abort', abort, {once: true});
       if (timeout.signal.aborted) abort();
@@ -207,12 +244,17 @@ export class CommandProvider implements Provider {
       child.stdin.on('error', () => {}); // Spawn/exit handlers own process failures (including EPIPE).
       child.on('close', (code, signal) => finish(() => {
         const output = stdout.trim() || stderr.trim();
+        if (this.config.jsonEvents && jsonBuffer.trim()) consumeJsonChunk(jsonBuffer + '\n');
+        const rawOutput = this.config.jsonEvents && jsonLastMessage ? jsonLastMessage : output;
+        const separated = splitEmbeddedReasoning(rawOutput);
+        const reasoning = [jsonReasoning, separated.reasoning].filter(Boolean).join('\n\n');
         if (timeout.signal.aborted) {
-          resolve({providerId: this.id, output: output || 'provider cancelled', durationMs: Math.round(performance.now() - started), exitCode: code ?? undefined, cancelled: true});
+          const timedOut = !request.signal?.aborted;
+          resolve({providerId: this.id, output: separated.output || (timedOut ? 'AI provider timed out' : 'provider cancelled'), ...(reasoning ? {reasoning} : {}), durationMs: Math.round(performance.now() - started), exitCode: code ?? undefined, ...(timedOut ? {timedOut: true, cancelled: true} : {cancelled: true})});
         } else if (code !== 0) {
           reject(new Error(`${this.id} exited with ${code ?? signal ?? 'unknown'}`));
         } else {
-          resolve({providerId: this.id, output, durationMs: Math.round(performance.now() - started), exitCode: 0});
+          resolve({providerId: this.id, output: separated.output, ...(reasoning ? {reasoning} : {}), durationMs: Math.round(performance.now() - started), exitCode: 0});
         }
       }));
       const history = request.history?.map((turn) => `${turn.role}: ${turn.content}`).join('\n\n');
@@ -234,7 +276,7 @@ export class OpenAICompatibleProvider implements Provider {
     const metadata = sanitizeLocalConfig({baseUrl: config.baseUrl, providerName: config.name});
     this.descriptor.configuration = config.configuration ? parseProviderConfiguration(config.configuration) : {
       baseUrl: metadata?.baseUrl ?? '', providerName: metadata?.providerName ?? '',
-      apiKeyEnv: isEnvName(config.apiKeyEnv) ? config.apiKeyEnv : '', timeoutMs: config.timeoutMs ?? 120_000,
+      apiKeyEnv: isEnvName(config.apiKeyEnv) ? config.apiKeyEnv : '', timeoutMs: config.timeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS,
     };
     this.descriptor.configured = config.configured ?? false;
     const apiKeyEnv = config.configurationOverrides?.apiKeyEnv || config.apiKeyEnv;
@@ -259,32 +301,126 @@ export class OpenAICompatibleProvider implements Provider {
     const levels = this.descriptor.models.find((model) => model.id === modelId)?.levels ?? this.descriptor.reasoningLevels;
     if (request.reasoningLevel && !levels.includes(request.reasoningLevel)) throw new Error(`${this.id} does not support reasoning level ${request.reasoningLevel}`);
     const configuration = this.config.configuration;
-    const timeout = createTimeout(request.timeoutMs ?? configuration?.timeoutMs ?? this.config.timeoutMs ?? 120_000, request.signal);
+    const timeout = createTimeout(request.timeoutMs ?? configuration?.timeoutMs ?? this.config.timeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS, request.signal);
     const started = performance.now();
     try {
       const headers: Record<string, string> = {'content-type': 'application/json'};
       const apiKeyEnv = this.config.configurationOverrides?.apiKeyEnv || this.config.apiKeyEnv;
       const apiKey = apiKeyEnv ? process.env[apiKeyEnv] : undefined;
       if (apiKey) headers.authorization = `Bearer ${apiKey}`;
+      const streaming = Boolean(request.onReasoning);
       const response = await fetch(`${(this.config.configurationOverrides?.baseUrl || this.config.baseUrl).replace(/\/$/, '')}/chat/completions`, {
         method: 'POST', headers,
         body: JSON.stringify({
           model: modelId,
           messages: [...(request.history ?? []), {role: 'user', content: request.prompt}],
+          ...(streaming ? {stream: true} : {}),
           ...(request.reasoningLevel ? {reasoning_effort: request.reasoningLevel} : {}),
         }), signal: timeout.signal,
       });
-      const text = await response.text();
       if (!response.ok) throw new Error(`provider HTTP ${response.status}`);
-      let payload: {choices?: Array<{message?: {content?: unknown}}>};
+      if (streaming && response.headers.get('content-type')?.includes('text/event-stream') && response.body) {
+        const streamed = await readOpenAiStream(response.body, request.onReasoning!);
+        return {providerId: this.id, ...streamed, durationMs: Math.round(performance.now() - started)};
+      }
+      const text = await response.text();
+      let payload: {choices?: Array<{message?: {content?: unknown; reasoning?: unknown; reasoning_content?: unknown; thinking?: unknown}}>};
       try { payload = JSON.parse(text); } catch { throw new Error('provider returned invalid JSON'); }
-      const output = payload.choices?.[0]?.message?.content;
-      if (typeof output !== 'string') throw new Error('provider response has no text content');
-      return {providerId: this.id, output, durationMs: Math.round(performance.now() - started)};
+      const message = payload.choices?.[0]?.message;
+      const rawOutput = textContent(message?.content);
+      if (rawOutput === undefined) throw new Error('provider response has no text content');
+      const embedded = splitEmbeddedReasoning(rawOutput);
+      const explicitReasoning = textContent(message?.reasoning_content) ?? textContent(message?.reasoning) ?? textContent(message?.thinking);
+      const reasoning = [explicitReasoning, embedded.reasoning].filter(Boolean).join('\n\n');
+      if (Buffer.byteLength(rawOutput + reasoning, 'utf8') > MAX_PROVIDER_OUTPUT_BYTES) {
+        throw new Error('provider output exceeded 1 MiB');
+      }
+      return {providerId: this.id, output: embedded.output, ...(reasoning ? {reasoning} : {}), durationMs: Math.round(performance.now() - started)};
     } catch (error) {
-      if (timeout.signal.aborted) return {providerId: this.id, output: error instanceof Error ? error.message : 'provider cancelled', durationMs: Math.round(performance.now() - started), cancelled: true};
+      if (timeout.signal.aborted) {
+        const timedOut = !request.signal?.aborted;
+        return {providerId: this.id, output: error instanceof Error && !timedOut ? error.message : timedOut ? 'AI provider timed out' : 'provider cancelled', durationMs: Math.round(performance.now() - started), ...(timedOut ? {timedOut: true, cancelled: true} : {cancelled: true})};
+      }
       throw error;
     } finally { timeout.dispose(); }
+  }
+}
+
+const MAX_PROVIDER_OUTPUT_BYTES = 1024 * 1024;
+
+function textContent(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
+function splitEmbeddedReasoning(value: string): {output: string; reasoning?: string} {
+  const start = /^\s*<think>/.exec(value);
+  if (!start) return {output: value};
+  const end = value.indexOf('</think>', start[0].length);
+  return {
+    output: end < 0 ? '' : value.slice(end + '</think>'.length).replace(/^\r?\n/, ''),
+    reasoning: value.slice(start[0].length, end < 0 ? undefined : end),
+  };
+}
+
+async function readOpenAiStream(
+  body: ReadableStream<Uint8Array>,
+  onReasoning: (delta: string) => void,
+): Promise<{output: string; reasoning?: string}> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let output = '';
+  let reasoning = '';
+  let bytes = 0;
+  let sawContent = false;
+  let finished = false;
+  const consume = (block: string): void => {
+    const data = block.split(/\r?\n/).filter((line) => line.startsWith('data:'))
+      .map((line) => line.slice(5).trimStart()).join('\n');
+    if (!data) return;
+    if (data === '[DONE]') { finished = true; return; }
+    let payload: unknown;
+    try { payload = JSON.parse(data); } catch { throw new Error('provider returned invalid stream JSON'); }
+    if (!isRecord(payload) || payload.error) throw new Error('provider returned a stream error');
+    const choice = Array.isArray(payload.choices) ? payload.choices[0] : undefined;
+    if (!isRecord(choice)) return;
+    const delta = isRecord(choice.delta) ? choice.delta : {};
+    const thought = textContent(delta.reasoning_content) ?? textContent(delta.reasoning) ?? textContent(delta.thinking) ?? '';
+    if (thought) {
+      reasoning += thought;
+      onReasoning(thought);
+    }
+    if (typeof delta.content === 'string') { output += delta.content; sawContent = true; }
+    if (choice.finish_reason !== undefined && choice.finish_reason !== null) finished = true;
+  };
+  try {
+    while (!finished) {
+      const chunk = await reader.read();
+      bytes += chunk.value?.byteLength ?? 0;
+      if (bytes > MAX_PROVIDER_OUTPUT_BYTES) throw new Error('provider stream exceeded 1 MiB');
+      buffer += decoder.decode(chunk.value ?? new Uint8Array(), {stream: !chunk.done});
+      const blocks = buffer.split(/\r?\n\r?\n/);
+      buffer = blocks.pop() ?? '';
+      for (const block of blocks) {
+        consume(block);
+        if (finished) break;
+      }
+      if (chunk.done) {
+        if (!finished && buffer.trim()) consume(buffer);
+        if (!finished) throw new Error('provider stream ended before completion');
+        break;
+      }
+    }
+    if (!sawContent) throw new Error('provider response has no text content');
+    const embedded = splitEmbeddedReasoning(output);
+    if (embedded.reasoning) {
+      onReasoning((reasoning ? '\n\n' : '') + embedded.reasoning);
+      reasoning = [reasoning, embedded.reasoning].filter(Boolean).join('\n\n');
+    }
+    return {output: embedded.output, ...(reasoning ? {reasoning} : {})};
+  } finally {
+    await reader.cancel().catch(() => undefined);
+    reader.releaseLock();
   }
 }
 
@@ -317,7 +453,8 @@ export function createDefaultProviderRegistry(): ProviderRegistry {
 export function localCommandConfig(id: 'codex' | 'claude'): CommandProviderConfig {
   return id === 'codex' ? {
     id, name: 'Codex', kind: 'command', executable: 'codex', configurationKind: 'codex',
-    args: ['exec', '--sandbox', 'read-only', '--ephemeral', '--color', 'never', '--skip-git-repo-check'],
+    args: ['exec', '--sandbox', 'read-only', '--ephemeral', '--color', 'never', '--skip-git-repo-check', '--json'],
+    jsonEvents: true,
     modelArgs: ['--model', '{{model}}'], reasoningArgs: ['-c', 'model_reasoning_effort="{{level}}"'],
   } : {
     id, name: 'Claude', kind: 'command', executable: 'claude', configurationKind: 'claude',

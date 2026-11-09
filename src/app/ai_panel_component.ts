@@ -5,13 +5,13 @@ import {MatButtonModule} from '@angular/material/button';
 import {MatIconModule} from '@angular/material/icon';
 import {MatMenuModule} from '@angular/material/menu';
 import {MatProgressBarModule} from '@angular/material/progress-bar';
-import {MAT_TOOLTIP_DEFAULT_OPTIONS, MatTooltipModule} from '@angular/material/tooltip';
+import {MAT_TOOLTIP_DEFAULT_OPTIONS, MatTooltipModule,} from '@angular/material/tooltip';
 import {language, translate, TranslatePipe} from '@common/i18n';
 import {AiChatTurn, formatAnalysisDuration, formatConversationResponse, projectConversation,} from '@services/ai_conversation';
-import {AI_DIAGNOSTIC_PROMPTS, AiDiagnosticExampleId, AiDiagnosticPromptId, diagnosticExamplePrompt, diagnosticExamples, diagnosticExampleText, diagnosticPrompt} from '@services/ai_diagnostic_prompts';
+import {AI_DIAGNOSTIC_PROMPTS, AiDiagnosticExampleId, AiDiagnosticPromptId, diagnosticExamplePrompt, diagnosticExamples, diagnosticExampleText, diagnosticPrompt,} from '@services/ai_diagnostic_prompts';
 import {AiAttachment, AiCatalog, AiEvent, AiGatewayClient, AiProvider, AiSessionSummary, AiTraceQueryRequest,} from '@services/ai_gateway_client';
 import {isAiTraceQuery} from '@services/ai_trace_query_validation';
-import {WinscopeTraceQuery, WinscopeTraceSnapshot} from '@services/winscope_trace_query';
+import {WinscopeTraceQuery, WinscopeTraceSnapshot,} from '@services/winscope_trace_query';
 
 import {AiMarkdownComponent} from './ai_markdown_component';
 import {AiModelSelection, AiSettingsValue} from './ai_settings_component';
@@ -50,7 +50,9 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
   showDiagnosticExamples = true;
   @Input() endpoint: string | undefined;
   @Input() evidence: unknown;
-  @Input() traceQuery?: (query: WinscopeTraceQuery) => Promise<WinscopeTraceSnapshot>;
+  @Input() traceQuery?: (
+    query: WinscopeTraceQuery,
+  ) => Promise<WinscopeTraceSnapshot>;
   @Input() suspended = false;
   @Input() defaults?: AiSettingsValue;
   @Input() settingsCatalog?: AiCatalog;
@@ -100,6 +102,8 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
   attachments: AiAttachment[] = [];
   includeEvidence = true;
   turns: AiChatTurn[] = [];
+  private readonly expandedReasoning = new Set<number>();
+  private readonly collapsedReasoning = new Set<number>();
   error = '';
   notice = '';
   sessionId = '';
@@ -145,6 +149,7 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
   private initialized = false;
   private settingsPending = false;
   private catalogPending = false;
+  private conversationModelSelectionDirty = false;
   private readonly drafts = new Map<string, Draft>();
   private traceQueryRun?: {
     contextId: string;
@@ -155,7 +160,8 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
   };
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['traceQuery'] && !changes['traceQuery'].firstChange) this.traceQueryRun = undefined;
+    if (changes['traceQuery'] && !changes['traceQuery'].firstChange)
+      {this.traceQueryRun = undefined;}
     if (changes['settingsCatalog'] && this.settingsCatalog) {
       this.catalogPending = true;
     }
@@ -167,7 +173,8 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
       this.endWindowResize();
       this.endWindowDrag();
     }
-    if (changes['suspended'] && !this.suspended && this.initialized) this.focusComposer();
+    if (changes['suspended'] && !this.suspended && this.initialized)
+      {this.focusComposer();}
   }
 
   ngAfterViewInit(): void {
@@ -253,7 +260,15 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
 
   beginWindowResize(event: PointerEvent): void {
     const panel = this.windowPanel?.nativeElement;
-    if (event.button !== 0 || !event.isPrimary || this.suspended || this.windowResize || this.windowDrag || !panel?.offsetWidth) return;
+    if (
+      event.button !== 0 ||
+      !event.isPrimary ||
+      this.suspended ||
+      this.windowResize ||
+      this.windowDrag ||
+      !panel?.offsetWidth
+    )
+      {return;}
     const handle = event.currentTarget as HTMLElement;
     const bounds = this.windowBounds();
     this.windowResize = {
@@ -278,12 +293,20 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
     const resize = this.windowResize;
     if (!resize || (event && event.pointerId !== resize.pointerId)) return;
     this.windowResize = undefined;
-    if (resize.handle.hasPointerCapture(resize.pointerId)) resize.handle.releasePointerCapture(resize.pointerId);
+    if (resize.handle.hasPointerCapture(resize.pointerId))
+      {resize.handle.releasePointerCapture(resize.pointerId);}
   }
 
   resizeWindowKey(event: KeyboardEvent): void {
     const panel = this.windowPanel?.nativeElement;
-    if (this.suspended || !panel?.offsetWidth || event.altKey || event.ctrlKey || event.metaKey) return;
+    if (
+      this.suspended ||
+      !panel?.offsetWidth ||
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey
+    )
+      {return;}
     const step = event.shiftKey ? 64 : 16;
     const delta: Record<string, [number, number]> = {
       ArrowLeft: [-step, 0], ArrowRight: [step, 0],
@@ -293,7 +316,11 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
     event.preventDefault();
     event.stopPropagation();
     if (event.key === 'Home') this.resetWindowSize();
-    else this.setWindowSize(panel.offsetWidth + delta[event.key][0], panel.offsetHeight + delta[event.key][1]);
+    else
+      {this.setWindowSize(
+        panel.offsetWidth + delta[event.key][0],
+        panel.offsetHeight + delta[event.key][1],
+      );}
   }
 
   resetWindowSize(): void {
@@ -306,13 +333,34 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
 
   beginWindowDrag(event: PointerEvent): void {
     const panel = this.windowPanel?.nativeElement;
-    if (event.button !== 0 || !event.isPrimary || this.suspended || this.windowDrag || this.windowResize || !panel?.offsetWidth) return;
-    if (event.target instanceof Element && event.target.closest('button, input, textarea, select, a, [contenteditable]')) return;
+    if (
+      event.button !== 0 ||
+      !event.isPrimary ||
+      this.suspended ||
+      this.windowDrag ||
+      this.windowResize ||
+      !panel?.offsetWidth
+    )
+      {return;}
+    if (
+      event.target instanceof Element &&
+      event.target.closest(
+        'button, input, textarea, select, a, [contenteditable]',
+      )
+    )
+      {return;}
     const rect = panel.getBoundingClientRect();
     const scale = this.viewportBounds().scale;
     const handle = event.currentTarget as HTMLElement;
-    this.windowDrag = {pointerId: event.pointerId, handle, x: event.clientX, y: event.clientY,
-      left: rect.left / scale, top: rect.top / scale, scale};
+    this.windowDrag = {
+      pointerId: event.pointerId,
+      handle,
+      x: event.clientX,
+      y: event.clientY,
+      left: rect.left / scale,
+      top: rect.top / scale,
+      scale,
+    };
     handle.setPointerCapture(event.pointerId);
     handle.focus({preventScroll: true});
     event.preventDefault();
@@ -321,8 +369,10 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
   moveWindowDrag(event: PointerEvent): void {
     const drag = this.windowDrag;
     if (!drag || event.pointerId !== drag.pointerId) return;
-    this.setWindowPosition(drag.left + (event.clientX - drag.x) / drag.scale,
-      drag.top + (event.clientY - drag.y) / drag.scale);
+    this.setWindowPosition(
+      drag.left + (event.clientX - drag.x) / drag.scale,
+      drag.top + (event.clientY - drag.y) / drag.scale,
+    );
     event.preventDefault();
   }
 
@@ -330,15 +380,28 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
     const drag = this.windowDrag;
     if (!drag || (event && event.pointerId !== drag.pointerId)) return;
     this.windowDrag = undefined;
-    if (drag.handle.hasPointerCapture(drag.pointerId)) drag.handle.releasePointerCapture(drag.pointerId);
+    if (drag.handle.hasPointerCapture(drag.pointerId))
+      {drag.handle.releasePointerCapture(drag.pointerId);}
   }
 
   moveWindowKey(event: KeyboardEvent): void {
-    if (event.target !== event.currentTarget || this.suspended || event.altKey || event.ctrlKey || event.metaKey) return;
+    if (
+      event.target !== event.currentTarget ||
+      this.suspended ||
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey
+    )
+      {return;}
     const panel = this.windowPanel?.nativeElement;
     if (!panel?.offsetWidth) return;
     const step = event.shiftKey ? 64 : 16;
-    const delta: Record<string, [number, number]> = {ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step]};
+    const delta: Record<string, [number, number]> = {
+      ArrowLeft: [-step, 0],
+      ArrowRight: [step, 0],
+      ArrowUp: [0, -step],
+      ArrowDown: [0, step],
+    };
     if (event.key !== 'Home' && !delta[event.key]) return;
     event.preventDefault();
     event.stopPropagation();
@@ -346,7 +409,10 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
     else {
       const scale = this.viewportBounds().scale;
       const rect = panel.getBoundingClientRect();
-      this.setWindowPosition(rect.left / scale + delta[event.key][0], rect.top / scale + delta[event.key][1]);
+      this.setWindowPosition(
+        rect.left / scale + delta[event.key][0],
+        rect.top / scale + delta[event.key][1],
+      );
     }
   }
 
@@ -355,8 +421,10 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
     const panel = this.windowPanel?.nativeElement;
     if (!panel?.offsetWidth) return;
     const bounds = this.viewportBounds();
-    this.setWindowPosition(bounds.left + (bounds.width - panel.offsetWidth) / 2,
-      bounds.top + (bounds.height - panel.offsetHeight) / 2);
+    this.setWindowPosition(
+      bounds.left + (bounds.width - panel.offsetWidth) / 2,
+      bounds.top + (bounds.height - panel.offsetHeight) / 2,
+    );
   }
 
   @HostListener('window:resize')
@@ -368,14 +436,28 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
     const bounds = this.viewportBounds();
     if (this.windowSize) {
       this.windowSize = {
-        width: Math.min(bounds.width, Math.max(Math.min(this.minWindowSize.width, bounds.width), this.windowSize.width)),
-        height: Math.min(bounds.height, Math.max(Math.min(this.minWindowSize.height, bounds.height), this.windowSize.height)),
+        width: Math.min(
+          bounds.width,
+          Math.max(
+            Math.min(this.minWindowSize.width, bounds.width),
+            this.windowSize.width,
+          ),
+        ),
+        height: Math.min(
+          bounds.height,
+          Math.max(
+            Math.min(this.minWindowSize.height, bounds.height),
+            this.windowSize.height,
+          ),
+        ),
       };
     }
     if (this.windowPosition || this.windowSize) {
       const rect = panel.getBoundingClientRect();
-      this.setWindowPosition(this.windowPosition?.left ?? rect.left / bounds.scale,
-        this.windowPosition?.top ?? rect.top / bounds.scale);
+      this.setWindowPosition(
+        this.windowPosition?.left ?? rect.left / bounds.scale,
+        this.windowPosition?.top ?? rect.top / bounds.scale,
+      );
     }
     this.updateWindowLayout();
     this.resizeComposer();
@@ -384,30 +466,62 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
   private setWindowSize(width: number, height: number): void {
     const bounds = this.windowBounds();
     this.windowSize = {
-      width: Math.min(bounds.width, Math.max(Math.min(this.minWindowSize.width, bounds.width), Math.round(width))),
-      height: Math.min(bounds.height, Math.max(Math.min(this.minWindowSize.height, bounds.height), Math.round(height))),
+      width: Math.min(
+        bounds.width,
+        Math.max(
+          Math.min(this.minWindowSize.width, bounds.width),
+          Math.round(width),
+        ),
+      ),
+      height: Math.min(
+        bounds.height,
+        Math.max(
+          Math.min(this.minWindowSize.height, bounds.height),
+          Math.round(height),
+        ),
+      ),
     };
   }
 
   private setWindowPosition(left: number, top: number): void {
     const panel = this.windowPanel!.nativeElement;
     const bounds = this.viewportBounds();
-    const width = Math.min(this.windowSize?.width ?? panel.offsetWidth, bounds.width);
-    const height = Math.min(this.windowSize?.height ?? panel.offsetHeight, bounds.height);
+    const width = Math.min(
+      this.windowSize?.width ?? panel.offsetWidth,
+      bounds.width,
+    );
+    const height = Math.min(
+      this.windowSize?.height ?? panel.offsetHeight,
+      bounds.height,
+    );
     this.windowPosition = {
-      left: Math.min(bounds.left + bounds.width - width, Math.max(bounds.left, Math.round(left))),
-      top: Math.min(bounds.top + bounds.height - height, Math.max(bounds.top, Math.round(top))),
+      left: Math.min(
+        bounds.left + bounds.width - width,
+        Math.max(bounds.left, Math.round(left)),
+      ),
+      top: Math.min(
+        bounds.top + bounds.height - height,
+        Math.max(bounds.top, Math.round(top)),
+      ),
     };
   }
 
-  private viewportBounds(): {left: number; top: number; width: number; height: number; scale: number} {
+  private viewportBounds(): {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+    scale: number;
+  } {
     const panel = this.windowPanel!.nativeElement;
     const rect = panel.getBoundingClientRect();
     const scale = panel.offsetWidth ? rect.width / panel.offsetWidth : 1;
     const gap = parseFloat(getComputedStyle(panel).getPropertyValue('--ai-window-gap')) || 0;
     return {left: gap, top: 32 + gap,
       width: Math.max(1, window.innerWidth / scale - 2 * gap),
-      height: Math.max(1, window.innerHeight / scale - 32 - 2 * gap), scale};
+      height: Math.max(1, window.innerHeight / scale - 32 - 2 * gap),
+      scale,
+    };
   }
 
   private windowBounds(): {width: number; height: number; scale: number} {
@@ -497,7 +611,7 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
   private get defaultSelection(): AiModelSelection | undefined {
     return this.defaults?.selection.providerId
       ? this.defaults.selection
-      : this.catalog.selection ?? this.defaults?.selection;
+      : (this.catalog.selection ?? this.defaults?.selection);
   }
 
   get levels(): string[] {
@@ -519,18 +633,24 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
     models: Array<{value: string; modelId: string; name: string}>;
   }> {
     const activeProviderId = this.activeProviderId;
-    const groups = this.catalog.providers.filter(
-      (provider) => provider.id === activeProviderId,
-    ).map((provider) => {
+    const groups = this.catalog.providers
+      .filter((provider) => provider.id === activeProviderId)
+      .map((provider) => {
       const descriptors = [...(provider.models ?? [])];
       if (
         provider.defaultModelId &&
         !descriptors.some((model) => model.id === provider.defaultModelId)
       ) {
-        descriptors.unshift({id: provider.defaultModelId, name: provider.defaultModelId});
+          descriptors.unshift({
+            id: provider.defaultModelId,
+            name: provider.defaultModelId,
+          });
       }
       if (!descriptors.length) {
-        descriptors.push({id: 'default', name: translate('Provider default')});
+          descriptors.push({
+            id: 'default',
+            name: translate('Provider default'),
+          });
       }
       const models = descriptors.map((model) => ({
         value: JSON.stringify([provider.id, model.id]),
@@ -572,9 +692,14 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
   }
 
   get conversationModelLabel(): string {
-    return this.conversationModels.flatMap((group) => group.models)
+    return (
+      this.conversationModels
+        .flatMap((group) => group.models)
       .find((model) => model.value === this.conversationModel)?.name ??
-      (this.selectedModel === '__custom__' ? this.customModel : this.selectedModel);
+      (this.selectedModel === '__custom__'
+        ? this.customModel
+        : this.selectedModel)
+    );
   }
 
   get filteredConversationModels(): AiPanelComponent['conversationModels'] {
@@ -583,8 +708,13 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
     return this.conversationModels.map((group) => ({
       ...group,
       models: group.models.filter((model) =>
-        [model.name, model.modelId, model.modelId === '__custom__' ? this.customModelFor(group.providerId) : '']
-          .some((value) => value.toLowerCase().includes(query)),
+          [
+            model.name,
+            model.modelId,
+            model.modelId === '__custom__'
+              ? this.customModelFor(group.providerId)
+              : '',
+          ].some((value) => value.toLowerCase().includes(query)),
       ),
     })).filter((group) => group.models.length > 0);
   }
@@ -631,7 +761,11 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
       }
       this.selectedProvider = group.providerId;
       this.selectedModel = model.modelId;
-      this.selectedLevel = this.defaults?.providerSelections[group.providerId]?.reasoningLevel ?? this.selectedLevel;
+      this.conversationModelSelectionDirty = true;
+      this.settingsPending = false;
+      this.selectedLevel =
+        this.defaults?.providerSelections[group.providerId]?.reasoningLevel ??
+        this.selectedLevel;
       this.resetLevel();
       return;
     }
@@ -685,9 +819,10 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
   applySettings(selection: AiModelSelection): void {
     if (this.running || this.loading) return;
     const agentId = this.sessionId ? this.selectedAgent : selection.agentId;
-    const providerId = selection.providerId || this.catalog.agents.find(
-      (agent) => agent.id === agentId,
-    )?.providerId || '';
+    const providerId =
+      selection.providerId ||
+      this.catalog.agents.find((agent) => agent.id === agentId)?.providerId ||
+      '';
     if (providerId !== this.activeProviderId) return;
     this.selectedAgent = agentId;
     this.selectedProvider = selection.providerId;
@@ -707,9 +842,11 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
     }
     if (this.settingsPending) {
       this.settingsPending = false;
-      const selection = this.defaultSelection;
-      if (selection && (!this.sessionId || selection.providerId)) {
-        this.applySettings(selection);
+      if (!this.conversationModelSelectionDirty) {
+        const selection = this.defaultSelection;
+        if (selection && (!this.sessionId || selection.providerId)) {
+          this.applySettings(selection);
+        }
       }
     }
     if (catalogChanged) this.normalizeModel();
@@ -802,9 +939,20 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
     const refresh = ++this.sessionRefresh;
     try {
       const sessions = await this.client.listSessions(this.controller.signal);
-      if (!this.controller.signal.aborted && revision === this.revision && refresh === this.sessionRefresh) this.sessions = sessions;
+      if (
+        !this.controller.signal.aborted &&
+        revision === this.revision &&
+        refresh === this.sessionRefresh
+      )
+        {this.sessions = sessions;}
     } catch (error) {
-      if (!background && revision === this.revision && refresh === this.sessionRefresh && !this.error) this.showError(error);
+      if (
+        !background &&
+        revision === this.revision &&
+        refresh === this.sessionRefresh &&
+        !this.error
+      )
+        {this.showError(error);}
     }
   }
 
@@ -815,9 +963,12 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
     this.revision++;
     this.streamController?.abort();
     this.submitting = false;
+    this.conversationModelSelectionDirty = false;
     this.sessionId = '';
     this.events = [];
     this.turns = [];
+    this.expandedReasoning.clear();
+    this.collapsedReasoning.clear();
     this.running = false;
     this.loading = false;
     this.settingsPending = !!this.defaultSelection;
@@ -839,11 +990,14 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
     const revision = ++this.revision;
     this.streamController?.abort();
     this.submitting = false;
+    this.conversationModelSelectionDirty = false;
     this.sessionId = id;
     this.loading = true;
     this.running = false;
     this.events = [];
     this.turns = [];
+    this.expandedReasoning.clear();
+    this.collapsedReasoning.clear();
     this.error = '';
     this.reportPreview = '';
     this.sidebarOpen = false;
@@ -854,9 +1008,9 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
       if (revision !== this.revision) return;
       this.selectedAgent = session.agentId;
       this.selectedProvider = session.providerId ?? '';
-      const configured = this.provider?.models?.some(
-        (model) => model.id === session.modelId,
-      ) || session.modelId === this.provider?.defaultModelId;
+      const configured =
+        this.provider?.models?.some((model) => model.id === session.modelId) ||
+        session.modelId === this.provider?.defaultModelId;
       this.selectedModel =
         session.modelId && !configured && this.provider?.supportsCustomModel
           ? '__custom__'
@@ -883,7 +1037,25 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
       if (revision === this.revision) this.showError(error);
     } finally {
       if (revision === this.revision) this.loading = false;
-      if (revision === this.revision) this.selectionReady.emit(this.modelSelection);
+      if (revision === this.revision)
+        {this.selectionReady.emit(this.modelSelection);}
+    }
+  }
+
+  reasoningExpanded(turn: AiChatTurn): boolean {
+    return (
+      !this.collapsedReasoning.has(turn.id) &&
+      (turn.status === 'running' || this.expandedReasoning.has(turn.id))
+    );
+  }
+
+  toggleReasoning(turn: AiChatTurn): void {
+    if (this.reasoningExpanded(turn)) {
+      if (turn.status === 'running') this.collapsedReasoning.add(turn.id);
+      else this.expandedReasoning.delete(turn.id);
+    } else {
+      this.collapsedReasoning.delete(turn.id);
+      this.expandedReasoning.add(turn.id);
     }
   }
 
@@ -1059,7 +1231,13 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
       const element = this.composer?.nativeElement;
       if (!element || this.controller.signal.aborted) return;
       element.style.height = 'auto';
-      const cap = Math.min(336, Math.round((this.windowPanel?.nativeElement.clientHeight ?? window.innerHeight) * 0.4));
+      const cap = Math.min(
+        336,
+        Math.round(
+          (this.windowPanel?.nativeElement.clientHeight ?? window.innerHeight) *
+            0.4,
+        ),
+      );
       element.style.height = `${Math.min(element.scrollHeight, cap)}px`;
     });
   }
@@ -1254,11 +1432,16 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
     });
   }
 
-  private async watchSession(id: string, revision: number, pending?: AiTraceQueryRequest): Promise<void> {
+  private async watchSession(
+    id: string,
+    revision: number,
+    pending?: AiTraceQueryRequest,
+  ): Promise<void> {
     this.streamController?.abort();
     const controller = new AbortController();
     this.streamController = controller;
-    if (pending) void this.answerTraceQuery(id, pending, revision, controller.signal);
+    if (pending)
+      {void this.answerTraceQuery(id, pending, revision, controller.signal);}
     let terminal = false;
     try {
       const after = this.events[this.events.length - 1]?.id ?? 0;
@@ -1272,7 +1455,12 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
           this.events = [...this.events, event];
           this.turns = projectConversation(this.events);
           if (event.type === 'trace_query_requested') {
-            void this.answerTraceQuery(id, event.data, revision, controller.signal);
+            void this.answerTraceQuery(
+              id,
+              event.data,
+              revision,
+              controller.signal,
+            );
           }
           if (
             event.type === 'analysis_completed' ||
@@ -1311,17 +1499,37 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
     signal: AbortSignal,
   ): Promise<void> {
     const run = this.traceQueryRun;
-    if (revision !== this.revision || signal.aborted || this.controller.signal.aborted ||
-      typeof data !== 'object' || data === null) return;
+    if (
+      revision !== this.revision ||
+      signal.aborted ||
+      this.controller.signal.aborted ||
+      typeof data !== 'object' ||
+      data === null
+    )
+      {return;}
     const request = data as AiTraceQueryRequest;
-    if (typeof request.contextId !== 'string' || !request.contextId.trim() || request.contextId.length > 128 ||
-      typeof request.queryId !== 'string' || !/^[a-zA-Z0-9-]{1,128}$/.test(request.queryId)) return;
+    if (
+      typeof request.contextId !== 'string' ||
+      !request.contextId.trim() ||
+      request.contextId.length > 128 ||
+      typeof request.queryId !== 'string' ||
+      !/^[a-zA-Z0-9-]{1,128}$/.test(request.queryId)
+    )
+      {return;}
     const query = request.query;
     if (!isAiTraceQuery(query)) {
       if (run?.sessionId === sessionId && request.contextId === run.contextId) {
-        await this.client?.respondToTraceQuery(sessionId, request.queryId, run.contextId,
-          {error: 'Invalid trace query options.'}, signal).catch((error) => {
-            if (!signal.aborted && revision === this.revision) this.showError(error);
+        await this.client
+          ?.respondToTraceQuery(
+            sessionId,
+            request.queryId,
+            run.contextId,
+            {error: 'Invalid trace query options.'},
+            signal,
+          )
+          .catch((error) => {
+            if (!signal.aborted && revision === this.revision)
+              {this.showError(error);}
           });
       }
       return;
@@ -1330,35 +1538,72 @@ export class AiPanelComponent implements OnInit, AfterViewInit, OnChanges, OnDes
       await this.declineTraceQuery(sessionId, request, revision, signal);
       return;
     }
-    if (run.sessionId !== sessionId || request.contextId !== run.contextId || run.handled.has(request.queryId)) return;
+    if (
+      run.sessionId !== sessionId ||
+      request.contextId !== run.contextId ||
+      run.handled.has(request.queryId)
+    )
+      {return;}
     const attempt = Symbol();
     run.handled.set(request.queryId, attempt);
     let response: {result: WinscopeTraceSnapshot} | {error: string};
     try {
       response = {result: await run.query(query)};
     } catch (error) {
-      response = {error: (error instanceof Error ? error.message : 'Trace query failed.').slice(0, 512)};
+      response = {
+        error: (error instanceof Error
+          ? error.message
+          : 'Trace query failed.'
+        ).slice(0, 512),
+      };
     }
-    if (this.traceQueryRun !== run || revision !== this.revision || signal.aborted || this.controller.signal.aborted) {
-      if (run.handled.get(request.queryId) === attempt) run.handled.delete(request.queryId);
-      if (!run.cancelled && revision === this.revision && !signal.aborted && !this.controller.signal.aborted) {
+    if (
+      this.traceQueryRun !== run ||
+      revision !== this.revision ||
+      signal.aborted ||
+      this.controller.signal.aborted
+    ) {
+      if (run.handled.get(request.queryId) === attempt)
+        {run.handled.delete(request.queryId);}
+      if (
+        !run.cancelled &&
+        revision === this.revision &&
+        !signal.aborted &&
+        !this.controller.signal.aborted
+      ) {
         await this.declineTraceQuery(sessionId, request, revision, signal);
       }
       return;
     }
     try {
-      await this.client?.respondToTraceQuery(sessionId, request.queryId, run.contextId, response, signal);
+      await this.client?.respondToTraceQuery(
+        sessionId,
+        request.queryId,
+        run.contextId,
+        response,
+        signal,
+      );
     } catch (error) {
-      if (run.handled.get(request.queryId) === attempt) run.handled.delete(request.queryId);
+      if (run.handled.get(request.queryId) === attempt)
+        {run.handled.delete(request.queryId);}
       if (!signal.aborted && revision === this.revision) this.showError(error);
     }
   }
 
-  private async declineTraceQuery(sessionId: string, request: AiTraceQueryRequest,
-    revision: number, signal: AbortSignal): Promise<void> {
+  private async declineTraceQuery(
+    sessionId: string,
+    request: AiTraceQueryRequest,
+    revision: number,
+    signal: AbortSignal,
+  ): Promise<void> {
     try {
-      await this.client?.respondToTraceQuery(sessionId, request.queryId, request.contextId,
-        {error: 'Trace query authorization is no longer available.'}, signal);
+      await this.client?.respondToTraceQuery(
+        sessionId,
+        request.queryId,
+        request.contextId,
+        {error: 'Trace query authorization is no longer available.'},
+        signal,
+      );
     } catch (error) {
       if (!signal.aborted && revision === this.revision) this.showError(error);
     }

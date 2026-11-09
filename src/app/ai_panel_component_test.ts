@@ -5,7 +5,7 @@ import {MatTooltip} from '@angular/material/tooltip';
 import {By} from '@angular/platform-browser';
 import {NoopAnimationsModule} from '@angular/platform-browser/animations';
 import {setLanguage} from '@common/i18n';
-import {diagnosticExamplePrompt, diagnosticPrompt} from '@services/ai_diagnostic_prompts';
+import {diagnosticExamplePrompt, diagnosticPrompt,} from '@services/ai_diagnostic_prompts';
 import {AiCatalog, AiEvent, AiGatewayClient, AiProvider, AiSessionDetail, AiSessionSummary,} from '@services/ai_gateway_client';
 import {WinscopeTraceSnapshot} from '@services/winscope_trace_query';
 
@@ -138,7 +138,9 @@ describe('AiPanelComponent', () => {
 
   async function settleWindow(): Promise<void> {
     fixture.detectChanges();
-    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+    );
     await fixture.whenStable();
     fixture.detectChanges();
   }
@@ -147,25 +149,65 @@ describe('AiPanelComponent', () => {
     return fixture.nativeElement.querySelector('.ai-window-resize');
   }
 
-  function pointerResize(type: string, x: number, y: number, pointerId = 1, button = 0): void {
-    resizeHandle().dispatchEvent(new PointerEvent(type, {pointerId, button, isPrimary: true, clientX: x, clientY: y, bubbles: true, cancelable: true}));
+  function pointerResize(
+    type: string,
+    x: number,
+    y: number,
+    pointerId = 1,
+    button = 0,
+  ): void {
+    resizeHandle().dispatchEvent(
+      new PointerEvent(type, {
+        pointerId,
+        button,
+        isPrimary: true,
+        clientX: x,
+        clientY: y,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
   }
 
   function dragHandle(): HTMLElement {
     return fixture.nativeElement.querySelector('.ai-window-drag');
   }
 
-  function pointerDrag(type: string, x: number, y: number, options: PointerEventInit = {}, target = dragHandle()): void {
-    target.dispatchEvent(new PointerEvent(type, {pointerId: 1, button: 0, isPrimary: true, clientX: x, clientY: y, bubbles: true, cancelable: true, ...options}));
+  function pointerDrag(
+    type: string,
+    x: number,
+    y: number,
+    options: PointerEventInit = {},
+    target = dragHandle(),
+  ): void {
+    target.dispatchEvent(
+      new PointerEvent(type, {
+        pointerId: 1,
+        button: 0,
+        isPrimary: true,
+        clientX: x,
+        clientY: y,
+        bubbles: true,
+        cancelable: true,
+        ...options,
+      }),
+    );
   }
 
-  function mockPointerCapture(handle: HTMLElement = resizeHandle()): jasmine.Spy {
+  function mockPointerCapture(
+    handle: HTMLElement = resizeHandle(),
+  ): jasmine.Spy {
     spyOn(handle, 'setPointerCapture');
     spyOn(handle, 'hasPointerCapture').and.returnValue(true);
     return spyOn(handle, 'releasePointerCapture');
   }
 
-  function availableWindow(): {width: number; height: number; gap: number; scale: number} {
+  function availableWindow(): {
+    width: number;
+    height: number;
+    gap: number;
+    scale: number;
+  } {
     const panel = component.windowPanel!.nativeElement;
     const scale = panel.getBoundingClientRect().width / panel.offsetWidth;
     const gap = parseFloat(getComputedStyle(panel).getPropertyValue('--ai-window-gap')) || 0;
@@ -183,7 +225,9 @@ describe('AiPanelComponent', () => {
     expect(rect.left).toBeGreaterThanOrEqual(gap * scale - 1);
     expect(rect.top).toBeGreaterThanOrEqual((32 + gap) * scale - 1);
     expect(rect.right).toBeLessThanOrEqual(window.innerWidth - gap * scale + 1);
-    expect(rect.bottom).toBeLessThanOrEqual(window.innerHeight - gap * scale + 1);
+    expect(rect.bottom).toBeLessThanOrEqual(
+      window.innerHeight - gap * scale + 1,
+    );
   }
 
   it('renders a bounded floating default window with a keyboard-accessible header and no modal focus trap', async () => {
@@ -196,15 +240,25 @@ describe('AiPanelComponent', () => {
     expect(panel.offsetWidth).toBeCloseTo(Math.min(1040, available.width), 0);
     expect(panel.offsetHeight).toBeCloseTo(Math.min(720, available.height), 0);
     const rect = panel.getBoundingClientRect();
-    expect(rect.left / available.scale).toBeCloseTo(available.gap + (available.width - panel.offsetWidth) / 2, 0);
-    expect(rect.top / available.scale).toBeCloseTo(32 + available.gap + (available.height - panel.offsetHeight) / 2, 0);
+    expect(rect.left / available.scale).toBeCloseTo(
+      available.gap + (available.width - panel.offsetWidth) / 2,
+      0,
+    );
+    expect(rect.top / available.scale).toBeCloseTo(
+      32 + available.gap + (available.height - panel.offsetHeight) / 2,
+      0,
+    );
     expectWindowInViewport();
-    expect(dragHandle()).toBe(fixture.nativeElement.querySelector('.ai-panel-header'));
+    expect(dragHandle()).toBe(
+      fixture.nativeElement.querySelector('.ai-panel-header'),
+    );
     expect(dragHandle().tabIndex).toBe(0);
     expect(dragHandle().getAttribute('title')).toMatch(/move/i);
     expect(panel.hasAttribute('aria-modal')).toBeFalse();
     expect(fixture.debugElement.query(By.directive(CdkTrapFocus))).toBeNull();
-    expect(fixture.nativeElement.querySelector('.cdk-focus-trap-anchor')).toBeNull();
+    expect(
+      fixture.nativeElement.querySelector('.cdk-focus-trap-anchor'),
+    ).toBeNull();
   });
 
   for (const dark of [false, true]) {
@@ -223,12 +277,22 @@ describe('AiPanelComponent', () => {
         const background = () => getComputedStyle(panel).backgroundColor;
         const expected = dark ? 'rgb(34, 35, 37)' : 'rgb(236, 238, 241)';
         expect(background()).toBe(expected);
-        expect(background()).not.toBe(getComputedStyle(document.body).backgroundColor);
-        expect(getComputedStyle(header).backgroundColor).toBe(dark ? 'rgb(43, 45, 48)' : 'rgb(248, 249, 251)');
-        expect(getComputedStyle(sidebar).backgroundColor).toBe(dark ? 'rgb(28, 29, 31)' : 'rgb(229, 231, 235)');
-        expect(getComputedStyle(panel).borderTopColor).toBe(dark ? 'rgb(82, 86, 92)' : 'rgb(196, 201, 209)');
+        expect(background()).not.toBe(
+          getComputedStyle(document.body).backgroundColor,
+        );
+        expect(getComputedStyle(header).backgroundColor).toBe(
+          dark ? 'rgb(43, 45, 48)' : 'rgb(248, 249, 251)',
+        );
+        expect(getComputedStyle(sidebar).backgroundColor).toBe(
+          dark ? 'rgb(28, 29, 31)' : 'rgb(229, 231, 235)',
+        );
+        expect(getComputedStyle(panel).borderTopColor).toBe(
+          dark ? 'rgb(82, 86, 92)' : 'rgb(196, 201, 209)',
+        );
         expect(getComputedStyle(panel).boxShadow).not.toBe('none');
-        expect(getComputedStyle(composer).backgroundColor).toBe(dark ? 'rgb(44, 44, 46)' : 'rgb(255, 255, 255)');
+        expect(getComputedStyle(composer).backgroundColor).toBe(
+          dark ? 'rgb(44, 44, 46)' : 'rgb(255, 255, 255)',
+        );
         document.body.classList.toggle('dark-mode', !dark);
         expect(background()).not.toBe(expected);
         document.body.classList.toggle('dark-mode', dark);
@@ -254,7 +318,8 @@ describe('AiPanelComponent', () => {
       await settleWindow();
       const buttons = Array.from(fixture.nativeElement.querySelectorAll(
         '.ai-panel-header button, .sidebar-heading button, .report-preview-header button',
-      )) as HTMLButtonElement[];
+        ),
+      ) as HTMLButtonElement[];
       expect(buttons.length).toBe(9);
       for (const dark of [false, true]) {
         document.body.classList.toggle('dark-mode', dark);
@@ -271,12 +336,26 @@ describe('AiPanelComponent', () => {
           const glyph = icon.getBoundingClientRect();
           expect(control.width).toBe(32);
           expect(control.height).toBe(32);
-          expect(glyph.left + glyph.width / 2).toBeCloseTo(control.left + control.width / 2, 0);
-          expect(glyph.top + glyph.height / 2).toBeCloseTo(control.top + control.height / 2, 0);
+          expect(glyph.left + glyph.width / 2).toBeCloseTo(
+            control.left + control.width / 2,
+            0,
+          );
+          expect(glyph.top + glyph.height / 2).toBeCloseTo(
+            control.top + control.height / 2,
+            0,
+          );
         }
       }
-      expect(getComputedStyle(fixture.nativeElement.querySelector('.empty-symbol mat-icon')).fontSize).toBe('40px');
-      expect(getComputedStyle(fixture.nativeElement.querySelector('.composer-primary mat-icon')).fontSize).toBe('16px');
+      expect(
+        getComputedStyle(
+          fixture.nativeElement.querySelector('.empty-symbol mat-icon'),
+        ).fontSize,
+      ).toBe('40px');
+      expect(
+        getComputedStyle(
+          fixture.nativeElement.querySelector('.composer-primary mat-icon'),
+        ).fontSize,
+      ).toBe('16px');
     } finally {
       reference.remove();
       document.body.classList.toggle('dark-mode', wasDark);
@@ -292,7 +371,9 @@ describe('AiPanelComponent', () => {
     const panel = TestBed.inject(OverlayContainer).getContainerElement()
       .querySelector('.mat-mdc-tooltip-panel');
     expect(panel).not.toBeNull();
-    expect(panel!.classList.contains('mat-mdc-tooltip-panel-non-interactive')).toBeTrue();
+    expect(
+      panel!.classList.contains('mat-mdc-tooltip-panel-non-interactive'),
+    ).toBeTrue();
     expect(getComputedStyle(panel!).pointerEvents).toBe('none');
     tooltip.hide(0);
   });
@@ -313,8 +394,14 @@ describe('AiPanelComponent', () => {
     expectWindowInViewport();
     pointerDrag('pointermove', 10000, 10000);
     fixture.detectChanges();
-    expect(component.windowPosition!.left).toBeCloseTo(available.gap + available.width - panel.offsetWidth, 0);
-    expect(component.windowPosition!.top).toBeCloseTo(32 + available.gap + available.height - panel.offsetHeight, 0);
+    expect(component.windowPosition!.left).toBeCloseTo(
+      available.gap + available.width - panel.offsetWidth,
+      0,
+    );
+    expect(component.windowPosition!.top).toBeCloseTo(
+      32 + available.gap + available.height - panel.offsetHeight,
+      0,
+    );
     expectWindowInViewport();
     expect(component.windowSize).toEqual(component.minWindowSize);
     pointerDrag('pointerup', 10000, 10000);
@@ -331,10 +418,15 @@ describe('AiPanelComponent', () => {
       component.windowPosition = {left: 80, top: 48};
       fixture.detectChanges();
       const panel = component.windowPanel!.nativeElement;
-      spyOn(panel, 'getBoundingClientRect').and.callFake(() => new DOMRect(
-        component.windowPosition!.left * scale, component.windowPosition!.top * scale,
-        panel.offsetWidth * scale, panel.offsetHeight * scale,
-      ));
+      spyOn(panel, 'getBoundingClientRect').and.callFake(
+        () =>
+          new DOMRect(
+            component.windowPosition!.left * scale,
+            component.windowPosition!.top * scale,
+            panel.offsetWidth * scale,
+            panel.offsetHeight * scale,
+          ),
+      );
       mockPointerCapture(dragHandle());
       pointerDrag('pointerdown', 200, 100);
       pointerDrag('pointermove', 200 + 40 * scale, 100 + 20 * scale);
@@ -383,7 +475,9 @@ describe('AiPanelComponent', () => {
       }
       pointerDrag('pointerdown', 100, 100, {}, target);
       pointerDrag('pointermove', 200, 200);
-      target.dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true}));
+      target.dispatchEvent(
+        new KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true}),
+      );
       expect(component.windowPosition).toBeUndefined();
       expect(component.windowSize).toBeUndefined();
       expect(dragHandle().setPointerCapture).not.toHaveBeenCalled();
@@ -421,7 +515,9 @@ describe('AiPanelComponent', () => {
     expect(release).toHaveBeenCalledOnceWith(1);
     pointerDrag('pointermove', 200, 200);
     pointerDrag('pointerdown', 100, 100);
-    dragHandle().dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true}));
+    dragHandle().dispatchEvent(
+      new KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true}),
+    );
     expect(component.windowPosition).toBeUndefined();
     expect(dragHandle().setPointerCapture).toHaveBeenCalledTimes(1);
   });
@@ -431,7 +527,16 @@ describe('AiPanelComponent', () => {
       await initialize();
       const handle = interaction === 'drag' ? dragHandle() : resizeHandle();
       const release = mockPointerCapture(handle);
-      handle.dispatchEvent(new PointerEvent('pointerdown', {pointerId: 1, button: 0, isPrimary: true, clientX: 100, clientY: 100, bubbles: true}));
+      handle.dispatchEvent(
+        new PointerEvent('pointerdown', {
+          pointerId: 1,
+          button: 0,
+          isPrimary: true,
+          clientX: 100,
+          clientY: 100,
+          bubbles: true,
+        }),
+      );
       fixture.destroy();
       expect(release).toHaveBeenCalledOnceWith(1);
     });
@@ -441,11 +546,29 @@ describe('AiPanelComponent', () => {
       const handle = interaction === 'drag' ? dragHandle() : resizeHandle();
       const release = mockPointerCapture(handle);
       const closed = spyOn(component.closed, 'emit');
-      handle.dispatchEvent(new PointerEvent('pointerdown', {pointerId: 1, button: 0, isPrimary: true, clientX: 100, clientY: 100, bubbles: true}));
-      handle.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
+      handle.dispatchEvent(
+        new PointerEvent('pointerdown', {
+          pointerId: 1,
+          button: 0,
+          isPrimary: true,
+          clientX: 100,
+          clientY: 100,
+          bubbles: true,
+        }),
+      );
+      handle.dispatchEvent(
+        new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}),
+      );
       expect(release).toHaveBeenCalledOnceWith(1);
       expect(closed).not.toHaveBeenCalled();
-      handle.dispatchEvent(new PointerEvent('pointermove', {pointerId: 1, clientX: 200, clientY: 200, bubbles: true}));
+      handle.dispatchEvent(
+        new PointerEvent('pointermove', {
+          pointerId: 1,
+          clientX: 200,
+          clientY: 200,
+          bubbles: true,
+        }),
+      );
       expect(component.windowPosition).toBeUndefined();
       expect(component.windowSize).toBeUndefined();
     });
@@ -483,26 +606,48 @@ describe('AiPanelComponent', () => {
     component.windowSize = {...component.minWindowSize};
     component.windowPosition = {left: 80, top: 80};
     fixture.detectChanges();
-    const right = new KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true, cancelable: true});
+    const right = new KeyboardEvent('keydown', {
+      key: 'ArrowRight',
+      bubbles: true,
+      cancelable: true,
+    });
     dragHandle().dispatchEvent(right);
     expect(right.defaultPrevented).toBeTrue();
     const position = {...component.windowPosition!};
     expect(position.left).toBeGreaterThan(80);
     expect(position.top).toBe(80);
     fixture.detectChanges();
-    dragHandle().dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowDown', shiftKey: true, bubbles: true}));
+    dragHandle().dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'ArrowDown',
+        shiftKey: true,
+        bubbles: true,
+      }),
+    );
     expect(component.windowPosition!.left).toBe(position.left);
-    expect(component.windowPosition!.top - position.top).toBeGreaterThan(position.left - 80);
+    expect(component.windowPosition!.top - position.top).toBeGreaterThan(
+      position.left - 80,
+    );
     const moved = {...component.windowPosition!};
     for (const modifier of ['altKey', 'ctrlKey', 'metaKey']) {
-      dragHandle().dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowRight', [modifier]: true, bubbles: true}));
+      dragHandle().dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: 'ArrowRight',
+          [modifier]: true,
+          bubbles: true,
+        }),
+      );
       expect(component.windowPosition).toEqual(moved);
     }
     const {gap} = availableWindow();
     component.windowPosition = {left: gap, top: 32 + gap};
     fixture.detectChanges();
-    dragHandle().dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowLeft', bubbles: true}));
-    dragHandle().dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowUp', bubbles: true}));
+    dragHandle().dispatchEvent(
+      new KeyboardEvent('keydown', {key: 'ArrowLeft', bubbles: true}),
+    );
+    dragHandle().dispatchEvent(
+      new KeyboardEvent('keydown', {key: 'ArrowUp', bubbles: true}),
+    );
     fixture.detectChanges();
     expect(component.windowPosition).toEqual({left: gap, top: 32 + gap});
     expect(component.windowSize).toEqual(component.minWindowSize);
@@ -526,8 +671,14 @@ describe('AiPanelComponent', () => {
     expect(panel.style.height).toBe('');
     expect(panel.style.left).toBe('');
     expect(panel.style.top).toBe('');
-    expect(panel.offsetWidth).toBeCloseTo(Math.min(1040, availableWindow().width), 0);
-    expect(panel.offsetHeight).toBeCloseTo(Math.min(720, availableWindow().height), 0);
+    expect(panel.offsetWidth).toBeCloseTo(
+      Math.min(1040, availableWindow().width),
+      0,
+    );
+    expect(panel.offsetHeight).toBeCloseTo(
+      Math.min(720, availableWindow().height),
+      0,
+    );
     expectWindowInViewport();
     pointerDrag('pointermove', 200, 200);
     expect(component.windowPosition).toBeUndefined();
@@ -554,19 +705,34 @@ describe('AiPanelComponent', () => {
     await initialize();
     component.windowSize = {width: 800, height: 500};
     const available = availableWindow();
-    component.windowPosition = {left: available.gap + available.width - 800, top: 32 + available.gap + available.height - 500};
+    component.windowPosition = {
+      left: available.gap + available.width - 800,
+      top: 32 + available.gap + available.height - 500,
+    };
     fixture.detectChanges();
     const width = Object.getOwnPropertyDescriptor(window, 'innerWidth')!;
     const height = Object.getOwnPropertyDescriptor(window, 'innerHeight')!;
     try {
-      Object.defineProperty(window, 'innerWidth', {configurable: true, value: 900});
-      Object.defineProperty(window, 'innerHeight', {configurable: true, value: 700});
+      Object.defineProperty(window, 'innerWidth', {
+        configurable: true,
+        value: 900,
+      });
+      Object.defineProperty(window, 'innerHeight', {
+        configurable: true,
+        value: 700,
+      });
       component.onViewportResize();
       fixture.detectChanges();
       expect(component.windowSize).toEqual({width: 800, height: 500});
       expectWindowInViewport();
-      Object.defineProperty(window, 'innerWidth', {configurable: true, value: 780});
-      Object.defineProperty(window, 'innerHeight', {configurable: true, value: 480});
+      Object.defineProperty(window, 'innerWidth', {
+        configurable: true,
+        value: 780,
+      });
+      Object.defineProperty(window, 'innerHeight', {
+        configurable: true,
+        value: 480,
+      });
       component.onViewportResize();
       fixture.detectChanges();
       const smaller = availableWindow();
@@ -596,8 +762,14 @@ describe('AiPanelComponent', () => {
     const height = Object.getOwnPropertyDescriptor(window, 'innerHeight')!;
     const gap = panel.style.getPropertyValue('--ai-window-gap');
     try {
-      Object.defineProperty(window, 'innerWidth', {configurable: true, value: 390});
-      Object.defineProperty(window, 'innerHeight', {configurable: true, value: 400});
+      Object.defineProperty(window, 'innerWidth', {
+        configurable: true,
+        value: 390,
+      });
+      Object.defineProperty(window, 'innerHeight', {
+        configurable: true,
+        value: 400,
+      });
       panel.style.setProperty('--ai-window-gap', '0px');
       component.onViewportResize();
       fixture.detectChanges();
@@ -645,7 +817,9 @@ describe('AiPanelComponent', () => {
     pointerResize('pointermove', 120, 120);
     pointerResize('pointerup', 120, 120);
     fixture.detectChanges();
-    dragHandle().dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true}));
+    dragHandle().dispatchEvent(
+      new KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true}),
+    );
     component.onViewportResize();
     component.resetWindowSize();
     await settleWindow();
@@ -654,7 +828,9 @@ describe('AiPanelComponent', () => {
     expect(component.sessionId).toBe('a');
     expect(component.turns).toEqual(turns);
     expect(component.modelSelection).toEqual(selection);
-    expect(sessionStorage.getItem('winscope.ai.active../ai/')).toBe(storedSession);
+    expect(sessionStorage.getItem('winscope.ai.active../ai/')).toBe(
+      storedSession,
+    );
     expect(write).not.toHaveBeenCalled();
     expect(remove).not.toHaveBeenCalled();
     expect(clear).not.toHaveBeenCalled();
@@ -683,7 +859,11 @@ describe('AiPanelComponent', () => {
     toggle.click();
     fixture.detectChanges();
     expect(sidebar.hidden).toBeFalse();
-    sidebar.querySelector<HTMLButtonElement>('[aria-label="Close conversation browser"]')!.click();
+    sidebar
+      .querySelector<HTMLButtonElement>(
+        '[aria-label="Close conversation browser"]',
+      )!
+      .click();
     fixture.detectChanges();
     expect(sidebar.hidden).toBeTrue();
     expect(document.activeElement).toBe(toggle);
@@ -708,8 +888,12 @@ describe('AiPanelComponent', () => {
     fixture.nativeElement.querySelector('.history-toggle').click();
     fixture.detectChanges();
     expect(component.sidebarVisible).toBeTrue();
-    expect(fixture.nativeElement.querySelector('.ai-sidebar.open')).not.toBeNull();
-    expect(fixture.nativeElement.querySelector('.sidebar-backdrop')).not.toBeNull();
+    expect(
+      fixture.nativeElement.querySelector('.ai-sidebar.open'),
+    ).not.toBeNull();
+    expect(
+      fixture.nativeElement.querySelector('.sidebar-backdrop'),
+    ).not.toBeNull();
     component.onEscape(new KeyboardEvent('keydown', {key: 'Escape'}));
     fixture.detectChanges();
     expect(component.sidebarVisible).toBeFalse();
@@ -760,7 +944,16 @@ describe('AiPanelComponent', () => {
     const release = mockPointerCapture();
     pointerResize('pointerdown', 100, 100, 2, 2);
     pointerResize('pointermove', 0, 0, 2);
-    resizeHandle().dispatchEvent(new PointerEvent('pointerdown', {pointerId: 2, button: 0, isPrimary: false, clientX: 100, clientY: 100, bubbles: true}));
+    resizeHandle().dispatchEvent(
+      new PointerEvent('pointerdown', {
+        pointerId: 2,
+        button: 0,
+        isPrimary: false,
+        clientX: 100,
+        clientY: 100,
+        bubbles: true,
+      }),
+    );
     pointerResize('pointermove', 0, 0, 2);
     expect(component.windowSize).toBeUndefined();
     expect(resizeHandle().setPointerCapture).not.toHaveBeenCalled();
@@ -783,15 +976,31 @@ describe('AiPanelComponent', () => {
     component.windowPosition = {left: 80, top: 80};
     component.prompt = 'Preserve this draft';
     await settleWindow();
-    resizeHandle().dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowLeft', bubbles: true}));
+    resizeHandle().dispatchEvent(
+      new KeyboardEvent('keydown', {key: 'ArrowLeft', bubbles: true}),
+    );
     fixture.detectChanges();
     expect(component.windowSize).toEqual({width: 884, height: 650});
-    resizeHandle().dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowUp', shiftKey: true, bubbles: true}));
+    resizeHandle().dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'ArrowUp',
+        shiftKey: true,
+        bubbles: true,
+      }),
+    );
     fixture.detectChanges();
     expect(component.windowSize).toEqual({width: 884, height: 586});
-    resizeHandle().dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowRight', ctrlKey: true, bubbles: true}));
+    resizeHandle().dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'ArrowRight',
+        ctrlKey: true,
+        bubbles: true,
+      }),
+    );
     expect(component.windowSize).toEqual({width: 884, height: 586});
-    resizeHandle().dispatchEvent(new KeyboardEvent('keydown', {key: 'Home', bubbles: true}));
+    resizeHandle().dispatchEvent(
+      new KeyboardEvent('keydown', {key: 'Home', bubbles: true}),
+    );
     fixture.detectChanges();
     expect(component.windowSize).toBeUndefined();
     expect(component.windowPosition).toBeUndefined();
@@ -814,7 +1023,15 @@ describe('AiPanelComponent', () => {
       component.windowSize = {...component.minWindowSize};
       fixture.detectChanges();
       const panel = component.windowPanel!.nativeElement;
-      spyOn(panel, 'getBoundingClientRect').and.callFake(() => new DOMRect(10, 50, panel.offsetWidth * scale, panel.offsetHeight * scale));
+      spyOn(panel, 'getBoundingClientRect').and.callFake(
+        () =>
+          new DOMRect(
+            10,
+            50,
+            panel.offsetWidth * scale,
+            panel.offsetHeight * scale,
+          ),
+      );
       mockPointerCapture();
       pointerResize('pointerdown', 100, 100);
       pointerResize('pointermove', 100 + 40 * scale, 100 + 20 * scale);
@@ -826,7 +1043,10 @@ describe('AiPanelComponent', () => {
   it('keeps a long composer below the header and inside the minimum window height', async () => {
     await initialize();
     component.windowSize = {width: 640, height: 420};
-    component.prompt = Array.from({length: 30}, (_, index) => `Line ${index}`).join('\n');
+    component.prompt = Array.from(
+      {length: 30},
+      (_, index) => `Line ${index}`,
+    ).join('\n');
     fixture.detectChanges();
     component.resizeComposer();
     await settleWindow();
@@ -834,10 +1054,16 @@ describe('AiPanelComponent', () => {
     const composer: HTMLElement = fixture.nativeElement.querySelector('.ai-composer');
     const header: HTMLElement = fixture.nativeElement.querySelector('.ai-panel-header');
     const panel = component.windowPanel!.nativeElement;
-    expect(input.clientHeight).toBeLessThanOrEqual(Math.ceil(panel.clientHeight * 0.4));
+    expect(input.clientHeight).toBeLessThanOrEqual(
+      Math.ceil(panel.clientHeight * 0.4),
+    );
     expect(input.scrollHeight).toBeGreaterThan(input.clientHeight);
-    expect(composer.getBoundingClientRect().top).toBeGreaterThanOrEqual(header.getBoundingClientRect().bottom);
-    expect(composer.getBoundingClientRect().bottom).toBeLessThanOrEqual(panel.getBoundingClientRect().bottom);
+    expect(composer.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+      header.getBoundingClientRect().bottom,
+    );
+    expect(composer.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+      panel.getBoundingClientRect().bottom,
+    );
   });
 
   it('renders a clear unavailable state without an endpoint', () => {
@@ -849,55 +1075,101 @@ describe('AiPanelComponent', () => {
 
   for (const withPlaceholderDefaults of [false, true]) {
     it(`shows the gateway-saved model on opening with ${withPlaceholderDefaults ? 'placeholder' : 'no'} frontend defaults`, async () => {
-      loadCatalog.and.resolveTo({...catalog, providers: [...catalog.providers, imported], selection: configuredDefaults.selection});
+      loadCatalog.and.resolveTo({
+        ...catalog,
+        providers: [...catalog.providers, imported],
+        selection: configuredDefaults.selection,
+      });
       if (withPlaceholderDefaults) {
         fixture.componentRef.setInput('defaults', {
-          selection: {...configuredDefaults.selection, providerId: '', modelId: 'default'},
+          selection: {
+            ...configuredDefaults.selection,
+            providerId: '',
+            modelId: 'default',
+          },
           providerSelections: {},
         });
       }
       await initialize();
       expect(component.modelSelection).toEqual(configuredDefaults.selection);
-      expect(modelTrigger().querySelector('.model-label')?.textContent).toBe('Preferred');
+      expect(modelTrigger().querySelector('.model-label')?.textContent).toBe(
+        'Preferred',
+      );
       const menu = await openModelMenu();
-      expect(menu.querySelector('[aria-checked="true"] .model-option-label')?.textContent).toBe('Preferred');
-      expect(component.conversationModels.map((group) => group.providerId)).toEqual(['codex']);
+      expect(
+        menu.querySelector('[aria-checked="true"] .model-option-label')
+          ?.textContent,
+      ).toBe('Preferred');
+      expect(
+        component.conversationModels.map((group) => group.providerId),
+      ).toEqual(['codex']);
       component.newSession();
       fixture.detectChanges();
-      expect(modelTrigger().querySelector('.model-label')?.textContent).toBe('Preferred');
+      expect(modelTrigger().querySelector('.model-label')?.textContent).toBe(
+        'Preferred',
+      );
       component.prompt = 'Use the displayed saved model';
       await component.submit();
-      expect(start.calls.mostRecent().args[4]).toEqual(jasmine.objectContaining({
-        providerId: 'codex', modelId: 'preferred[1m]', reasoningLevel: 'high',
-      }));
+      expect(start.calls.mostRecent().args[4]).toEqual(
+        jasmine.objectContaining({
+          providerId: 'codex',
+          modelId: 'preferred[1m]',
+          reasoningLevel: 'high',
+        }),
+      );
     });
   }
 
   it('prefers newly applied frontend settings over an older gateway model selection', async () => {
-    loadCatalog.and.resolveTo({...catalog, providers: [...catalog.providers, imported], selection: configuredDefaults.selection});
+    loadCatalog.and.resolveTo({
+      ...catalog,
+      providers: [...catalog.providers, imported],
+      selection: configuredDefaults.selection,
+    });
     fixture.componentRef.setInput('defaults', {
-      selection: {...configuredDefaults.selection, providerId: 'test', modelId: 'test-model'},
+      selection: {
+        ...configuredDefaults.selection,
+        providerId: 'test',
+        modelId: 'test-model',
+      },
       providerSelections: {},
     });
     await initialize();
     expect(component.selectedProvider).toBe('test');
-    expect(modelTrigger().querySelector('.model-label')?.textContent).toBe('Test model');
+    expect(modelTrigger().querySelector('.model-label')?.textContent).toBe(
+      'Test model',
+    );
   });
 
   it('shows a saved custom model name without replacing it with the provider default', async () => {
     loadCatalog.and.resolveTo({
-      ...catalog, providers: [...catalog.providers, imported],
-      selection: {...configuredDefaults.selection, modelId: '__custom__', customModel: 'saved/custom-model'},
+      ...catalog,
+      providers: [...catalog.providers, imported],
+      selection: {
+        ...configuredDefaults.selection,
+        modelId: '__custom__',
+        customModel: 'saved/custom-model',
+      },
     });
     await initialize();
     expect(component.selectedModel).toBe('__custom__');
-    expect(modelTrigger().querySelector('.model-label')?.textContent).toContain('saved/custom-model');
+    expect(modelTrigger().querySelector('.model-label')?.textContent).toContain(
+      'saved/custom-model',
+    );
   });
 
   it('shows a running session model before applying gateway-saved defaults on completion', async () => {
-    loadCatalog.and.resolveTo({...catalog, providers: [...catalog.providers, imported], selection: configuredDefaults.selection});
+    loadCatalog.and.resolveTo({
+      ...catalog,
+      providers: [...catalog.providers, imported],
+      selection: configuredDefaults.selection,
+    });
     sessionStorage.setItem('winscope.ai.active../ai/', 'a');
-    get.and.resolveTo({...detail, status: 'running', events: [detail.events[0]]});
+    get.and.resolveTo({
+      ...detail,
+      status: 'running',
+      events: [detail.events[0]],
+    });
     let finish!: () => void;
     let receive!: (event: AiEvent) => void;
     stream.and.callFake((_id: string, onEvent: (event: AiEvent) => void) => {
@@ -907,14 +1179,18 @@ describe('AiPanelComponent', () => {
     await initialize();
     expect(component.running).toBeTrue();
     expect(component.selectedProvider).toBe('test');
-    expect(modelTrigger().querySelector('.model-label')?.textContent).toBe('Test model');
+    expect(modelTrigger().querySelector('.model-label')?.textContent).toBe(
+      'Test model',
+    );
     receive(events[1]);
     finish();
     await fixture.whenStable();
     fixture.detectChanges();
     expect(component.running).toBeFalse();
     expect(component.selectedProvider).toBe('codex');
-    expect(modelTrigger().querySelector('.model-label')?.textContent).toBe('Preferred');
+    expect(modelTrigger().querySelector('.model-label')?.textContent).toBe(
+      'Preferred',
+    );
   });
 
   it('uses explicit saved defaults for restored and new conversations', async () => {
@@ -944,11 +1220,22 @@ describe('AiPanelComponent', () => {
   it('preserves restored routing when defaults have no explicit active provider', async () => {
     loadCatalog.and.resolveTo({
       ...catalog,
-      providers: [...catalog.providers, {...imported, reasoningLevels: ['high']}],
+      providers: [
+        ...catalog.providers,
+        {...imported, reasoningLevels: ['high']},
+      ],
     });
-    get.and.resolveTo({...detail, providerId: 'codex', modelId: 'historical/model[1m]'});
+    get.and.resolveTo({
+      ...detail,
+      providerId: 'codex',
+      modelId: 'historical/model[1m]',
+    });
     fixture.componentRef.setInput('defaults', {
-      selection: {...configuredDefaults.selection, providerId: '', modelId: 'default'},
+      selection: {
+        ...configuredDefaults.selection,
+        providerId: '',
+        modelId: 'default',
+      },
       providerSelections: {},
     });
     sessionStorage.setItem('winscope.ai.active../ai/', 'a');
@@ -956,9 +1243,16 @@ describe('AiPanelComponent', () => {
     expect(component.selectedProvider).toBe('codex');
     expect(component.selectedModel).toBe('__custom__');
     expect(component.customModel).toBe('historical/model[1m]');
-    expect(component.conversationModels.map((group) => group.providerId)).toEqual(['codex']);
+    expect(
+      component.conversationModels.map((group) => group.providerId),
+    ).toEqual(['codex']);
     fixture.componentRef.setInput('defaults', {
-      selection: {...component.modelSelection, providerId: '', modelId: 'default', reasoningLevel: 'low'},
+      selection: {
+        ...component.modelSelection,
+        providerId: '',
+        modelId: 'default',
+        reasoningLevel: 'low',
+      },
       providerSelections: {},
     });
     fixture.detectChanges();
@@ -966,13 +1260,20 @@ describe('AiPanelComponent', () => {
     expect(component.selectedLevel).toBe('high');
     component.prompt = 'Continue historical routing';
     await component.submit();
-    expect(start.calls.mostRecent().args[4]).toEqual(jasmine.objectContaining({
-      providerId: 'codex', modelId: 'historical/model[1m]', reasoningLevel: 'high',
-    }));
+    expect(start.calls.mostRecent().args[4]).toEqual(
+      jasmine.objectContaining({
+        providerId: 'codex',
+        modelId: 'historical/model[1m]',
+        reasoningLevel: 'high',
+      }),
+    );
   });
 
   it('routes a saved transcript through the configured active provider without changing its session agent', async () => {
-    loadCatalog.and.resolveTo({...catalog, providers: [...catalog.providers, imported]});
+    loadCatalog.and.resolveTo({
+      ...catalog,
+      providers: [...catalog.providers, imported],
+    });
     fixture.componentRef.setInput('defaults', {
       ...configuredDefaults,
       selection: {...configuredDefaults.selection, agentId: 'different-agent'},
@@ -983,28 +1284,49 @@ describe('AiPanelComponent', () => {
     expect(component.sessionId).toBe('a');
     expect(component.turns[0].response).toBe('Saved answer');
     expect(component.selectedAgent).toBe(detail.agentId);
-    expect(component.conversationModel).toBe(JSON.stringify(['codex', 'preferred[1m]']));
-    expect(ready).toHaveBeenCalledWith(jasmine.objectContaining({
-      agentId: detail.agentId, providerId: 'codex', modelId: 'preferred[1m]', reasoningLevel: 'high',
-    }));
+    expect(component.conversationModel).toBe(
+      JSON.stringify(['codex', 'preferred[1m]']),
+    );
+    expect(ready).toHaveBeenCalledWith(
+      jasmine.objectContaining({
+        agentId: detail.agentId,
+        providerId: 'codex',
+        modelId: 'preferred[1m]',
+        reasoningLevel: 'high',
+      }),
+    );
     component.prompt = 'Continue with active provider';
     await component.submit();
     expect(start.calls.mostRecent().args[1]).toBe(detail.agentId);
-    expect(start.calls.mostRecent().args[4]).toEqual(jasmine.objectContaining({
-      sessionId: 'a', providerId: 'codex', modelId: 'preferred[1m]', reasoningLevel: 'high',
-    }));
+    expect(start.calls.mostRecent().args[4]).toEqual(
+      jasmine.objectContaining({
+        sessionId: 'a',
+        providerId: 'codex',
+        modelId: 'preferred[1m]',
+        reasoningLevel: 'high',
+      }),
+    );
   });
 
   it('keeps the configured routing across session switches and applies idle settings without replacing agents', async () => {
     await initialize();
     await component.selectSession('a');
-    fixture.componentRef.setInput('settingsCatalog', {...catalog, providers: [...catalog.providers, imported]});
+    fixture.componentRef.setInput('settingsCatalog', {
+      ...catalog,
+      providers: [...catalog.providers, imported],
+    });
     fixture.componentRef.setInput('defaults', configuredDefaults);
     fixture.detectChanges();
     expect(component.selectedProvider).toBe('codex');
     expect(component.selectedModel).toBe('preferred[1m]');
     component.prompt = 'Draft for a';
-    get.and.resolveTo({...detail, sessionId: 'b', agentId: 'evidence', providerId: 'test', modelId: 'default'});
+    get.and.resolveTo({
+      ...detail,
+      sessionId: 'b',
+      agentId: 'evidence',
+      providerId: 'test',
+      modelId: 'default',
+    });
     await component.selectSession('b');
     expect(component.selectedAgent).toBe('evidence');
     expect(component.selectedModel).toBe('preferred[1m]');
@@ -1018,7 +1340,9 @@ describe('AiPanelComponent', () => {
     expect(component.selectedModel).toBe('preferred[1m]');
     component.newSession();
     expect(component.selectedAgent).toBe(configuredDefaults.selection.agentId);
-    expect(component.conversationModel).toBe(JSON.stringify(['codex', 'preferred[1m]']));
+    expect(component.conversationModel).toBe(
+      JSON.stringify(['codex', 'preferred[1m]']),
+    );
   });
 
   it('hides and resumes the workspace without discarding its active stream or draft', async () => {
@@ -1133,10 +1457,16 @@ describe('AiPanelComponent', () => {
     expect(component.errorText('AI stream failed (404)')).toBe(
       'AI 流式连接失败（404）',
     );
-    expect(component.errorText('Could not reach the AI gateway. Check the connection and try again.'))
-      .toBe('无法连接 AI 网关，请检查连接后重试。');
-    expect(component.errorText('The AI connection was interrupted. Reopen this conversation to reconnect.'))
-      .toBe('AI 连接已中断，请重新打开此会话以恢复连接。');
+    expect(
+      component.errorText(
+        'Could not reach the AI gateway. Check the connection and try again.',
+      ),
+    ).toBe('无法连接 AI 网关，请检查连接后重试。');
+    expect(
+      component.errorText(
+        'The AI connection was interrupted. Reopen this conversation to reconnect.',
+      ),
+    ).toBe('AI 连接已中断，请重新打开此会话以恢复连接。');
     component.error = 'Provider diagnostic: keep exact IDs';
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.ai-error').textContent).toBe(
@@ -1152,17 +1482,79 @@ describe('AiPanelComponent', () => {
 
   it('renders assistant Markdown while copying its original source and leaving user messages literal', async () => {
     await initialize();
-    const reply = '# Analysis\n\n**Observed:** `alpha = 0`\n\n| Layer | Alpha |\n|---|---|\n|app|0|';
-    component.turns = [{id: 1, prompt: '# User text **must stay literal**', response: reply,
-      attachments: [], links: [], status: 'completed', activity: 'Completed'}];
+    const reply =
+      '# Analysis\n\n**Observed:** `alpha = 0`\n\n| Layer | Alpha |\n|---|---|\n|app|0|';
+    component.turns = [
+      {
+        id: 1,
+        prompt: '# User text **must stay literal**',
+        response: reply,
+        attachments: [],
+        links: [],
+        status: 'completed',
+        activity: 'Completed',
+      },
+    ];
     const copy = spyOn(component, 'copyText').and.resolveTo();
     fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('.assistant-content h1')?.textContent.trim()).toBe('Analysis');
-    expect(fixture.nativeElement.querySelector('.assistant-content table')).not.toBeNull();
-    expect(fixture.nativeElement.querySelector('.user-message h1, .user-message strong')).toBeNull();
-    expect(fixture.nativeElement.querySelector('.user-message .message-text').textContent).toBe('# User text **must stay literal**');
+    expect(
+      fixture.nativeElement
+        .querySelector('.assistant-content h1')
+        ?.textContent.trim(),
+    ).toBe('Analysis');
+    expect(
+      fixture.nativeElement.querySelector('.assistant-content table'),
+    ).not.toBeNull();
+    expect(
+      fixture.nativeElement.querySelector(
+        '.user-message h1, .user-message strong',
+      ),
+    ).toBeNull();
+    expect(
+      fixture.nativeElement.querySelector('.user-message .message-text')
+        .textContent,
+    ).toBe('# User text **must stay literal**');
     fixture.nativeElement.querySelector('[aria-label="Copy response"]').click();
     expect(copy).toHaveBeenCalledOnceWith(reply);
+  });
+  it('hides completed thinking until expanded and keeps copied response separate', async () => {
+    await initialize();
+    const reasoning = 'first thought\nsecond thought';
+    component.turns = [
+      {
+        id: 1,
+        prompt: 'Question',
+        response: 'Answer',
+        reasoning,
+        attachments: [],
+        links: [],
+        status: 'completed',
+        activity: 'Completed',
+      },
+    ];
+    const copy = spyOn(component, 'copyText').and.resolveTo();
+    fixture.detectChanges();
+    const toggle = fixture.nativeElement.querySelector(
+      '.reasoning-toggle',
+    ) as HTMLButtonElement;
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(
+      (fixture.nativeElement.querySelector('.reasoning-content') as HTMLElement)
+        .hidden,
+    ).toBeTrue();
+    toggle.click();
+    fixture.detectChanges();
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(toggle.getAttribute('aria-controls')).toBe('reasoning-content-1');
+    expect(
+      (fixture.nativeElement.querySelector('.reasoning-content') as HTMLElement)
+        .hidden,
+    ).toBeFalse();
+    expect(
+      fixture.nativeElement.querySelector('.reasoning-content').textContent,
+    ).toContain('second thought');
+    fixture.nativeElement.querySelector('[aria-label="Copy response"]').click();
+    expect(copy).toHaveBeenCalledOnceWith('Answer');
   });
   describe('read-only trace query bridge', () => {
     const snapshot: WinscopeTraceSnapshot = {
@@ -1174,21 +1566,50 @@ describe('AiPanelComponent', () => {
       await initialize();
       const current: WinscopeTraceSnapshot = {
         ...snapshot,
-        entries: [{traceType: 'WINDOW_MANAGER', sourceIndex: 0, descriptors: ['wm.trace'],
-          index: 12, timestampNs: '1999999990', time: '1s999ms999990ns', match: 'before',
-          data: {focusedWindow: 'app.window', alpha: 0}, incompleteReasons: [], truncated: false}],
-        windowManager: {status: 'available', incompleteReasons: [], entries: [{sourceIndex: 0,
-          index: 12, requestedTimestampNs: '2000000000', timestampNs: '1999999990',
-          time: '1s999ms999990ns', deltaNs: '-10', match: 'before', dataPath: 'entries.0.data',
-          incompleteReasons: [], truncated: false}]},
+        entries: [
+          {
+            traceType: 'WINDOW_MANAGER',
+            sourceIndex: 0,
+            descriptors: ['wm.trace'],
+            index: 12,
+            timestampNs: '1999999990',
+            time: '1s999ms999990ns',
+            match: 'before',
+            data: {focusedWindow: 'app.window', alpha: 0},
+            incompleteReasons: [],
+            truncated: false,
+          },
+        ],
+        windowManager: {
+          status: 'available',
+          incompleteReasons: [],
+          entries: [
+            {
+              sourceIndex: 0,
+              index: 12,
+              requestedTimestampNs: '2000000000',
+              timestampNs: '1999999990',
+              time: '1s999ms999990ns',
+              deltaNs: '-10',
+              match: 'before',
+              dataPath: 'entries.0.data',
+              incompleteReasons: [],
+              truncated: false,
+            },
+          ],
+        },
       };
       component.traceQuery = jasmine.createSpy('query').and.resolveTo(current);
       component.prompt = 'Analyze WindowManager at the current time';
       await component.submit();
       const evidence = start.calls.mostRecent().args[2];
       expect(evidence.winscope.windowManager.entries[0].deltaNs).toBe('-10');
-      expect(evidence.winscope.windowManager.entries[0].requestedTimestampNs).toBe('2000000000');
-      expect(evidence.winscope.entries[0].data.focusedWindow).toBe('app.window');
+      expect(
+        evidence.winscope.windowManager.entries[0].requestedTimestampNs,
+      ).toBe('2000000000');
+      expect(evidence.winscope.entries[0].data.focusedWindow).toBe(
+        'app.window',
+      );
     });
 
     it('captures the current manual frame on send and answers a specified-time request once', async () => {
@@ -1197,20 +1618,38 @@ describe('AiPanelComponent', () => {
         ...snapshot, ...(request.time ? {mode: 'timestamp', requestedTime: request.time} : {}),
       }));
       component.traceQuery = query;
-      const respond = spyOn(AiGatewayClient.prototype, 'respondToTraceQuery').and.resolveTo();
+      const respond = spyOn(
+        AiGatewayClient.prototype,
+        'respondToTraceQuery',
+      ).and.resolveTo();
       let requestEvent: AiEvent;
       stream.and.callFake(async (_id: string, onEvent: (event: AiEvent) => void) => {
         const options = start.calls.mostRecent().args[4];
-        requestEvent = {id: 2, type: 'trace_query_requested', data: {
-          contextId: options.traceQueryContextId, queryId: 'query-1', query: {time: '1s500ms'},
-        }};
-        onEvent({id: 1, type: 'analysis_started', data: {prompt: 'Analyze at 1s500ms'}});
+          requestEvent = {
+            id: 2,
+            type: 'trace_query_requested',
+            data: {
+              contextId: options.traceQueryContextId,
+              queryId: 'query-1',
+              query: {time: '1s500ms'},
+            },
+          };
+          onEvent({
+            id: 1,
+            type: 'analysis_started',
+            data: {prompt: 'Analyze at 1s500ms'},
+          });
         onEvent(requestEvent);
         onEvent(requestEvent);
         await Promise.resolve();
         await Promise.resolve();
-        onEvent({id: 3, type: 'analysis_completed', data: {provider: {output: 'Actual analysis'}}});
+          onEvent({
+            id: 3,
+            type: 'analysis_completed',
+            data: {provider: {output: 'Actual analysis'}},
       });
+        },
+      );
       component.prompt = 'Analyze at 1s500ms';
       await component.submit();
       expect(query.calls.allArgs()).toEqual([[{}], [{time: '1s500ms'}]]);
@@ -1228,17 +1667,34 @@ describe('AiPanelComponent', () => {
       await initialize();
       const query = jasmine.createSpy('query').and.resolveTo(snapshot);
       component.traceQuery = query;
-      const respond = spyOn(AiGatewayClient.prototype, 'respondToTraceQuery').and.resolveTo();
-      const options = {time: '1s', endTime: '2s', limit: 5, traceTypes: ['SURFACE_FLINGER', 'WINDOW_MANAGER'], layerId: '42', displayId: '0'};
-      stream.and.callFake(async (_id: string, onEvent: (event: AiEvent) => void) => {
-        onEvent({id: 2, type: 'trace_query_requested', data: {
+      const respond = spyOn(
+        AiGatewayClient.prototype,
+        'respondToTraceQuery',
+      ).and.resolveTo();
+      const options = {
+        time: '1s',
+        endTime: '2s',
+        limit: 5,
+        traceTypes: ['SURFACE_FLINGER', 'WINDOW_MANAGER'],
+        layerId: '42',
+        displayId: '0',
+      };
+      stream.and.callFake(
+        async (_id: string, onEvent: (event: AiEvent) => void) => {
+          onEvent({
+            id: 2,
+            type: 'trace_query_requested',
+            data: {
           contextId: start.calls.mostRecent().args[4].traceQueryContextId,
-          queryId: 'diagnostic-query', query: options,
-        }});
+              queryId: 'diagnostic-query',
+              query: options,
+            },
+          });
         await Promise.resolve();
         await Promise.resolve();
         onEvent({id: 3, type: 'analysis_completed', data: {}});
-      });
+        },
+      );
       component.prompt = 'Analyze the interval';
       await component.submit();
       expect(query.calls.allArgs()).toEqual([[{}], [options]]);
@@ -1249,19 +1705,31 @@ describe('AiPanelComponent', () => {
       await initialize();
       const query = jasmine.createSpy('query').and.resolveTo(snapshot);
       component.traceQuery = query;
-      const respond = spyOn(AiGatewayClient.prototype, 'respondToTraceQuery').and.resolveTo();
-      stream.and.callFake(async (_id: string, onEvent: (event: AiEvent) => void) => {
-        onEvent({id: 2, type: 'trace_query_requested', data: {
+      const respond = spyOn(
+        AiGatewayClient.prototype,
+        'respondToTraceQuery',
+      ).and.resolveTo();
+      stream.and.callFake(
+        async (_id: string, onEvent: (event: AiEvent) => void) => {
+          onEvent({
+            id: 2,
+            type: 'trace_query_requested',
+            data: {
           contextId: start.calls.mostRecent().args[4].traceQueryContextId,
-          queryId: 'invalid-filter', query: {layerId: ' '},
-        }});
+              queryId: 'invalid-filter',
+              query: {layerId: ' '},
+            },
+          });
         await Promise.resolve();
         onEvent({id: 3, type: 'analysis_completed', data: {}});
-      });
+        },
+      );
       component.prompt = 'Analyze';
       await component.submit();
       expect(query).toHaveBeenCalledOnceWith({});
-      expect(respond.calls.mostRecent().args[3]).toEqual({error: 'Invalid trace query options.'});
+      expect(respond.calls.mostRecent().args[3]).toEqual({
+        error: 'Invalid trace query options.',
+      });
     });
 
     it('sends no trace or query capability when trace context is disabled', async () => {
@@ -1273,8 +1741,12 @@ describe('AiPanelComponent', () => {
       await component.submit();
       expect(component.traceQuery).not.toHaveBeenCalled();
       expect(start.calls.mostRecent().args[2]).toBeUndefined();
-      expect(start.calls.mostRecent().args[4].traceQueryEnabled).toBeUndefined();
-      expect(start.calls.mostRecent().args[4].traceQueryContextId).toBeUndefined();
+      expect(
+        start.calls.mostRecent().args[4].traceQueryEnabled,
+      ).toBeUndefined();
+      expect(
+        start.calls.mostRecent().args[4].traceQueryContextId,
+      ).toBeUndefined();
     });
 
     it('ignores stale context IDs and sends a bounded query error rather than old data', async () => {
@@ -1284,20 +1756,36 @@ describe('AiPanelComponent', () => {
         return snapshot;
       });
       component.traceQuery = query;
-      const respond = spyOn(AiGatewayClient.prototype, 'respondToTraceQuery').and.resolveTo();
-      stream.and.callFake(async (_id: string, onEvent: (event: AiEvent) => void) => {
-        const contextId = start.calls.mostRecent().args[4].traceQueryContextId;
-        onEvent({id: 2, type: 'trace_query_requested', data: {contextId: 'old-context', queryId: 'old', query: {}}});
-        onEvent({id: 3, type: 'trace_query_requested', data: {contextId, queryId: 'current', query: {time: 'outside'}}});
+      const respond = spyOn(
+        AiGatewayClient.prototype,
+        'respondToTraceQuery',
+      ).and.resolveTo();
+      stream.and.callFake(
+        async (_id: string, onEvent: (event: AiEvent) => void) => {
+          const contextId =
+            start.calls.mostRecent().args[4].traceQueryContextId;
+          onEvent({
+            id: 2,
+            type: 'trace_query_requested',
+            data: {contextId: 'old-context', queryId: 'old', query: {}},
+          });
+          onEvent({
+            id: 3,
+            type: 'trace_query_requested',
+            data: {contextId, queryId: 'current', query: {time: 'outside'}},
+          });
         await Promise.resolve();
         await Promise.resolve();
         onEvent({id: 4, type: 'analysis_completed', data: {}});
-      });
+        },
+      );
       component.prompt = 'Analyze time';
       await component.submit();
       expect(query).toHaveBeenCalledTimes(2);
       expect(respond).toHaveBeenCalledTimes(1);
-      expect(respond.calls.mostRecent().args[3]).toEqual({error: 'Invalid trace query time.'});
+      expect(respond.calls.mostRecent().args[3]).toEqual({
+        error: 'Invalid trace query time.',
+      });
     });
 
     it('drops a pending result after cancellation', async () => {
@@ -1305,20 +1793,28 @@ describe('AiPanelComponent', () => {
       let finishQuery!: (value: WinscopeTraceSnapshot) => void;
       component.traceQuery = jasmine.createSpy('query').and.callFake(async (request: {time?: string}) => {
         if (!request.time) return snapshot;
-        return new Promise<WinscopeTraceSnapshot>((resolve) => { finishQuery = resolve; });
+          return new Promise<WinscopeTraceSnapshot>((resolve) => {
+            finishQuery = resolve;
       });
-      const respond = spyOn(AiGatewayClient.prototype, 'respondToTraceQuery').and.resolveTo();
+        });
+      const respond = spyOn(
+        AiGatewayClient.prototype,
+        'respondToTraceQuery',
+      ).and.resolveTo();
       const cancel = spyOn(AiGatewayClient.prototype, 'cancel').and.resolveTo();
       stream.and.callFake(async (_id: string, onEvent: (event: AiEvent) => void) => {
         onEvent({id: 2, type: 'trace_query_requested', data: {
           contextId: start.calls.mostRecent().args[4].traceQueryContextId,
-          queryId: 'pending', query: {time: '1s'},
-        }});
+              queryId: 'pending',
+              query: {time: '1s'},
+            },
+          });
         await component.cancel();
         finishQuery(snapshot);
         await Promise.resolve();
         onEvent({id: 3, type: 'analysis_cancelled'});
-      });
+        },
+      );
       component.prompt = 'Analyze time';
       await component.submit();
       expect(cancel).toHaveBeenCalledOnceWith('a');
@@ -1341,24 +1837,38 @@ describe('AiPanelComponent', () => {
       let finishQuery!: (value: WinscopeTraceSnapshot) => void;
       component.traceQuery = jasmine.createSpy('query').and.callFake(async (request: {time?: string}) => {
         if (!request.time) return snapshot;
-        return new Promise<WinscopeTraceSnapshot>((resolve) => { finishQuery = resolve; });
+          return new Promise<WinscopeTraceSnapshot>((resolve) => {
+            finishQuery = resolve;
       });
-      const respond = spyOn(AiGatewayClient.prototype, 'respondToTraceQuery').and.resolveTo();
-      stream.and.callFake(async (_id: string, onEvent: (event: AiEvent) => void) => {
-        onEvent({id: 2, type: 'trace_query_requested', data: {
+      });
+      const respond = spyOn(
+        AiGatewayClient.prototype,
+        'respondToTraceQuery',
+      ).and.resolveTo();
+      stream.and.callFake(
+        async (_id: string, onEvent: (event: AiEvent) => void) => {
+          onEvent({
+            id: 2,
+            type: 'trace_query_requested',
+            data: {
           contextId: start.calls.mostRecent().args[4].traceQueryContextId,
-          queryId: 'pending', query: {time: '1s'},
-        }});
+              queryId: 'pending',
+              query: {time: '1s'},
+            },
+          });
         component.toggleTraceContext();
         finishQuery(snapshot);
         await Promise.resolve();
         onEvent({id: 3, type: 'analysis_completed', data: {}});
-      });
+        },
+      );
       component.prompt = 'Analyze time';
       await component.submit();
       expect(component.includeEvidence).toBeFalse();
       expect(respond).toHaveBeenCalledTimes(1);
-      expect(respond.calls.mostRecent().args[3]).toEqual({error: 'Trace query authorization is no longer available.'});
+      expect(respond.calls.mostRecent().args[3]).toEqual({
+        error: 'Trace query authorization is no longer available.',
+      });
     });
 
     it('does not send the initial snapshot if trace consent is revoked during the read', async () => {
@@ -1381,43 +1891,83 @@ describe('AiPanelComponent', () => {
       await initialize();
       const query = jasmine.createSpy('query').and.resolveTo(snapshot);
       component.traceQuery = query;
-      const respond = spyOn(AiGatewayClient.prototype, 'respondToTraceQuery').and.resolveTo();
+      const respond = spyOn(
+        AiGatewayClient.prototype,
+        'respondToTraceQuery',
+      ).and.resolveTo();
       stream.and.callFake(async () => undefined);
       component.prompt = 'Analyze current position';
       await component.submit();
       const contextId = start.calls.mostRecent().args[4].traceQueryContextId;
-      const pendingTraceQuery = {contextId, queryId: 'pending-reconnect', query: {time: '1s'}};
-      get.and.resolveTo({...detail, status: 'running', pendingTraceQuery,
+      const pendingTraceQuery = {
+        contextId,
+        queryId: 'pending-reconnect',
+        query: {time: '1s'},
+      };
+      get.and.resolveTo({
+        ...detail,
+        status: 'running',
+        pendingTraceQuery,
         events: [
-          {id: 1, event: {type: 'analysis_started', data: {prompt: 'Analyze current position'}}},
-          {id: 2, event: {type: 'trace_query_requested', data: pendingTraceQuery}},
+          {
+            id: 1,
+            event: {
+              type: 'analysis_started',
+              data: {prompt: 'Analyze current position'},
+            },
+          },
+          {
+            id: 2,
+            event: {type: 'trace_query_requested', data: pendingTraceQuery},
+          },
         ],
       });
       stream.and.callFake(async (_id: string, onEvent: (event: AiEvent) => void) => {
         await Promise.resolve();
         await Promise.resolve();
-        onEvent({id: 3, type: 'analysis_completed', data: {provider: {output: 'Reconnected answer'}}});
+          onEvent({
+            id: 3,
+            type: 'analysis_completed',
+            data: {provider: {output: 'Reconnected answer'}},
       });
+        },
+      );
       await component.selectSession('a');
       await fixture.whenStable();
       expect(query.calls.allArgs()).toEqual([[{}], [{time: '1s'}]]);
       expect(respond).toHaveBeenCalledTimes(1);
-      expect(respond.calls.mostRecent().args.slice(0, 4)).toEqual(['a', 'pending-reconnect', contextId, {result: snapshot}]);
+      expect(respond.calls.mostRecent().args.slice(0, 4)).toEqual([
+        'a',
+        'pending-reconnect',
+        contextId,
+        {result: snapshot},
+      ]);
     });
 
     it('declines a restored pending query without reconstructing consent from server events', async () => {
       await initialize();
       const query = jasmine.createSpy('query').and.resolveTo(snapshot);
       component.traceQuery = query;
-      const pendingTraceQuery = {contextId: 'old-context', queryId: 'old-query', query: {}};
+      const pendingTraceQuery = {
+        contextId: 'old-context',
+        queryId: 'old-query',
+        query: {},
+      };
       get.and.resolveTo({...detail, status: 'running', pendingTraceQuery});
-      const respond = spyOn(AiGatewayClient.prototype, 'respondToTraceQuery').and.resolveTo();
-      stream.and.callFake(async (_id: string, onEvent: (event: AiEvent) => void) => {
+      const respond = spyOn(
+        AiGatewayClient.prototype,
+        'respondToTraceQuery',
+      ).and.resolveTo();
+      stream.and.callFake(
+        async (_id: string, onEvent: (event: AiEvent) => void) => {
         onEvent({id: 3, type: 'analysis_completed', data: {}});
-      });
+        },
+      );
       await component.selectSession('a');
       expect(query).not.toHaveBeenCalled();
-      expect(respond.calls.mostRecent().args[3]).toEqual({error: 'Trace query authorization is no longer available.'});
+      expect(respond.calls.mostRecent().args[3]).toEqual({
+        error: 'Trace query authorization is no longer available.',
+      });
     });
 
     it('declines later SSE queries after restoring a session without trace authorization', async () => {
@@ -1425,14 +1975,25 @@ describe('AiPanelComponent', () => {
       const query = jasmine.createSpy('query').and.resolveTo(snapshot);
       component.traceQuery = query;
       get.and.resolveTo({...detail, status: 'running'});
-      const respond = spyOn(AiGatewayClient.prototype, 'respondToTraceQuery').and.resolveTo();
-      stream.and.callFake(async (_id: string, onEvent: (event: AiEvent) => void) => {
-        onEvent({id: 3, type: 'trace_query_requested', data: {
-          contextId: 'restored-context', queryId: 'later-query', query: {time: '1s'},
-        }});
+      const respond = spyOn(
+        AiGatewayClient.prototype,
+        'respondToTraceQuery',
+      ).and.resolveTo();
+      stream.and.callFake(
+        async (_id: string, onEvent: (event: AiEvent) => void) => {
+          onEvent({
+            id: 3,
+            type: 'trace_query_requested',
+            data: {
+              contextId: 'restored-context',
+              queryId: 'later-query',
+              query: {time: '1s'},
+            },
+          });
         await Promise.resolve();
         onEvent({id: 4, type: 'analysis_completed', data: {}});
-      });
+        },
+      );
       await component.selectSession('a');
       await fixture.whenStable();
       expect(query).not.toHaveBeenCalled();
@@ -1450,8 +2011,9 @@ describe('AiPanelComponent', () => {
       fixture.detectChanges();
       await fixture.whenStable();
       const overlay = TestBed.inject(OverlayContainer).getContainerElement();
-      const button = Array.from(overlay.querySelectorAll<HTMLButtonElement>('button'))
-        .find((item) => item.textContent?.includes('分析当前帧'))!;
+      const button = Array.from(
+        overlay.querySelectorAll<HTMLButtonElement>('button'),
+      ).find((item) => item.textContent?.includes('分析当前帧'))!;
       expect(button.disabled).toBeFalse();
       button.click();
       await settleWindow();
@@ -1479,7 +2041,10 @@ describe('AiPanelComponent', () => {
       },
       {
         label: {'en': 'Audit evidence completeness', 'zh-CN': '检查证据完整性'},
-        prompt: {'en': diagnosticPrompt('evidence-audit', 'en'), 'zh-CN': diagnosticPrompt('evidence-audit', 'zh-CN')},
+        prompt: {
+          'en': diagnosticPrompt('evidence-audit', 'en'),
+          'zh-CN': diagnosticPrompt('evidence-audit', 'zh-CN'),
+        },
       },
     ];
 
@@ -1497,7 +2062,9 @@ describe('AiPanelComponent', () => {
       } else {
         buttons = fixture.nativeElement.querySelectorAll('.suggestions button');
       }
-      const button = Array.from(buttons).find((item) => item.textContent?.includes(label));
+      const button = Array.from(buttons).find((item) =>
+        item.textContent?.includes(label),
+      );
       expect(button).withContext(`Missing suggestion: ${label}`).toBeDefined();
       button!.click();
       await settleWindow();
@@ -1529,7 +2096,9 @@ describe('AiPanelComponent', () => {
         setLanguage('zh-CN');
         await settleWindow();
         expect(component.prompt).toBe(draft);
-        expect(fixture.nativeElement.querySelector('textarea').value).toBe(draft);
+        expect(fixture.nativeElement.querySelector('textarea').value).toBe(
+          draft,
+        );
         await clickSuggestion(entry, suggestions[1].label['zh-CN']);
         expect(component.prompt).toBe(suggestions[1].prompt['zh-CN']);
         setLanguage('en');
@@ -1542,8 +2111,11 @@ describe('AiPanelComponent', () => {
 
       it(`follows resolved system language changes in the ${entry} without changing the draft`, async () => {
         await initialize();
-        const browserLanguages = spyOnProperty(navigator, 'languages', 'get')
-          .and.returnValue(['zh-TW']);
+        const browserLanguages = spyOnProperty(
+          navigator,
+          'languages',
+          'get',
+        ).and.returnValue(['zh-TW']);
         setLanguage('system');
         fixture.detectChanges();
         await clickSuggestion(entry, suggestions[0].label['zh-CN']);
@@ -1563,8 +2135,16 @@ describe('AiPanelComponent', () => {
     const cases = [
       {category: 'black-screen', example: 'app-launch', title: '应用启动黑屏'},
       {category: 'flicker', example: 'split-screen', title: '分屏时闪烁'},
-      {category: 'current-frame', example: 'wm-alignment', title: '对齐当前 WM 与 SF'},
-      {category: 'evidence-audit', example: 'sparse-video', title: '只有录屏抽样数据'},
+      {
+        category: 'current-frame',
+        example: 'wm-alignment',
+        title: '对齐当前 WM 与 SF',
+      },
+      {
+        category: 'evidence-audit',
+        example: 'sparse-video',
+        title: '只有录屏抽样数据',
+      },
     ] as const;
 
     for (const item of cases) {
@@ -1574,15 +2154,25 @@ describe('AiPanelComponent', () => {
         fixture.detectChanges();
         fixture.nativeElement.querySelector(`[data-diagnostic-prompt="${item.category}"]`).click();
         await settleWindow();
-        const examples = fixture.nativeElement.querySelectorAll('.diagnostic-example');
+        const examples = fixture.nativeElement.querySelectorAll(
+          '.diagnostic-example',
+        );
         expect(examples.length).toBe(2);
-        const button = fixture.nativeElement.querySelector(`[data-diagnostic-example="${item.example}"]`);
+        const button = fixture.nativeElement.querySelector(
+          `[data-diagnostic-example="${item.example}"]`,
+        );
         expect(button.textContent).toContain(item.title);
         button.click();
         await settleWindow();
-        expect(component.prompt).toBe(diagnosticExamplePrompt(item.example, 'zh-CN'));
-        expect(fixture.nativeElement.querySelector('.composer-input').value).toBe(component.prompt);
-        expect(document.activeElement).toBe(fixture.nativeElement.querySelector('.composer-input'));
+        expect(component.prompt).toBe(
+          diagnosticExamplePrompt(item.example, 'zh-CN'),
+        );
+        expect(
+          fixture.nativeElement.querySelector('.composer-input').value,
+        ).toBe(component.prompt);
+        expect(document.activeElement).toBe(
+          fixture.nativeElement.querySelector('.composer-input'),
+        );
         expect(start).not.toHaveBeenCalled();
       });
     }
@@ -1594,11 +2184,17 @@ describe('AiPanelComponent', () => {
       const draft = component.prompt;
       setLanguage('zh-CN');
       fixture.detectChanges();
-      expect(fixture.nativeElement.querySelector('[data-diagnostic-example="app-launch"]').textContent).toContain('应用启动黑屏');
+      expect(
+        fixture.nativeElement.querySelector(
+          '[data-diagnostic-example="app-launch"]',
+        ).textContent,
+      ).toContain('应用启动黑屏');
       expect(component.prompt).toBe(draft);
       fixture.nativeElement.querySelector('[data-diagnostic-example="app-launch"]').click();
       await settleWindow();
-      expect(component.prompt).toBe(diagnosticExamplePrompt('app-launch', 'zh-CN'));
+      expect(component.prompt).toBe(
+        diagnosticExamplePrompt('app-launch', 'zh-CN'),
+      );
       expect(start).not.toHaveBeenCalled();
     });
 
@@ -1607,21 +2203,28 @@ describe('AiPanelComponent', () => {
       await component.selectSession('a');
       component.prompt = 'Preserve this draft';
       fixture.detectChanges();
-      expect(fixture.nativeElement.querySelector('.diagnostic-examples')).toBeNull();
+      expect(
+        fixture.nativeElement.querySelector('.diagnostic-examples'),
+      ).toBeNull();
       fixture.nativeElement.querySelector('.composer-add').click();
       fixture.detectChanges();
       await fixture.whenStable();
       const overlay = TestBed.inject(OverlayContainer).getContainerElement();
-      const button = Array.from(overlay.querySelectorAll<HTMLButtonElement>('button'))
-        .find((item) => item.textContent?.includes('Diagnostic examples'))!;
+      const button = Array.from(
+        overlay.querySelectorAll<HTMLButtonElement>('button'),
+      ).find((item) => item.textContent?.includes('Diagnostic examples'))!;
       button.click();
       await settleWindow();
-      expect(fixture.nativeElement.querySelector('.diagnostic-examples')).not.toBeNull();
+      expect(
+        fixture.nativeElement.querySelector('.diagnostic-examples'),
+      ).not.toBeNull();
       expect(component.prompt).toBe('Preserve this draft');
       expect(component.turns[0].response).toBe('Saved answer');
       fixture.nativeElement.querySelector('[aria-label="Hide examples"]').click();
       fixture.detectChanges();
-      expect(fixture.nativeElement.querySelector('.diagnostic-examples')).toBeNull();
+      expect(
+        fixture.nativeElement.querySelector('.diagnostic-examples'),
+      ).toBeNull();
       expect(component.prompt).toBe('Preserve this draft');
     });
   });
@@ -1668,6 +2271,23 @@ describe('AiPanelComponent', () => {
       }),
     );
     expect(stream.calls.mostRecent().args[3]).toBe(2);
+  });
+  it('keeps a model chosen in the session composer when pending defaults arrive before send', async () => {
+    await initialize();
+    await component.selectSession('a');
+    component.changeConversationModel(JSON.stringify(['test', 'default']));
+    (component as unknown as {settingsPending: boolean}).settingsPending = true;
+    component.prompt = 'Follow-up with selected model';
+
+    await component.submit();
+
+    expect(start.calls.mostRecent().args[4]).toEqual(
+      jasmine.objectContaining({
+        sessionId: 'a',
+        providerId: 'test',
+        modelId: 'default',
+      }),
+    );
   });
   it('excludes trace context when removed and keeps new draft text typed during submission', async () => {
     await initialize();
@@ -1726,8 +2346,25 @@ describe('AiPanelComponent', () => {
   it('shows localized completion duration without changing the response or showing a timer on old turns', async () => {
     await initialize();
     component.turns = [
-      {id: 1, prompt: 'First', response: 'Answer', status: 'completed', activity: 'Completed', attachments: [], links: [], durationMs: 1250},
-      {id: 2, prompt: 'Legacy', response: 'Old answer', status: 'completed', activity: 'Completed', attachments: [], links: []},
+      {
+        id: 1,
+        prompt: 'First',
+        response: 'Answer',
+        status: 'completed',
+        activity: 'Completed',
+        attachments: [],
+        links: [],
+        durationMs: 1250,
+      },
+      {
+        id: 2,
+        prompt: 'Legacy',
+        response: 'Old answer',
+        status: 'completed',
+        activity: 'Completed',
+        attachments: [],
+        links: [],
+      },
     ];
     setLanguage('zh-CN');
     fixture.detectChanges();
@@ -1746,11 +2383,28 @@ describe('AiPanelComponent', () => {
     const global = jasmine.createSpy('document shortcut');
     document.addEventListener('keydown', global);
     try {
-      for (const selector of ['.composer-input', '.session-search input', '.composer-add']) {
-        const target = fixture.nativeElement.querySelector(selector) as HTMLElement;
+      for (const selector of [
+        '.composer-input',
+        '.session-search input',
+        '.composer-add',
+      ]) {
+        const target = fixture.nativeElement.querySelector(
+          selector,
+        ) as HTMLElement;
         expect(target).withContext(selector).not.toBeNull();
-        for (const key of [' ', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']) {
-          const event = new KeyboardEvent('keydown', {key, keyCode: key === ' ' ? 32 : 0, bubbles: true, cancelable: true});
+        for (const key of [
+          ' ',
+          'ArrowLeft',
+          'ArrowRight',
+          'ArrowUp',
+          'ArrowDown',
+        ]) {
+          const event = new KeyboardEvent('keydown', {
+            key,
+            keyCode: key === ' ' ? 32 : 0,
+            bubbles: true,
+            cancelable: true,
+          });
           target.dispatchEvent(event);
           expect(event.defaultPrevented).withContext(`${selector} ${key}`).toBeFalse();
         }
@@ -1764,12 +2418,23 @@ describe('AiPanelComponent', () => {
     await initialize();
     const submit = spyOn(component, 'submit').and.resolveTo();
     const closed = spyOn(component.closed, 'emit');
-    const textarea: HTMLTextAreaElement = fixture.nativeElement.querySelector('.composer-input');
-    const enter = new KeyboardEvent('keydown', {key: 'Enter', bubbles: true, cancelable: true});
+    const textarea: HTMLTextAreaElement =
+      fixture.nativeElement.querySelector('.composer-input');
+    const enter = new KeyboardEvent('keydown', {
+      key: 'Enter',
+      bubbles: true,
+      cancelable: true,
+    });
     textarea.dispatchEvent(enter);
     expect(enter.defaultPrevented).toBeTrue();
     expect(submit).toHaveBeenCalledTimes(1);
-    textarea.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true, cancelable: true}));
+    textarea.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'Escape',
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
     expect(closed).toHaveBeenCalledTimes(1);
   });
   it('reads real text notes and rejects binary/oversized attachments', async () => {
@@ -1865,9 +2530,16 @@ describe('AiPanelComponent', () => {
   });
   it('requests independent settings without embedding settings or changing the draft', async () => {
     await initialize();
-    expect(fixture.nativeElement.querySelector('.ai-settings-button')).toBeNull();
-    expect(Array.from(fixture.nativeElement.querySelectorAll('.ai-panel-header mat-icon'))
-      .some((icon) => (icon as HTMLElement).textContent?.trim() === 'settings')).toBeFalse();
+    expect(
+      fixture.nativeElement.querySelector('.ai-settings-button'),
+    ).toBeNull();
+    expect(
+      Array.from(
+        fixture.nativeElement.querySelectorAll('.ai-panel-header mat-icon'),
+      ).some(
+        (icon) => (icon as HTMLElement).textContent?.trim() === 'settings',
+      ),
+    ).toBeFalse();
     expect(
       fixture.nativeElement
         .querySelector('.ai-composer .model-select')
@@ -1894,17 +2566,30 @@ describe('AiPanelComponent', () => {
     component.prompt = 'Keep the composer draft';
     const trigger = modelTrigger();
     expect(trigger.tagName).toBe('BUTTON');
-    expect(fixture.nativeElement.querySelector('.model-select select')).toBeNull();
+    expect(
+      fixture.nativeElement.querySelector('.model-select select'),
+    ).toBeNull();
     expect(getComputedStyle(trigger).borderWidth).toBe('0px');
     expect(getComputedStyle(trigger).backgroundColor).toBe('rgba(0, 0, 0, 0)');
     const menu = await openModelMenu();
     expect(trigger.getAttribute('aria-expanded')).toBe('true');
     const tooltip = fixture.debugElement.query(By.css('.model-select')).injector.get(MatTooltip);
     expect(tooltip.disabled).toBeTrue();
-    const options = Array.from(menu.querySelectorAll<HTMLButtonElement>('[data-model-value]'));
-    expect(options.map((option) => option.querySelector('.model-option-label')?.textContent?.trim())).toEqual(['Default', 'Test model']);
-    expect(options.map((option) => option.getAttribute('role'))).toEqual(['menuitemradio', 'menuitemradio']);
-    expect(options.map((option) => option.getAttribute('aria-checked'))).toEqual(['true', 'false']);
+    const options = Array.from(
+      menu.querySelectorAll<HTMLButtonElement>('[data-model-value]'),
+    );
+    expect(
+      options.map((option) =>
+        option.querySelector('.model-option-label')?.textContent?.trim(),
+      ),
+    ).toEqual(['Default', 'Test model']);
+    expect(options.map((option) => option.getAttribute('role'))).toEqual([
+      'menuitemradio',
+      'menuitemradio',
+    ]);
+    expect(
+      options.map((option) => option.getAttribute('aria-checked')),
+    ).toEqual(['true', 'false']);
     const group = menu.querySelector<HTMLElement>('.model-group-label')!;
     const labelLeft = group.getBoundingClientRect().left + parseFloat(getComputedStyle(group).paddingLeft);
     for (const option of options) {
@@ -1915,15 +2600,21 @@ describe('AiPanelComponent', () => {
       expect(label.nextElementSibling).toBe(check);
       expect(labelRect.left).toBeCloseTo(labelLeft, 0);
       expect(checkRect.left).toBeGreaterThanOrEqual(labelRect.right);
-      expect(checkRect.right).toBeLessThanOrEqual(option.getBoundingClientRect().right);
-      expect(getComputedStyle(check).visibility).toBe(option.getAttribute('aria-checked') === 'true' ? 'visible' : 'hidden');
+      expect(checkRect.right).toBeLessThanOrEqual(
+        option.getBoundingClientRect().right,
+      );
+      expect(getComputedStyle(check).visibility).toBe(
+        option.getAttribute('aria-checked') === 'true' ? 'visible' : 'hidden',
+      );
     }
     options[1].click();
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
     expect(component.selectedModel).toBe('test-model');
-    expect(trigger.querySelector('.model-label')?.textContent).toBe('Test model');
+    expect(trigger.querySelector('.model-label')?.textContent).toBe(
+      'Test model',
+    );
     expect(trigger.getAttribute('aria-expanded')).toBe('false');
     expect(tooltip.disabled).toBeFalse();
     expect(component.prompt).toBe('Keep the composer draft');
@@ -1934,7 +2625,9 @@ describe('AiPanelComponent', () => {
     component.prompt = 'Unsent draft';
     const closed = spyOn(component.closed, 'emit');
     const menu = await openModelMenu();
-    menu.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', keyCode: 27, bubbles: true}));
+    menu.dispatchEvent(
+      new KeyboardEvent('keydown', {key: 'Escape', keyCode: 27, bubbles: true}),
+    );
     fixture.detectChanges();
     await fixture.whenStable();
     expect(modelTrigger().getAttribute('aria-expanded')).toBe('false');
@@ -1951,7 +2644,10 @@ describe('AiPanelComponent', () => {
 
   it('focuses model search on opening and filters names and identifiers without changing conversation state', async () => {
     await initialize();
-    component.catalog = {...catalog, providers: [...catalog.providers, imported]};
+    component.catalog = {
+      ...catalog,
+      providers: [...catalog.providers, imported],
+    };
     component.prompt = 'Unsent model search draft';
     component.selectedLevel = 'high';
     const selection = component.conversationModel;
@@ -1960,8 +2656,10 @@ describe('AiPanelComponent', () => {
     const menu = await openModelMenu();
     await settleWindow();
     const input = menu.querySelector<HTMLInputElement>('.model-search-input')!;
-    const labels = () => Array.from(menu.querySelectorAll('.model-option-label'))
-      .map((label) => label.textContent?.trim());
+    const labels = () =>
+      Array.from(menu.querySelectorAll('.model-option-label')).map((label) =>
+        label.textContent?.trim(),
+      );
     expect(document.activeElement).toBe(input);
     expect(input.type).toBe('search');
     expect(input.getAttribute('aria-label')).toBe('Search models');
@@ -1977,7 +2675,9 @@ describe('AiPanelComponent', () => {
     input.dispatchEvent(new Event('input', {bubbles: true}));
     fixture.detectChanges();
     expect(labels()).toEqual([]);
-    expect(menu.querySelector('[role="status"]')?.textContent?.trim()).toBe('No matching models.');
+    expect(menu.querySelector('[role="status"]')?.textContent?.trim()).toBe(
+      'No matching models.',
+    );
     expect(component.conversationModel).toBe(selection);
     expect(component.selectedLevel).toBe('high');
     expect(component.prompt).toBe('Unsent model search draft');
@@ -1995,7 +2695,9 @@ describe('AiPanelComponent', () => {
       customModel: 'Vendor/Model@[1m]',
     });
     component.modelSearchQuery = '  vendor/model@[1M]  ';
-    const models = component.filteredConversationModels.flatMap((group) => group.models);
+    const models = component.filteredConversationModels.flatMap(
+      (group) => group.models,
+    );
     expect(models.map((model) => model.modelId)).toEqual(['__custom__']);
     expect(models[0].name).toBe('Custom model: Vendor/Model@[1m]');
     expect(component.customModel).toBe('Vendor/Model@[1m]');
@@ -2011,20 +2713,25 @@ describe('AiPanelComponent', () => {
           id: `model-${index}`,
           name: `Model ${index} ${'long-name '.repeat(20)}`.trim(),
         })),
-      }],
+        },
+      ],
     };
     const menu = await openModelMenu();
     await settleWindow();
     const panel = menu.closest<HTMLElement>('.mat-mdc-menu-panel')!;
     const header = menu.querySelector<HTMLElement>('.model-search')!;
     const results = menu.querySelector<HTMLElement>('.model-search-results')!;
-    const input = header.querySelector<HTMLInputElement>('.model-search-input')!;
+    const input = header.querySelector<HTMLInputElement>(
+      '.model-search-input',
+    )!;
     const label = results.querySelector<HTMLElement>('.model-option-label')!;
     const option = label.closest<HTMLElement>('.model-option')!;
     expect(getComputedStyle(panel).borderRadius).toBe('12px');
     expect(getComputedStyle(input).outlineStyle).toBe('none');
     expect(getComputedStyle(header).boxShadow).not.toBe('none');
-    expect(panel.getBoundingClientRect().width).toBeLessThanOrEqual(window.innerWidth - 31);
+    expect(panel.getBoundingClientRect().width).toBeLessThanOrEqual(
+      window.innerWidth - 31,
+    );
     expect(panel.scrollWidth).toBeLessThanOrEqual(panel.clientWidth + 1);
     expect(getComputedStyle(label).whiteSpace).toBe('nowrap');
     expect(getComputedStyle(label).textOverflow).toBe('ellipsis');
@@ -2060,12 +2767,16 @@ describe('AiPanelComponent', () => {
     expect(menu.querySelectorAll('.model-option').length).toBe(2);
     expect(modelTrigger().getAttribute('aria-expanded')).toBe('true');
     component.modelSearchQuery = 'test';
-    input.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', keyCode: 27, bubbles: true}));
+    input.dispatchEvent(
+      new KeyboardEvent('keydown', {key: 'Escape', keyCode: 27, bubbles: true}),
+    );
     fixture.detectChanges();
     await fixture.whenStable();
     const reopened = await openModelMenu();
     await settleWindow();
-    expect(reopened.querySelector<HTMLInputElement>('.model-search-input')!.value).toBe('');
+    expect(
+      reopened.querySelector<HTMLInputElement>('.model-search-input')!.value,
+    ).toBe('');
     expect(reopened.querySelectorAll('.model-option').length).toBe(2);
   });
 
@@ -2083,11 +2794,20 @@ describe('AiPanelComponent', () => {
       {key: 'a', metaKey: true}, {key: 'Escape', keyCode: 27, isComposing: true},
       {key: 'Enter', keyCode: 229},
     ]) {
-      const event = new KeyboardEvent('keydown', {...options, bubbles: true, cancelable: true});
+      const event = new KeyboardEvent('keydown', {
+        ...options,
+        bubbles: true,
+        cancelable: true,
+      });
       input.dispatchEvent(event);
       expect(event.defaultPrevented).toBeFalse();
     }
-    const enter = new KeyboardEvent('keydown', {key: 'Enter', keyCode: 13, bubbles: true, cancelable: true});
+    const enter = new KeyboardEvent('keydown', {
+      key: 'Enter',
+      keyCode: 13,
+      bubbles: true,
+      cancelable: true,
+    });
     input.dispatchEvent(enter);
     expect(enter.defaultPrevented).toBeTrue();
     expect(propagated).not.toHaveBeenCalled();
@@ -2105,22 +2825,48 @@ describe('AiPanelComponent', () => {
     await settleWindow();
     const input = menu.querySelector<HTMLInputElement>('.model-search-input')!;
     const options = menu.querySelectorAll<HTMLButtonElement>('.model-option');
-    input.dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowDown', keyCode: 40, bubbles: true}));
+    input.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'ArrowDown',
+        keyCode: 40,
+        bubbles: true,
+      }),
+    );
     expect(document.activeElement).toBe(options[0]);
     input.focus();
-    input.dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowUp', keyCode: 38, bubbles: true}));
+    input.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'ArrowUp',
+        keyCode: 38,
+        bubbles: true,
+      }),
+    );
     expect(document.activeElement).toBe(options[1]);
     input.focus();
     component.loading = true;
     fixture.detectChanges();
-    input.dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowDown', keyCode: 40, bubbles: true}));
+    input.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'ArrowDown',
+        keyCode: 40,
+        bubbles: true,
+      }),
+    );
     expect(document.activeElement).toBe(input);
     component.loading = false;
     component.modelSearchQuery = 'No matching models';
     fixture.detectChanges();
-    input.dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowUp', keyCode: 38, bubbles: true}));
+    input.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'ArrowUp',
+        keyCode: 38,
+        bubbles: true,
+      }),
+    );
     expect(document.activeElement).toBe(input);
-    input.dispatchEvent(new KeyboardEvent('keydown', {key: 'Tab', keyCode: 9, bubbles: true}));
+    input.dispatchEvent(
+      new KeyboardEvent('keydown', {key: 'Tab', keyCode: 9, bubbles: true}),
+    );
     fixture.detectChanges();
     await fixture.whenStable();
     expect(modelTrigger().getAttribute('aria-expanded')).toBe('false');
@@ -2152,12 +2898,19 @@ describe('AiPanelComponent', () => {
     await fixture.whenStable();
     const menu = await openModelMenu();
     expect(menu.querySelectorAll('.model-group').length).toBe(1);
-    expect(menu.querySelector('.model-group')?.getAttribute('aria-label')).toBe('Codex');
+    expect(menu.querySelector('.model-group')?.getAttribute('aria-label')).toBe(
+      'Codex',
+    );
     component.changeConversationModel(JSON.stringify(['test', 'default']));
     expect(component.selectedProvider).toBe('codex');
     expect(component.selectedModel).toBe('preferred[1m]');
     Array.from(menu.querySelectorAll<HTMLButtonElement>('[data-model-value]'))
-      .find((option) => option.getAttribute('data-model-value') === JSON.stringify(['codex', 'default']))!.click();
+      .find(
+        (option) =>
+          option.getAttribute('data-model-value') ===
+          JSON.stringify(['codex', 'default']),
+      )!
+      .click();
     expect(component.selectedProvider).toBe('codex');
     expect(component.selectedModel).toBe('default');
     expect(component.selectedLevel).toBe('medium');
@@ -2229,7 +2982,9 @@ describe('AiPanelComponent', () => {
     const select = modelTrigger();
     expect(select.value).toBe(JSON.stringify(['', 'default']));
     expect(select.textContent).toContain('No model · deterministic skills');
-    expect(component.conversationModels.map((group) => group.providerId)).toEqual(['']);
+    expect(
+      component.conversationModels.map((group) => group.providerId),
+    ).toEqual(['']);
     component.changeConversationModel(JSON.stringify(['codex', 'default']));
     component.applySettings(configuredDefaults.selection);
     expect(component.provider).toBeUndefined();
@@ -2247,12 +3002,26 @@ describe('AiPanelComponent', () => {
 
   it('exposes saved custom models only for the active provider and sends their exact identifier', async () => {
     await initialize();
-    fixture.componentRef.setInput('settingsCatalog', {...catalog, providers: [...catalog.providers, {...imported, reasoningLevels: ['high']}]});
+    fixture.componentRef.setInput('settingsCatalog', {
+      ...catalog,
+      providers: [
+        ...catalog.providers,
+        {...imported, reasoningLevels: ['high']},
+      ],
+    });
     fixture.componentRef.setInput('defaults', {
       selection: {...configuredDefaults.selection, modelId: 'default'},
       providerSelections: {
-        codex: {modelId: '__custom__', customModel: 'saved/codex[1m]', reasoningLevel: 'high'},
-        test: {modelId: '__custom__', customModel: 'inactive/test[1m]', reasoningLevel: 'low'},
+        codex: {
+          modelId: '__custom__',
+          customModel: 'saved/codex[1m]',
+          reasoningLevel: 'high',
+        },
+        test: {
+          modelId: '__custom__',
+          customModel: 'inactive/test[1m]',
+          reasoningLevel: 'low',
+        },
       },
     });
     fixture.detectChanges();
@@ -2267,7 +3036,12 @@ describe('AiPanelComponent', () => {
     expect(component.selectedLevel).toBe('high');
     component.prompt = 'Use saved provider custom model';
     await component.submit();
-    expect(start.calls.mostRecent().args[4]).toEqual(jasmine.objectContaining({providerId: 'codex', modelId: 'saved/codex[1m]'}));
+    expect(start.calls.mostRecent().args[4]).toEqual(
+      jasmine.objectContaining({
+        providerId: 'codex',
+        modelId: 'saved/codex[1m]',
+      }),
+    );
   });
 
   it('uses an explicit active provider for a providerless agent instead of offering deterministic routing', async () => {
@@ -2278,14 +3052,20 @@ describe('AiPanelComponent', () => {
     });
     fixture.componentRef.setInput('defaults', configuredDefaults);
     await initialize();
-    expect(component.conversationModels.map((group) => group.providerId)).toEqual(['codex']);
+    expect(
+      component.conversationModels.map((group) => group.providerId),
+    ).toEqual(['codex']);
     component.changeConversationModel(JSON.stringify(['', 'default']));
     expect(component.selectedProvider).toBe('codex');
     component.prompt = 'Use active model';
     await component.submit();
-    expect(start.calls.mostRecent().args[4]).toEqual(jasmine.objectContaining({
-      providerId: 'codex', modelId: 'preferred[1m]', reasoningLevel: 'high',
-    }));
+    expect(start.calls.mostRecent().args[4]).toEqual(
+      jasmine.objectContaining({
+        providerId: 'codex',
+        modelId: 'preferred[1m]',
+        reasoningLevel: 'high',
+      }),
+    );
   });
 
   it('fails closed when an explicit active provider is absent instead of sending to an inactive provider', async () => {
@@ -2293,7 +3073,10 @@ describe('AiPanelComponent', () => {
     await initialize();
     expect(component.conversationModels).toEqual([]);
     component.changeConversationModel(JSON.stringify(['test', 'test-model']));
-    component.applySettings({...configuredDefaults.selection, providerId: 'test'});
+    component.applySettings({
+      ...configuredDefaults.selection,
+      providerId: 'test',
+    });
     expect(component.selectedProvider).toBe('codex');
     component.prompt = 'Do not fall back';
     await component.submit();
@@ -2309,13 +3092,26 @@ describe('AiPanelComponent', () => {
     component.prompt = 'Keep current draft';
     fixture.componentRef.setInput('settingsCatalog', {
       ...catalog,
-      providers: [{...catalog.providers[0], models: [{id: 'test-model', name: 'Test model', levels: ['high']}]}],
+      providers: [
+        {
+          ...catalog.providers[0],
+          models: [{id: 'test-model', name: 'Test model', levels: ['high']}],
+        },
+      ],
     });
     fixture.detectChanges();
     expect(component.selectedModel).toBe('test-model');
     expect(component.selectedLevel).toBe('high');
     expect(component.prompt).toBe('Keep current draft');
-    fixture.componentRef.setInput('settingsCatalog', {...catalog, providers: [{...catalog.providers[0], models: [{id: 'new-model', name: 'New model'}]}]});
+    fixture.componentRef.setInput('settingsCatalog', {
+      ...catalog,
+      providers: [
+        {
+          ...catalog.providers[0],
+          models: [{id: 'new-model', name: 'New model'}],
+        },
+      ],
+    });
     fixture.detectChanges();
     expect(component.selectedModel).toBe('__custom__');
     expect(component.customModel).toBe('test-model');
@@ -2334,7 +3130,9 @@ describe('AiPanelComponent', () => {
     const menu = await openModelMenu();
     expect(component.selectedModel).toBe('Privacy');
     expect(select.value).toBe(JSON.stringify(['test', 'Privacy']));
-    expect(menu.querySelector('.model-group')?.getAttribute('aria-label')).toBe('Settings');
+    expect(menu.querySelector('.model-group')?.getAttribute('aria-label')).toBe(
+      'Settings',
+    );
     expect(select.textContent).toContain('Privacy');
   });
 
@@ -2355,9 +3153,16 @@ describe('AiPanelComponent', () => {
   });
 
   it('keeps a restored running session on its last provider until terminal before applying active settings and capabilities', async () => {
-    loadCatalog.and.resolveTo({...catalog, providers: [...catalog.providers, imported]});
+    loadCatalog.and.resolveTo({
+      ...catalog,
+      providers: [...catalog.providers, imported],
+    });
     fixture.componentRef.setInput('defaults', configuredDefaults);
-    get.and.resolveTo({...detail, status: 'running', events: [detail.events[0]]});
+    get.and.resolveTo({
+      ...detail,
+      status: 'running',
+      events: [detail.events[0]],
+    });
     let finish!: () => void;
     let receive!: (event: AiEvent) => void;
     stream.and.callFake((_id: string, onEvent: (event: AiEvent) => void) => {
@@ -2372,8 +3177,14 @@ describe('AiPanelComponent', () => {
     fixture.componentRef.setInput('settingsCatalog', {
       ...catalog,
       providers: [
-        {...catalog.providers[0], models: [{id: 'other', name: 'Other', levels: ['low']}]},
-        {...imported, models: [{id: 'preferred[1m]', name: 'Preferred', levels: ['low']}]},
+        {
+          ...catalog.providers[0],
+          models: [{id: 'other', name: 'Other', levels: ['low']}],
+        },
+        {
+          ...imported,
+          models: [{id: 'preferred[1m]', name: 'Preferred', levels: ['low']}],
+        },
       ],
     });
     fixture.detectChanges();
@@ -2385,8 +3196,12 @@ describe('AiPanelComponent', () => {
     expect(component.selectedProvider).toBe('test');
     expect(component.selectedModel).toBe('test-model');
     expect(component.selectedLevel).toBe('high');
-    expect(component.conversationModels.map((group) => group.providerId)).toEqual(['test']);
-    expect(component.conversationModel).toBe(JSON.stringify(['test', 'test-model']));
+    expect(
+      component.conversationModels.map((group) => group.providerId),
+    ).toEqual(['test']);
+    expect(component.conversationModel).toBe(
+      JSON.stringify(['test', 'test-model']),
+    );
     expect(signal.aborted).toBeFalse();
     await component.submit();
     expect(start).not.toHaveBeenCalled();
@@ -2405,33 +3220,54 @@ describe('AiPanelComponent', () => {
     stream.and.callFake(async (_id: string, onEvent: (event: AiEvent) => void) => {
       onEvent({...events[0], id: 3});
       onEvent({...events[1], id: 4});
-    });
+      },
+    );
     await component.submit();
-    expect(start.calls.mostRecent().args[4]).toEqual(jasmine.objectContaining({
-      sessionId: 'a', providerId: 'codex', modelId: 'preferred[1m]', reasoningLevel: 'low',
-    }));
+    expect(start.calls.mostRecent().args[4]).toEqual(
+      jasmine.objectContaining({
+        sessionId: 'a',
+        providerId: 'codex',
+        modelId: 'preferred[1m]',
+        reasoningLevel: 'low',
+      }),
+    );
   });
 
   it('defers settings received during submission without changing the in-flight request or displayed selection', async () => {
     await initialize();
     let accept!: (value: AiSessionSummary) => void;
-    start.and.returnValue(new Promise<AiSessionSummary>((resolve) => { accept = resolve; }));
+    start.and.returnValue(
+      new Promise<AiSessionSummary>((resolve) => {
+        accept = resolve;
+      }),
+    );
     component.prompt = 'Use current provider';
     const sending = component.submit();
     const lastRun = component.modelSelection;
-    fixture.componentRef.setInput('settingsCatalog', {...catalog, providers: [...catalog.providers, imported]});
+    fixture.componentRef.setInput('settingsCatalog', {
+      ...catalog,
+      providers: [...catalog.providers, imported],
+    });
     fixture.componentRef.setInput('defaults', configuredDefaults);
     fixture.detectChanges();
     expect(component.modelSelection).toEqual(lastRun);
-    expect(component.conversationModels.map((group) => group.providerId)).toEqual(['test']);
-    expect(start.calls.mostRecent().args[4]).toEqual(jasmine.objectContaining({
-      providerId: 'test', modelId: 'default', reasoningLevel: 'medium',
-    }));
+    expect(
+      component.conversationModels.map((group) => group.providerId),
+    ).toEqual(['test']);
+    expect(start.calls.mostRecent().args[4]).toEqual(
+      jasmine.objectContaining({
+        providerId: 'test',
+        modelId: 'default',
+        reasoningLevel: 'medium',
+      }),
+    );
     accept(session);
     await sending;
     expect(component.running).toBeFalse();
     expect(component.modelSelection).toEqual(configuredDefaults.selection);
-    expect(component.conversationModel).toBe(JSON.stringify(['codex', 'preferred[1m]']));
+    expect(component.conversationModel).toBe(
+      JSON.stringify(['codex', 'preferred[1m]']),
+    );
   });
 
   it('keeps an interrupted running session locked without a terminal event even with an older completed turn', async () => {
@@ -2440,28 +3276,42 @@ describe('AiPanelComponent', () => {
     stream.and.resolveTo();
     await component.selectSession('a');
     await fixture.whenStable();
-    fixture.componentRef.setInput('settingsCatalog', {...catalog, providers: [...catalog.providers, imported]});
+    fixture.componentRef.setInput('settingsCatalog', {
+      ...catalog,
+      providers: [...catalog.providers, imported],
+    });
     fixture.componentRef.setInput('defaults', configuredDefaults);
     fixture.detectChanges();
     expect(component.running).toBeTrue();
     expect(component.selectedProvider).toBe('test');
     expect(component.selectedModel).toBe('test-model');
     expect(component.selectedLevel).toBe('high');
-    expect(component.conversationModels.map((group) => group.providerId)).toEqual(['test']);
+    expect(
+      component.conversationModels.map((group) => group.providerId),
+    ).toEqual(['test']);
     expect(component.error).toContain('Connection interrupted');
     component.prompt = 'Must wait for terminal';
     await component.submit();
     expect(start).not.toHaveBeenCalled();
   });
 
-  for (const terminalType of ['analysis_completed', 'analysis_cancelled', 'error']) {
+  for (const terminalType of [
+    'analysis_completed',
+    'analysis_cancelled',
+    'error',
+  ]) {
     it(`does not replace ${terminalType} with a network error after the terminal event`, async () => {
       await initialize();
       stream.and.callFake(async (_id: string, onEvent: (event: AiEvent) => void) => {
         onEvent(events[0]);
-        onEvent({type: terminalType, data: {provider: {output: 'Preserved answer'}}, message: 'Provider failure'});
-        throw new TypeError('network error');
+          onEvent({
+            type: terminalType,
+            data: {provider: {output: 'Preserved answer'}},
+            message: 'Provider failure',
       });
+        throw new TypeError('network error');
+        },
+      );
       component.prompt = 'Question';
       await component.submit();
       expect(component.error).toBe('');
@@ -2474,32 +3324,50 @@ describe('AiPanelComponent', () => {
 
   it('keeps the stream error when a background history refresh also fails', async () => {
     await initialize();
-    (AiGatewayClient.prototype.listSessions as jasmine.Spy).and.rejectWith(new TypeError('History network error'));
-    stream.and.rejectWith(new Error('The AI connection was interrupted. Reopen this conversation to reconnect.'));
+    (AiGatewayClient.prototype.listSessions as jasmine.Spy).and.rejectWith(
+      new TypeError('History network error'),
+    );
+    stream.and.rejectWith(
+      new Error(
+        'The AI connection was interrupted. Reopen this conversation to reconnect.',
+      ),
+    );
     component.prompt = 'Question';
     await component.submit();
     await fixture.whenStable();
-    expect(component.error).toBe('The AI connection was interrupted. Reopen this conversation to reconnect.');
+    expect(component.error).toBe(
+      'The AI connection was interrupted. Reopen this conversation to reconnect.',
+    );
     expect(component.running).toBeTrue();
   });
 
   it('restores unsent text and notes after a failed POST without sending a duplicate request', async () => {
     await initialize();
-    start.and.rejectWith(new Error('Could not reach the AI gateway. Check the connection and try again.'));
+    start.and.rejectWith(
+      new Error(
+        'Could not reach the AI gateway. Check the connection and try again.',
+      ),
+    );
     component.prompt = 'Keep this question';
-    component.attachments = [{name: 'notes.txt', mimeType: 'text/plain', content: 'Keep these notes'}];
+    component.attachments = [
+      {name: 'notes.txt', mimeType: 'text/plain', content: 'Keep these notes'},
+    ];
     await component.submit();
     expect(start).toHaveBeenCalledTimes(1);
     expect(component.prompt).toBe('Keep this question');
     expect(component.attachments[0].content).toBe('Keep these notes');
     expect(component.submitting).toBeFalse();
     expect(component.running).toBeFalse();
-    expect(component.error).toBe('Could not reach the AI gateway. Check the connection and try again.');
+    expect(component.error).toBe(
+      'Could not reach the AI gateway. Check the connection and try again.',
+    );
   });
 
   it('keeps a completed answer usable when background history refresh fails', async () => {
     await initialize();
-    (AiGatewayClient.prototype.listSessions as jasmine.Spy).and.rejectWith(new TypeError('History network error'));
+    (AiGatewayClient.prototype.listSessions as jasmine.Spy).and.rejectWith(
+      new TypeError('History network error'),
+    );
     component.prompt = 'Question';
     await component.submit();
     await fixture.whenStable();
@@ -2511,17 +3379,32 @@ describe('AiPanelComponent', () => {
   it('does not apply stale history refresh results after selecting a different conversation', async () => {
     await initialize();
     let finish!: (value: AiSessionSummary[]) => void;
-    (AiGatewayClient.prototype.listSessions as jasmine.Spy).and.returnValue(new Promise<AiSessionSummary[]>((resolve) => { finish = resolve; }));
+    (AiGatewayClient.prototype.listSessions as jasmine.Spy).and.returnValue(
+      new Promise<AiSessionSummary[]>((resolve) => {
+        finish = resolve;
+      }),
+    );
     const refreshing = component.refreshSessions(true);
     component.newSession();
     finish([{...session, sessionId: 'stale'}]);
     await refreshing;
-    expect(component.sessions.some((item) => item.sessionId === 'stale')).toBeFalse();
+    expect(
+      component.sessions.some((item) => item.sessionId === 'stale'),
+    ).toBeFalse();
   });
 
   it('preserves running historical routing after terminal when defaults have no explicit provider', async () => {
-    loadCatalog.and.resolveTo({...catalog, providers: [...catalog.providers, imported]});
-    get.and.resolveTo({...detail, providerId: 'codex', modelId: 'preferred[1m]', status: 'running', events: [detail.events[0]]});
+    loadCatalog.and.resolveTo({
+      ...catalog,
+      providers: [...catalog.providers, imported],
+    });
+    get.and.resolveTo({
+      ...detail,
+      providerId: 'codex',
+      modelId: 'preferred[1m]',
+      status: 'running',
+      events: [detail.events[0]],
+    });
     let finish!: () => void;
     let receive!: (event: AiEvent) => void;
     stream.and.callFake((_id: string, onEvent: (event: AiEvent) => void) => {
@@ -2529,7 +3412,12 @@ describe('AiPanelComponent', () => {
       return new Promise<void>((resolve) => { finish = resolve; });
     });
     fixture.componentRef.setInput('defaults', {
-      selection: {...configuredDefaults.selection, providerId: '', modelId: 'default', reasoningLevel: 'low'},
+      selection: {
+        ...configuredDefaults.selection,
+        providerId: '',
+        modelId: 'default',
+        reasoningLevel: 'low',
+      },
       providerSelections: {},
     });
     await initialize();

@@ -209,6 +209,24 @@
                       }</span
                     ></div
                   >
+                  @if (turn.reasoning) {
+                    <div class="reasoning-block" [class.expanded]="reasoningExpanded(turn)">
+                      <button
+                        type="button"
+                        class="reasoning-toggle"
+                        [attr.aria-expanded]="reasoningExpanded(turn)"
+                        [attr.aria-controls]="'reasoning-content-' + turn.id"
+                        [attr.aria-label]="(reasoningExpanded(turn) ? 'Hide thinking process' : 'Show thinking process') | tr"
+                        (click)="toggleReasoning(turn)"
+                      >
+                        <mat-icon aria-hidden="true">psychology</mat-icon>
+                        <span>{{ 'Thinking process' | tr }}</span>
+                        <mat-icon class="reasoning-chevron" aria-hidden="true">expand_more</mat-icon>
+                      </button>
+                      <div class="reasoning-content" role="region" [id]="'reasoning-content-' + turn.id"
+                        [hidden]="!reasoningExpanded(turn)">{{ turn.reasoning }}</div>
+                    </div>
+                  }
                   @if (turn.response) {
                     <ai-markdown class="assistant-content" [text]="responseText(turn)" (layoutChanged)="onResponseLayoutChanged()"></ai-markdown>
                   }
